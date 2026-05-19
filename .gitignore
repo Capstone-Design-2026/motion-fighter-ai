@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Data
+data/raw/
+data/merged/
+
+# Models
+models/
+*.h5
+*.keras
+*.npy
+*.pkl
+
+# Videos
+*.mp4
+*.mov
+
+# VS Code
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
