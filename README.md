@@ -295,4 +295,4 @@ Use .gitignore.
 
 # Contributors
 
-Capstone Design 2026 Team
+Capstone Design 2026 RedBool
