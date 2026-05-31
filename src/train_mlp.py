@@ -12,6 +12,7 @@ from tensorflow.keras.models import Sequential
 
 from config import (
     LABEL_CLASSES_PATH,
+    MERGED_CSV_PATH,
     MODEL_DIR,
     RAW_CSV_PATH,
     TRAINED_MODEL_PATH,
@@ -21,15 +22,28 @@ from config import (
 MIN_SAMPLES_PER_LABEL = 2
 
 
+def get_dataset_path() -> Path:
+    """Choose the merged dataset first, then fall back to the raw dataset."""
+    if MERGED_CSV_PATH.exists():
+        print(f"Using merged dataset: {MERGED_CSV_PATH}")
+        return MERGED_CSV_PATH
+
+    if RAW_CSV_PATH.exists():
+        print(f"Using raw dataset: {RAW_CSV_PATH}")
+        return RAW_CSV_PATH
+
+    raise FileNotFoundError(
+        "No training dataset found.\n"
+        f"Checked merged dataset: {MERGED_CSV_PATH}\n"
+        f"Checked raw dataset: {RAW_CSV_PATH}\n"
+        "Collect data or merge raw CSV files first:\n"
+        "  python src/collect_data.py\n"
+        "  python src/merge_csv.py"
+    )
+
+
 def load_dataset(csv_path: Path) -> pd.DataFrame:
     """Load the raw motion CSV and validate the minimum training requirements."""
-    if not csv_path.exists():
-        raise FileNotFoundError(
-            f"Dataset file not found: {csv_path}\n"
-            "Collect data first:\n"
-            "  python src/collect_data.py"
-        )
-
     df = pd.read_csv(csv_path)
 
     if df.empty:
@@ -145,7 +159,8 @@ def save_artifacts(model: Sequential, label_encoder: LabelEncoder):
 def main():
     """Run the full MLP training pipeline."""
     try:
-        df = load_dataset(RAW_CSV_PATH)
+        dataset_path = get_dataset_path()
+        df = load_dataset(dataset_path)
         X, y, label_encoder = split_features_and_labels(df)
 
         X_train, X_test, y_train, y_test = train_test_split(
@@ -157,7 +172,7 @@ def main():
         )
 
         print("=== Motion Fighter MLP Trainer ===")
-        print(f"Dataset: {RAW_CSV_PATH}")
+        print(f"Dataset: {dataset_path}")
         print(f"Samples: {len(df)}")
         print(f"Features: {X.shape[1]}")
         print(f"Classes: {list(label_encoder.classes_)}")
