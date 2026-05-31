@@ -2,6 +2,7 @@
 
 from collections import Counter, deque
 import platform
+import time
 
 import numpy as np
 
@@ -29,9 +30,12 @@ from config import (
     STABLE_FRAME_COUNT,
     TRAINED_MODEL_PATH,
 )
+from send_unity import send_action
 
 
 WRIST_VISIBILITY_THRESHOLD = 0.5
+PASSIVE_ACTIONS = {"IDLE", "NONE"}
+PASSIVE_SEND_INTERVAL_SECONDS = 0.3
 
 CONNECTIONS = [
     (11, 12),            # shoulders
@@ -173,6 +177,53 @@ def get_stable_action(action_buffer) -> str:
     return Counter(action_buffer).most_common(1)[0][0]
 
 
+def should_send_to_unity(
+    final_action: str,
+    last_sent_action: str | None,
+    last_passive_sent_time: float,
+    now: float,
+) -> bool:
+    """Decide whether the current final action should be sent to Unity."""
+    if final_action == last_sent_action:
+        return False
+
+    if final_action in PASSIVE_ACTIONS:
+        if last_sent_action is None:
+            return True
+        return now - last_passive_sent_time >= PASSIVE_SEND_INTERVAL_SECONDS
+
+    return True
+
+
+def send_to_unity_if_needed(
+    final_action: str,
+    confidence: float,
+    last_sent_action: str | None,
+    last_passive_sent_time: float,
+):
+    """Send changed actions to Unity and return updated send state."""
+    now = time.time()
+
+    if not should_send_to_unity(
+        final_action,
+        last_sent_action,
+        last_passive_sent_time,
+        now,
+    ):
+        return last_sent_action, last_passive_sent_time
+
+    try:
+        send_action(final_action, confidence)
+    except OSError as exc:
+        print(f"[UDP ERROR] Failed to send action to Unity: {final_action} ({exc})")
+        return last_sent_action, last_passive_sent_time
+
+    if final_action in PASSIVE_ACTIONS:
+        last_passive_sent_time = now
+
+    return final_action, last_passive_sent_time
+
+
 def create_pose_landmarker():
     """Create the MediaPipe PoseLandmarker used for per-frame inference."""
     base_options = python.BaseOptions(model_asset_path=str(POSE_MODEL_PATH))
@@ -190,6 +241,8 @@ def main():  # pylint: disable=too-many-locals
     model, label_classes = load_artifacts()
     cap = open_camera()
     action_buffer = deque(maxlen=STABLE_FRAME_COUNT)
+    last_sent_action = None
+    last_passive_sent_time = 0.0
 
     print("=== Motion Fighter Real-time Inference ===")
     print("Q: quit")
@@ -229,6 +282,13 @@ def main():  # pylint: disable=too-many-locals
                     action_buffer.append("NONE")
                     final_action = get_stable_action(action_buffer)
 
+                last_sent_action, last_passive_sent_time = send_to_unity_if_needed(
+                    final_action,
+                    confidence,
+                    last_sent_action,
+                    last_passive_sent_time,
+                )
+
                 # Keep these values explicit for future Unity UDP integration.
                 unity_action = final_action
                 unity_confidence = confidence
@@ -255,6 +315,14 @@ def main():  # pylint: disable=too-many-locals
                     (30, 125),
                     scale=0.8,
                     color=(255, 255, 255),
+                    thickness=2,
+                )
+                draw_text(
+                    display_frame,
+                    f"SENT: {last_sent_action or 'NONE'}",
+                    (30, 165),
+                    scale=0.8,
+                    color=(255, 200, 0),
                     thickness=2,
                 )
                 draw_text(
