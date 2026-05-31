@@ -29,3 +29,5 @@ models/
 
 # Logs
 *.log
+
+pose_landmarker.task

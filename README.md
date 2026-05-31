@@ -130,6 +130,36 @@ motion-fighter-ai/
 ├── pose_landmarker.task
 ```
 
+# Quick Start
+
+처음 실행하는 팀원은 아래 순서대로 진행하면 됩니다.
+
+```bash
+# 1. 가상환경 활성화
+source .venv/bin/activate
+
+# 2. 여러 CSV가 있으면 병합
+python src/merge_csv.py
+
+# 3. MLP 모델 학습
+python src/train_mlp.py
+
+# 4. 실시간 인식 + Unity UDP 전송
+python src/run_inference.py
+```
+
+데이터를 새로 모아야 할 때만 아래 명령을 먼저 실행합니다.
+
+```bash
+python src/collect_data.py
+```
+
+Unity UDP 수신만 따로 테스트하고 싶을 때는 아래 명령을 사용합니다.
+
+```bash
+python src/send_unity.py
+```
+
 # Development Flow
 
 ## 1. Collect Dataset
@@ -137,6 +167,13 @@ motion-fighter-ai/
 ```bash
 python src/collect_data.py
 ```
+
+Run the command after activating `.venv`. In VS Code, select
+`.venv/bin/python` as the Python interpreter if imports such as `cv2` or
+`mediapipe` are unresolved.
+
+On macOS, allow camera access for the app that starts Python, usually VS Code
+or Terminal, in System Settings > Privacy & Security > Camera.
 
 Collect:
 
@@ -154,10 +191,36 @@ Recommended:
 - Different speeds
 - Multiple people
 
+Output:
+
+```text
+data/raw/motion_data.csv
+```
+
+팀원이 각자 수집한 파일은 `data/raw/`에 아래처럼 넣으면 됩니다.
+
+```text
+data/raw/motion_data_name.csv
+```
+
 ## 2. Merge Dataset
 
 ```bash
 python src/merge_csv.py
+```
+
+What it does:
+
+- Reads every `.csv` file in `data/raw/`
+- Skips empty files
+- Skips files with a different column count
+- Renames the last column to `label`
+- Saves one merged CSV
+
+Output:
+
+```text
+data/merged/motion_data_merged.csv
 ```
 
 ## 3. Train Model
@@ -166,12 +229,24 @@ python src/merge_csv.py
 python src/train_mlp.py
 ```
 
+Dataset priority:
+
+1. `data/merged/motion_data_merged.csv`
+2. `data/raw/motion_data.csv`
+
 Outputs:
 
 ```text
 models/motion_model.keras
 models/label_classes.npy
 ```
+
+Training:
+
+- MLP classifier
+- 132 input features
+- `train_test_split(test_size=0.2, random_state=42, stratify=y)`
+- Prints test accuracy, classification report, and confusion matrix
 
 ## 4. Run Real-time Inference
 
@@ -185,6 +260,8 @@ Features:
 - Confidence threshold
 - Rule-based verification
 - Multi-frame stabilization
+- Unity UDP transmission when `final_action` changes
+- Limits repeated `IDLE` / `NONE` sends
 
 ## 5. Unity Communication
 
@@ -192,9 +269,17 @@ Features:
 python src/send_unity.py
 ```
 
+This script repeatedly sends test actions to Unity once per second:
+
+```text
+IDLE -> ATTACK -> JUMP -> CROUCH -> BLOCK -> NONE
+```
+
 Protocol:
 
 - UDP
+- Host: `127.0.0.1`
+- Port: `5055`
 - JSON message format
 
 Example:
@@ -202,8 +287,15 @@ Example:
 ```json
 {
   "action": "ATTACK",
-  "confidence": 0.91
+  "confidence": 0.91,
+  "timestamp": 1710000000.123
 }
+```
+
+See details:
+
+```text
+docs/unity_protocol.md
 ```
 
 # AI Pipeline
