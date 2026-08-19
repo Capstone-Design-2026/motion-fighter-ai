@@ -23,6 +23,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from config import (
+    ACTIONS,
     CAMERA_INDEX,
     CONFIDENCE_THRESHOLD,
     LABEL_CLASSES_PATH,
@@ -76,7 +77,54 @@ def load_artifacts():
     """Load the trained Keras model and label class names."""
     model = load_model(TRAINED_MODEL_PATH)
     label_classes = np.load(LABEL_CLASSES_PATH, allow_pickle=True)
+    validate_model_artifacts(model, label_classes)
     return model, label_classes
+
+
+def get_model_output_dimension(model) -> int:
+    """Return the classifier output dimension from a loaded Keras model."""
+    output_shape = getattr(model, "output_shape", None)
+    if isinstance(output_shape, list):
+        output_shape = output_shape[0]
+
+    if not output_shape or len(output_shape) < 2 or output_shape[-1] is None:
+        raise RuntimeError(
+            "Cannot determine model output dimension from loaded model. "
+            f"output_shape={output_shape}"
+        )
+
+    return int(output_shape[-1])
+
+
+def validate_model_artifacts(model, label_classes):
+    """Validate that model outputs and saved LabelEncoder classes are compatible."""
+    output_dim = get_model_output_dimension(model)
+    labels = [str(label) for label in label_classes]
+
+    if output_dim != len(labels):
+        raise RuntimeError(
+            "Model output dimension does not match label_classes.npy.\n"
+            f"Model output dimension: {output_dim}\n"
+            f"Saved label count: {len(labels)}\n"
+            "Retrain the model or restore the matching label_classes.npy file."
+        )
+
+    duplicate_labels = sorted({label for label in labels if labels.count(label) > 1})
+    expected_labels = set(ACTIONS)
+    saved_labels = set(labels)
+    missing_labels = sorted(expected_labels - saved_labels)
+    unexpected_labels = sorted(saved_labels - expected_labels)
+
+    if duplicate_labels or missing_labels or unexpected_labels:
+        raise RuntimeError(
+            "Saved label_classes.npy does not match the configured ACTIONS.\n"
+            f"Expected labels: {sorted(expected_labels)}\n"
+            f"Saved labels: {labels}\n"
+            f"Missing labels: {missing_labels}\n"
+            f"Unexpected labels: {unexpected_labels}\n"
+            f"Duplicate labels: {duplicate_labels}\n"
+            "Retrain the model with the current action classes."
+        )
 
 
 def normalize_landmarks(landmarks):
@@ -193,18 +241,16 @@ def should_send_to_unity(
     now: float,
 ) -> bool:
     """Decide whether the current final action should be sent to Unity."""
+    if final_action != last_sent_action:
+        return True
+
     if final_movement != last_sent_movement:
         return True
 
-    if final_action == last_sent_action:
-        return False
-
     if final_action in PASSIVE_ACTIONS:
-        if last_sent_action is None:
-            return True
         return now - last_passive_sent_time >= PASSIVE_SEND_INTERVAL_SECONDS
 
-    return True
+    return False
 
 
 def send_to_unity_if_needed(

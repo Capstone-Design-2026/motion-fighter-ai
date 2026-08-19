@@ -223,8 +223,7 @@ What it does:
 
 - Reads every `.csv` file in `data/raw/`
 - Skips empty files
-- Skips files with a different column count
-- Renames the last column to `label`
+- Fails fast if a file does not match the canonical `x0,y0,z0,v0...x32,y32,z32,v32,label` schema
 - Saves one merged CSV
 
 Output:
