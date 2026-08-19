@@ -26,10 +26,17 @@ from config import (
     CAMERA_INDEX,
     CONFIDENCE_THRESHOLD,
     LABEL_CLASSES_PATH,
+    MOVEMENT_ENTER_THRESHOLD,
+    MOVEMENT_EXIT_THRESHOLD,
+    MOVEMENT_MAX_STRENGTH_DELTA,
+    MOVEMENT_MIRROR,
+    MOVEMENT_STABLE_FRAME_COUNT,
+    MOVEMENT_VISIBILITY_THRESHOLD,
     POSE_MODEL_PATH,
     STABLE_FRAME_COUNT,
     TRAINED_MODEL_PATH,
 )
+from movement import MOVEMENT_NEUTRAL, MovementResult, ShoulderMovementDetector
 from send_unity import send_action
 
 
@@ -179,11 +186,16 @@ def get_stable_action(action_buffer) -> str:
 
 def should_send_to_unity(
     final_action: str,
+    final_movement: str,
     last_sent_action: str | None,
+    last_sent_movement: str | None,
     last_passive_sent_time: float,
     now: float,
 ) -> bool:
     """Decide whether the current final action should be sent to Unity."""
+    if final_movement != last_sent_movement:
+        return True
+
     if final_action == last_sent_action:
         return False
 
@@ -197,31 +209,75 @@ def should_send_to_unity(
 
 def send_to_unity_if_needed(
     final_action: str,
+    final_movement: str,
     confidence: float,
+    movement_strength: float,
     last_sent_action: str | None,
+    last_sent_movement: str | None,
     last_passive_sent_time: float,
+    last_sent_payload_label: str,
 ):
     """Send changed actions to Unity and return updated send state."""
     now = time.time()
 
     if not should_send_to_unity(
         final_action,
+        final_movement,
         last_sent_action,
+        last_sent_movement,
         last_passive_sent_time,
         now,
     ):
-        return last_sent_action, last_passive_sent_time
+        return (
+            last_sent_action,
+            last_sent_movement,
+            last_passive_sent_time,
+            last_sent_payload_label,
+        )
 
     try:
-        send_action(final_action, confidence)
+        sent = send_action(final_action, final_movement, confidence, movement_strength)
     except OSError as exc:
-        print(f"[UDP ERROR] Failed to send action to Unity: {final_action} ({exc})")
-        return last_sent_action, last_passive_sent_time
+        print(
+            "[UDP ERROR] Failed to send action to Unity: "
+            f"{final_action}/{final_movement} ({exc})"
+        )
+        return (
+            last_sent_action,
+            last_sent_movement,
+            last_passive_sent_time,
+            last_sent_payload_label,
+        )
+
+    if not sent:
+        return (
+            last_sent_action,
+            last_sent_movement,
+            last_passive_sent_time,
+            last_sent_payload_label,
+        )
 
     if final_action in PASSIVE_ACTIONS:
         last_passive_sent_time = now
 
-    return final_action, last_passive_sent_time
+    last_sent_payload_label = (
+        f"{final_action}/{final_movement} "
+        f"C{confidence:.2f} M{movement_strength:.2f}"
+    )
+
+    return final_action, final_movement, last_passive_sent_time, last_sent_payload_label
+
+
+def create_movement_detector() -> ShoulderMovementDetector:
+    """Create the shoulder-based rule detector for movement inference."""
+    return ShoulderMovementDetector(
+        visibility_threshold=MOVEMENT_VISIBILITY_THRESHOLD,
+        enter_threshold=MOVEMENT_ENTER_THRESHOLD,
+        exit_threshold=MOVEMENT_EXIT_THRESHOLD,
+        stable_frame_count=MOVEMENT_STABLE_FRAME_COUNT,
+        mirror=MOVEMENT_MIRROR,
+        max_strength_delta=MOVEMENT_MAX_STRENGTH_DELTA,
+    )
 
 
 def create_pose_landmarker():
@@ -241,13 +297,22 @@ def main():  # pylint: disable=too-many-locals
     model, label_classes = load_artifacts()
     cap = open_camera()
     action_buffer = deque(maxlen=STABLE_FRAME_COUNT)
+    movement_detector = create_movement_detector()
     last_sent_action = None
+    last_sent_movement = None
     last_passive_sent_time = 0.0
+    last_sent_payload_label = "NONE/NEUTRAL C0.00 M0.00"
 
     print("=== Motion Fighter Real-time Inference ===")
     print("Q: quit")
     print(f"Confidence threshold: {CONFIDENCE_THRESHOLD}")
     print(f"Stable frame count: {STABLE_FRAME_COUNT}")
+    print(
+        "Movement enter/exit threshold: "
+        f"{MOVEMENT_ENTER_THRESHOLD}/{MOVEMENT_EXIT_THRESHOLD}"
+    )
+    print(f"Movement stable frame count: {MOVEMENT_STABLE_FRAME_COUNT}")
+    print(f"Movement mirror: {MOVEMENT_MIRROR}")
 
     try:
         with create_pose_landmarker() as landmarker:
@@ -259,6 +324,12 @@ def main():  # pylint: disable=too-many-locals
                 raw_action = "NONE"
                 final_action = "NONE"
                 confidence = 0.0
+                movement_result = MovementResult(
+                    raw_movement=MOVEMENT_NEUTRAL,
+                    final_movement=MOVEMENT_NEUTRAL,
+                    rotation_score=0.0,
+                    movement_strength=0.0,
+                )
 
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -278,20 +349,33 @@ def main():  # pylint: disable=too-many-locals
                     )
                     action_buffer.append(raw_action)
                     final_action = get_stable_action(action_buffer)
+                    movement_result = movement_detector.update(landmarks)
                 else:
                     action_buffer.append("NONE")
                     final_action = get_stable_action(action_buffer)
+                    movement_result = movement_detector.reset()
 
-                last_sent_action, last_passive_sent_time = send_to_unity_if_needed(
-                    final_action,
-                    confidence,
+                (
                     last_sent_action,
+                    last_sent_movement,
                     last_passive_sent_time,
+                    last_sent_payload_label,
+                ) = send_to_unity_if_needed(
+                    final_action,
+                    movement_result.final_movement,
+                    confidence,
+                    movement_result.movement_strength,
+                    last_sent_action,
+                    last_sent_movement,
+                    last_passive_sent_time,
+                    last_sent_payload_label,
                 )
 
                 # Keep these values explicit for future Unity UDP integration.
                 unity_action = final_action
+                unity_movement = movement_result.final_movement
                 unity_confidence = confidence
+                unity_movement_strength = movement_result.movement_strength
 
                 draw_text(
                     display_frame,
@@ -319,8 +403,40 @@ def main():  # pylint: disable=too-many-locals
                 )
                 draw_text(
                     display_frame,
-                    f"SENT: {last_sent_action or 'NONE'}",
+                    f"RAW MOVE: {movement_result.raw_movement}",
                     (30, 165),
+                    scale=0.8,
+                    color=(0, 255, 255),
+                    thickness=2,
+                )
+                draw_text(
+                    display_frame,
+                    f"FINAL MOVE: {unity_movement}",
+                    (30, 205),
+                    scale=0.8,
+                    color=(0, 255, 0),
+                    thickness=2,
+                )
+                draw_text(
+                    display_frame,
+                    f"ROT: {movement_result.rotation_score:.3f}",
+                    (30, 245),
+                    scale=0.8,
+                    color=(255, 255, 255),
+                    thickness=2,
+                )
+                draw_text(
+                    display_frame,
+                    f"MOVE STR: {unity_movement_strength:.2f}",
+                    (30, 285),
+                    scale=0.8,
+                    color=(255, 255, 255),
+                    thickness=2,
+                )
+                draw_text(
+                    display_frame,
+                    f"LAST UDP: {last_sent_payload_label}",
+                    (30, 325),
                     scale=0.8,
                     color=(255, 200, 0),
                     thickness=2,

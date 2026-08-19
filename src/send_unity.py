@@ -1,4 +1,4 @@
-"""Send motion actions to Unity over UDP as JSON messages."""
+"""Send motion actions and movement to Unity over UDP as JSON messages."""
 
 import json
 import socket
@@ -7,21 +7,40 @@ import time
 from config import UNITY_HOST, UNITY_PORT
 
 
-TEST_ACTIONS = ["IDLE", "ATTACK", "JUMP", "CROUCH", "BLOCK", "NONE"]
+TEST_PAYLOADS = [
+    ("IDLE", "NEUTRAL", 1.0, 0.0),
+    ("ATTACK", "RIGHT", 1.0, 0.7),
+    ("BLOCK", "LEFT", 1.0, 0.7),
+    ("JUMP", "RIGHT", 1.0, 0.6),
+    ("CROUCH", "LEFT", 1.0, 0.6),
+    ("NONE", "NEUTRAL", 1.0, 0.0),
+]
 
 
-def build_payload(action: str, confidence: float) -> dict:
-    """Create the Unity action payload."""
+def build_payload(
+    action: str,
+    movement: str,
+    confidence: float,
+    movement_strength: float,
+) -> dict:
+    """Create the Unity action and movement payload."""
     return {
         "action": action,
+        "movement": movement,
         "confidence": float(confidence),
+        "movement_strength": min(max(float(movement_strength), 0.0), 1.0),
         "timestamp": time.time(),
     }
 
 
-def send_action(action: str, confidence: float) -> bool:
-    """Send one action payload to Unity via UDP."""
-    payload = build_payload(action, confidence)
+def send_action(
+    action: str,
+    movement: str,
+    confidence: float,
+    movement_strength: float,
+) -> bool:
+    """Send one action and movement payload to Unity via UDP."""
+    payload = build_payload(action, movement, confidence, movement_strength)
     message = json.dumps(payload).encode("utf-8")
 
     try:
@@ -43,8 +62,8 @@ def main():
 
     try:
         while True:
-            for action in TEST_ACTIONS:
-                send_action(action, 1.0)
+            for action, movement, confidence, movement_strength in TEST_PAYLOADS:
+                send_action(action, movement, confidence, movement_strength)
                 time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopped Unity UDP sender.")

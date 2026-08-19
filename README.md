@@ -46,7 +46,10 @@ AI는 이를 인식하여 Unity 게임 내 캐릭터를 조작합니다.
 
 ---
 
-# Current Action Classes
+# Current Action / Movement Channels
+
+MLP action class는 기존 6개만 사용합니다. 좌우 이동은 별도 movement channel로
+계산하므로 공격/방어/점프/숙이기와 동시에 전달될 수 있습니다.
 
 | Action | Description |
 |---|---|
@@ -56,6 +59,12 @@ AI는 이를 인식하여 Unity 게임 내 캐릭터를 조작합니다.
 | BLOCK | 양손 눈 위로 올리기 |
 | JUMP | 왼손 위로 올리기 |
 | CROUCH | 왼손 오른쪽 아래로 내리기 |
+
+| Movement | Description |
+|---|---|
+| LEFT | 왼쪽 이동 |
+| RIGHT | 오른쪽 이동 |
+| NEUTRAL | 이동 없음 |
 
 ---
 
@@ -71,6 +80,7 @@ motion-fighter-ai/
 │   ├── config.py
 │   ├── collect_data.py
 │   ├── merge_csv.py
+│   ├── movement.py
 │   ├── train_mlp.py
 │   ├── run_inference.py
 │   └── send_unity.py
@@ -256,12 +266,14 @@ python src/run_inference.py
 
 Features:
 
-- Real-time prediction
-- Confidence threshold
-- Rule-based verification
-- Multi-frame stabilization
-- Unity UDP transmission when `final_action` changes
+- Real-time MLP action prediction
+- Action confidence threshold
+- Rule-based shoulder movement detection
+- Separate action and movement stabilization
+- Unity UDP transmission when action or movement changes
 - Limits repeated `IDLE` / `NONE` sends
+- Debug overlay for raw/final action, confidence, raw/final movement,
+  rotation score, movement strength, and last Unity payload
 
 ## 5. Unity Communication
 
@@ -269,10 +281,11 @@ Features:
 python src/send_unity.py
 ```
 
-This script repeatedly sends test actions to Unity once per second:
+This script repeatedly sends test action + movement payloads to Unity once per
+second:
 
 ```text
-IDLE -> ATTACK -> JUMP -> CROUCH -> BLOCK -> NONE
+IDLE/NEUTRAL -> ATTACK/RIGHT -> BLOCK/LEFT -> JUMP/RIGHT -> CROUCH/LEFT -> NONE/NEUTRAL
 ```
 
 Protocol:
@@ -287,7 +300,9 @@ Example:
 ```json
 {
   "action": "ATTACK",
+  "movement": "RIGHT",
   "confidence": 0.91,
+  "movement_strength": 0.61,
   "timestamp": 1710000000.123
 }
 ```
@@ -304,14 +319,17 @@ docs/unity_protocol.md
 Webcam Input
 ↓
 MediaPipe Pose
-↓
-Landmark Normalization
-↓
-MLP Prediction
-↓
-Rule-based Verification
-↓
-Frame Stabilization
+├─ Landmark Normalization
+│  ↓
+│  MLP Action Prediction
+│  ↓
+│  Action Confidence / Stabilization
+│
+└─ Shoulder Depth Difference
+   ↓
+   Rule-based Movement Detection
+   ↓
+   Hysteresis / Movement Stabilization
 ↓
 Unity UDP Transmission
 ```
@@ -343,11 +361,11 @@ Use .gitignore.
 |---|---|
 | main | Stable version |
 | feature/ai-vision | AI vision development |
+| feature/shoulder-movement | Shoulder-based movement channel |
 | feature/unity-test | Unity communication testing |
 
 # Planned Features
 
-- MOVE_LEFT / MOVE_RIGHT
 - Combo actions
 - Skill commands
 - Continuous action buffering
