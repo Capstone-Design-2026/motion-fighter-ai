@@ -1,0 +1,154 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>공격 높이. 방어 성립 여부를 결정한다.</summary>
+public enum AttackHeight
+{
+    High,   // 점프 공격 (오버헤드) - 앉아막기로는 못 막음
+    Mid,    // 기본 공격          - 서서/앉아 둘 다 막힘
+    Low     // 앉아 공격          - 서서막기로는 못 막음
+}
+
+/// <summary>
+/// 공격 판정을 담당하는 공통 전투 컴포넌트. 플레이어와 적이 함께 사용한다.
+/// 애니메이션 이벤트에 의존하지 않고 코드 타이밍(선딜 → 판정 → 후딜)으로 처리하므로
+/// .anim 파일을 건드리지 않아도 동작한다.
+/// </summary>
+[RequireComponent(typeof(Health))]
+[DisallowMultipleComponent]
+public class Fighter : MonoBehaviour
+{
+    [Header("공격 수치")]
+    [SerializeField] private int attackDamage = 10;
+    [SerializeField] private Vector2 knockback = new Vector2(3.5f, 2f);
+
+    [Header("판정 박스 (캐릭터 정면 기준)")]
+    [SerializeField] private float hitboxDistance = 0.85f;   // 앞으로 얼마나
+    [SerializeField] private float hitboxHeight = 0f;        // 위아래 오프셋
+    [SerializeField] private Vector2 hitboxSize = new Vector2(1.2f, 1.1f);
+
+    [Header("타이밍 (초)")]
+    [SerializeField] private float windup = 0.12f;    // 선딜: 애니메이션 나가고 판정 뜨기까지
+    [SerializeField] private float recovery = 0.35f;  // 후딜: 다음 공격까지
+
+    [Header("방어")]
+    [Range(0f, 1f)]
+    [SerializeField] private float blockDamageMultiplier = 0.2f;
+
+    [Header("디버그")]
+    [SerializeField] private bool drawHitboxGizmo = true;
+
+    /// <summary>+1 = 오른쪽, -1 = 왼쪽</summary>
+    public int Facing { get; set; } = 1;
+    public bool IsBlocking { get; set; }
+    public bool IsCrouching { get; set; }
+    public bool IsAttacking { get; private set; }
+
+    public Health Health { get; private set; }
+    public bool CanAttack => !Health.IsDead && !IsAttacking && !Health.IsHitStunned;
+
+    private readonly List<Health> alreadyHit = new List<Health>();
+    private Animator animator;
+
+    void Awake()
+    {
+        Health = GetComponent<Health>();
+        animator = GetComponent<Animator>();
+    }
+
+    /// <summary>공격 시작. 실제로 시작됐으면 true.</summary>
+    public bool TryAttack(AttackHeight height)
+    {
+        if (!CanAttack) return false;
+        // 공격 높이를 애니메이터에 정수로 고정 통보한다.
+        // 자세 bool 로 분기하면 공격 도중 S 를 떼는 순간 상태가 튀기 때문.
+        //   0 = High(점프) / 1 = Mid(서서) / 2 = Low(앉아)
+        if (animator != null)
+            animator.SetInteger("AttackHeight", (int)height);
+
+        StartCoroutine(AttackRoutine(height));
+        return true;
+    }
+
+    private IEnumerator AttackRoutine(AttackHeight height)
+    {
+        IsAttacking = true;
+
+        yield return new WaitForSeconds(windup);
+
+        if (!Health.IsDead)
+            ResolveHit(height);
+
+        yield return new WaitForSeconds(recovery);
+
+        IsAttacking = false;
+    }
+
+    private void ResolveHit(AttackHeight height)
+    {
+        alreadyHit.Clear();
+
+        Vector2 center = GetHitboxCenter();
+        Collider2D[] hits = Physics2D.OverlapBoxAll(center, hitboxSize, 0f);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            var col = hits[i];
+            if (col == null) continue;
+
+            var targetHealth = col.GetComponentInParent<Health>();
+            if (targetHealth == null) continue;
+            if (targetHealth == Health) continue;          // 자기 자신
+            if (targetHealth.IsDead) continue;
+            if (alreadyHit.Contains(targetHealth)) continue;
+            alreadyHit.Add(targetHealth);
+
+            int damage = attackDamage;
+            bool guarded = false;
+            Vector2 kb = new Vector2(knockback.x * Facing, knockback.y);
+
+            var targetFighter = col.GetComponentInParent<Fighter>();
+            if (targetFighter != null && targetFighter.IsBlocking && FacesMe(targetFighter))
+            {
+                guarded =
+                    height == AttackHeight.Mid ||
+                    (height == AttackHeight.Low && targetFighter.IsCrouching) ||
+                    (height == AttackHeight.High && !targetFighter.IsCrouching);
+
+                if (guarded)
+                {
+                    damage = Mathf.Max(1, Mathf.CeilToInt(damage * blockDamageMultiplier));
+                    kb = Vector2.zero;
+                    Debug.Log($"[Fighter] {name} 의 {height} 공격을 {targetFighter.name} 가 방어 (데미지 {damage})");
+                }
+                else
+                {
+                    Debug.Log($"[Fighter] {name} 의 {height} 공격이 {targetFighter.name} 의 가드를 뚫음");
+                }
+            }
+
+            targetHealth.TakeDamage(damage, kb, guarded);
+        }
+    }
+
+    /// <summary>상대가 나를 바라보고 있는지 (등 뒤 공격은 가드 불가)</summary>
+    private bool FacesMe(Fighter target)
+    {
+        float dx = transform.position.x - target.transform.position.x;
+        return dx * target.Facing > 0f;
+    }
+
+    private Vector2 GetHitboxCenter()
+    {
+        return (Vector2)transform.position
+             + new Vector2(hitboxDistance * Facing, hitboxHeight);
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (!drawHitboxGizmo) return;
+        Gizmos.color = new Color(1f, 0.3f, 0.2f, 0.5f);
+        Gizmos.DrawWireCube(GetHitboxCenter(), hitboxSize);
+    }
+}

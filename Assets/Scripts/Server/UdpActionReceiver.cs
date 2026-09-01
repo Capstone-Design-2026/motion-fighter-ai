@@ -13,6 +13,10 @@ public class UdpActionReceiver : MonoBehaviour
     [Header("Animator")]
     public Animator animator;
 
+    [Header("Player")]
+    [Tooltip("비워두면 씬에서 자동으로 찾는다.")]
+    public PlayerController playerController;
+
     [Header("Confidence")]
     public float minConfidence = 0.7f;
 
@@ -121,6 +125,20 @@ public class UdpActionReceiver : MonoBehaviour
 
         Debug.Log($"Received Action: {action} / Confidence: {confidence}");
 
+        // 1순위: PlayerController 를 통해 처리한다.
+        // 애니메이터만 건드리면 그림만 바뀌고 데미지 판정이 안 들어가므로,
+        // 반드시 PlayerController.ExternalAction() 을 거쳐야 한다.
+        if (playerController == null)
+            playerController = FindAnyObjectByType<PlayerController>();
+
+        if (playerController != null)
+        {
+            playerController.externalControl = true;
+            playerController.ExternalAction(action);
+            return;
+        }
+
+        // 2순위(폴백): PlayerController 가 없으면 애니메이터만 재생한다.
         if (animator == null)
         {
             Debug.LogWarning("Animator is not assigned.");
@@ -134,7 +152,8 @@ public class UdpActionReceiver : MonoBehaviour
                 break;
 
             case "BLOCK":
-                animator.SetTrigger("Block");
+                // PlayerAnimator 에는 Block 트리거가 없고 IsBlocking bool 만 있다.
+                animator.SetBool("IsBlocking", true);
                 break;
 
             case "JUMP":
