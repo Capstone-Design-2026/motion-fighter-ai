@@ -125,6 +125,26 @@ public class Health : MonoBehaviour
         OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
     }
 
+    /// <summary>
+    /// 스테이지 데이터로 이름과 최대 체력을 덮어쓴다.
+    /// 전투가 시작되기 전(BattleSceneBridge.Awake)에만 호출할 것.
+    /// </summary>
+    public void Configure(string newDisplayName, int newMaxHealth)
+    {
+        if (!string.IsNullOrEmpty(newDisplayName)) displayName = newDisplayName;
+        if (newMaxHealth > 0) maxHealth = newMaxHealth;
+
+        CurrentHealth = maxHealth;
+        OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
+    }
+
+    /// <summary>이전 전투에서 이어받은 체력을 그대로 반영한다. 지도 진행용.</summary>
+    public void SetCurrentHealth(int value)
+    {
+        CurrentHealth = Mathf.Clamp(value, 0, maxHealth);
+        OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
+    }
+
     /// <summary>라운드 리셋용. HP 를 가득 채우고 색과 애니메이터 상태를 되돌린다.</summary>
     public void ResetHealth()
     {

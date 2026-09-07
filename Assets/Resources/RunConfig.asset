@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 686d49ec2e4343f2a9cfa2add16aa434, type: 3}
+  m_Name: RunConfig
+  m_EditorClassIdentifier: 
+  map:
+    rows: 12
+    columns: 6
+    entryNodes: 3
+    minNodesPerRow: 2
+    maxNodesPerRow: 4
+    branchChance: 0.45
+    battleWeight: 55
+    eliteWeight: 15
+    restWeight: 10
+    eventWeight: 12
+    shopWeight: 8
+    eliteMinRow: 3
+  playerMaxHealth: 100
+  carryPlayerHealth: 1
+  restHealPercent: 0.3
+  stages:
+  - id: grunt_a
+    displayName: "\uC7A1\uC878 \uB3C4\uAE68\uBE44"
+    nodeType: 0
+    minRow: 0
+    enemyMaxHealth: 80
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: grunt_b
+    displayName: "\uC131\uB09C \uB3C4\uAE68\uBE44"
+    nodeType: 0
+    minRow: 2
+    enemyMaxHealth: 100
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: elite_a
+    displayName: "\uC815\uC608 \uB3C4\uAE68\uBE44"
+    nodeType: 1
+    minRow: 3
+    enemyMaxHealth: 150
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: boss_a
+    displayName: "\uB3C4\uAE68\uBE44 \uB450\uBAA9"
+    nodeType: 2
+    minRow: 0
+    enemyMaxHealth: 220
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}

@@ -45,8 +45,14 @@ public class Fighter : MonoBehaviour
     public bool IsCrouching { get; set; }
     public bool IsAttacking { get; private set; }
 
+    /// <summary>
+    /// K.O. 연출 중에는 true. 진 쪽뿐 아니라 이긴 쪽 조작까지 전부 막는다.
+    /// 이게 없으면 쓰러진 상대를 계속 때릴 수 있다. BattleSceneBridge 가 켜고 끈다.
+    /// </summary>
+    public bool InputLocked { get; set; }
+
     public Health Health { get; private set; }
-    public bool CanAttack => !Health.IsDead && !IsAttacking && !Health.IsHitStunned;
+    public bool CanAttack => !Health.IsDead && !InputLocked && !IsAttacking && !Health.IsHitStunned;
 
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;

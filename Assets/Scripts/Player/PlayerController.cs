@@ -68,6 +68,22 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        // K.O. 연출 중. 진 쪽은 물론 이긴 쪽도 움직이지 못한다.
+        // 물리는 그대로 돌아가므로 쓰러지는 모션과 넉백은 끝까지 재생된다.
+        if (fighter != null && fighter.InputLocked)
+        {
+            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+            isCrouching = false;
+            isBlocking  = false;
+            fighter.IsCrouching = false;
+            fighter.IsBlocking  = false;
+            animator.SetBool("IsMoving", false);
+            animator.SetBool("IsMovingBack", false);
+            animator.SetBool("IsCrouching", false);
+            animator.SetBool("IsBlocking", false);
+            return;
+        }
+
         if (health.IsDead)
         {
             // 쓰러진 뒤에는 조작 불가. IsDead 파라미터는 Health 가 켠다.

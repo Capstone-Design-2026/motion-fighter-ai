@@ -20,7 +20,16 @@ public class CombatHUD : MonoBehaviour
     [SerializeField] private float chipSpeed = 0.6f;   // 노란 잔량바가 따라오는 속도
 
     [Header("라운드")]
+    [Tooltip("K.O. 후 이 키로 다시 시작. 지도를 진행 중이면 BattleSceneBridge 가 자동으로 꺼버린다.")]
+    [SerializeField] private bool allowRestart = true;
     [SerializeField] private KeyCode restartKey = KeyCode.R;
+
+    /// <summary>
+    /// 지도(런) 진행 중에는 false 가 된다.
+    /// 이기면 알아서 지도로 돌아가고, 지면 판이 끝나야 하므로 그 자리에서 되살아나면 안 된다.
+    /// GameScene 을 단독으로 실행할 때는 true 로 남아서 예전처럼 R 키 재시작이 된다.
+    /// </summary>
+    public bool AllowRestart { get { return allowRestart; } set { allowRestart = value; } }
 
     private Canvas canvas;
     private Font font;
@@ -85,7 +94,7 @@ public class CombatHUD : MonoBehaviour
         UpdateChip(playerBar);
         UpdateChip(enemyBar);
 
-        if (matchOver && Input.GetKeyDown(restartKey))
+        if (matchOver && allowRestart && Input.GetKeyDown(restartKey))
             RestartRound();
     }
 
@@ -141,7 +150,7 @@ public class CombatHUD : MonoBehaviour
         matchOver = true;
         bool playerLost = (dead == playerHealth);
         koText.text = (playerLost ? "YOU LOSE" : "K.O.  YOU WIN")
-                    + "\n[" + restartKey + "] 키로 다시 시작";
+                    + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
         koText.color = playerLost ? new Color(1f, 0.45f, 0.45f) : new Color(1f, 0.9f, 0.4f);
         koText.gameObject.SetActive(true);
     }
