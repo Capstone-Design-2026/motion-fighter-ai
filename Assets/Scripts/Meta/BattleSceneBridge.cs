@@ -156,6 +156,10 @@ public class BattleSceneBridge : MonoBehaviour
 
     private IEnumerator FinishRoutine(bool won)
     {
+        // 타격 히트스톱이 아직 돌고 있으면 여기서 정리한다.
+        // 지금부터 timeScale 은 K.O. 연출이 혼자 쓴다. 둘이 겹치면 서로를 덮어써서 연출이 끊긴다.
+        HitImpact.ReleaseTimeControl();
+
         // 이긴 쪽까지 포함해 양쪽 조작을 잠근다. 쓰러진 상대를 계속 때리는 걸 막는다.
         SetInputLock(true);
 
