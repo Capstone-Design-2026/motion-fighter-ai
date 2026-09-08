@@ -443,6 +443,35 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &1177926588
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1177926583}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b1d4e93f27a4c1e8f30a5c72d914bb6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableImpact: 1
+  impactOnGuard: 1
+  targetCamera: {fileID: 1177926585}
+  hitStopScale: 0.05
+  hitStopDuration: 0.07
+  slowRecoverTime: 0.63
+  guardStopScale: 0.3
+  guardStopDuration: 0.04
+  guardRecoverTime: 0.18
+  zoomRatio: 0.5
+  zoomInTime: 0.25
+  zoomHoldTime: 1
+  zoomOutTime: 0.6
+  focusWeight: 0.35
+  maxFocusOffset: 1.2
+  useShake: 0
+  shakeStrength: 0.1
 --- !u!1 &1250756006
 GameObject:
   m_ObjectHideFlags: 0
@@ -551,6 +580,7 @@ GameObject:
   - component: {fileID: 1351601487}
   - component: {fileID: 1351601488}
   - component: {fileID: 1351601489}
+  - component: {fileID: 1351601490}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -750,6 +780,7 @@ MonoBehaviour:
   blockKey: 117
   opponent: {fileID: 0}
   backwardSpeedMultiplier: 0.8
+  crouchSpeedMultiplier: 0.45
   currentAction: IDLE
   externalControl: 0
 --- !u!114 &1351601487
@@ -792,7 +823,80 @@ MonoBehaviour:
   windup: 0.12
   recovery: 0.35
   blockDamageMultiplier: 0.2
+  useHitImpact: 1
   drawHitboxGizmo: 1
+--- !u!114 &1351601489
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351601480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43f47410a8ca9ed35fedddf2f5fa3a6c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  opponent: {fileID: 0}
+  blockCrossing: 1
+  minSeparation: 0
+  pushSpeed: 6
+  verticalSlack: 0.25
+--- !u!114 &1351601490
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351601480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390846c41e4757246a09487421047b8c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SpecialMove
+  hitsToCharge: 5
+  activateKey: 111
+  cutInSprite: {fileID: 0}
+  cutInScale: 5
+  cutInHeight: 1.8
+  sweepCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0.41666666
+      outSlope: 0.41666666
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.25
+      inSlope: 0.41666666
+      outSlope: 0.41666666
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.7
+      value: 1
+      inSlope: 1.875
+      outSlope: 1.875
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  fadeInTime: 0.1
+  fadeOutTime: 0.3
+  slowScale: 0.25
+  duration: 1
+  recoverTime: 0.3
 --- !u!1 &1682132721
 GameObject:
   m_ObjectHideFlags: 0
@@ -1153,6 +1257,7 @@ MonoBehaviour:
   windup: 0.12
   recovery: 0.35
   blockDamageMultiplier: 0.2
+  useHitImpact: 1
   drawHitboxGizmo: 1
 --- !u!114 &1900000018
 MonoBehaviour:
@@ -1176,6 +1281,23 @@ MonoBehaviour:
   blockWeight: 3
   backstepWeight: 1.5
   crouchWeight: 1
+--- !u!114 &1900000019
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000010}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43f47410a8ca9ed35fedddf2f5fa3a6c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  opponent: {fileID: 0}
+  blockCrossing: 1
+  minSeparation: 0
+  pushSpeed: 6
+  verticalSlack: 0.25
 --- !u!1 &1900000020
 GameObject:
   m_ObjectHideFlags: 0
@@ -1228,53 +1350,18 @@ MonoBehaviour:
   enemyColor: {r: 0.95, g: 0.35, b: 0.3, a: 1}
   chipColor: {r: 1, g: 0.85, b: 0.25, a: 1}
   chipSpeed: 0.6
+  allowRestart: 1
   restartKey: 114
---- !u!1660057539 &9223372036854775807
-SceneRoots:
-  m_ObjectHideFlags: 0
-  m_Roots:
-  - {fileID: 1177926586}
-  - {fileID: 1682132723}
-  - {fileID: 1351601484}
-  - {fileID: 847473857}
-  - {fileID: 1250756008}
-  - {fileID: 305006669}
-  - {fileID: 1900000011}
-  - {fileID: 1900000021}
---- !u!114 &1351601489
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1351601480}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43f47410a8ca9ed35fedddf2f5fa3a6c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  opponent: {fileID: 0}
-  blockCrossing: 1
-  minSeparation: 0
-  pushSpeed: 6
-  verticalSlack: 0.25
---- !u!114 &1900000019
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1900000010}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43f47410a8ca9ed35fedddf2f5fa3a6c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  opponent: {fileID: 0}
-  blockCrossing: 1
-  minSeparation: 0
-  pushSpeed: 6
-  verticalSlack: 0.25
+  showKeyGuide: 1
+  keyGuideToggleKey: 282
+  keyGuideAutoHideTime: 0
+  keyGuideWidth: 470
+  keyGuideMargin: {x: 60, y: 40}
+  gaugeSize: {x: 360, y: 22}
+  gaugeTopOffset: 132
+  gaugeEmptyColor: {r: 1, g: 1, b: 1, a: 0.16}
+  gaugeFillColor: {r: 0.35, g: 0.7, b: 1, a: 1}
+  gaugeReadyColor: {r: 1, g: 0.85, b: 0.25, a: 1}
 --- !u!1 &1900000030
 GameObject:
   m_ObjectHideFlags: 0
@@ -1320,33 +1407,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   returnDelay: 2.5
---- !u!114 &1177926588
-MonoBehaviour:
+  useSlowMotion: 1
+  slowMotionScale: 0.22
+  slowMotionDuration: 0.85
+  slowMotionRecoverTime: 0.45
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1177926583}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6b1d4e93f27a4c1e8f30a5c72d914bb6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  enableImpact: 1
-  impactOnGuard: 1
-  targetCamera: {fileID: 1177926585}
-  hitStopScale: 0.05
-  hitStopDuration: 0.06
-  slowRecoverTime: 0.18
-  guardStopScale: 0.3
-  guardStopDuration: 0.03
-  guardRecoverTime: 0.08
-  zoomRatio: 0.87
-  guardZoomRatio: 0.96
-  zoomInTime: 0.04
-  zoomHoldTime: 0.07
-  zoomOutTime: 0.25
-  focusWeight: 0.35
-  maxFocusOffset: 1.2
-  useShake: 0
-  shakeStrength: 0.1
+  m_Roots:
+  - {fileID: 1177926586}
+  - {fileID: 1682132723}
+  - {fileID: 1351601484}
+  - {fileID: 847473857}
+  - {fileID: 1250756008}
+  - {fileID: 305006669}
+  - {fileID: 1900000011}
+  - {fileID: 1900000021}
+  - {fileID: 1900000031}

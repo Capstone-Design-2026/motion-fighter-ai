@@ -146,9 +146,11 @@ public class Fighter : MonoBehaviour
                 // 판정 박스 중심과 맞은 쪽 몸통 사이. 두 캐릭터 사이 지점이라 카메라가 한쪽으로 쏠리지 않는다.
                 Vector2 impactPoint = Vector2.Lerp(center, col.bounds.center, 0.5f);
 
+                // 마무리 일격에만 카메라 확대가 붙는다. 기본 타격은 슬로우만.
                 // 마무리 타격의 시간 연출은 BattleSceneBridge 의 K.O. 슬로우모션이 맡는다.
                 // 여기서 또 timeScale 을 건드리면 둘이 서로를 덮어써서 연출이 끊긴다.
-                HitImpact.Play(impactPoint, guarded, !targetHealth.IsDead);
+                bool finisher = targetHealth.IsDead;
+                HitImpact.Play(impactPoint, guarded, finisher, !finisher);
             }
         }
     }

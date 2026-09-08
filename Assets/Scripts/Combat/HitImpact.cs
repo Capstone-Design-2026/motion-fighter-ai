@@ -5,8 +5,12 @@ using UnityEngine;
 /// 타격감 연출. 공격이 실제로 대미지를 입힌 순간에만 카메라를 확대하고 시간을 늦춘다.
 ///
 /// 두 가지가 동시에 돌아간다.
-///   시간  : 히트스톱(거의 정지) → 원래 속도로 부드럽게 복귀. 이 복귀 구간이 "슬로우" 로 보인다.
-///   카메라: 확대(orthographicSize 축소) + 타격 지점 쪽으로 살짝 밀기. 시간보다 조금 더 길게 간다.
+///   시간  : 모든 타격. 히트스톱(거의 정지) → 원래 속도로 부드럽게 복귀. 이 복귀 구간이 "슬로우" 로 보인다.
+///   카메라: 마무리 일격에만. 확대(orthographicSize 축소) + 타격 지점 쪽으로 살짝 밀기.
+///
+/// 카메라 확대를 마무리 일격으로 제한한 이유:
+/// 타격마다 확대/축소가 반복되면 화면이 쉴 새 없이 출렁여서 보는 사람이 어지럽다.
+/// 기본 타격은 시간만 늦추고 화면은 가만히 두는 편이 훨씬 읽기 편하다.
 ///
 /// 시간 연출은 실제 시간(unscaled) 기준으로 재기 때문에 자기가 늦춘 시간에 자기가 갇히지 않는다.
 ///
@@ -35,26 +39,25 @@ public class HitImpact : MonoBehaviour
     [Tooltip("멈추는 정도. 0 에 가까울수록 딱 멈춘다. 완전히 0 으로 두지 않아야 모션이 얼지 않는다.")]
     [Range(0.01f, 1f)]
     [SerializeField] private float hitStopScale = 0.05f;
-    [SerializeField] private float hitStopDuration = 0.06f;
+    [SerializeField] private float hitStopDuration = 0.07f;
     [Tooltip("멈춤에서 원래 속도로 돌아오는 시간. 여기가 길수록 슬로우모션처럼 보인다.")]
-    [SerializeField] private float slowRecoverTime = 0.18f;
+    [SerializeField] private float slowRecoverTime = 0.63f;
 
     [Header("히트스톱 - 가드")]
     [Range(0.01f, 1f)]
     [SerializeField] private float guardStopScale = 0.3f;
-    [SerializeField] private float guardStopDuration = 0.03f;
-    [SerializeField] private float guardRecoverTime = 0.08f;
+    [SerializeField] private float guardStopDuration = 0.04f;
+    [SerializeField] private float guardRecoverTime = 0.18f;
 
-    [Header("카메라 확대 (배율, 1 미만 = 확대)")]
+    [Header("마무리 일격 - 카메라 확대 (배율, 1 미만 = 확대)")]
     [Range(0.5f, 1f)]
-    [SerializeField] private float zoomRatio = 0.87f;
-    [Range(0.5f, 1f)]
-    [SerializeField] private float guardZoomRatio = 0.96f;
+    [SerializeField] private float zoomRatio = 0.85f;
 
-    [Header("카메라 확대 타이밍 (실제 시간 기준, 초)")]
-    [SerializeField] private float zoomInTime = 0.04f;
-    [SerializeField] private float zoomHoldTime = 0.07f;
-    [SerializeField] private float zoomOutTime = 0.25f;
+    [Header("마무리 일격 - 확대 타이밍 (실제 시간 기준, 초)")]
+    [Tooltip("확대/복귀가 빠르면 화면이 튀어서 어지럽다. 넉넉하게 잡는 편이 좋다.")]
+    [SerializeField] private float zoomInTime = 0.25f;
+    [SerializeField] private float zoomHoldTime = 0.35f;
+    [SerializeField] private float zoomOutTime = 0.60f;
 
     [Header("타격 지점 쪽으로 밀어주기")]
     [Tooltip("확대하면서 카메라를 맞은 지점 쪽으로 얼마나 당길지. 0 이면 제자리에서 확대만 한다.")]
@@ -101,11 +104,12 @@ public class HitImpact : MonoBehaviour
     /// <summary>타격 연출 재생.</summary>
     /// <param name="hitPoint">맞은 지점(월드 좌표). 카메라를 이쪽으로 살짝 당긴다.</param>
     /// <param name="guarded">가드에 막힌 타격이면 true. 훨씬 약한 연출이 나간다.</param>
+    /// <param name="finisher">쓰러뜨린 타격이면 true. 이때만 카메라가 확대된다.</param>
     /// <param name="allowTimeStop">false 면 카메라 확대만 하고 timeScale 은 건드리지 않는다.</param>
-    public static void Play(Vector2 hitPoint, bool guarded, bool allowTimeStop = true)
+    public static void Play(Vector2 hitPoint, bool guarded, bool finisher, bool allowTimeStop = true)
     {
         var inst = Instance;
-        if (inst != null) inst.Trigger(hitPoint, guarded, allowTimeStop);
+        if (inst != null) inst.Trigger(hitPoint, guarded, finisher, allowTimeStop);
     }
 
     /// <summary>
@@ -156,7 +160,7 @@ public class HitImpact : MonoBehaviour
         quitting = true;
     }
 
-    public void Trigger(Vector2 hitPoint, bool guarded, bool allowTimeStop = true)
+    public void Trigger(Vector2 hitPoint, bool guarded, bool finisher, bool allowTimeStop = true)
     {
         if (!enableImpact) return;
         if (guarded && !impactOnGuard) return;
@@ -167,12 +171,15 @@ public class HitImpact : MonoBehaviour
             timeRoutine = StartCoroutine(TimeRoutine(guarded));
         }
 
+        // 기본 타격은 여기서 끝. 화면은 건드리지 않고 시간만 늦춘다.
+        if (!finisher) return;
+
         // 연출이 이미 돌고 있으면 원래 카메라 값을 다시 재지 않는다.
         // 확대된 상태를 기준으로 잡아버리면 연타할 때 카메라가 계속 파고든다.
         if (cameraRoutine != null) StopCoroutine(cameraRoutine);
         else if (!CaptureCameraBase()) return;
 
-        cameraRoutine = StartCoroutine(CameraRoutine(hitPoint, guarded));
+        cameraRoutine = StartCoroutine(CameraRoutine(hitPoint));
     }
 
     // ─────────────────────── 시간 ───────────────────────
@@ -237,10 +244,10 @@ public class HitImpact : MonoBehaviour
         return true;
     }
 
-    private IEnumerator CameraRoutine(Vector2 hitPoint, bool guarded)
+    private IEnumerator CameraRoutine(Vector2 hitPoint)
     {
-        float targetRatio = guarded ? guardZoomRatio : zoomRatio;
-        float shake = useShake ? (guarded ? shakeStrength * 0.4f : shakeStrength) : 0f;
+        float targetRatio = zoomRatio;
+        float shake = useShake ? shakeStrength : 0f;
 
         float inTime  = Mathf.Max(0.0001f, zoomInTime);
         float outTime = Mathf.Max(0.0001f, zoomOutTime);
