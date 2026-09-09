@@ -27,6 +27,12 @@ public class SpecialMove : MonoBehaviour
     [Tooltip("이만큼 맞으면 1회 사용할 수 있다. 가드로 막고 입은 대미지도 똑같이 한 번으로 친다.")]
     [SerializeField] private int hitsToCharge = 5;
 
+    [Header("게이지 채우기 (테스트용)")]
+    [Tooltip("맞지 않고도 게이지를 채우는 키. 필살기 연출만 확인하고 싶을 때 쓴다. None 이면 꺼진다.")]
+    [SerializeField] private KeyCode chargeKey = KeyCode.I;
+    [Tooltip("한 번 누를 때 차는 칸 수. hitsToCharge 이상으로 두면 한 번에 만충된다.")]
+    [SerializeField] private int chargeKeyAmount = 1;
+
     [Header("발동 키")]
     [Tooltip("공격(P) 옆에 두는 편이 손이 편하다. PlayerController 의 useKeyboard 가 꺼져 있으면 무시된다.")]
     [SerializeField] private KeyCode activateKey = KeyCode.O;
@@ -46,13 +52,21 @@ public class SpecialMove : MonoBehaviour
     [SerializeField] private float fadeInTime = 0.15f;
     [SerializeField] private float fadeOutTime = 0.3f;
 
-    [Header("슬로우 (실제 시간 기준, 초)")]
-    [Range(0.05f, 1f)]
-    [SerializeField] private float slowScale = 0.25f;
+    [Header("시간 정지 (실제 시간 기준, 초)")]
+    [Tooltip("연출 동안의 게임 속도. 0 이면 완전히 멈춘다. 컷인은 실제 시간으로 움직이므로 멈춰도 흘러간다.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float slowScale = 0f;
     [Tooltip("연출 전체 길이. 이 안에 복귀 구간이 포함된다.")]
     [SerializeField] private float duration = 1f;
     [Tooltip("정속으로 돌아오는 마지막 구간. 0 이면 뚝 끊긴다.")]
     [SerializeField] private float recoverTime = 0.3f;
+
+    [Header("카메라 확대")]
+    [Tooltip("마무리 일격(HitImpact 의 zoomRatio)보다 1 에 가깝게 두어야 덜 확대된다. 현재 씬 기준 마무리는 0.5.")]
+    [Range(0.5f, 1f)]
+    [SerializeField] private float zoomRatio = 0.75f;
+    [SerializeField] private float zoomInTime = 0.2f;
+    [SerializeField] private float zoomOutTime = 0.35f;
 
     /// <summary>(현재 게이지, 만충 수치)</summary>
     public event Action<int, int> OnChargeChanged;
@@ -62,6 +76,7 @@ public class SpecialMove : MonoBehaviour
     public bool IsReady { get { return charge >= hitsToCharge; } }
     public bool IsPlaying { get { return routine != null; } }
     public KeyCode ActivateKey { get { return activateKey; } }
+    public KeyCode ChargeKey { get { return chargeKey; } }
 
     private Health health;
     private Fighter fighter;
@@ -78,6 +93,9 @@ public class SpecialMove : MonoBehaviour
     // 접선을 구간 기울기와 같게 두면 각 구간이 정확히 등속이 되고, 0.6 지점에서 딱 빨라진다.
     private const float SlowSlope = 0.25f / 0.6f;   // 앞 구간: 시간 60% 에 거리 25%
     private const float FastSlope = 0.75f / 0.4f;   // 뒷 구간: 시간 40% 에 거리 75%
+
+    /// <summary>fixedDeltaTime 에 넣을 수 있는 하한. 이보다 작으면 Unity 가 받아주지 않는다.</summary>
+    private const float MinFixedDelta = 0.001f;
 
     void Awake()
     {
@@ -121,6 +139,11 @@ public class SpecialMove : MonoBehaviour
 
     void Update()
     {
+        // 게이지 채우기는 연출 확인용 단축키다.
+        // 웹캠 인식으로 테스트하는 중에도 눌러야 하므로 useKeyboard 와 상관없이 항상 받는다.
+        if (chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey))
+            AddCharge(chargeKeyAmount);
+
         if (controller != null && !controller.useKeyboard) return;
         if (Input.GetKeyDown(activateKey)) Activate();
     }
@@ -175,6 +198,12 @@ public class SpecialMove : MonoBehaviour
         float total = Mathf.Max(0.05f, duration);
         float recover = Mathf.Clamp(recoverTime, 0f, total);
         float hold = total - recover;
+
+        // 카메라 확대는 HitImpact 에 맡긴다. timeScale 과 달리 확대는 주인이 하나뿐이라
+        // 마무리 일격 연출과 같은 코드를 배율만 바꿔서 그대로 쓸 수 있다.
+        float zIn = Mathf.Min(zoomInTime, total);
+        float zOut = Mathf.Min(zoomOutTime, total - zIn);
+        HitImpact.PlayZoom(transform.position, zoomRatio, zIn, total - zIn - zOut, zOut);
 
         SetTimeScale(slowScale);
 
@@ -295,8 +324,11 @@ public class SpecialMove : MonoBehaviour
     private void SetTimeScale(float scale)
     {
         Time.timeScale = scale;
+
         // 물리 간격도 같이 줄여야 느려지는 동안 움직임이 뚝뚝 끊기지 않는다.
-        Time.fixedDeltaTime = defaultFixedDelta * scale;
+        // 다만 0 은 넣으면 안 된다. timeScale 이 0 이면 FixedUpdate 가 아예 돌지 않는데,
+        // fixedDeltaTime 에 0 을 대입하는 것 자체를 Unity 가 오류로 막는다.
+        Time.fixedDeltaTime = Mathf.Max(defaultFixedDelta * scale, MinFixedDelta);
     }
 
     private void RestoreTime()

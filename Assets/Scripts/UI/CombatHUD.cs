@@ -379,6 +379,10 @@ public class CombatHUD : MonoBehaviour
             AddGuideRow(i++, "웹캠", "키보드 입력이 꺼져 있다 (인식 전용)");
         }
 
+        // 게이지 채우기는 useKeyboard 와 무관하게 먹으므로 키보드 분기 밖에 둔다.
+        if (special != null && special.ChargeKey != KeyCode.None)
+            AddGuideRow(i++, special.ChargeKey.ToString(), "필살기 게이지 채우기 (테스트용)");
+
         if (allowRestart)
             AddGuideRow(i++, restartKey.ToString(), "K.O. 후 다시 시작");
 

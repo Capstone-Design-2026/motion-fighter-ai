@@ -174,12 +174,29 @@ public class HitImpact : MonoBehaviour
         // 기본 타격은 여기서 끝. 화면은 건드리지 않고 시간만 늦춘다.
         if (!finisher) return;
 
+        StartZoom(hitPoint, zoomRatio, zoomInTime, zoomHoldTime, zoomOutTime);
+    }
+
+    /// <summary>
+    /// 타격과 무관하게 카메라만 확대한다. 필살기처럼 자기 길이를 아는 연출이 쓴다.
+    /// 확대 배율과 길이를 직접 넘기므로 마무리 일격보다 약하게(= ratio 를 1 에 가깝게) 잡을 수 있다.
+    /// </summary>
+    public static void PlayZoom(Vector2 focusPoint, float ratio, float inTime, float holdTime, float outTime)
+    {
+        var inst = Instance;
+        if (inst != null) inst.StartZoom(focusPoint, ratio, inTime, holdTime, outTime);
+    }
+
+    private void StartZoom(Vector2 focusPoint, float ratio, float inTime, float holdTime, float outTime)
+    {
+        if (!enableImpact) return;
+
         // 연출이 이미 돌고 있으면 원래 카메라 값을 다시 재지 않는다.
         // 확대된 상태를 기준으로 잡아버리면 연타할 때 카메라가 계속 파고든다.
         if (cameraRoutine != null) StopCoroutine(cameraRoutine);
         else if (!CaptureCameraBase()) return;
 
-        cameraRoutine = StartCoroutine(CameraRoutine(hitPoint));
+        cameraRoutine = StartCoroutine(CameraRoutine(focusPoint, ratio, inTime, holdTime, outTime));
     }
 
     // ─────────────────────── 시간 ───────────────────────
@@ -244,14 +261,13 @@ public class HitImpact : MonoBehaviour
         return true;
     }
 
-    private IEnumerator CameraRoutine(Vector2 hitPoint)
+    private IEnumerator CameraRoutine(Vector2 focusPoint, float targetRatio, float zoomIn, float zoomHold, float zoomOut)
     {
-        float targetRatio = zoomRatio;
         float shake = useShake ? shakeStrength : 0f;
 
-        float inTime  = Mathf.Max(0.0001f, zoomInTime);
-        float outTime = Mathf.Max(0.0001f, zoomOutTime);
-        float hold    = Mathf.Max(0f, zoomHoldTime);
+        float inTime  = Mathf.Max(0.0001f, zoomIn);
+        float outTime = Mathf.Max(0.0001f, zoomOut);
+        float hold    = Mathf.Max(0f, zoomHold);
         float total   = inTime + hold + outTime;
 
         float elapsed = 0f;
@@ -279,7 +295,7 @@ public class HitImpact : MonoBehaviour
 
             if (focusWeight > 0f)
             {
-                Vector2 toHit = hitPoint - new Vector2(rest.x, rest.y);
+                Vector2 toHit = focusPoint - new Vector2(rest.x, rest.y);
                 Vector2 focus = Vector2.ClampMagnitude(toHit * focusWeight, maxFocusOffset) * eased;
                 offset += new Vector3(focus.x, focus.y, 0f);
             }
