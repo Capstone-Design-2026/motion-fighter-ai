@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -10,36 +9,56 @@ using UnityEngine;
 /// 배치 수치(반지름, 건물 수)를 바꿔가며 몇 번이고 다시 뽑아봐야 하는 단계이기 때문이다.
 /// 마음에 드는 구도가 나오면 그때부터는 씬을 직접 손보면 된다.
 ///
-/// 구성
-///   바닥      Ground01a 타일을 원판 모양으로 깔았다. 한 장이 52 트라이앵글뿐이라 장수가 늘어도 부담이 적다.
-///   담장      Wall05b 를 원형으로 둘러 세운다. 이게 "원형 공간" 의 윤곽이자 오클루전의 가림막 역할을 한다.
-///   건물      담장 바깥에 안쪽을 보도록 배치. 담장과 서로에 가려지므로 오클루전 컬링이 실제로 일을 한다.
-///   프롭      담장 안쪽에 몇 개. 분위기용.
-///   캐릭터    Joseon_Royal_Wear 의 의류 메시를 겹쳐 세워 자리만 잡아둔다. (뼈대 없는 정적 메시라 애니메이션은 안 된다)
+/// ─────────────────────────────────────────────────────────────────
+/// Naganeupseong 데모 씬(Assets/Naganeupseong/Scene/Demo.unity)에서 가져온 규칙
+/// ─────────────────────────────────────────────────────────────────
+/// 데모의 담장은 세 조각의 조합이다. 다른 Wall 프리팹은 거의 쓰이지 않는다.
+///   Wall01c  208개   직선 구간. 2.13m 간격으로 늘어놓는다.
+///   Wall03c   25개   방향이 꺾이는 자리(모서리)에 놓는 기둥
+///   Door01k    9개   담장 한 칸을 비우고 그 자리에 끼우는 문 (폭 1.87m)
+///
+/// 그리고 데모의 담장은 전부 rotY 0 / 90 뿐이다. 즉 임의 각도로 휘두르지 않고
+/// 직선 런을 이어붙여 구획을 만든다. 그래서 여기서도 원을 매끄러운 곡선으로 두르지 않고
+/// 정팔각형으로 두른다 — 한 변이 직선 런이고 꼭짓점마다 Wall03c 기둥이 선다.
+/// 멀리서 보면 원으로 읽히면서 조각들은 원래 쓰이던 방식대로 놓인다.
+///
+/// 조명도 데모 값을 그대로 가져왔다. rot(36,136,15) / 따뜻한 색 / Soft 그림자 /
+/// 앰비언트는 Skybox, 포그 없음. 이 팩의 텍스처가 이 조명에서 제일 제대로 보인다.
+///
+/// 건물은 데모에서 전부 scale 1 의 자립 프리팹이다. 밑에 기단을 따로 깔지 않는다.
+/// 프롭은 집 한 채 주변 12m 안에 100개 넘게 깔려 있다. 여기서도 넉넉히 뿌린다.
+/// ─────────────────────────────────────────────────────────────────
 ///
 /// 컬링
 ///   환경 오브젝트 전부에 Occluder / Occludee / Batching Static 을 켜고 오클루전을 굽는다.
-///   담장(높이 1.9m)이 건물 하단을 가리고, 건물끼리도 서로 가리기 때문에 굽는 값이 헛돌지 않는다.
-///   자세한 효과는 Verify() 로 실제 렌더러 수를 세어 확인할 수 있다.
+///   다만 카메라가 투기장 한가운데 있으면 지붕이 담장보다 높아 실제로 걷어내는 건
+///   대부분 프러스텀 컬링이다. Verify() 로 실제 숫자를 확인할 수 있다.
 /// </summary>
 public static class Arena3DBuilder
 {
     public const string ScenePath = "Assets/Scenes/Arena3D.unity";
 
-    // ── 배치 수치 ──
-    private const float WallRadius     = 9f;      // 담장 반지름 = 투기장 크기
-    // 바닥은 담장보다 아주 조금만 넓게 깐다. 3m 타일로는 원을 매끄럽게 못 따라가서
-    // 여유를 크게 주면 담장 밖으로 모래밭이 들쭉날쭉 삐져나온다.
-    private const float GroundRadius   = 10.4f;
-    private const float BuildingRadius = 13.5f;   // 담장 바깥 건물 링
+    // ── 담장 (데모 수치) ──
+    private const float WallSegment     = 2.13f;  // 데모가 Wall01c 를 늘어놓는 간격
+    private const float WallSideOffset  = 0.23f;  // Wall01c 몸통이 피벗에서 -X 로 밀려 있는 만큼
+    private const int   Sides           = 8;      // 정팔각형
+    private const int   SegmentsPerSide = 4;      // 한 변에 들어가는 Wall01c 수
+    private const int   GateSegment     = 2;      // 출입구가 될 세그먼트 번호 (변 안에서)
+    private static readonly int[] GateSides = { 0, 4 };   // 마주보는 두 변에 문을 낸다
+
+    // 한 변 길이와 외접/내접 반지름은 위 값에서 나온다.
+    private const float SideLength   = WallSegment * SegmentsPerSide;                        // 8.52
+    private static readonly float Circumradius = SideLength / (2f * Mathf.Sin(Mathf.PI / Sides));   // 11.13
+    private static readonly float Inradius     = Circumradius * Mathf.Cos(Mathf.PI / Sides);       // 10.28
+
+    // ── 나머지 배치 ──
     private const float GroundTile     = 3f;      // Ground01a 한 장 크기
-    private const float WallSegment    = 2.15f;   // Wall05b 가 +Z 로 뻗는 길이
     private const int   BuildingCount  = 12;
     private const float FighterOffsetX = 3.5f;    // 두 캐릭터 사이 거리의 절반
+    private const int   PropCount      = 34;
 
-    // 담장에 낼 출입구. 이 인덱스의 세그먼트를 빼면 문처럼 뚫린다.
-    private static readonly float[] GateAngles = { 0f, 180f };
-    private const float GateHalfWidth = 12f;      // 각 출입구가 차지하는 각도의 절반(도)
+    /// <summary>건물 링. 담장 바깥으로 충분히 물려야 지붕이 담장을 파고들지 않는다.</summary>
+    private static float BuildingRadius { get { return Inradius + 3.5f; } }
 
     // 링에 세울 건물. 정사각형에 가까운 것 위주로 골랐다.
     // 가로세로 비가 심한 건물은 어느 면이 정면인지에 따라 링에서 튀어 보인다.
@@ -51,9 +70,13 @@ public static class Arena3DBuilder
         "Local_Personnel_Clerks_House_04",
     };
 
+    // 데모에서 가장 많이 쓰인 프롭들. 마당에 굴러다니는 것 위주로 골랐다.
+    // (데모 상위: Rice_Straw 42, Straw_Bag 33, Corn 32, Chili 24 …)
     private static readonly string[] PropNames =
     {
-        "Jar01a", "Cart", "Bamboo_Basket", "Basket01a", "Cauldron01a", "Anvil", "Brazer", "Basket01b",
+        "Rice_Straw", "Straw_Bag", "Jar01a", "Jar01b", "Bamboo_Basket", "Basket01a", "Basket01b",
+        "Wicker_Basket", "Cart", "Cauldron01a", "Cauldron01b", "Brazer", "Anvil", "Broom01a",
+        "Straw_Mat01b", "A_frame_Carrier01a", "Jars",
     };
 
     // 의류 메시를 겹쳐 사람 형태를 만든다. 전부 발밑이 원점이라 같은 자리에 두면 그대로 맞물린다.
@@ -66,7 +89,9 @@ public static class Arena3DBuilder
     private const string PropFolder  = "Assets/Naganeupseong/Prefabs/Prop";
     private const string WearFolder  = "Assets/Joseon_Royal_Wear/Meshes/Male";
     private const string GroundPath  = "Assets/Naganeupseong/Prefabs/Structure/Ground/Ground01a.prefab";
-    private const string WallPath    = "Assets/Naganeupseong/Prefabs/Structure/Wall/Wall05b.prefab";
+    private const string WallPath    = "Assets/Naganeupseong/Prefabs/Structure/Wall/Wall01c.prefab";
+    private const string PostPath    = "Assets/Naganeupseong/Prefabs/Structure/Wall/Wall03c.prefab";
+    private const string DoorPath    = "Assets/Naganeupseong/Prefabs/Structure/Door/Door01k.prefab";
 
     [MenuItem("Tools/Arena3D/원형 투기장 씬 생성")]
     public static void Build()
@@ -96,7 +121,8 @@ public static class Arena3DBuilder
         BuildFighter("Enemy (placeholder)",  EnemyWear,  new Vector3( FighterOffsetX, 0f, 0f), -90f, fighters);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
-        Debug.Log("[Arena3D] 씬 생성 완료 → " + ScenePath + "  (오클루전은 Tools/Arena3D 메뉴에서 따로 굽는다)");
+        Debug.Log("[Arena3D] 씬 생성 완료 → " + ScenePath
+                + "  (팔각 담장 내접반지름 " + Inradius.ToString("F1") + "m, 투기장 지름 " + (Inradius * 2f).ToString("F1") + "m)");
 
         BakeOcclusion();
     }
@@ -108,8 +134,8 @@ public static class Arena3DBuilder
     [MenuItem("Tools/Arena3D/오클루전 굽기")]
     public static void BakeOcclusion()
     {
-        // smallestOccluder 를 담장 높이(1.9m)보다 작게 잡아야 담장이 가림막으로 인정된다.
-        StaticOcclusionCulling.smallestOccluder = 1.5f;
+        // smallestOccluder 를 담장 높이(1.68m)보다 작게 잡아야 담장이 가림막으로 인정된다.
+        StaticOcclusionCulling.smallestOccluder = 1.2f;
         StaticOcclusionCulling.smallestHole = 0.25f;
         StaticOcclusionCulling.backfaceThreshold = 100f;
 
@@ -129,13 +155,14 @@ public static class Arena3DBuilder
 
     // ─────────────────────── 구성 요소 ───────────────────────
 
+    /// <summary>조명과 환경은 데모 씬 값을 그대로 쓴다. 이 팩 텍스처가 이 세팅에서 제일 제대로 보인다.</summary>
     private static void SetupCameraAndLight()
     {
         var cam = Camera.main;
         if (cam != null)
         {
             // 담장 안쪽에 둔다. 바깥에 두면 앞쪽 담장이 화면 아래를 가로막는다.
-            cam.transform.position = new Vector3(0f, 3.4f, -(WallRadius - 0.7f));
+            cam.transform.position = new Vector3(0f, 3.4f, -(Inradius - 1.6f));
             cam.transform.LookAt(new Vector3(0f, 1.3f, 0f));
             cam.fieldOfView = 50f;
             cam.nearClipPlane = 0.2f;
@@ -146,13 +173,17 @@ public static class Arena3DBuilder
         var light = Object.FindAnyObjectByType<Light>();
         if (light != null && light.type == LightType.Directional)
         {
-            light.transform.rotation = Quaternion.Euler(48f, 145f, 0f);
-            light.intensity = 1.15f;
+            light.transform.rotation = Quaternion.Euler(36f, 136f, 15f);   // 데모와 동일
+            light.intensity = 1f;
+            light.color = new Color(1f, 0.957f, 0.839f);                   // 데모의 따뜻한 색
             light.shadows = LightShadows.Soft;
         }
+
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
+        RenderSettings.fog = false;
     }
 
-    /// <summary>바닥 타일을 원판 모양으로 깐다. 타일 피벗이 모서리라 중심을 반 칸 밀어 계산한다.</summary>
+    /// <summary>바닥 타일을 팔각형 안쪽에 깐다. 타일 피벗이 모서리라 중심을 반 칸 밀어 계산한다.</summary>
     private static void BuildGround(Transform root, Transform parent)
     {
         root.SetParent(parent, false);
@@ -160,16 +191,19 @@ public static class Arena3DBuilder
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(GroundPath);
         if (prefab == null) { Warn(GroundPath); return; }
 
-        int half = Mathf.CeilToInt(GroundRadius / GroundTile);
+        int half = Mathf.CeilToInt(Circumradius / GroundTile) + 1;
         int placed = 0;
 
         for (int ix = -half; ix <= half; ix++)
         {
             for (int iz = -half; iz <= half; iz++)
             {
-                // 타일 중심이 원 안에 들어올 때만 깐다. 이래야 사각형이 아니라 원판이 된다.
+                // 타일 중심이 팔각형 안에 들어올 때만 깐다.
+                // 원으로 자르면 변 중앙(내접반지름)에서 바닥이 담장 밖으로 삐져나온다.
+                // 타일이 3m 라 경계에서 조금 넘치는 건 남지만, 담장이 그 위에 서서 가려준다.
                 var center = new Vector3((ix + 0.5f) * GroundTile, 0f, (iz + 0.5f) * GroundTile);
-                if (center.magnitude > GroundRadius) continue;
+                float ang = Mathf.Atan2(center.z, center.x);
+                if (center.magnitude > WallDistanceAt(ang)) continue;
 
                 var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root);
                 // 타일 윗면이 y = 0.5 이므로 0.5 만큼 내려야 바닥이 y = 0 이 된다.
@@ -181,40 +215,72 @@ public static class Arena3DBuilder
         Debug.Log("[Arena3D] 바닥 타일 " + placed + "장");
     }
 
-    /// <summary>담장을 원형으로 세운다. 세그먼트가 +Z 로 뻗으므로 접선 방향을 바라보게 돌린다.</summary>
+    /// <summary>
+    /// 팔각 담장. 한 변마다 Wall01c 를 2.13m 간격 직선 런으로 놓고, 꼭짓점에 Wall03c 기둥을 세운다.
+    /// 데모가 담장을 rotY 0/90 직선 런으로만 놓기 때문에 원을 곡선으로 두르지 않고 이렇게 간다.
+    /// 마주보는 두 변의 가운데 칸은 Wall01c 대신 Door01k 를 끼워 출입구로 쓴다.
+    /// </summary>
     private static void BuildWallRing(Transform root, Transform parent)
     {
         root.SetParent(parent, false);
 
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(WallPath);
-        if (prefab == null) { Warn(WallPath); return; }
+        var wall = AssetDatabase.LoadAssetAtPath<GameObject>(WallPath);
+        var post = AssetDatabase.LoadAssetAtPath<GameObject>(PostPath);
+        var door = AssetDatabase.LoadAssetAtPath<GameObject>(DoorPath);
+        if (wall == null) { Warn(WallPath); return; }
 
-        // 올림으로 잡아 한 칸의 호 길이를 메시보다 짧게 만든다. 살짝 겹치는 편이 틈이 벌어지는 것보다 낫다.
-        int count = Mathf.CeilToInt(2f * Mathf.PI * WallRadius / WallSegment);
-        int placed = 0, skipped = 0;
+        int walls = 0, posts = 0, doors = 0;
 
-        for (int i = 0; i < count; i++)
+        for (int side = 0; side < Sides; side++)
         {
-            float deg = 360f * i / count;
-            if (IsGate(deg)) { skipped++; continue; }
+            Vector3 a = VertexAt(side);
+            Vector3 b = VertexAt(side + 1);
+            Vector3 dir = (b - a).normalized;
+            Quaternion rot = Quaternion.LookRotation(dir);
 
-            float rad = deg * Mathf.Deg2Rad;
-            var pos = new Vector3(Mathf.Cos(rad) * WallRadius, 0f, Mathf.Sin(rad) * WallRadius);
-            var tangent = new Vector3(-Mathf.Sin(rad), 0f, Mathf.Cos(rad));
+            // Wall01c 몸통은 피벗에서 로컬 -X 로 0.23 밀려 있다. 로컬 +X 가 바깥이므로
+            // 그만큼 밖으로 내보내야 담장 면이 의도한 팔각형 위에 정확히 앉는다.
+            Vector3 shift = (rot * Vector3.right) * WallSideOffset;
 
-            var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root);
-            go.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(tangent));
-            placed++;
+            bool isGateSide = System.Array.IndexOf(GateSides, side) >= 0;
+
+            for (int j = 0; j < SegmentsPerSide; j++)
+            {
+                Vector3 pos = a + dir * (j * WallSegment) + shift;
+
+                if (isGateSide && j == GateSegment && door != null)
+                {
+                    // 문은 피벗이 가운데라 칸의 중앙에 놓는다.
+                    var d = (GameObject)PrefabUtility.InstantiatePrefab(door, root);
+                    d.transform.SetPositionAndRotation(pos + dir * (WallSegment * 0.5f), rot);
+                    doors++;
+                    continue;
+                }
+
+                var w = (GameObject)PrefabUtility.InstantiatePrefab(wall, root);
+                w.transform.SetPositionAndRotation(pos, rot);
+                walls++;
+            }
+
+            // 꼭짓점 기둥. 데모에서 Wall03c 가 놓이는 자리와 같은 역할이다.
+            if (post != null)
+            {
+                var p = (GameObject)PrefabUtility.InstantiatePrefab(post, root);
+                p.transform.SetPositionAndRotation(a + shift, rot);
+                posts++;
+            }
         }
 
-        Debug.Log("[Arena3D] 담장 " + placed + "칸 (출입구로 " + skipped + "칸 비움)");
+        Debug.Log("[Arena3D] 담장 Wall01c " + walls + " / 기둥 Wall03c " + posts + " / 문 Door01k " + doors
+                + "  (팔각 한 변 " + SideLength.ToString("F2") + "m)");
     }
 
-    private static bool IsGate(float deg)
+    /// <summary>팔각형 꼭짓점. 한 변이 -Z 쪽 정면에 오도록 half-step 돌려 둔다.</summary>
+    private static Vector3 VertexAt(int index)
     {
-        foreach (var g in GateAngles)
-            if (Mathf.Abs(Mathf.DeltaAngle(deg, g)) < GateHalfWidth) return true;
-        return false;
+        float step = 2f * Mathf.PI / Sides;
+        float ang = step * index + step * 0.5f + Mathf.PI * 0.5f;
+        return new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * Circumradius;
     }
 
     /// <summary>건물을 담장 바깥에 안쪽을 보도록 세운다. 겹치지 않게 자기 깊이의 절반만큼 더 밀어낸다.</summary>
@@ -232,7 +298,8 @@ public static class Arena3DBuilder
             var dir = new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad));
 
             var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root);
-            // +Z 가 원 중심을 향하게 세운다.
+            // +Z 가 원 중심을 향하게 세운다. (데모는 격자 마을이라 rotY 가 90도 단위지만
+            //  링으로 두르려면 임의 각도가 필요하다. 여기가 데모와 다른 유일한 지점이다)
             go.transform.rotation = Quaternion.LookRotation(-dir);
             go.transform.position = dir * (BuildingRadius + DepthOf(go) * 0.5f);
         }
@@ -251,7 +318,10 @@ public static class Arena3DBuilder
         return Mathf.Abs(Vector3.Dot(b.size, go.transform.forward));
     }
 
-    /// <summary>담장 안쪽을 따라 프롭을 흩어 놓는다. 위치는 고정 시드라 다시 만들어도 같은 그림이 나온다.</summary>
+    /// <summary>
+    /// 담장 안쪽을 따라 프롭을 흩어 놓는다. 데모가 집 주변에 프롭을 빽빽하게 까는 편이라
+    /// 여기서도 넉넉히 뿌린다. 위치는 고정 시드라 다시 만들어도 같은 그림이 나온다.
+    /// </summary>
     private static void BuildProps(Transform root, Transform parent)
     {
         root.SetParent(parent, false);
@@ -259,25 +329,54 @@ public static class Arena3DBuilder
         var state = Random.state;
         Random.InitState(20260909);
 
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < PropCount; i++)
         {
             string name = PropNames[i % PropNames.Length];
             var prefab = FindPrefab(name, PropFolder);
             if (prefab == null) { Warn(name); continue; }
 
-            float deg = 360f * i / 16f + Random.Range(-6f, 6f);
-            if (IsGate(deg)) continue;   // 출입구는 막지 않는다
-
+            float deg = 360f * i / PropCount + Random.Range(-4f, 4f);
             float rad = deg * Mathf.Deg2Rad;
-            float r = WallRadius - Random.Range(0.6f, 1.4f);
+
+            // 담장 안쪽 면에 붙인다. 팔각형이라 방향에 따라 벽까지 거리가 달라지므로
+            // 내접반지름이 아니라 그 방향의 실제 벽 거리를 구해서 뺀다.
+            float wallDist = WallDistanceAt(rad);
+            float r = wallDist - Random.Range(0.7f, 1.6f);
+
+            var pos = new Vector3(Mathf.Cos(rad) * r, 0f, Mathf.Sin(rad) * r);
+
+            // 출입구 앞은 막지 않는다.
+            if (IsNearGate(pos)) continue;
 
             var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root);
-            go.transform.position = new Vector3(Mathf.Cos(rad) * r, 0f, Mathf.Sin(rad) * r);
+            go.transform.position = pos;
             go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
         }
 
         Random.state = state;
         Debug.Log("[Arena3D] 프롭 " + root.childCount + "개");
+    }
+
+    /// <summary>중심에서 그 각도로 나갔을 때 팔각 담장까지의 거리.</summary>
+    private static float WallDistanceAt(float rad)
+    {
+        // 팔각형은 내접반지름을 반각 주기로 되풀이한다. 변 중앙에서 가장 가깝고 꼭짓점에서 가장 멀다.
+        float step = 2f * Mathf.PI / Sides;
+        float local = Mathf.Repeat(rad - Mathf.PI * 0.5f - step * 0.5f, step) - step * 0.5f;
+        return Inradius / Mathf.Cos(local);
+    }
+
+    /// <summary>출입구 문짝에서 2.5m 안쪽인지.</summary>
+    private static bool IsNearGate(Vector3 p)
+    {
+        foreach (int side in GateSides)
+        {
+            Vector3 a = VertexAt(side);
+            Vector3 dir = (VertexAt(side + 1) - a).normalized;
+            Vector3 gate = a + dir * ((GateSegment + 0.5f) * WallSegment);
+            if (Vector3.Distance(p, gate) < 2.5f) return true;
+        }
+        return false;
     }
 
     /// <summary>
