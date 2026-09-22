@@ -66,6 +66,53 @@ MLP action class는 기존 6개만 사용합니다. 좌우 이동은 별도 move
 | RIGHT | 오른쪽 이동 |
 | NEUTRAL | 이동 없음 |
 
+## Movement Detection
+
+Movement는 양쪽 shoulder depth(z) 차이를 화면상의 어깨 간 거리(x, y)로
+정규화한 rotation score로 `LEFT / NEUTRAL / RIGHT`를 판정합니다.
+`MOVEMENT_MIRROR` 설정을 적용한 raw score에서 neutral baseline을 뺀 뒤,
+기존 hysteresis와 연속 프레임 stabilization을 적용합니다.
+MLP action과 movement는 독립 channel이며, movement strength도 보정된 score로 계산합니다.
+
+## Neutral Baseline Calibration
+
+프로그램을 실행하면 `CALIBRATING` 상태로 시작합니다. 사용자는 양쪽 어깨가
+보이도록 정면 기본 자세를 잡고 약 3초간 움직이지 않은 채 `READY`를 기다립니다.
+
+- 양쪽 shoulder visibility가 각각 `MOVEMENT_VISIBILITY_THRESHOLD`(현재 `0.5`)
+  이상이고 좌표와 score가 유효한 frame만 수집합니다. `NaN` / `inf`는 제외합니다.
+- 첫 유효 sample부터 최소 수집 시간이 지나고 최소 sample 수도 충족해야 완료됩니다.
+  유효 sample이 부족하면 3초가 지나도 `CALIBRATING`을 유지하며 수집을 계속합니다.
+- 유효 score의 `median`으로 neutral baseline을 계산하고 `READY`로 전환합니다.
+- Calibration 중과 완료되는 바로 그 frame은 movement가 항상 `NEUTRAL`이고
+  `movement_strength=0.0`입니다. Action inference는 계속 동작하며,
+  Unity에 전송되는 movement도 `NEUTRAL/0.0`입니다.
+- 다음 유효 frame부터 아래 corrected score로 movement를 판정합니다.
+
+```text
+corrected_rotation_score = raw_rotation_score - neutral_baseline
+```
+
+Overlay에서 상태, 유효 sample 수, raw score, baseline, corrected score,
+calibration MAD를 확인할 수 있습니다. MAD(median absolute deviation)는
+디버깅·재측정용이며 calibration 성공/실패 기준으로 사용하지 않습니다.
+
+Pose 손실이나 낮은 shoulder visibility에서는 movement를 `NEUTRAL`로 만들지만,
+이미 수집한 sample과 완료된 baseline은 유지합니다. Baseline은 파일에 저장하지
+않으며 프로그램을 다시 실행하면 새 calibration을 진행합니다.
+
+현재 `src/config.py` 기본값:
+
+```python
+MOVEMENT_CALIBRATION_SECONDS = 3.0
+MOVEMENT_CALIBRATION_MIN_SAMPLES = 30
+MOVEMENT_ENTER_THRESHOLD = 0.30
+MOVEMENT_EXIT_THRESHOLD = 0.15
+```
+
+Calibration 설정과 movement threshold는 초기값이며 실제 다인원 재측정 결과에
+따라 조정할 수 있습니다. 현재 ENTER / EXIT threshold는 기존 값을 유지합니다.
+
 ---
 
 # Project Structure
@@ -267,12 +314,35 @@ Features:
 
 - Real-time MLP action prediction
 - Action confidence threshold
-- Rule-based shoulder movement detection
+- Rule-based shoulder movement detection with neutral baseline calibration
 - Separate action and movement stabilization
 - Unity UDP transmission when action or movement changes
 - Limits repeated `IDLE` / `NONE` sends
 - Debug overlay for raw/final action, confidence, raw/final movement,
-  rotation score, movement strength, and last Unity payload
+  calibration state, raw/corrected rotation score, baseline, calibration MAD,
+  movement strength, and last Unity payload
+
+### Movement 확인 절차
+
+가상환경을 활성화하고 모델 파일을 준비한 뒤 위의 `python src/run_inference.py`를 실행합니다.
+
+1. `CALIBRATING` 동안 양쪽 어깨가 보이도록 정면 기본 자세를 유지합니다.
+2. 유효 sample 수가 충분해지고 `READY`가 표시되는지 확인합니다.
+3. `NEUTRAL → LEFT → NEUTRAL → RIGHT → NEUTRAL` 순서로 자세를 바꾸며
+   각 자세를 잠시 유지하고 overlay의 `FINAL MOVE`를 확인합니다.
+4. Raw / baseline / corrected score와 MAD를 기록하고, Unity 연결 시에도
+   동일한 이동 상태가 전달되는지 확인합니다.
+
+### 자동 테스트
+
+```bash
+python -m unittest discover -s tests
+```
+
+현재 총 **53개 테스트가 통과**했습니다. Median/MAD, 유효 sample 필터링,
+calibration 시간·sample 수 조건, 완료 frame의 NEUTRAL 유지, offset 보정,
+baseline 보존, 기존 hysteresis/stabilization 및 Unity payload를 검증합니다.
+실제 다인원 카메라·Unity 재측정은 별도로 진행할 예정입니다.
 
 ## 5. Unity Communication
 
@@ -324,11 +394,15 @@ MediaPipe Pose
 │  ↓
 │  Action Confidence / Stabilization
 │
-└─ Shoulder Depth Difference
+└─ Shoulder Depth Difference / Raw Rotation Score
    ↓
-   Rule-based Movement Detection
+   Neutral Baseline Calibration (median)
+   ↓
+   Corrected Rotation Score (raw - baseline)
    ↓
    Hysteresis / Movement Stabilization
+   ↓
+   LEFT / NEUTRAL / RIGHT
 ↓
 Unity UDP Transmission
 ```
@@ -388,6 +462,13 @@ Use .gitignore.
 - UI / Stage implementation
 
 # Current Development Goal
+
+## Current Status
+
+- Shoulder movement 구현 완료
+- Neutral baseline calibration 구현 완료
+- 실제 다인원 재측정 진행 예정
+- [PR #2](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/2)에서 검증 중
 
 ## Short-Term Goal
 
