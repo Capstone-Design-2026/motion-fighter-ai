@@ -4,6 +4,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 import sys
 import unittest
+from unittest.mock import patch
 
 
 SRC_DIR = Path(__file__).resolve().parent.parent / "src"
@@ -133,6 +134,55 @@ class SendDecisionTest(unittest.TestCase):
         self.assertFalse(
             should_send_to_unity("ATTACK", "RIGHT", "ATTACK", "RIGHT", 10.0, 20.0)
         )
+
+
+class CalibrationInferenceTest(unittest.TestCase):
+    def test_calibration_unity_payload_keeps_action_and_neutral_movement(self):
+        from run_inference import create_movement_detector, send_to_unity_if_needed
+        from send_unity import build_payload
+        from test_movement import make_landmarks
+
+        detector = create_movement_detector()
+        payloads = []
+
+        def capture(action, movement, confidence, strength):
+            payloads.append(build_payload(action, movement, confidence, strength))
+            return True
+
+        with patch("run_inference.send_action", side_effect=capture):
+            for index, action in enumerate(("ATTACK", "BLOCK", "JUMP")):
+                result = detector.update(make_landmarks(left_z=1.0), now=float(index))
+                send_to_unity_if_needed(
+                    action, result.final_movement, 0.9, result.movement_strength,
+                    None, None, 0.0, "",
+                )
+        self.assertEqual(len(payloads), 3)
+        for payload, action in zip(payloads, ("ATTACK", "BLOCK", "JUMP")):
+            self.assertEqual(set(payload), {
+                "action", "movement", "confidence", "movement_strength", "timestamp"
+            })
+            self.assertEqual(payload["action"], action)
+            self.assertEqual(payload["confidence"], 0.9)
+            self.assertEqual(payload["movement"], "NEUTRAL")
+            self.assertEqual(payload["movement_strength"], 0.0)
+
+    def test_calibration_overlay_and_invalid_ready_score(self):
+        from run_inference import movement_debug_lines
+        from test_movement_calibration import create_uncalibrated_detector, calibrate, pose
+
+        detector = create_uncalibrated_detector()
+        lines = movement_debug_lines(detector.update(pose(0.2), now=0))
+        self.assertIn("CALIBRATING - Face forward and hold still", lines)
+        self.assertIn("BASE: N/A", lines)
+        self.assertIn("CORR ROT: N/A", lines)
+        detector = create_uncalibrated_detector()
+        calibrate(detector, 0.2)
+        lines = movement_debug_lines(detector.reset())
+        self.assertIn("READY", lines)
+        self.assertIn("RAW ROT: N/A", lines)
+        self.assertIn("CORRECTED ROT: N/A", lines)
+        self.assertIn("BASELINE: 0.200", lines)
+        self.assertIn("CALIBRATION MAD: 0.000", lines)
 
 
 if __name__ == "__main__":

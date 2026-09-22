@@ -40,14 +40,19 @@ def make_landmarks(left_z=0.0, right_z=0.0, left_visibility=1.0, right_visibilit
 
 def create_detector(stable_frame_count=1, mirror=False):
     """Create a detector with deterministic test thresholds."""
-    return ShoulderMovementDetector(
+    detector = ShoulderMovementDetector(
         visibility_threshold=0.5,
         enter_threshold=0.30,
         exit_threshold=0.15,
         stable_frame_count=stable_frame_count,
         mirror=mirror,
         max_strength_delta=0.60,
+        calibration_seconds=1.0,
+        calibration_min_samples=2,
     )
+    detector.update(make_landmarks(), now=0.0)
+    detector.update(make_landmarks(), now=1.0)
+    return detector
 
 
 class ShoulderMovementDetectorTest(unittest.TestCase):

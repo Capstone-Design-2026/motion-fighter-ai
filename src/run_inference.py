@@ -27,6 +27,8 @@ from config import (
     CAMERA_INDEX,
     CONFIDENCE_THRESHOLD,
     LABEL_CLASSES_PATH,
+    MOVEMENT_CALIBRATION_SECONDS,
+    MOVEMENT_CALIBRATION_MIN_SAMPLES,
     MOVEMENT_ENTER_THRESHOLD,
     MOVEMENT_EXIT_THRESHOLD,
     MOVEMENT_MAX_STRENGTH_DELTA,
@@ -37,7 +39,7 @@ from config import (
     STABLE_FRAME_COUNT,
     TRAINED_MODEL_PATH,
 )
-from movement import MOVEMENT_NEUTRAL, MovementResult, ShoulderMovementDetector
+from movement import CALIBRATING, MovementResult, ShoulderMovementDetector
 from send_unity import send_action
 
 
@@ -323,7 +325,37 @@ def create_movement_detector() -> ShoulderMovementDetector:
         stable_frame_count=MOVEMENT_STABLE_FRAME_COUNT,
         mirror=MOVEMENT_MIRROR,
         max_strength_delta=MOVEMENT_MAX_STRENGTH_DELTA,
+        calibration_seconds=MOVEMENT_CALIBRATION_SECONDS,
+        calibration_min_samples=MOVEMENT_CALIBRATION_MIN_SAMPLES,
     )
+
+
+def movement_debug_lines(result: MovementResult) -> list[str]:
+    """Format calibration diagnostics independently of camera/UI rendering."""
+    raw = f"{result.raw_rotation_score:.3f}" if result.score_valid else "N/A"
+    corrected = (
+        f"{result.corrected_rotation_score:.3f}"
+        if result.corrected_rotation_score is not None else "N/A"
+    )
+    if result.calibration_state == CALIBRATING:
+        return [
+            "CALIBRATING - Face forward and hold still",
+            f"VALID SAMPLES: {result.calibration_sample_count} / {MOVEMENT_CALIBRATION_MIN_SAMPLES}",
+            f"RAW ROT: {raw}",
+            "BASE: N/A",
+            "CORR ROT: N/A",
+            "Keep both shoulders visible; collecting valid samples",
+        ]
+    return [
+        "READY",
+        f"RAW ROT: {raw}",
+        f"BASELINE: {result.neutral_baseline:.3f}",
+        f"CORRECTED ROT: {corrected}",
+        f"CALIBRATION MAD: {result.calibration_mad:.3f}",
+        f"RAW MOVE: {result.raw_movement}",
+        f"FINAL MOVE: {result.final_movement}",
+        f"MOVE STR: {result.movement_strength:.2f}",
+    ]
 
 
 def create_pose_landmarker():
@@ -370,12 +402,6 @@ def main():  # pylint: disable=too-many-locals
                 raw_action = "NONE"
                 final_action = "NONE"
                 confidence = 0.0
-                movement_result = MovementResult(
-                    raw_movement=MOVEMENT_NEUTRAL,
-                    final_movement=MOVEMENT_NEUTRAL,
-                    rotation_score=0.0,
-                    movement_strength=0.0,
-                )
 
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -395,7 +421,7 @@ def main():  # pylint: disable=too-many-locals
                     )
                     action_buffer.append(raw_action)
                     final_action = get_stable_action(action_buffer)
-                    movement_result = movement_detector.update(landmarks)
+                    movement_result = movement_detector.update(landmarks, now=time.monotonic())
                 else:
                     action_buffer.append("NONE")
                     final_action = get_stable_action(action_buffer)
@@ -447,46 +473,16 @@ def main():  # pylint: disable=too-many-locals
                     color=(255, 255, 255),
                     thickness=2,
                 )
-                draw_text(
-                    display_frame,
-                    f"RAW MOVE: {movement_result.raw_movement}",
-                    (30, 165),
-                    scale=0.8,
-                    color=(0, 255, 255),
-                    thickness=2,
-                )
-                draw_text(
-                    display_frame,
-                    f"FINAL MOVE: {unity_movement}",
-                    (30, 205),
-                    scale=0.8,
-                    color=(0, 255, 0),
-                    thickness=2,
-                )
-                draw_text(
-                    display_frame,
-                    f"ROT: {movement_result.rotation_score:.3f}",
-                    (30, 245),
-                    scale=0.8,
-                    color=(255, 255, 255),
-                    thickness=2,
-                )
-                draw_text(
-                    display_frame,
-                    f"MOVE STR: {unity_movement_strength:.2f}",
-                    (30, 285),
-                    scale=0.8,
-                    color=(255, 255, 255),
-                    thickness=2,
-                )
+                for row, label in enumerate(movement_debug_lines(movement_result)):
+                    draw_text(
+                        display_frame, label, (30, 160 + row * 27), scale=0.55,
+                    )
                 draw_text(
                     display_frame,
                     f"LAST UDP: {last_sent_payload_label}",
-                    (30, 325),
-                    scale=0.8,
-                    color=(255, 200, 0),
-                    thickness=2,
+                    (30, 403), scale=0.55, color=(255, 200, 0),
                 )
+
                 draw_text(
                     display_frame,
                     "Q: Quit",
