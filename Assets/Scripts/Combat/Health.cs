@@ -36,6 +36,9 @@ public class Health : MonoBehaviour
 
     /// <summary>(현재 HP, 최대 HP)</summary>
     public event Action<int, int> OnHealthChanged;
+
+    /// <summary>실제로 대미지를 입은 순간. 인자는 가드로 막혔는지 여부. (필살기 게이지 등)</summary>
+    public event Action<bool> OnDamaged;
     public event Action<Health> OnDeath;
 
     private float invulnerableUntil;
@@ -79,6 +82,7 @@ public class Health : MonoBehaviour
         hitStunUntil = Time.time + (guarded ? guardStunTime : hitStunTime);
 
         OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
+        OnDamaged?.Invoke(guarded);
 
         if (rb != null && knockback != Vector2.zero)
             rb.linearVelocity = new Vector2(knockback.x, Mathf.Max(rb.linearVelocity.y, knockback.y));

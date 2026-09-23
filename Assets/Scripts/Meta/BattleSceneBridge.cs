@@ -27,8 +27,11 @@ public class BattleSceneBridge : MonoBehaviour
     [Tooltip("마무리 타격 직후 잠깐 느려진다. 시간을 멈추는 게 아니라 늦추는 것이라 쓰러지는 모션이 끝까지 보인다.")]
     [SerializeField] private bool useSlowMotion = true;
     [Range(0.05f, 1f)]
-    [SerializeField] private float slowMotionScale = 0.3f;
-    [SerializeField] private float slowMotionDuration = 0.4f;
+    [SerializeField] private float slowMotionScale = 0.22f;
+    [Tooltip("느려진 상태로 붙잡아 두는 시간. 기본 타격의 슬로우보다 길어야 마무리가 마무리로 읽힌다.")]
+    [SerializeField] private float slowMotionDuration = 0.85f;
+    [Tooltip("정속으로 돌아오는 시간. 0 이면 뚝 끊긴다.")]
+    [SerializeField] private float slowMotionRecoverTime = 0.45f;
 
     private Health playerHealth;
     private Health enemyHealth;
@@ -188,18 +191,29 @@ public class BattleSceneBridge : MonoBehaviour
 
     private IEnumerator FinishRoutine(bool won)
     {
+        // 타격 히트스톱이 아직 돌고 있으면 여기서 정리한다.
+        // 지금부터 timeScale 은 K.O. 연출이 혼자 쓴다. 둘이 겹치면 서로를 덮어써서 연출이 끊긴다.
+        HitImpact.ReleaseTimeControl();
+
         // 이긴 쪽까지 포함해 양쪽 조작을 잠근다. 쓰러진 상대를 계속 때리는 걸 막는다.
         SetInputLock(true);
 
-        // 마무리 타격을 눈에 남기기 위한 짧은 슬로우모션.
+        // 마무리 일격을 눈에 남기기 위한 슬로우모션. 기본 타격의 슬로우보다 길게 간다.
         // timeScale 을 0 으로 만들지 않는 이유: 쓰러지는 모션과 넉백이 첫 프레임에서 얼어붙는다.
         if (useSlowMotion && slowMotionDuration > 0f)
         {
-            Time.timeScale = slowMotionScale;
-            // 물리 간격도 같이 줄여야 느려지는 동안 움직임이 뚝뚝 끊기지 않는다.
-            Time.fixedDeltaTime = defaultFixedDelta * slowMotionScale;
+            SetTimeScale(slowMotionScale);
 
             yield return new WaitForSecondsRealtime(slowMotionDuration);
+
+            // 정속으로 부드럽게 돌아온다. 길게 늦춘 뒤 뚝 끊으면 눈에 확 걸린다.
+            float t = 0f;
+            while (t < slowMotionRecoverTime)
+            {
+                t += Time.unscaledDeltaTime;
+                SetTimeScale(Mathf.Lerp(slowMotionScale, 1f, t / slowMotionRecoverTime));
+                yield return null;
+            }
 
             RestoreTimeScale();
         }
@@ -228,6 +242,13 @@ public class BattleSceneBridge : MonoBehaviour
         if (fighters == null) return;
         for (int i = 0; i < fighters.Length; i++)
             if (fighters[i] != null) fighters[i].InputLocked = locked;
+    }
+
+    /// <summary>물리 간격도 같이 줄여야 느려지는 동안 움직임이 뚝뚝 끊기지 않는다.</summary>
+    private void SetTimeScale(float scale)
+    {
+        Time.timeScale = scale;
+        Time.fixedDeltaTime = defaultFixedDelta * scale;
     }
 
     private void RestoreTimeScale()

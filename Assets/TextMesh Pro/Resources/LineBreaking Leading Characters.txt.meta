@@ -6,3 +6,10 @@ TextScriptImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 350582
+  packageName: "KHS \u2013 Joseon Royal Wear"
+  packageVersion: 1.0
+  assetPath: Assets/TextMesh Pro/Resources/LineBreaking Leading Characters.txt
+  uploadId: 835122
