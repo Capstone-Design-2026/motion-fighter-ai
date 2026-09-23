@@ -57,6 +57,8 @@ public class Fighter : MonoBehaviour
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
 
+    public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
+
     void Awake()
     {
         Health = GetComponent<Health>();

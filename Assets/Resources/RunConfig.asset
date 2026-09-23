@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: RunConfig
   m_EditorClassIdentifier: 
   map:
-    rows: 12
+    rows: 7
     columns: 6
     entryNodes: 3
     minNodesPerRow: 2
@@ -25,6 +25,18 @@ MonoBehaviour:
     eventWeight: 12
     shopWeight: 8
     eliteMinRow: 3
+  useOrderedCampaign: 1
+  campaignStageIds:
+  - boss_01
+  - boss_02
+  - boss_03
+  - boss_04
+  - boss_final
+  campaignBranches: 3
+  endingTitle: VISION STRIKER
+  creditsText: "제작진\n\n프로젝트 총괄 · PM\n박재홍\n\n게임 기획\n박재홍 · 안도현\n\n게임 프로그래밍\n박재홍 · 김웅빈 · 안도현 · 오승준\n\nAI · 비전 인식\n김웅빈 · 오승준\n\n3D 캐릭터 모델링\n김하은"
+  creditsAttributions: ""
+  creditsDuration: 32
   playerMaxHealth: 100
   carryPlayerHealth: 1
   restHealPercent: 0.3
@@ -64,4 +76,104 @@ MonoBehaviour:
     portrait: {fileID: 0}
     battleBackground: {fileID: 0}
     introText: 
+    enemyPrefab: {fileID: 0}
+  - id: boss_01
+    displayName: 문지기
+    nodeType: 0
+    minRow: 0
+    enemyMaxHealth: 80
+    overrideCombatStats: 1
+    attackDamage: 6
+    moveSpeed: 2.2
+    decisionInterval: 1.0
+    attackWeight: 4
+    blockWeight: 2
+    backstepWeight: 1
+    crouchWeight: 1
+    overrideTint: 1
+    enemyTint: {r: 0.65, g: 0.9, b: 1, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText:
+    enemyPrefab: {fileID: 0}
+  - id: boss_02
+    displayName: 추격자
+    nodeType: 0
+    minRow: 1
+    enemyMaxHealth: 100
+    overrideCombatStats: 1
+    attackDamage: 8
+    moveSpeed: 3.2
+    decisionInterval: 0.85
+    attackWeight: 6
+    blockWeight: 2
+    backstepWeight: 2
+    crouchWeight: 1
+    overrideTint: 1
+    enemyTint: {r: 0.55, g: 1, b: 0.65, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText:
+    enemyPrefab: {fileID: 0}
+  - id: boss_03
+    displayName: 철벽
+    nodeType: 0
+    minRow: 2
+    enemyMaxHealth: 120
+    overrideCombatStats: 1
+    attackDamage: 10
+    moveSpeed: 2.4
+    decisionInterval: 0.75
+    attackWeight: 4
+    blockWeight: 5
+    backstepWeight: 1
+    crouchWeight: 1
+    overrideTint: 1
+    enemyTint: {r: 0.65, g: 0.65, b: 1, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText:
+    enemyPrefab: {fileID: 0}
+  - id: boss_04
+    displayName: 광전사
+    nodeType: 0
+    minRow: 3
+    enemyMaxHealth: 140
+    overrideCombatStats: 1
+    attackDamage: 12
+    moveSpeed: 3.4
+    decisionInterval: 0.65
+    attackWeight: 8
+    blockWeight: 1
+    backstepWeight: 1
+    crouchWeight: 2
+    overrideTint: 1
+    enemyTint: {r: 1, g: 0.6, b: 0.3, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText:
+    enemyPrefab: {fileID: 0}
+  - id: boss_final
+    displayName: 도깨비 왕
+    nodeType: 2
+    minRow: 4
+    enemyMaxHealth: 180
+    overrideCombatStats: 1
+    attackDamage: 15
+    moveSpeed: 3.6
+    decisionInterval: 0.5
+    attackWeight: 8
+    blockWeight: 4
+    backstepWeight: 2
+    crouchWeight: 2
+    overrideTint: 1
+    enemyTint: {r: 1, g: 0.35, b: 0.45, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText:
     enemyPrefab: {fileID: 0}

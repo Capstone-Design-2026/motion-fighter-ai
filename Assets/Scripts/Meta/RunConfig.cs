@@ -22,6 +22,20 @@ public class StageDefinition
     [Tooltip("적의 최대 체력. 0 이면 씬에 설정된 값을 그대로 쓴다.")]
     public int enemyMaxHealth = 0;
 
+    [Header("단계별 전투 조정 (켜면 아래 수치를 적용)")]
+    public bool overrideCombatStats;
+    [Min(1)] public int attackDamage = 8;
+    [Min(0.1f)] public float moveSpeed = 2.6f;
+    [Min(0.1f)] public float decisionInterval = 0.8f;
+    [Min(0f)] public float attackWeight = 5f;
+    [Min(0f)] public float blockWeight = 3f;
+    [Min(0f)] public float backstepWeight = 1.5f;
+    [Min(0f)] public float crouchWeight = 1f;
+    public bool overrideTint;
+    public Color enemyTint = Color.white;
+    [Tooltip("비워두면 적의 기존 애니메이터를 사용합니다.")]
+    public RuntimeAnimatorController animatorController;
+
     [Header("연출용 (나중에 채우면 됨)")]
     public Sprite portrait;
     public Sprite battleBackground;
@@ -44,6 +58,20 @@ public class RunConfig : ScriptableObject
 
     [Header("지도 생성")]
     public MapSettings map = new MapSettings();
+
+    [Header("분기형 보스 지도")]
+    [Tooltip("켜면 보스 순서와 휴식 시점이 다른 경로를 만듭니다. 목록의 마지막은 최종 보스, 나머지는 각 경로에서 한 번씩 만납니다.")]
+    public bool useOrderedCampaign;
+    public List<string> campaignStageIds = new List<string>();
+    [Tooltip("지도 경로 수. 전투 횟수는 보스 목록의 개수로 결정됩니다.")]
+    [Range(2, 3)] public int campaignBranches = 3;
+
+    [Header("엔딩 크레딧")]
+    public string endingTitle = "VISION STRIKER";
+    [TextArea(6, 20)] public string creditsText = "제작진";
+    [Tooltip("음악, 사운드, 폰트, 외부 에셋의 제작자와 출처/라이선스를 입력합니다. 비어 있으면 표시하지 않습니다.")]
+    [TextArea(3, 12)] public string creditsAttributions = "";
+    [Min(5f)] public float creditsDuration = 32f;
 
     [Header("플레이어")]
     public int playerMaxHealth = 100;

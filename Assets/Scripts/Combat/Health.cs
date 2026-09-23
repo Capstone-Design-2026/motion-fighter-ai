@@ -118,6 +118,13 @@ public class Health : MonoBehaviour
         return true;
     }
 
+    public void SetAppearance(Color tint)
+    {
+        originalColor = tint;
+        var renderer = GetComponent<SpriteRenderer>();
+        if (renderer != null) renderer.color = tint;
+    }
+
     public void Heal(int amount)
     {
         if (IsDead || amount <= 0) return;

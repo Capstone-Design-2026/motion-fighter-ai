@@ -47,6 +47,9 @@ public class PlayerController : MonoBehaviour
     // 이때부터 앉기/막기 자세는 키보드가 아니라 인식 결과가 결정한다.
     // (이동/점프/공격 키는 테스트용으로 계속 살아있다)
     public bool externalControl = false;
+    private float externalMoveX;
+
+    public void SetOpponent(Transform value) { opponent = value; }
 
     void Start()
     {
@@ -128,24 +131,29 @@ public class PlayerController : MonoBehaviour
         // 이동으로 캐릭터를 회전시키지 않는다. 방향은 아래 FaceOpponent() 가 정한다.
         // 막는 중에는 못 움직인다. 앉은 채로는 느리게 움직일 수 있다.
         float moveX = 0f;
-        if (useKeyboard && !isBlocking)
+        if (!isBlocking)
         {
-            if (Input.GetKey(moveLeftKey))       moveX = -1f;
-            else if (Input.GetKey(moveRightKey)) moveX =  1f;
+            if (externalControl) moveX = externalMoveX;
+            // A/D still work for testing when the vision detector reports neutral movement.
+            if (useKeyboard && Mathf.Abs(moveX) < 0.01f)
+            {
+                if (Input.GetKey(moveLeftKey))       moveX = -1f;
+                else if (Input.GetKey(moveRightKey)) moveX =  1f;
+            }
         }
 
         // 바라보는 방향을 먼저 확정해야 전진/후진 판정이 맞는다.
         FaceOpponent(moveX);
 
         // 바라보는 방향과 이동 방향이 반대면 후진.
-        bool movingBack = moveX != 0f && moveX * fighter.Facing < 0f;
+        bool movingBack = Mathf.Abs(moveX) > 0.01f && moveX * fighter.Facing < 0f;
 
         float speed = moveSpeed;
         if (movingBack)  speed *= backwardSpeedMultiplier;
         if (isCrouching) speed *= crouchSpeedMultiplier;
 
         rb.linearVelocity = new Vector2(moveX * speed, rb.linearVelocity.y);
-        animator.SetBool("IsMoving", moveX != 0f);
+        animator.SetBool("IsMoving", Mathf.Abs(moveX) > 0.01f);
         animator.SetBool("IsMovingBack", movingBack);
 
         if (!useKeyboard) return;
@@ -235,19 +243,50 @@ public class PlayerController : MonoBehaviour
     // ── 파이썬(웹캠 동작인식) 연동용 ────────────────────────────────
     // UdpActionReceiver 가 인식 결과를 여기로 넘긴다.
     // 애니메이터를 직접 건드리지 않고 이 함수를 거쳐야 데미지 판정까지 함께 들어간다.
+    // Shoulder movement is a continuous signed axis, independent of the action confidence.
+    public void ExternalMovement(float axis)
+    {
+        externalControl = true;
+        externalMoveX = Mathf.Clamp(axis, -1f, 1f);
+    }
+
+    public void ClearExternalInput()
+    {
+        externalControl = false;
+        externalMoveX = 0f;
+        isCrouching = false;
+        isBlocking = false;
+        if (fighter != null)
+        {
+            fighter.IsCrouching = false;
+            fighter.IsBlocking = false;
+        }
+        if (animator != null)
+        {
+            animator.SetBool("IsCrouching", false);
+            animator.SetBool("IsBlocking", false);
+        }
+    }
+
     public void ExternalAction(string action)
     {
-        if (health.IsDead || health.IsHitStunned) return;
+        if (health.IsDead || health.IsHitStunned || fighter.InputLocked) return;
 
         currentAction = action;
 
         switch (action)
         {
             case "ATTACK":
+                isBlocking = false;
+                fighter.IsBlocking = false;
+                animator.SetBool("IsBlocking", false);
                 DoAttack();
                 break;
 
             case "JUMP":
+                isBlocking = false;
+                fighter.IsBlocking = false;
+                animator.SetBool("IsBlocking", false);
                 if (isGrounded) DoJump();
                 break;
 
@@ -261,8 +300,11 @@ public class PlayerController : MonoBehaviour
                 break;
 
             case "BLOCK":
+                isCrouching = false;
                 isBlocking = true;
+                animator.SetBool("IsCrouching", false);
                 animator.SetBool("IsBlocking", true);
+                fighter.IsCrouching = false;
                 fighter.IsBlocking = true;
                 break;
 

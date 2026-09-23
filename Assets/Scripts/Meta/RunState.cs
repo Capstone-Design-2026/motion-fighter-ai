@@ -85,6 +85,8 @@ public class RunState : MonoBehaviour
         Data.playerHealth = Data.playerMaxHealth;
         Data.map = MapGenerator.Generate(Config.map, Config, seed);
 
+        LastMessage = null;
+        LastBattleWon = false;
         RefreshStatus();
         Save();
         Debug.Log("[RunState] 새 판 시작. seed=" + seed + ", 칸 수=" + Data.map.nodes.Count);
@@ -177,7 +179,7 @@ public class RunState : MonoBehaviour
     /// </summary>
     public void EnterNode(MapNode node)
     {
-        if (!HasRun || node == null) return;
+        if (!HasRun || Data.finished || HasPendingBattle || node == null) return;
         if (node.status != NodeStatus.Available) return;
 
         if (node.IsBattle)
@@ -238,7 +240,10 @@ public class RunState : MonoBehaviour
         if (node != null && node.type == NodeType.Boss)
         {
             Data.finished = true;
-            LastMessage = "보스 격파! 스테이지 클리어.";
+            LastMessage = "최종 보스 격파!";
+            ClearSave(); // 완료한 판은 이어하기 대상으로 남기지 않는다.
+            SceneRoutes.LoadEnding();
+            return;
         }
         else
         {

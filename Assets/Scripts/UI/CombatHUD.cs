@@ -54,6 +54,13 @@ public class CombatHUD : MonoBehaviour
         public float chipRatio = 1f;
     }
 
+    // HUD가 생성되기 전에 새 프리팹의 Health로 연결한다.
+    public void SetTargets(Health player, Health enemy)
+    {
+        playerHealth = player;
+        enemyHealth = enemy;
+    }
+
     void Awake()
     {
         if (playerHealth == null)

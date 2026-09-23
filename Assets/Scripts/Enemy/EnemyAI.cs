@@ -48,6 +48,16 @@ public class EnemyAI : MonoBehaviour
         fighter = GetComponent<Fighter>();
     }
 
+    public void ConfigureStage(StageDefinition stage)
+    {
+        moveSpeed = Mathf.Max(0.1f, stage.moveSpeed);
+        decisionInterval = Mathf.Max(0.1f, stage.decisionInterval);
+        attackWeight = Mathf.Max(0.01f, stage.attackWeight);
+        blockWeight = Mathf.Max(0f, stage.blockWeight);
+        backstepWeight = Mathf.Max(0f, stage.backstepWeight);
+        crouchWeight = Mathf.Max(0f, stage.crouchWeight);
+    }
+
     void Start()
     {
         if (target == null)

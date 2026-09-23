@@ -11,6 +11,8 @@ public static class MapGenerator
 {
     public static MapData Generate(MapSettings s, RunConfig config, int seed)
     {
+        if (config != null && config.useOrderedCampaign)
+            return GenerateCampaign(config, seed);
         if (s == null) s = new MapSettings();
         var rng = new System.Random(seed);
 
@@ -50,6 +52,100 @@ public static class MapGenerator
         Connect(rng, grid, s);
         AssignStages(map, config, rng);
         return map;
+    }
+
+    // 각 경로는 모든 일반 보스를 한 번씩 + 휴식 두 번 + 최종 보스를 지난다.
+    // 같은 층에서 처치한 보스 집합/휴식 횟수/현재 칸이 같은 경로만 합친다.
+    // 따라서 합류 후 다른 길을 골라도 보스 중복이나 전투 건너뛰기가 없다.
+    private static MapData GenerateCampaign(RunConfig config, int seed)
+    {
+        var ids = config.campaignStageIds;
+        if (ids == null || ids.Count == 0)
+            throw new System.InvalidOperationException("RunConfig: 보스 목록을 지정해야 합니다.");
+        var seen = new HashSet<string>();
+        foreach (var id in ids)
+            if (config.Get(id) == null || !seen.Add(id))
+                throw new System.InvalidOperationException("RunConfig: 없거나 중복된 보스 ID: " + id);
+
+        int lanes = Mathf.Clamp(config.campaignBranches, 2, 3);
+        int ordinary = ids.Count - 1;
+        int restCount = Mathf.Min(2, ordinary);
+        int rows = ids.Count + restCount;
+        var rng = new System.Random(seed);
+        var baseOrder = new List<int>();
+        for (int i = 0; i < ordinary; i++) baseOrder.Add(i);
+        // 초반/후반의 큰 난이도 구간은 유지하면서 구간 안의 순서를 바꾼다.
+        if (ordinary >= 2 && rng.Next(2) == 0) Swap(baseOrder, 0, 1);
+        if (ordinary >= 4 && rng.Next(2) == 0) Swap(baseOrder, ordinary - 2, ordinary - 1);
+
+        var paths = new List<List<MapNode>>();
+        var signatures = new List<List<string>>();
+        for (int lane = 0; lane < lanes; lane++)
+        {
+            var order = new List<int>(baseOrder);
+            if (lane == 1 && ordinary >= 2) Swap(order, ordinary - 2, ordinary - 1);
+            if (lane == 2 && ordinary >= 2) Swap(order, 0, 1);
+            var rests = new HashSet<int>();
+            if (ordinary > 0)
+            {
+                rests.Add(Mathf.Min(lane == 0 ? 1 : 2, ordinary));
+                if (restCount > 1) rests.Add(Mathf.Max(1, lane == 2 ? ordinary : ordinary - 1));
+                for (int i = ordinary; rests.Count < restCount; i--) rests.Add(i);
+            }
+            var path = new List<MapNode>();
+            var keys = new List<string>();
+            var defeated = new List<int>();
+            int rested = 0;
+            for (int fight = 0; fight < ordinary; fight++)
+            {
+                int boss = order[fight];
+                defeated.Add(boss);
+                defeated.Sort();
+                path.Add(new MapNode { type = NodeType.Battle, stageId = ids[boss], battleNumber = fight + 1 });
+                keys.Add(string.Join(",", defeated) + "|" + rested + "|battle|" + boss);
+                if (rests.Contains(fight + 1))
+                {
+                    rested++;
+                    path.Add(new MapNode { type = NodeType.Rest, stageId = "" });
+                    keys.Add(string.Join(",", defeated) + "|" + rested + "|rest");
+                }
+            }
+            path.Add(new MapNode { type = NodeType.Boss, stageId = ids[ordinary], battleNumber = ids.Count });
+            keys.Add("final");
+            paths.Add(path);
+            signatures.Add(keys);
+        }
+        // 좌우 의미는 고정하지 않되, 같은 seed에서는 같은 지도를 재현한다.
+        if (rng.Next(2) == 0) { paths.Reverse(); signatures.Reverse(); }
+        var map = new MapData { rows = rows, columns = lanes * 2 - 1 };
+        var previous = new MapNode[lanes];
+        for (int row = 0; row < rows; row++)
+        {
+            var current = new MapNode[lanes];
+            for (int lane = 0; lane < lanes;)
+            {
+                int end = lane;
+                while (end + 1 < lanes && signatures[end + 1][row] == signatures[lane][row]) end++;
+                var node = paths[lane][row];
+                node.id = "route_r" + row + "_l" + lane;
+                node.row = row;
+                node.column = lane + end;
+                map.nodes.Add(node);
+                for (int i = lane; i <= end; i++) current[i] = node;
+                lane = end + 1;
+            }
+            if (row > 0)
+                for (int lane = 0; lane < lanes; lane++)
+                    if (!previous[lane].next.Contains(current[lane].id))
+                        previous[lane].next.Add(current[lane].id);
+            previous = current;
+        }
+        return map;
+    }
+
+    private static void Swap(List<int> items, int a, int b)
+    {
+        int temp = items[a]; items[a] = items[b]; items[b] = temp;
     }
 
     /// <summary>가로 자리 중 count 개를 겹치지 않게 골라 오름차순으로 돌려준다.</summary>

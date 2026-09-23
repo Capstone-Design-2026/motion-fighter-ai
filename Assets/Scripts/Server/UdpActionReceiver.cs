@@ -1,198 +1,157 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
 
+/// <summary>Receives webcam action and shoulder movement from vision_backend over UDP.</summary>
 public class UdpActionReceiver : MonoBehaviour
 {
-    [Header("UDP Settings")]
+    [Header("UDP")]
     public int port = 5055;
 
-    [Header("Animator")]
-    public Animator animator;
-
-    [Header("Player")]
-    [Tooltip("비워두면 씬에서 자동으로 찾는다.")]
+    [Header("Player (found automatically when empty)")]
     public PlayerController playerController;
 
-    [Header("Confidence")]
-    public float minConfidence = 0.7f;
+    [Header("Action confidence")]
+    [Range(0f, 1f)] public float minConfidence = 0.7f;
 
     private UdpClient udpClient;
     private Thread receiveThread;
-    private bool isRunning = false;
-
-    private readonly object lockObject = new object();
-    private string latestAction = "";
-    private float latestConfidence = 0f;
-    private bool hasNewAction = false;
+    private volatile bool isRunning;
+    private readonly object packetLock = new object();
+    private readonly Queue<string> pendingPackets = new Queue<string>();
+    private string lastAction = "NONE";
+    private string lastMovement = "NEUTRAL";
+    private bool warnedMissingPlayer;
 
     [Serializable]
-    public class ActionMessage
+    private class ActionMessage
     {
         public string action;
+        public string movement;
         public float confidence;
+        public float movement_strength;
         public double timestamp;
     }
 
-    void Start()
-    {
-        StartReceiver();
-    }
-
-    void Update()
-    {
-        string actionToProcess = "";
-        float confidenceToProcess = 0f;
-
-        lock (lockObject)
-        {
-            if (hasNewAction)
-            {
-                actionToProcess = latestAction;
-                confidenceToProcess = latestConfidence;
-                hasNewAction = false;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(actionToProcess))
-        {
-            ProcessAction(actionToProcess, confidenceToProcess);
-        }
-    }
-
-    private void StartReceiver()
+    private void OnEnable()
     {
         try
         {
-            udpClient = new UdpClient(port);
+            udpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
             isRunning = true;
-
-            receiveThread = new Thread(ReceiveData);
-            receiveThread.IsBackground = true;
+            receiveThread = new Thread(ReceiveData) { IsBackground = true };
             receiveThread.Start();
-
-            Debug.Log($"UDP Receiver started on port {port}");
+            Debug.Log("[Vision] UDP receiver listening on 127.0.0.1:" + port);
         }
         catch (Exception e)
         {
-            Debug.LogError($"Failed to start UDP Receiver: {e.Message}");
+            isRunning = false;
+            udpClient?.Close();
+            udpClient = null;
+            Debug.LogError("[Vision] Cannot listen on UDP " + port + ": " + e.Message);
         }
     }
 
     private void ReceiveData()
     {
-        IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, port);
-
+        var sender = new IPEndPoint(IPAddress.Any, 0);
         while (isRunning)
         {
             try
             {
-                byte[] data = udpClient.Receive(ref remoteEndPoint);
-                string json = Encoding.UTF8.GetString(data);
-
-                ActionMessage message = JsonUtility.FromJson<ActionMessage>(json);
-
-                if (message != null)
+                byte[] bytes = udpClient.Receive(ref sender);
+                string json = Encoding.UTF8.GetString(bytes);
+                lock (packetLock)
                 {
-                    lock (lockObject)
-                    {
-                        latestAction = message.action;
-                        latestConfidence = message.confidence;
-                        hasNewAction = true;
-                    }
+                    if (pendingPackets.Count >= 128) pendingPackets.Dequeue();
+                    pendingPackets.Enqueue(json);
                 }
             }
             catch (SocketException)
             {
-                // Socket closed during quit.
+                if (isRunning) continue;
+                break;
             }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"UDP receive error: {e.Message}");
-            }
+            catch (ObjectDisposedException) { break; }
+            catch (Exception) { if (!isRunning) break; }
         }
     }
 
-    private void ProcessAction(string action, float confidence)
+    private void Update()
     {
-        if (confidence < minConfidence)
+        // Process every message in order, so a short ATTACK followed by IDLE is not lost.
+        while (true)
         {
+            string json;
+            lock (packetLock)
+            {
+                if (pendingPackets.Count == 0) break;
+                json = pendingPackets.Dequeue();
+            }
+            ProcessPacket(json);
+        }
+    }
+
+    private void ProcessPacket(string json)
+    {
+        ActionMessage message;
+        try { message = JsonUtility.FromJson<ActionMessage>(json); }
+        catch (Exception e)
+        {
+            Debug.LogWarning("[Vision] Invalid UDP JSON: " + e.Message);
             return;
         }
+        if (message == null) return;
 
-        Debug.Log($"Received Action: {action} / Confidence: {confidence}");
-
-        // 1순위: PlayerController 를 통해 처리한다.
-        // 애니메이터만 건드리면 그림만 바뀌고 데미지 판정이 안 들어가므로,
-        // 반드시 PlayerController.ExternalAction() 을 거쳐야 한다.
         if (playerController == null)
             playerController = FindAnyObjectByType<PlayerController>();
-
-        if (playerController != null)
+        if (playerController == null)
         {
-            playerController.externalControl = true;
-            playerController.ExternalAction(action);
+            if (!warnedMissingPlayer) Debug.LogWarning("[Vision] PlayerController not found in scene.");
+            warnedMissingPlayer = true;
             return;
         }
 
-        // 2순위(폴백): PlayerController 가 없으면 애니메이터만 재생한다.
-        if (animator == null)
+        string movement = string.IsNullOrEmpty(message.movement) ? "NEUTRAL"
+            : message.movement.Trim().ToUpperInvariant();
+        float axis = movement == "LEFT" ? -1f : movement == "RIGHT" ? 1f : 0f;
+        float strength = Mathf.Clamp01(message.movement_strength);
+        // Movement is estimated separately from the action classifier, so do not gate it on action confidence.
+        playerController.ExternalMovement(axis * strength);
+        if (movement != lastMovement)
         {
-            Debug.LogWarning("Animator is not assigned.");
-            return;
+            Debug.Log("[Vision] Movement: " + movement + " strength " + strength.ToString("F2"));
+            lastMovement = movement;
         }
 
-        switch (action)
-        {
-            case "ATTACK":
-                animator.SetTrigger("Attack");
-                break;
+        string action = string.IsNullOrEmpty(message.action) ? "NONE"
+            : message.action.Trim().ToUpperInvariant();
+        bool passive = action == "NONE" || action == "IDLE";
+        // A low-confidence NONE must still release a held block/crouch after tracking is lost.
+        if (!passive && message.confidence < minConfidence) return;
 
-            case "BLOCK":
-                // PlayerAnimator 에는 Block 트리거가 없고 IsBlocking bool 만 있다.
-                animator.SetBool("IsBlocking", true);
-                break;
-
-            case "JUMP":
-                animator.SetTrigger("Jump");
-                break;
-
-            case "CROUCH":
-                animator.SetTrigger("Crouch");
-                break;
-
-            case "IDLE":
-                // 필요하면 Idle 트리거 사용
-                // animator.SetTrigger("Idle");
-                break;
-
-            case "NONE":
-                // 아무 동작도 하지 않음
-                break;
-
-            default:
-                Debug.LogWarning($"Unknown action: {action}");
-                break;
-        }
+        // Backend can resend the same attack when movement changes. Treat attack/jump as edges.
+        if ((action == "ATTACK" || action == "JUMP") && action == lastAction) return;
+        if (action != lastAction)
+            Debug.Log("[Vision] Action: " + action + " confidence " + message.confidence.ToString("F2"));
+        lastAction = action;
+        playerController.ExternalAction(action);
     }
 
-    private void OnApplicationQuit()
+    private void OnDisable()
     {
         isRunning = false;
-
-        if (udpClient != null)
-        {
-            udpClient.Close();
-            udpClient = null;
-        }
-
-        if (receiveThread != null && receiveThread.IsAlive)
-        {
-            receiveThread.Join(100);
-            receiveThread = null;
-        }
+        udpClient?.Close();
+        udpClient = null;
+        if (receiveThread != null && receiveThread.IsAlive) receiveThread.Join(200);
+        receiveThread = null;
+        lock (packetLock) pendingPackets.Clear();
+        if (playerController != null) playerController.ClearExternalInput();
+        lastAction = "NONE";
+        lastMovement = "NEUTRAL";
     }
 }

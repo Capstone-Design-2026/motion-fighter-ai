@@ -39,6 +39,8 @@ public class MapSceneUI : MonoBehaviour
     [SerializeField] private float pulseAmount = 0.08f;
     [SerializeField] private float pulseSpeed = 3f;
 
+    private readonly HashSet<string> reachable = new HashSet<string>();
+
     private Canvas canvas;
     private ScrollRect scroll;
     private RectTransform content;
@@ -190,6 +192,20 @@ public class MapSceneUI : MonoBehaviour
     {
         if (Run == null || !Run.HasRun) return;
         var map = Run.Data.map;
+        reachable.Clear();
+        var queue = new Queue<MapNode>();
+        foreach (var node in map.nodes)
+            if (node.status == NodeStatus.Available) queue.Enqueue(node);
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            if (!reachable.Add(node.id)) continue;
+            foreach (var id in node.next)
+            {
+                var next = map.Find(id);
+                if (next != null) queue.Enqueue(next);
+            }
+        }
 
         float height = bottomPadding * 2f + (map.rows - 1) * rowSpacing;
         content.sizeDelta = new Vector2(0f, height);
@@ -212,8 +228,13 @@ public class MapSceneUI : MonoBehaviour
                 Vector2 to;
                 if (!nodePositions.TryGetValue(nextId, out to)) continue;
                 var target = map.Find(nextId);
-                bool travelled = fromCleared && target != null && target.status == NodeStatus.Cleared;
-                DrawLine(edges, nodePositions[node.id], to, travelled ? lineClearedColor : lineColor);
+                int visitedIndex = Run.Data.clearedNodeIds.IndexOf(node.id);
+                bool travelled = fromCleared && target != null && visitedIndex >= 0
+                    && visitedIndex + 1 < Run.Data.clearedNodeIds.Count
+                    && Run.Data.clearedNodeIds[visitedIndex + 1] == nextId;
+                bool ahead = reachable.Contains(node.id) && reachable.Contains(nextId);
+                DrawLine(edges, nodePositions[node.id], to, travelled ? lineClearedColor
+                    : (ahead ? new Color(0.8f, 0.85f, 1f, 0.5f) : new Color(1f, 1f, 1f, 0.07f)));
             }
         }
 
@@ -249,7 +270,8 @@ public class MapSceneUI : MonoBehaviour
         bool cleared   = node.status == NodeStatus.Cleared;
         bool isCurrent = Run.Data.currentNodeId == node.id;
 
-        Color color = available ? TypeColor(node.type) : (cleared ? clearedColor : lockedColor);
+        bool ahead = reachable.Contains(node.id);
+        Color color = available || ahead ? TypeColor(node.type) : (cleared ? clearedColor : lockedColor);
 
         var button = UIFactory.CreateButton("Node_" + node.id, parent, "", 20, color, null);
         var rect = button.GetComponent<RectTransform>();
@@ -260,20 +282,35 @@ public class MapSceneUI : MonoBehaviour
         rect.anchoredPosition = nodePositions[node.id];
 
         var img = button.GetComponent<Image>();
-        var icon = IconFor(node.type);
+        var stage = Run.Config.Get(node.stageId);
+        var icon = stage != null && stage.portrait != null ? stage.portrait : IconFor(node.type);
+        if (ahead && stage != null && stage.overrideTint) img.color = stage.enemyTint;
         if (icon != null)
         {
             img.sprite = icon;
             img.preserveAspect = true;
-            if (available) img.color = Color.white;
+            if (ahead) img.color = Color.white;
+        }
+
+        var buttonColors = button.colors;
+        buttonColors.disabledColor = ahead ? new Color(0.8f, 0.8f, 0.8f, 1f) : new Color(0.45f, 0.45f, 0.45f, 0.6f);
+        button.colors = buttonColors;
+        if (icon == null)
+        {
+            var marker = button.GetComponentInChildren<Text>();
+            if (marker != null) marker.text = node.type == NodeType.Rest ? "휴식"
+                : (node.type == NodeType.Boss ? "최종" : "전투");
         }
 
         // 라벨은 칸 아래에 따로 붙인다 (아이콘을 가리지 않도록)
-        var label = UIFactory.CreateText("Caption", button.transform, TypeLabel(node.type), 22,
+        var label = UIFactory.CreateText("Caption", button.transform,
+            stage != null ? stage.displayName + "\nHP " + stage.enemyMaxHealth
+                + (stage.overrideCombatStats ? " · 공격 " + stage.attackDamage : "")
+                : (node.type == NodeType.Rest ? "휴식 (HP +" + Mathf.RoundToInt(Run.Config.restHealPercent * 100f) + "%)" : TypeLabel(node.type)), 22,
                                          TextAnchor.UpperCenter,
-                                         available ? Color.white : new Color(1f, 1f, 1f, 0.45f));
+                                         ahead ? Color.white : new Color(1f, 1f, 1f, 0.35f));
         UIFactory.Place(label.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 1f),
-                        new Vector2(0f, -6f), new Vector2(180f, 30f));
+                        new Vector2(0f, -6f), new Vector2(300f, 62f));
 
         if (isCurrent)
         {
@@ -331,14 +368,21 @@ public class MapSceneUI : MonoBehaviour
     {
         if (headerText == null || Run == null || !Run.HasRun) return;
         var d = Run.Data;
-        headerText.text = string.Format("{0}층 / {1}층      HP {2} / {3}      골드 {4}",
-                                        Run.CurrentFloor, d.map.rows, d.playerHealth, d.playerMaxHealth, d.gold);
+        int completed = 0, total = 0;
+        foreach (var node in d.map.nodes)
+        {
+            total = Mathf.Max(total, node.battleNumber);
+            if (node.IsBattle && d.clearedNodeIds.Contains(node.id)) completed++;
+        }
+        headerText.text = total > 0
+            ? string.Format("보스 격파 {0} / {1}      HP {2} / {3}", completed, total, d.playerHealth, d.playerMaxHealth)
+            : string.Format("{0}층 / {1}층      HP {2} / {3}", Run.CurrentFloor, d.map.rows, d.playerHealth, d.playerMaxHealth);
     }
 
     private void ShowLastMessage()
     {
         if (messageText == null || Run == null) return;
-        messageText.text = Run.LastMessage ?? "위로 올라갈 칸을 고르세요";
+        messageText.text = Run.LastMessage ?? "앞길의 보스와 휴식 위치를 비교하세요 · 전투 5회 / 휴식 2회";
         Run.LastMessage = null;
     }
 
@@ -368,6 +412,7 @@ public class MapSceneUI : MonoBehaviour
         if (node.IsBattle) return;
 
         Rebuild();
+        StartCoroutine(FocusOnCurrentRow());
     }
 
     private void Rebuild()

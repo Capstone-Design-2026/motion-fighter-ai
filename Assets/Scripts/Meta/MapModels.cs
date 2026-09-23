@@ -31,6 +31,7 @@ public class MapNode
     public string id;                 // "r03n01" 형태. 저장/참조용 고유 키
     public int row;                   // 0 = 맨 아래(시작), rows-1 = 보스
     public int column;                // 가로 위치 (0 ~ columns-1)
+    public int battleNumber;          // 보스 전투 순번. 휴식/이전 저장 지도는 0.
     public NodeType type;
     public string stageId;            // RunConfig 의 스테이지 id. 비어 있으면 GameScene 기본 적 사용
     public List<string> next = new List<string>();   // 윗줄로 이어지는 칸들

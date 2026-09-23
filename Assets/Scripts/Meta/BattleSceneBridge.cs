@@ -120,27 +120,59 @@ public class BattleSceneBridge : MonoBehaviour
 
         var enemy = FindAnyObjectByType<EnemyAI>();
 
-        // 전용 적이 만들어져 있으면 씬의 기본 적과 교체한다.
-        if (stage.enemyPrefab != null && enemy != null)
+        // 잘못된 프리팹이면 기존 적을 보존한다. 전투 컴포넌트는 루트에 둔다.
+        if (stage.enemyPrefab != null)
         {
-            var oldGO = enemy.gameObject;
-            Vector3 pos = oldGO.transform.position;
-            Quaternion rot = oldGO.transform.rotation;
-
-            // 비활성화를 먼저 해야 이번 프레임의 FindAnyObjectByType 에서 걸리지 않는다.
-            oldGO.SetActive(false);
-            Destroy(oldGO);
-
-            var spawned = Instantiate(stage.enemyPrefab, pos, rot);
-            spawned.name = "Enemy (" + stage.id + ")";
-            enemy = spawned.GetComponent<EnemyAI>();
+            var prefab = stage.enemyPrefab;
+            bool valid = prefab.activeSelf && prefab.GetComponent<EnemyAI>() != null
+                && prefab.GetComponent<EnemyAI>().enabled && prefab.GetComponent<Health>() != null
+                && prefab.GetComponent<Fighter>() != null && prefab.GetComponent<Rigidbody2D>() != null
+                && prefab.GetComponent<Collider2D>() != null && prefab.GetComponent<Pushbox>() != null;
+            if (!valid)
+                Debug.LogError("[BattleSceneBridge] 보스 프리팹에 활성 EnemyAI, Health, Fighter, Rigidbody2D, Collider2D, Pushbox가 필요합니다: " + stage.id);
+            else
+            {
+                Vector3 pos = enemy != null ? enemy.transform.position : new Vector3(3f, 0f, 0f);
+                Quaternion rot = enemy != null ? enemy.transform.rotation : Quaternion.identity;
+                if (enemy != null)
+                {
+                    enemy.gameObject.SetActive(false);
+                    Destroy(enemy.gameObject);
+                }
+                var spawned = Instantiate(prefab, pos, rot);
+                spawned.name = "Enemy (" + stage.id + ")";
+                enemy = spawned.GetComponent<EnemyAI>();
+            }
         }
-
         if (enemy == null) return;
 
         var health = enemy.GetComponent<Health>();
         if (health != null)
+        {
             health.Configure(stage.displayName, stage.enemyMaxHealth);
+            if (stage.overrideTint) health.SetAppearance(stage.enemyTint);
+        }
+        if (stage.overrideCombatStats)
+        {
+            enemy.ConfigureStage(stage);
+            enemy.GetComponent<Fighter>().ConfigureDamage(stage.attackDamage);
+        }
+        var animator = enemy.GetComponent<Animator>();
+        if (animator != null && stage.animatorController != null)
+            animator.runtimeAnimatorController = stage.animatorController;
+
+        var player = FindAnyObjectByType<PlayerController>();
+        if (player != null)
+        {
+            player.SetOpponent(enemy.transform);
+            var playerPushbox = player.GetComponent<Pushbox>();
+            var enemyPushbox = enemy.GetComponent<Pushbox>();
+            if (playerPushbox != null) playerPushbox.SetOpponent(enemyPushbox);
+            if (enemyPushbox != null) enemyPushbox.SetOpponent(playerPushbox);
+        }
+        var hud = FindAnyObjectByType<CombatHUD>();
+        if (hud != null) hud.SetTargets(player != null ? player.GetComponent<Health>() : null, health);
+
     }
 
     // ─────────────────────── K.O. ───────────────────────
@@ -177,7 +209,8 @@ public class BattleSceneBridge : MonoBehaviour
 
         if (bannerText != null)
         {
-            bannerText.text  = won ? "승리 - 지도로 돌아갑니다" : "패배 - 이 판이 끝납니다";
+            bannerText.text  = won ? (Run.PendingNode != null && Run.PendingNode.type == NodeType.Boss
+                ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 - 이 판이 끝납니다";
             bannerText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.5f, 0.5f);
             bannerText.gameObject.SetActive(true);
         }
