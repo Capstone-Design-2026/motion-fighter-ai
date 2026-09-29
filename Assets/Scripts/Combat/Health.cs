@@ -72,9 +72,16 @@ public class Health : MonoBehaviour
 
     /// <summary>데미지 적용. 실제로 들어갔으면 true.</summary>
     /// <param name="guarded">가드에 막혔으면 true. 애니메이션과 경직시간이 달라진다.</param>
-    public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false)
+    /// <param name="ignoreInvulnerability">
+    /// 무적시간을 무시하고 무조건 넣는다. 필살기처럼 판정 없이 확정으로 들어가야 하는 것에 쓴다.
+    /// 일반 타격에는 쓰지 말 것. 연속 피격 방지가 통째로 풀린다.
+    /// </param>
+    public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false, bool ignoreInvulnerability = false)
     {
-        if (IsDead || IsInvulnerable || amount <= 0)
+        if (IsDead || amount <= 0)
+            return false;
+
+        if (IsInvulnerable && !ignoreInvulnerability)
             return false;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - amount);

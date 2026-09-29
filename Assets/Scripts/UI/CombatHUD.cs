@@ -100,7 +100,7 @@ public class CombatHUD : MonoBehaviour
 
         if (enemyHealth == null)
         {
-            var enemy = FindAnyObjectByType<EnemyAI>();
+            var enemy = FindAnyObjectByType<FighterAI>();
             if (enemy != null) enemyHealth = enemy.GetComponent<Health>();
         }
 
@@ -372,7 +372,7 @@ public class CombatHUD : MonoBehaviour
             AddGuideRow(i++, Key(PlayerKey.Attack), "공격 · 점프 중 상단 / 앉아서 하단");
             if (special != null)
                 AddGuideRow(i++, special.ActivateKey.ToString(),
-                            "필살기 · " + special.HitsToCharge + "번 맞으면 사용 가능");
+                            "필살기 · " + special.HitsToCharge + "번 맞으면 사용 가능 · " + special.Damage + " 피해");
         }
         else
         {

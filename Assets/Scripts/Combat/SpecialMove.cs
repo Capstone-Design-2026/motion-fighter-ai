@@ -27,6 +27,10 @@ public class SpecialMove : MonoBehaviour
     [Tooltip("이만큼 맞으면 1회 사용할 수 있다. 가드로 막고 입은 대미지도 똑같이 한 번으로 친다.")]
     [SerializeField] private int hitsToCharge = 5;
 
+    [Header("피해량")]
+    [Tooltip("발동하면 상대 체력이 이만큼 깎인다. 판정도 모션도 없이 그냥 들어간다.")]
+    [SerializeField] private int damage = 30;
+
     [Header("게이지 채우기 (테스트용)")]
     [Tooltip("맞지 않고도 게이지를 채우는 키. 필살기 연출만 확인하고 싶을 때 쓴다. None 이면 꺼진다.")]
     [SerializeField] private KeyCode chargeKey = KeyCode.I;
@@ -77,6 +81,7 @@ public class SpecialMove : MonoBehaviour
     public bool IsPlaying { get { return routine != null; } }
     public KeyCode ActivateKey { get { return activateKey; } }
     public KeyCode ChargeKey { get { return chargeKey; } }
+    public int Damage { get { return damage; } }
 
     private Health health;
     private Fighter fighter;
@@ -188,10 +193,46 @@ public class SpecialMove : MonoBehaviour
         AddCharge();
     }
 
+    /// <summary>
+    /// 발동 즉시 상대 체력을 깎는다. 판정 박스도 모션도 없이 확정으로 들어간다.
+    ///
+    /// 무적시간을 무시하는 이유:
+    /// 직전에 한 대 맞았다는 이유로 필살기가 씹히면 게이지를 쓴 보람이 없다.
+    /// 가드도 보지 않는다 — 막아도 그대로 들어간다.
+    /// </summary>
+    private void ApplyDamage()
+    {
+        if (damage <= 0) return;
+
+        var target = FindOpponent();
+        if (target == null)
+        {
+            Debug.LogWarning($"[SpecialMove] {name} 때릴 상대를 찾지 못했습니다.");
+            return;
+        }
+
+        target.TakeDamage(damage, Vector2.zero, false, true);
+        Debug.Log($"[SpecialMove] {name} 필살기 → {target.DisplayName} 에게 {damage}");
+    }
+
+    /// <summary>
+    /// 씬에서 자기 말고 살아 있는 Health 하나.
+    /// 스테이지마다 적 프리팹이 교체되므로(BattleSceneBridge.ApplyStage) 미리 캐싱하지 않는다.
+    /// </summary>
+    private Health FindOpponent()
+    {
+        foreach (var h in FindObjectsByType<Health>(FindObjectsInactive.Exclude))
+            if (h != health && !h.IsDead) return h;
+
+        return null;
+    }
+
     private IEnumerator Routine()
     {
         // 타격 히트스톱이 돌고 있으면 정리한다. 둘이 겹치면 서로를 덮어써서 연출이 끊긴다.
         HitImpact.ReleaseTimeControl();
+
+        ApplyDamage();
 
         var cutIn = SpawnCutIn();
 
@@ -205,7 +246,11 @@ public class SpecialMove : MonoBehaviour
         float zOut = Mathf.Min(zoomOutTime, total - zIn);
         HitImpact.PlayZoom(transform.position, zoomRatio, zIn, total - zIn - zOut, zOut);
 
-        SetTimeScale(slowScale);
+        // 필살기 한 방에 상대가 쓰러지면 그 순간 BattleSceneBridge 가 timeScale 주인이 된다.
+        // 여기서 또 멈추면 K.O. 슬로우모션을 덮어쓰는데, 아래 루프는 InputLocked 를 보고
+        // 곧바로 빠져나가므로 복귀도 못 하고 시간이 멈춘 채로 남는다.
+        bool koTookOver = fighter != null && fighter.InputLocked;
+        if (!koTookOver) SetTimeScale(slowScale);
 
         float t = 0f;
         bool aborted = false;

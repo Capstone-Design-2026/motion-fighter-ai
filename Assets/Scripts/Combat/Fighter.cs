@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,6 +9,17 @@ public enum AttackHeight
     High,   // 점프 공격 (오버헤드) - 앉아막기로는 못 막음
     Mid,    // 기본 공격          - 서서/앉아 둘 다 막힘
     Low     // 앉아 공격          - 서서막기로는 못 막음
+}
+
+/// <summary>공격 한 번의 정보. 연타도 공격마다 id 가 다르다.</summary>
+public class FighterAttack
+{
+    public int Id;
+    public Fighter Attacker;
+    public AttackHeight Height;
+
+    /// <summary>공격자 중심에서 판정 박스 앞끝까지의 거리.</summary>
+    public float Reach;
 }
 
 /// <summary>
@@ -58,8 +70,22 @@ public class Fighter : MonoBehaviour
     public Health Health { get; private set; }
     public bool CanAttack => !Health.IsDead && !InputLocked && !IsAttacking && !Health.IsHitStunned;
 
+    public float Windup => windup;
+    public float Recovery => recovery;
+    public float Reach => hitboxDistance + hitboxSize.x * 0.5f;
+
+    /// <summary>
+    /// 공격이 확정된 직후, 공격 모션(애니메이터)이 나가기 전에 호출된다.
+    /// 상대 AI 는 여기서 방어 여부를 한 번만 정한다. 웹캠 인식과 키 입력이 모두 이 경로를 탄다.
+    /// </summary>
+    public event Action<FighterAttack> AttackDeclared;
+
+    /// <summary>판정 프레임. ResolveHit 직전에 호출되므로 상대는 여기서 가드 자세를 확정할 수 있다.</summary>
+    public event Action<FighterAttack> AttackHitFrame;
+
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
+    private int nextAttackId;
 
     void Awake()
     {
@@ -71,24 +97,37 @@ public class Fighter : MonoBehaviour
     public bool TryAttack(AttackHeight height)
     {
         if (!CanAttack) return false;
+
+        var attack = new FighterAttack
+        {
+            Id = ++nextAttackId,
+            Attacker = this,
+            Height = height,
+            Reach = Reach
+        };
+        AttackDeclared?.Invoke(attack);
+
         // 공격 높이를 애니메이터에 정수로 고정 통보한다.
         // 자세 bool 로 분기하면 공격 도중 S 를 떼는 순간 상태가 튀기 때문.
         //   0 = High(점프) / 1 = Mid(서서) / 2 = Low(앉아)
         if (animator != null)
             animator.SetInteger("AttackHeight", (int)height);
 
-        StartCoroutine(AttackRoutine(height));
+        StartCoroutine(AttackRoutine(attack));
         return true;
     }
 
-    private IEnumerator AttackRoutine(AttackHeight height)
+    private IEnumerator AttackRoutine(FighterAttack attack)
     {
         IsAttacking = true;
 
         yield return new WaitForSeconds(windup);
 
         if (!Health.IsDead)
-            ResolveHit(height);
+        {
+            AttackHitFrame?.Invoke(attack);
+            ResolveHit(attack.Height);
+        }
 
         yield return new WaitForSeconds(recovery);
 

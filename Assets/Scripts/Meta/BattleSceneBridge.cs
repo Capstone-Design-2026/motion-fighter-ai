@@ -57,7 +57,7 @@ public class BattleSceneBridge : MonoBehaviour
         var player = FindAnyObjectByType<PlayerController>();
         if (player != null) playerHealth = player.GetComponent<Health>();
 
-        var enemy = FindAnyObjectByType<EnemyAI>();
+        var enemy = FindAnyObjectByType<FighterAI>();
         if (enemy != null) enemyHealth = enemy.GetComponent<Health>();
 
         // 스테이지 프리팹으로 적을 교체했을 수도 있으므로 Awake 가 아니라 여기서 모은다.
@@ -121,7 +121,7 @@ public class BattleSceneBridge : MonoBehaviour
             return;
         }
 
-        var enemy = FindAnyObjectByType<EnemyAI>();
+        var enemy = FindAnyObjectByType<FighterAI>();
 
         // 전용 적이 만들어져 있으면 씬의 기본 적과 교체한다.
         if (stage.enemyPrefab != null && enemy != null)
@@ -136,7 +136,7 @@ public class BattleSceneBridge : MonoBehaviour
 
             var spawned = Instantiate(stage.enemyPrefab, pos, rot);
             spawned.name = "Enemy (" + stage.id + ")";
-            enemy = spawned.GetComponent<EnemyAI>();
+            enemy = spawned.GetComponent<FighterAI>();
         }
 
         if (enemy == null) return;
@@ -144,6 +144,9 @@ public class BattleSceneBridge : MonoBehaviour
         var health = enemy.GetComponent<Health>();
         if (health != null)
             health.Configure(stage.displayName, stage.enemyMaxHealth);
+
+        if (stage.aiDifficulty != null)
+            enemy.SetDifficulty(stage.aiDifficulty);
     }
 
     // ─────────────────────── K.O. ───────────────────────

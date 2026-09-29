@@ -21,6 +21,8 @@ public class StageDefinition
     [Header("전투 설정 (0 이면 GameScene 기본값 유지)")]
     [Tooltip("적의 최대 체력. 0 이면 씬에 설정된 값을 그대로 쓴다.")]
     public int enemyMaxHealth = 0;
+    [Tooltip("적 AI 난이도. 비워두면 씬의 FighterAI 에 설정된 난이도를 그대로 쓴다.")]
+    public FighterAIDifficulty aiDifficulty;
 
     [Header("연출용 (나중에 채우면 됨)")]
     public Sprite portrait;

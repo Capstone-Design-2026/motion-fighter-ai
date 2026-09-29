@@ -31,7 +31,7 @@ public class PlayerController : MonoBehaviour
     public KeyCode blockKey     = KeyCode.U;
 
     [Header("상대 (격투게임 방향 처리)")]
-    [Tooltip("비워두면 씬에서 EnemyAI 를 자동으로 찾는다. 항상 이쪽을 바라본다.")]
+    [Tooltip("비워두면 씬에서 FighterAI 를 자동으로 찾는다. 항상 이쪽을 바라본다.")]
     [SerializeField] private Transform opponent;
     [Tooltip("뒤로 걸을 때 속도 배율. 격투게임은 보통 후진이 조금 느리다.")]
     [SerializeField] private float backwardSpeedMultiplier = 0.8f;
@@ -56,10 +56,10 @@ public class PlayerController : MonoBehaviour
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
 
-        // 상대를 지정하지 않았으면 씬에서 찾는다. (EnemyAI 가 플레이어를 찾는 것과 대칭)
+        // 상대를 지정하지 않았으면 씬에서 찾는다. (FighterAI 가 플레이어를 찾는 것과 대칭)
         if (opponent == null)
         {
-            var enemy = FindAnyObjectByType<EnemyAI>();
+            var enemy = FindAnyObjectByType<FighterAI>();
             if (enemy != null) opponent = enemy.transform;
         }
 
