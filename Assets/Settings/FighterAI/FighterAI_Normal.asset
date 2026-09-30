@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57e1ced876198224398a3c36c011a3a2, type: 3}
   m_Name: FighterAI_Normal
   m_EditorClassIdentifier: Assembly-CSharp::FighterAIDifficulty
-  attackRate: 0.5
-  minAttackGap: 1.2
-  maxAttackGap: 3.5
+  attackRate: 1
+  minAttackGap: 0.7
+  maxAttackGap: 1.5
   telegraphDuration: 0.75
-  guardChance: 0.4
+  guardChance: 0.65
   counterChance: 0.2
   guardStartDelay: 0.05

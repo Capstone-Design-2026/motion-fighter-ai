@@ -9,16 +9,16 @@ public class FighterAIDifficulty : ScriptableObject
 {
     [Header("공격 빈도")]
     [Tooltip("초당 공격 시도율. 매 프레임 p = 1 - exp(-attackRate * dt) 로 굴린다.")]
-    [Min(0f)] public float attackRate = 0.5f;
+    [Min(0f)] public float attackRate = 1.0f;
     [Tooltip("공격이 끝난 뒤 이 시간 동안은 공격하지 않는다.")]
-    [Min(0f)] public float minAttackGap = 1.2f;
+    [Min(0f)] public float minAttackGap = 0.7f;
     [Tooltip("공격이 끝난 뒤 이 시간이 지나면 무조건 공격한다.")]
-    [Min(0f)] public float maxAttackGap = 3.5f;
+    [Min(0f)] public float maxAttackGap = 1.5f;
     [Tooltip("공격 예비동작(Telegraph) 길이. 플레이어가 보고 반응할 시간.")]
     [Min(0f)] public float telegraphDuration = 0.75f;
 
     [Header("방어")]
-    [Range(0f, 1f)] public float guardChance = 0.4f;
+    [Range(0f, 1f)] public float guardChance = 0.65f;
     [Tooltip("가드 성공 후 빠른 반격 확률.")]
     [Range(0f, 1f)] public float counterChance = 0.2f;
     [Tooltip("방어로 정한 뒤 가드 자세를 잡기까지. 플레이어 공격 선딜(Fighter.windup)보다 짧아야 한다.")]

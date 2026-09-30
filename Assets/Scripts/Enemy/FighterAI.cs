@@ -9,10 +9,9 @@ public class AIAttackPattern
     public string name = "중단 지르기";
     public AttackHeight height = AttackHeight.Mid;
     [Min(0f)] public float minRange = 0f;
-    [Min(0f)] public float maxRange = 1.3f;
+    [Tooltip("실제로는 피격 범위(판정 박스 앞끝 + 상대 몸통 절반) - hitRangeMargin 을 넘지 못한다.")]
+    [Min(0f)] public float maxRange = 2.0f;
     [Min(0f)] public float weight = 1f;
-
-    public bool InRange(float distance) => distance >= minRange && distance <= maxRange;
 }
 
 /// <summary>
@@ -41,20 +40,18 @@ public class FighterAI : MonoBehaviour
     [Header("공격 패턴")]
     [SerializeField] private List<AIAttackPattern> attackPatterns = new List<AIAttackPattern>
     {
-        new AIAttackPattern { name = "중단 지르기", height = AttackHeight.Mid, minRange = 0f, maxRange = 1.3f, weight = 3f },
-        new AIAttackPattern { name = "하단 차기",   height = AttackHeight.Low, minRange = 0f, maxRange = 1.1f, weight = 1.5f },
+        new AIAttackPattern { name = "중단 지르기", height = AttackHeight.Mid, minRange = 0f, maxRange = 2.0f, weight = 3f },
+        new AIAttackPattern { name = "하단 차기",   height = AttackHeight.Low, minRange = 0f, maxRange = 1.8f, weight = 1.5f },
     };
     [Tooltip("직전에 쓴 패턴의 가중치에 곱하는 값. 같은 공격만 반복하지 않게 한다.")]
     [Range(0f, 1f)] [SerializeField] private float repeatWeightMultiplier = 0.35f;
+    [Tooltip("공격 범위를 실제 피격 범위(판정 박스 앞끝 + 상대 몸통 절반)보다 이만큼 좁힌다. " +
+             "패턴의 maxRange 가 더 넓어도 여기서 잘려서, 공격을 내면 반드시 닿는 거리에서만 공격한다.")]
+    [Min(0f)] [SerializeField] private float hitRangeMargin = 0.25f;
 
     [Header("이동")]
+    [Tooltip("공격 범위 밖에서만 접근한다. 공격 범위 안에서는 멈춰서 공격만 한다.")]
     [SerializeField] private float moveSpeed = 2.6f;
-    [SerializeField] private float keepDistance = 0.8f;     // 너무 붙으면 물러남
-    [Tooltip("거리를 조금씩 좁히거나 벌리는 스텝 한 번의 길이.")]
-    [SerializeField] private float stepDuration = 0.25f;
-    [SerializeField] private Vector2 stepInterval = new Vector2(0.6f, 1.4f);
-    [Tooltip("스텝이 앞으로 갈 확률. 나머지는 뒤로.")]
-    [Range(0f, 1f)] [SerializeField] private float stepForwardChance = 0.6f;
 
     [Header("빈틈 (가드를 내려 공격을 유도)")]
     [Tooltip("초당 빈틈 발생률.")]
@@ -91,6 +88,7 @@ public class FighterAI : MonoBehaviour
     private Health health;
     private Fighter fighter;
     private Fighter playerFighter;
+    private Collider2D targetCollider;
 
     private bool isGrounded = true;
     private Color baseColor = Color.white;
@@ -101,10 +99,7 @@ public class FighterAI : MonoBehaviour
     private int lastPatternIndex = -1;
     private Coroutine actionRoutine;
 
-    // 이동
-    private float stepUntil;
-    private float nextStepTime;
-    private float stepDir;
+    // 빈틈
     private float openingUntil;
 
     // 방어
@@ -147,6 +142,7 @@ public class FighterAI : MonoBehaviour
         else
         {
             playerFighter = target.GetComponent<Fighter>();
+            targetCollider = target.GetComponent<Collider2D>();
             if (playerFighter != null)
             {
                 playerFighter.AttackDeclared += HandleAttackDeclared;
@@ -156,7 +152,6 @@ public class FighterAI : MonoBehaviour
 
         health.OnDamaged += HandleDamaged;
         lastAttackEndTime = Time.time;
-        nextStepTime = Time.time + Random.Range(stepInterval.x, stepInterval.y);
     }
 
     void OnDestroy()
@@ -242,28 +237,14 @@ public class FighterAI : MonoBehaviour
 
     // ─────────────────────── 이동 / 빈틈 ───────────────────────
 
+    /// <summary>공격 범위 안이면 멈춰서 공격만 한다. 밖이면 범위 안으로 들어갈 때까지만 움직인다.</summary>
     private float DecideMovement(float distance)
     {
-        bool mustAttack = Time.time - lastAttackEndTime >= D.maxAttackGap;
+        for (int i = 0; i < attackPatterns.Count; i++)
+            if (attackPatterns[i].weight > 0f && PatternInRange(i, distance)) return 0f;
 
-        // 사거리 밖이면(또는 공격해야 하는데 후보가 없으면) 접근
-        if (distance > MaxPatternRange() || (mustAttack && PickPattern(distance, out _) == null))
-            return fighter.Facing;
-
-        if (distance < keepDistance)
-            return -fighter.Facing;
-
-        // 거리를 조금씩 좁히거나 벌리는 스텝
-        if (Time.time < stepUntil) return stepDir;
-
-        if (Time.time >= nextStepTime)
-        {
-            stepDir = Random.value < stepForwardChance ? fighter.Facing : -fighter.Facing;
-            stepUntil = Time.time + stepDuration;
-            nextStepTime = stepUntil + Random.Range(stepInterval.x, stepInterval.y);
-            return stepDir;
-        }
-        return 0f;
+        // 어느 패턴의 minRange 보다도 가까우면 물러나고, 그 외엔 접근
+        return distance > MaxPatternRange() ? fighter.Facing : -fighter.Facing;
     }
 
     private void UpdateOpening()
@@ -301,20 +282,20 @@ public class FighterAI : MonoBehaviour
         index = -1;
         float total = 0f;
         for (int i = 0; i < attackPatterns.Count; i++)
-            if (attackPatterns[i].InRange(distance)) total += PatternWeight(i);
+            if (PatternInRange(i, distance)) total += PatternWeight(i);
         if (total <= 0f) return null;
 
         float roll = Random.value * total;
         for (int i = 0; i < attackPatterns.Count; i++)
         {
-            if (!attackPatterns[i].InRange(distance)) continue;
+            if (!PatternInRange(i, distance)) continue;
             roll -= PatternWeight(i);
             if (roll < 0f) { index = i; return attackPatterns[i]; }
         }
 
         // 부동소수 오차로 끝까지 온 경우 마지막 후보
         for (int i = attackPatterns.Count - 1; i >= 0; i--)
-            if (attackPatterns[i].InRange(distance) && PatternWeight(i) > 0f) { index = i; return attackPatterns[i]; }
+            if (PatternInRange(i, distance) && PatternWeight(i) > 0f) { index = i; return attackPatterns[i]; }
         return null;
     }
 
@@ -327,8 +308,20 @@ public class FighterAI : MonoBehaviour
     private float MaxPatternRange()
     {
         float max = 0f;
-        foreach (var p in attackPatterns) max = Mathf.Max(max, p.maxRange);
+        for (int i = 0; i < attackPatterns.Count; i++) max = Mathf.Max(max, EffectiveMaxRange(i));
         return max;
+    }
+
+    /// <summary>실제 피격 범위(판정 박스 앞끝 + 상대 몸통 절반)보다 hitRangeMargin 만큼 좁힌 공격 범위.</summary>
+    private float EffectiveMaxRange(int i)
+    {
+        float targetHalf = targetCollider != null ? targetCollider.bounds.extents.x : 0f;
+        return Mathf.Min(attackPatterns[i].maxRange, fighter.Reach + targetHalf - hitRangeMargin);
+    }
+
+    private bool PatternInRange(int i, float distance)
+    {
+        return distance >= attackPatterns[i].minRange && distance <= EffectiveMaxRange(i);
     }
 
     private void StartAttack(AIAttackPattern pattern, int index, float telegraph, bool isCounter)

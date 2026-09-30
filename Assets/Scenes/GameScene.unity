@@ -1417,19 +1417,16 @@ MonoBehaviour:
   - name: "\uC911\uB2E8 \uC9C0\uB974\uAE30"
     height: 1
     minRange: 0
-    maxRange: 1.3
+    maxRange: 2
     weight: 3
   - name: "\uD558\uB2E8 \uCC28\uAE30"
     height: 2
     minRange: 0
-    maxRange: 1.1
+    maxRange: 1.8
     weight: 1.5
   repeatWeightMultiplier: 0.35
+  hitRangeMargin: 0.25
   moveSpeed: 2.6
-  keepDistance: 0.8
-  stepDuration: 0.25
-  stepInterval: {x: 0.6, y: 1.4}
-  stepForwardChance: 0.6
   openingRate: 0.15
   openingDuration: 0.8
   openingGuardMultiplier: 0.3
