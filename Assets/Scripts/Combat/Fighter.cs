@@ -61,6 +61,10 @@ public class Fighter : MonoBehaviour
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
 
+    public int AttackDamage => attackDamage;
+    public float GuardReduction => 1f-blockDamageMultiplier;
+    public void ConfigureGuard(float reduction) { blockDamageMultiplier=1f-Mathf.Clamp(reduction,0,.9f); }
+    public int GuardedDamage(int incoming) { return Mathf.Max(1,Mathf.CeilToInt(incoming*blockDamageMultiplier-.00001f)); }
     public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
 
     void Awake()
@@ -89,7 +93,7 @@ public class Fighter : MonoBehaviour
 
         yield return new WaitForSeconds(windup);
 
-        if (!Health.IsDead)
+        if (!Health.IsDead && !InputLocked)
             ResolveHit(height);
 
         yield return new WaitForSeconds(recovery);
@@ -130,7 +134,7 @@ public class Fighter : MonoBehaviour
 
                 if (guarded)
                 {
-                    damage = Mathf.Max(1, Mathf.CeilToInt(damage * blockDamageMultiplier));
+                    damage = targetFighter.GuardedDamage(damage); // Defender owns mitigation, not the attacker.
                     kb = Vector2.zero;
                     Debug.Log($"[Fighter] {name} 의 {height} 공격을 {targetFighter.name} 가 방어 (데미지 {damage})");
                 }

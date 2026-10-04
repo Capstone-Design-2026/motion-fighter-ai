@@ -19,6 +19,12 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(-500)]
 public class BattleSceneBridge : MonoBehaviour
 {
+    [Header("제한 시간")]
+    [Min(1f)]
+    [SerializeField] private float roundDuration = 120f;
+    public float RemainingSeconds { get; private set; }
+    public bool IsResolved => resolved;
+
     [Header("전투 종료 후")]
     [Tooltip("K.O. 뒤 지도로 돌아가기까지 기다리는 시간(초). 실제 시간 기준이라 슬로우모션의 영향을 받지 않는다.")]
     [SerializeField] private float returnDelay = 2.5f;
@@ -47,6 +53,7 @@ public class BattleSceneBridge : MonoBehaviour
     void Awake()
     {
         defaultFixedDelta = Time.fixedDeltaTime;
+        RemainingSeconds = Mathf.Max(1f, roundDuration);
 
         runMode = Run != null && Run.HasPendingBattle;
         if (runMode) ApplyStage();
@@ -86,14 +93,27 @@ public class BattleSceneBridge : MonoBehaviour
 
     void Update()
     {
-        // 단독 실행에서 R 키로 라운드를 다시 시작했으면 조작 잠금을 푼다.
-        if (runMode || !resolved) return;
+        if (resolved || playerHealth == null || enemyHealth == null) return;
+        if (playerHealth.IsDead || enemyHealth.IsDead) return;
 
-        bool someoneDead = (playerHealth != null && playerHealth.IsDead)
-                        || (enemyHealth  != null && enemyHealth.IsDead);
-        if (someoneDead) return;
+        // 게임 시간 기준: 일시정지/필살기 정지 중에는 제한 시간도 멈춘다.
+        RemainingSeconds = Mathf.Max(0f, RemainingSeconds - Time.deltaTime);
+        if (RemainingSeconds > 0f) return;
 
+        // 최대 HP가 다른 보스도 공정하게 비교한다. 같은 비율이면 플레이어 패배.
+        bool won = (long)playerHealth.CurrentHealth * enemyHealth.MaxHealth
+                 > (long)enemyHealth.CurrentHealth * playerHealth.MaxHealth;
+        ResolveResult(won, true);
+    }
+
+    public void ResetRoundTimer()
+    {
+        if (runMode) return;
+        StopAllCoroutines();
+        HitImpact.ReleaseTimeControl();
+        RestoreTimeScale();
         resolved = false;
+        RemainingSeconds = Mathf.Max(1f, roundDuration);
         SetInputLock(false);
     }
 
@@ -182,25 +202,35 @@ public class BattleSceneBridge : MonoBehaviour
 
     private void OnAnyDeath(Health dead)
     {
-        if (resolved) return;
-        resolved = true;
-
-        bool won = (dead != playerHealth);
-        StartCoroutine(FinishRoutine(won));
+        ResolveResult(dead != playerHealth, false);
     }
 
-    private IEnumerator FinishRoutine(bool won)
+    private void ResolveResult(bool won, bool timedOut)
+    {
+        if (resolved) return;
+        resolved = true;
+        SetInputLock(true);
+        if (timedOut)
+        {
+            var hud = FindAnyObjectByType<CombatHUD>();
+            if (hud != null) hud.ShowTimeOut(won);
+        }
+        StartCoroutine(FinishRoutine(won, timedOut));
+    }
+
+    private IEnumerator FinishRoutine(bool won, bool timedOut)
     {
         // 타격 히트스톱이 아직 돌고 있으면 여기서 정리한다.
         // 지금부터 timeScale 은 K.O. 연출이 혼자 쓴다. 둘이 겹치면 서로를 덮어써서 연출이 끊긴다.
         HitImpact.ReleaseTimeControl();
+        if (timedOut) RestoreTimeScale();
 
         // 이긴 쪽까지 포함해 양쪽 조작을 잠근다. 쓰러진 상대를 계속 때리는 걸 막는다.
         SetInputLock(true);
 
         // 마무리 일격을 눈에 남기기 위한 슬로우모션. 기본 타격의 슬로우보다 길게 간다.
         // timeScale 을 0 으로 만들지 않는 이유: 쓰러지는 모션과 넉백이 첫 프레임에서 얼어붙는다.
-        if (useSlowMotion && slowMotionDuration > 0f)
+        if (!timedOut && useSlowMotion && slowMotionDuration > 0f)
         {
             SetTimeScale(slowMotionScale);
 
@@ -239,6 +269,8 @@ public class BattleSceneBridge : MonoBehaviour
 
     private void SetInputLock(bool locked)
     {
+        if (playerHealth != null) playerHealth.DamageLocked = locked;
+        if (enemyHealth != null) enemyHealth.DamageLocked = locked;
         if (fighters == null) return;
         for (int i = 0; i < fighters.Length; i++)
             if (fighters[i] != null) fighters[i].InputLocked = locked;

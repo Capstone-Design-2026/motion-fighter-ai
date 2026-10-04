@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,30 +13,24 @@ using UnityEngine.UI;
 /// </summary>
 public class MapSceneUI : MonoBehaviour
 {
-    [Header("디자인 (비워두면 단색 도형으로 그린다)")]
+    [Header("디자인 (비워두면 산수화와 기본 표식)")]
     [Tooltip("NodeType 순서대로: 전투 / 강적 / 보스 / 휴식 / 이벤트 / 상점")]
     [SerializeField] private Sprite[] nodeIcons = new Sprite[6];
     [SerializeField] private Sprite backgroundSprite;
 
     [Header("배치")]
-    [SerializeField] private float rowSpacing = 170f;
-    [SerializeField] private float columnSpacing = 190f;
+    [SerializeField] private float rowSpacing = 215f;
+    [SerializeField] private float columnSpacing = 240f;
     [SerializeField] private float bottomPadding = 140f;
     [SerializeField] private float nodeSize = 92f;
-    [SerializeField] private float lineThickness = 6f;
+    [SerializeField] private float lineThickness = 3f;
     [SerializeField] private float headerHeight = 110f;
     [SerializeField] private float footerHeight = 90f;
 
-    [Header("색")]
-    [SerializeField] private Color backgroundColor = new Color(0.07f, 0.08f, 0.12f);
-    [SerializeField] private Color lineColor       = new Color(1f, 1f, 1f, 0.18f);
-    [SerializeField] private Color lineClearedColor= new Color(0.95f, 0.75f, 0.25f, 0.55f);
-    [SerializeField] private Color lockedColor     = new Color(0.28f, 0.30f, 0.36f);
-    [SerializeField] private Color clearedColor    = new Color(0.45f, 0.48f, 0.55f);
 
     [Header("연출")]
     [Tooltip("고를 수 있는 칸이 커졌다 작아지는 폭.")]
-    [SerializeField] private float pulseAmount = 0.08f;
+    [SerializeField] private float pulseAmount = 0.025f;
     [SerializeField] private float pulseSpeed = 3f;
 
     private readonly HashSet<string> reachable = new HashSet<string>();
@@ -118,9 +112,9 @@ public class MapSceneUI : MonoBehaviour
     {
         canvas = UIFactory.CreateCanvas("MapCanvas", transform, 0);
 
-        var bg = UIFactory.CreateImage("Background", canvas.transform, backgroundColor);
-        if (backgroundSprite != null) { bg.sprite = backgroundSprite; bg.color = Color.white; }
-        UIFactory.Stretch(bg.rectTransform);
+        WuxiaBackdrop.Create(canvas.transform, backgroundSprite, true);
+        var wash=UIFactory.CreateImage("MapReadingVeil",canvas.transform,new Color(.96f,.91f,.8f,.06f));
+        UIFactory.Stretch(wash.rectTransform);
 
         // 스크롤 영역 (위/아래 바를 피해서 자리를 잡는다)
         var scrollGO = new GameObject("MapScroll", typeof(RectTransform), typeof(ScrollRect));
@@ -154,7 +148,7 @@ public class MapSceneUI : MonoBehaviour
 
     private void BuildHeader()
     {
-        var bar = UIFactory.CreateImage("Header", canvas.transform, new Color(0f, 0f, 0f, 0.55f));
+        var bar = UIFactory.CreateImage("Header", canvas.transform, new Color(.94f,.88f,.76f,.94f));
         var rect = bar.rectTransform;
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(1f, 1f);
@@ -162,13 +156,18 @@ public class MapSceneUI : MonoBehaviour
         rect.sizeDelta = new Vector2(0f, headerHeight);
         rect.anchoredPosition = Vector2.zero;
 
-        headerText = UIFactory.CreateText("HeaderText", bar.transform, "", 30, TextAnchor.MiddleLeft);
-        UIFactory.Stretch(headerText.rectTransform, 40f, 0f, 40f, 0f);
+        WuxiaTheme.Rule(bar.transform,0,new Color(.36f,.29f,.19f,.45f));
+        var title=WuxiaTheme.Text("MapTitle",bar.transform,"무예의 길",36,TextAnchor.MiddleLeft,WuxiaTheme.Ink);
+        UIFactory.Place(title.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(48,0),new Vector2(260,60));
+        var legend=WuxiaTheme.Text("Legend",bar.transform,"전투  ·  휴식  ·  최종 보스\n붉은 테두리: 선택 가능   /   휠·드래그: 지도 이동",19,TextAnchor.MiddleRight,WuxiaTheme.Ink);
+        UIFactory.Place(legend.rectTransform,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-40,0),new Vector2(600,68));
+        headerText = WuxiaTheme.Text("HeaderText", bar.transform, "", 25, TextAnchor.MiddleLeft,WuxiaTheme.Ink);
+        UIFactory.Stretch(headerText.rectTransform, 330f, 0f, 640f, 0f);
     }
 
     private void BuildFooter()
     {
-        var bar = UIFactory.CreateImage("Footer", canvas.transform, new Color(0f, 0f, 0f, 0.55f));
+        var bar = UIFactory.CreateImage("Footer", canvas.transform, new Color(.94f,.88f,.76f,.94f));
         var rect = bar.rectTransform;
         rect.anchorMin = new Vector2(0f, 0f);
         rect.anchorMax = new Vector2(1f, 0f);
@@ -176,12 +175,14 @@ public class MapSceneUI : MonoBehaviour
         rect.sizeDelta = new Vector2(0f, footerHeight);
         rect.anchoredPosition = Vector2.zero;
 
-        messageText = UIFactory.CreateText("Message", bar.transform, "", 26,
-                                           TextAnchor.MiddleCenter, new Color(0.9f, 0.85f, 0.6f));
+        messageText = WuxiaTheme.Text("Message", bar.transform, "", 26,
+                                           TextAnchor.MiddleCenter, WuxiaTheme.Ink);
         UIFactory.Stretch(messageText.rectTransform, 300f, 0f, 300f, 0f);
 
         var menu = UIFactory.CreateButton("MenuButton", bar.transform, "메뉴", 26,
-                                          new Color(0.18f, 0.20f, 0.28f), OnMenu);
+                                          WuxiaTheme.Ink, OnMenu);
+        WuxiaTheme.StyleButton(menu);
+        WuxiaTheme.Rule(bar.transform,1,new Color(.36f,.29f,.19f,.45f));
         UIFactory.Place(menu.GetComponent<RectTransform>(), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
                         new Vector2(40f, 0f), new Vector2(160f, 56f));
     }
@@ -232,9 +233,9 @@ public class MapSceneUI : MonoBehaviour
                 bool travelled = fromCleared && target != null && visitedIndex >= 0
                     && visitedIndex + 1 < Run.Data.clearedNodeIds.Count
                     && Run.Data.clearedNodeIds[visitedIndex + 1] == nextId;
-                bool ahead = reachable.Contains(node.id) && reachable.Contains(nextId);
-                DrawLine(edges, nodePositions[node.id], to, travelled ? lineClearedColor
-                    : (ahead ? new Color(0.8f, 0.85f, 1f, 0.5f) : new Color(1f, 1f, 1f, 0.07f)));
+                bool ahead = (reachable.Contains(node.id) || node.id == Run.Data.currentNodeId) && reachable.Contains(nextId);
+                DrawLine(edges, nodePositions[node.id], to, travelled ? new Color(.62f,.2f,.13f,.8f)
+                    : (ahead ? new Color(.18f,.15f,.10f,.85f) : new Color(.25f,.22f,.17f,.12f)));
             }
         }
 
@@ -252,79 +253,78 @@ public class MapSceneUI : MonoBehaviour
 
     private void DrawLine(RectTransform parent, Vector2 from, Vector2 to, Color color)
     {
-        var img = UIFactory.CreateImage("Line", parent, color);
-        var rect = img.rectTransform;
-        rect.anchorMin = new Vector2(0.5f, 0f);
-        rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot     = new Vector2(0f, 0.5f);
-        rect.anchoredPosition = from;
-
-        Vector2 delta = to - from;
-        rect.sizeDelta = new Vector2(delta.magnitude, lineThickness);
-        rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
+        Vector2 delta=to-from;
+        float length=delta.magnitude;
+        if(length<=nodeSize+20)return;
+        Vector2 direction=delta/length;
+        // Trim the endpoints, then ink the route as short separated strokes.
+        for(float d=nodeSize*.5f+10;d<length-nodeSize*.5f-10;d+=17)
+        {
+            var img=UIFactory.CreateImage("RouteDash",parent,color);
+            UIFactory.Place(img.rectTransform,new Vector2(.5f,0),new Vector2(0,.5f),from+direction*d,
+                new Vector2(Mathf.Min(8,length-nodeSize*.5f-10-d),lineThickness));
+            img.rectTransform.localRotation=Quaternion.Euler(0,0,Mathf.Atan2(delta.y,delta.x)*Mathf.Rad2Deg);
+        }
     }
 
     private void DrawNode(RectTransform parent, MapNode node)
     {
-        bool available = node.status == NodeStatus.Available;
-        bool cleared   = node.status == NodeStatus.Cleared;
-        bool isCurrent = Run.Data.currentNodeId == node.id;
-
-        bool ahead = reachable.Contains(node.id);
-        Color color = available || ahead ? TypeColor(node.type) : (cleared ? clearedColor : lockedColor);
-
-        var button = UIFactory.CreateButton("Node_" + node.id, parent, "", 20, color, null);
-        var rect = button.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 0f);
-        rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot     = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(nodeSize, nodeSize);
-        rect.anchoredPosition = nodePositions[node.id];
-
-        var img = button.GetComponent<Image>();
-        var stage = Run.Config.Get(node.stageId);
-        var icon = stage != null && stage.portrait != null ? stage.portrait : IconFor(node.type);
-        if (ahead && stage != null && stage.overrideTint) img.color = stage.enemyTint;
-        if (icon != null)
+        bool available=node.status==NodeStatus.Available;
+        bool cleared=node.status==NodeStatus.Cleared;
+        bool current=Run.Data.currentNodeId==node.id;
+        bool ahead=reachable.Contains(node.id);
+        Color ink=node.type==NodeType.Rest?new Color(.08f,.25f,.15f):node.type==NodeType.Boss?new Color(.60f,.10f,.05f):new Color(.08f,.06f,.04f);
+        if(!ahead&&!cleared)ink=new Color(.52f,.48f,.4f,.65f);
+        var button=UIFactory.CreateButton("Node_"+node.id,parent,"",20,Color.clear,null);
+        var rect=button.GetComponent<RectTransform>();
+        UIFactory.Place(rect,new Vector2(.5f,0),new Vector2(.5f,.5f),nodePositions[node.id],new Vector2(nodeSize,nodeSize));
+        var disk=WuxiaTheme.Ornament("SealPaper",rect,WuxiaGraphic.Shape.Disc,new Color(1f,.95f,.82f,1f));
+        UIFactory.Stretch(disk.rectTransform);
+        var ring=WuxiaTheme.Ornament("SealRing",rect,WuxiaGraphic.Shape.Ring,available?WuxiaTheme.Vermilion:ink);
+        UIFactory.Stretch(ring.rectTransform);
+        if(available)
         {
-            img.sprite = icon;
-            img.preserveAspect = true;
-            if (ahead) img.color = Color.white;
+            var outer=WuxiaTheme.Ornament("ReachableRing",rect,WuxiaGraphic.Shape.Ring,WuxiaTheme.Vermilion);
+            UIFactory.Stretch(outer.rectTransform,-7,-7,-7,-7);
+            pulsing.Add(outer.rectTransform);
         }
-
-        var buttonColors = button.colors;
-        buttonColors.disabledColor = ahead ? new Color(0.8f, 0.8f, 0.8f, 1f) : new Color(0.45f, 0.45f, 0.45f, 0.6f);
-        button.colors = buttonColors;
-        if (icon == null)
+        var stage=Run.Config.Get(node.stageId);
+        var icon=stage!=null&&stage.portrait!=null?stage.portrait:IconFor(node.type);
+        if(icon!=null)
         {
-            var marker = button.GetComponentInChildren<Text>();
-            if (marker != null) marker.text = node.type == NodeType.Rest ? "휴식"
-                : (node.type == NodeType.Boss ? "최종" : "전투");
+            var portrait=UIFactory.CreateImage("Portrait",rect,Color.white);portrait.sprite=icon;portrait.preserveAspect=true;
+            UIFactory.Stretch(portrait.rectTransform,15,15,15,15);
         }
-
-        // 라벨은 칸 아래에 따로 붙인다 (아이콘을 가리지 않도록)
-        var label = UIFactory.CreateText("Caption", button.transform,
-            stage != null ? stage.displayName + "\nHP " + stage.enemyMaxHealth
-                + (stage.overrideCombatStats ? " · 공격 " + stage.attackDamage : "")
-                : (node.type == NodeType.Rest ? "휴식 (HP +" + Mathf.RoundToInt(Run.Config.restHealPercent * 100f) + "%)" : TypeLabel(node.type)), 22,
-                                         TextAnchor.UpperCenter,
-                                         ahead ? Color.white : new Color(1f, 1f, 1f, 0.35f));
-        UIFactory.Place(label.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 1f),
-                        new Vector2(0f, -6f), new Vector2(300f, 62f));
-
-        if (isCurrent)
+        else
         {
-            var ring = UIFactory.CreateImage("Current", button.transform, new Color(1f, 1f, 1f, 0.25f));
-            UIFactory.Stretch(ring.rectTransform, -12f, -12f, -12f, -12f);
-            ring.transform.SetAsFirstSibling();
+            var shape=node.type==NodeType.Rest?WuxiaGraphic.Shape.Pavilion:node.type==NodeType.Boss?WuxiaGraphic.Shape.Fortress:WuxiaGraphic.Shape.Swords;
+            var glyph=WuxiaTheme.Ornament("NodeSymbol",rect,shape,ink);UIFactory.Stretch(glyph.rectTransform,17,17,17,17);
         }
-
-        button.interactable = available;
-        if (!available) return;
-
-        var captured = node;
-        button.onClick.AddListener(() => OnNodeClicked(captured));
-        pulsing.Add(rect);
+        var name=stage!=null?stage.displayName:TypeLabel(node.type);
+        var detail=stage!=null?"HP "+stage.enemyMaxHealth+(stage.overrideCombatStats?" · 공격 "+stage.attackDamage:""):
+            node.type==NodeType.Rest?"체력 +"+Mathf.RoundToInt(Run.Config.restHealPercent*100)+"%":"";
+        // An opaque paper strip keeps crossing routes from running through the caption.
+        var caption=UIFactory.CreateImage("CaptionPaper",rect,new Color(.99f,.94f,.83f,1f));
+        UIFactory.Place(caption.rectTransform,new Vector2(.5f,0),new Vector2(.5f,1),new Vector2(0,-12),new Vector2(220,66));
+        var label=WuxiaTheme.Text("Caption",caption.transform,name+"\n"+detail,22,TextAnchor.MiddleCenter,ink);
+        UIFactory.Stretch(label.rectTransform,3,0,3,0);label.horizontalOverflow=HorizontalWrapMode.Wrap;
+        label.resizeTextForBestFit=true;label.resizeTextMinSize=18;label.resizeTextMaxSize=22;label.fontStyle=FontStyle.Bold;
+        if(cleared)
+        {
+            var stamp=UIFactory.CreateImage("ClearedStamp",rect,WuxiaTheme.Vermilion);
+            UIFactory.Place(stamp.rectTransform,new Vector2(1,1),new Vector2(.5f,.5f),new Vector2(-3,-4),new Vector2(44,25));
+            stamp.rectTransform.localRotation=Quaternion.Euler(0,0,-12);
+            var done=WuxiaTheme.Text("StampText",stamp.transform,"완료",15,TextAnchor.MiddleCenter,WuxiaTheme.Paper);UIFactory.Stretch(done.rectTransform);
+        }
+        if(current)
+        {
+            var tag=WuxiaTheme.Text("CurrentPosition",rect,"▼ 현재 위치",18,TextAnchor.MiddleCenter,WuxiaTheme.Vermilion);
+            UIFactory.Place(tag.rectTransform,new Vector2(.5f,1),new Vector2(.5f,0),new Vector2(0,12),new Vector2(180,30));
+        }
+        button.targetGraphic=disk;
+        var colors=button.colors;colors.highlightedColor=new Color(1.07f,.97f,.8f);colors.selectedColor=colors.highlightedColor;colors.disabledColor=Color.white;button.colors=colors;
+        button.interactable=available;
+        if(available)button.onClick.AddListener(()=>OnNodeClicked(node));
     }
 
     // ─────────────────────── 표시용 정보 ───────────────────────
@@ -348,20 +348,6 @@ public class MapSceneUI : MonoBehaviour
             case NodeType.Shop:   return "상점";
         }
         return "";
-    }
-
-    private static Color TypeColor(NodeType type)
-    {
-        switch (type)
-        {
-            case NodeType.Battle: return new Color(0.85f, 0.30f, 0.28f);
-            case NodeType.Elite:  return new Color(0.72f, 0.25f, 0.70f);
-            case NodeType.Boss:   return new Color(0.95f, 0.55f, 0.10f);
-            case NodeType.Rest:   return new Color(0.30f, 0.72f, 0.45f);
-            case NodeType.Event:  return new Color(0.35f, 0.55f, 0.90f);
-            case NodeType.Shop:   return new Color(0.90f, 0.80f, 0.30f);
-        }
-        return Color.gray;
     }
 
     private void RefreshHeader()

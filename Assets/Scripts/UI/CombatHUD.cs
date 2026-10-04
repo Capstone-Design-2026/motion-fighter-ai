@@ -56,6 +56,8 @@ public class CombatHUD : MonoBehaviour
     private Bar playerBar;
     private Bar enemyBar;
     private Text koText;
+    private Text timerText;
+    private BattleSceneBridge battle;
 
     private Vector3 playerStartPos;
     private Vector3 enemyStartPos;
@@ -113,6 +115,8 @@ public class CombatHUD : MonoBehaviour
 
         font = LoadFont();
         BuildCanvas();
+        battle = FindAnyObjectByType<BattleSceneBridge>();
+        BuildTimer();
         BuildSpecialGauge();
         BuildKeyGuide();
 
@@ -140,6 +144,7 @@ public class CombatHUD : MonoBehaviour
         UpdateChip(playerBar);
         UpdateChip(enemyBar);
         UpdateKeyGuide();
+        UpdateTimer();
 
         if (matchOver && allowRestart && Input.GetKeyDown(restartKey))
             RestartRound();
@@ -202,6 +207,39 @@ public class CombatHUD : MonoBehaviour
         koText.gameObject.SetActive(true);
     }
 
+    public void ShowTimeOut(bool won)
+    {
+        matchOver = true;
+        koText.text = "TIME UP\n" + (won ? "YOU WIN" : "YOU LOSE")
+                    + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
+        koText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.45f, 0.45f);
+        koText.gameObject.SetActive(true);
+    }
+
+    private void BuildTimer()
+    {
+        if (battle == null) return;
+        var panel = CreateImage("RoundTimer", canvas.transform, new Color(0.06f, 0.05f, 0.04f, 0.9f));
+        var rect = panel.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -24f);
+        rect.sizeDelta = new Vector2(160f, 104f);
+        timerText = CreateText("Seconds", rect, 58, TextAnchor.MiddleCenter);
+        timerText.rectTransform.anchorMin = Vector2.zero;
+        timerText.rectTransform.anchorMax = Vector2.one;
+        timerText.rectTransform.offsetMin = timerText.rectTransform.offsetMax = Vector2.zero;
+        UpdateTimer();
+    }
+
+    private void UpdateTimer()
+    {
+        if (timerText == null || battle == null) return;
+        timerText.text = Mathf.CeilToInt(battle.RemainingSeconds).ToString("D2");
+        timerText.color = battle.RemainingSeconds <= 10f
+            ? new Color(1f, 0.3f, 0.25f) : new Color(1f, 0.88f, 0.6f);
+    }
+
     private void RestartRound()
     {
         matchOver = false;
@@ -214,6 +252,8 @@ public class CombatHUD : MonoBehaviour
         if (enemyBar != null) enemyBar.chipRatio = 1f;
 
         if (special != null) special.ResetCharge();
+        if (battle != null) battle.ResetRoundTimer();
+        UpdateTimer();
     }
 
     private void RestoreFighter(Health health, Vector3 position)
@@ -391,7 +431,7 @@ public class CombatHUD : MonoBehaviour
             AddGuideRow(i++, special.ChargeKey.ToString(), "필살기 게이지 채우기 (테스트용)");
 
         if (allowRestart)
-            AddGuideRow(i++, restartKey.ToString(), "K.O. 후 다시 시작");
+            AddGuideRow(i++, restartKey.ToString(), "전투 종료 후 다시 시작");
 
         AddGuideRow(i++, keyGuideToggleKey.ToString(), "이 안내 켜기 / 끄기");
 

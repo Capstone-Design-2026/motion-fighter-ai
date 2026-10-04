@@ -28,6 +28,7 @@ public class Health : MonoBehaviour
     public string DisplayName => displayName;
     public int MaxHealth => maxHealth;
     public int CurrentHealth { get; private set; }
+    public bool DamageLocked { get; set; }
     public bool IsDead => CurrentHealth <= 0;
     public bool IsInvulnerable => Time.time < invulnerableUntil;
 
@@ -74,7 +75,7 @@ public class Health : MonoBehaviour
     /// <param name="guarded">가드에 막혔으면 true. 애니메이션과 경직시간이 달라진다.</param>
     public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false)
     {
-        if (IsDead || IsInvulnerable || amount <= 0)
+        if (DamageLocked || IsDead || IsInvulnerable || amount <= 0)
             return false;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
