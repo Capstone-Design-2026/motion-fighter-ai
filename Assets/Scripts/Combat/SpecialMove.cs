@@ -211,8 +211,13 @@ public class SpecialMove : MonoBehaviour
             return;
         }
 
-        target.TakeDamage(damage, Vector2.zero, false, true);
+        bool damaged = target.TakeDamage(damage, Vector2.zero, false, true);
         Debug.Log($"[SpecialMove] {name} 필살기 → {target.DisplayName} 에게 {damage}");
+
+        // 필살기 한 방에 쓰러졌으면 일반 공격의 마무리 일격과 같은 소리를 낸다.
+        // 쓰러뜨리지 못한 필살기에는 타격음을 넣지 않는다.
+        if (damaged && target.IsDead)
+            CombatSfx.PlayHit(false, true);
     }
 
     /// <summary>
