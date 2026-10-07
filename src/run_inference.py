@@ -1,8 +1,11 @@
 """Run real-time motion inference from webcam pose landmarks."""
 
+import argparse
 from collections import Counter, deque
 import platform
+import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -21,6 +24,8 @@ except ModuleNotFoundError as exc:
         "or use it directly:\n"
         "  .venv/bin/python src/run_inference.py"
     ) from exc
+
+import socket
 
 from config import (
     ACTIONS,
@@ -47,6 +52,10 @@ WRIST_VISIBILITY_THRESHOLD = 0.5
 PASSIVE_ACTIONS = {"IDLE", "NONE"}
 PASSIVE_SEND_INTERVAL_SECONDS = 0.3
 
+# --- 유니티 미니맵 카메라 프레임 전송 설정 ---
+UNITY_IP = "127.0.0.1"
+FRAME_PORT = 5056  # 포즈 수신용 5055 포트와 분리된 영상 수신 전용 포트
+
 CONNECTIONS = [
     (11, 12),            # shoulders
     (11, 13), (13, 15),  # left arm
@@ -57,11 +66,21 @@ CONNECTIONS = [
 ]
 
 
-def validate_required_files():
+def get_resource_path(relative_path: Path) -> Path:
+    """
+    PyInstaller 패키징 환경과 일반 개발 환경 모두에서
+    올바른 리소스 자산 경로를 가져옵니다.
+    """
+    if hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS) / relative_path
+    return relative_path
+
+
+def validate_required_files(pose_path: Path, model_path: Path, label_path: Path):
     """Ensure all model assets exist before opening the webcam."""
     missing_files = [
         path
-        for path in (POSE_MODEL_PATH, TRAINED_MODEL_PATH, LABEL_CLASSES_PATH)
+        for path in (pose_path, model_path, label_path)
         if not path.exists()
     ]
 
@@ -75,10 +94,10 @@ def validate_required_files():
         )
 
 
-def load_artifacts():
+def load_artifacts(model_path: Path, label_path: Path):
     """Load the trained Keras model and label class names."""
-    model = load_model(TRAINED_MODEL_PATH)
-    label_classes = np.load(LABEL_CLASSES_PATH, allow_pickle=True)
+    model = load_model(model_path)
+    label_classes = np.load(label_path, allow_pickle=True)
     validate_model_artifacts(model, label_classes)
     return model, label_classes
 
@@ -167,7 +186,7 @@ def draw_skeleton(frame, landmarks, width, height):
         cv2.circle(frame, point, 4, (0, 200, 255), -1)
 
 
-def draw_text(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def draw_text(
     frame, text, pos, scale=0.8, color=(255, 255, 255), thickness=2
 ):
     """Draw a preview label on the OpenCV frame."""
@@ -183,15 +202,22 @@ def draw_text(  # pylint: disable=too-many-arguments,too-many-positional-argumen
     )
 
 
-def open_camera():
-    """Open the configured webcam with AVFoundation or raise an actionable error."""
-    cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_AVFOUNDATION)
+def open_camera(cam_index: int):
+    """Open the configured webcam on Windows or macOS."""
+    if platform.system() == "Windows":
+        cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            print(f"[CAM] Successfully opened camera index {cam_index} via DSHOW")
+            return cap
+        cap.release()
 
+    cap = cv2.VideoCapture(cam_index)
     if cap.isOpened():
+        print(f"[CAM] Successfully opened camera index {cam_index}")
         return cap
 
     cap.release()
-    message = f"Cannot open webcam at camera index {CAMERA_INDEX}."
+    message = f"Cannot open webcam at camera index {cam_index}."
     if platform.system() == "Darwin":
         message += (
             "\nAllow camera access for the app that starts Python "
@@ -358,9 +384,9 @@ def movement_debug_lines(result: MovementResult) -> list[str]:
     ]
 
 
-def create_pose_landmarker():
+def create_pose_landmarker(pose_model_path: Path):
     """Create the MediaPipe PoseLandmarker used for per-frame inference."""
-    base_options = python.BaseOptions(model_asset_path=str(POSE_MODEL_PATH))
+    base_options = python.BaseOptions(model_asset_path=str(pose_model_path))
     options = vision.PoseLandmarkerOptions(
         base_options=base_options,
         running_mode=vision.RunningMode.IMAGE,
@@ -369,11 +395,39 @@ def create_pose_landmarker():
     return vision.PoseLandmarker.create_from_options(options)
 
 
-def main():  # pylint: disable=too-many-locals
+def parse_args():
+    """Parse command line arguments for camera and execution mode."""
+    parser = argparse.ArgumentParser(description="Motion Fighter Real-time Inference")
+    parser.add_argument(
+        "--cam-index",
+        type=int,
+        default=CAMERA_INDEX,
+        help=f"Webcam index (default: {CAMERA_INDEX}, set 1 for external USB camera)",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run without OpenCV GUI window (useful when integrated with Unity)",
+    )
+    return parser.parse_args()
+
+
+def main():
     """Run the webcam inference loop."""
-    validate_required_files()
-    model, label_classes = load_artifacts()
-    cap = open_camera()
+    args = parse_args()
+
+    # PyInstaller 호환 자산 경로 설정
+    pose_model_path = get_resource_path(POSE_MODEL_PATH)
+    trained_model_path = get_resource_path(TRAINED_MODEL_PATH)
+    label_classes_path = get_resource_path(LABEL_CLASSES_PATH)
+
+    validate_required_files(pose_model_path, trained_model_path, label_classes_path)
+    model, label_classes = load_artifacts(trained_model_path, label_classes_path)
+    cap = open_camera(args.cam_index)
+
+    # 영상 프레임 전송 전용 UDP 소켓 생성
+    frame_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
     action_buffer = deque(maxlen=STABLE_FRAME_COUNT)
     movement_detector = create_movement_detector()
     last_sent_action = None
@@ -382,7 +436,9 @@ def main():  # pylint: disable=too-many-locals
     last_sent_payload_label = "NONE/NEUTRAL C0.00 M0.00"
 
     print("=== Motion Fighter Real-time Inference ===")
-    print("Q: quit")
+    print(f"Camera index: {args.cam_index}")
+    print(f"Headless mode: {args.headless}")
+    print("Q: quit (in preview window)")
     print(f"Confidence threshold: {CONFIDENCE_THRESHOLD}")
     print(f"Stable frame count: {STABLE_FRAME_COUNT}")
     print(
@@ -393,7 +449,7 @@ def main():  # pylint: disable=too-many-locals
     print(f"Movement mirror: {MOVEMENT_MIRROR}")
 
     try:
-        with create_pose_landmarker() as landmarker:
+        with create_pose_landmarker(pose_model_path) as landmarker:
             while True:
                 ret, frame = cap.read()
                 if not ret:
@@ -412,6 +468,7 @@ def main():  # pylint: disable=too-many-locals
 
                 if result.pose_landmarks:
                     landmarks = result.pose_landmarks[0]
+                    # headless 모드여도 유니티 미니맵 스트리밍 프레임에는 스켈레톤을 포함시킵니다.
                     draw_skeleton(display_frame, landmarks, width, height)
 
                     raw_action, confidence = predict_action(
@@ -426,6 +483,14 @@ def main():  # pylint: disable=too-many-locals
                     action_buffer.append("NONE")
                     final_action = get_stable_action(action_buffer)
                     movement_result = movement_detector.reset()
+
+                # 유니티 미니맵용 프레임 압축 및 UDP 전송 (품질 80% 적용)
+                try:
+                    resized_frame = cv2.resize(display_frame, (320, 240))
+                    _, encoded_img = cv2.imencode('.jpg', resized_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    frame_sock.sendto(encoded_img.tobytes(), (UNITY_IP, FRAME_PORT))
+                except Exception:
+                    pass
 
                 (
                     last_sent_action,
@@ -443,64 +508,64 @@ def main():  # pylint: disable=too-many-locals
                     last_sent_payload_label,
                 )
 
-                # Keep these values explicit for future Unity UDP integration.
-                unity_action = final_action
-                unity_movement = movement_result.final_movement
-                unity_confidence = confidence
-                unity_movement_strength = movement_result.movement_strength
+                # GUI 출력 모드일 때만 OpenCV 창 렌더링
+                if not args.headless:
+                    unity_action = final_action
+                    unity_confidence = confidence
 
-                draw_text(
-                    display_frame,
-                    f"RAW: {raw_action}",
-                    (30, 45),
-                    scale=0.9,
-                    color=(0, 255, 255),
-                    thickness=2,
-                )
-                draw_text(
-                    display_frame,
-                    f"FINAL: {unity_action}",
-                    (30, 85),
-                    scale=1.0,
-                    color=(0, 255, 0),
-                    thickness=3,
-                )
-                draw_text(
-                    display_frame,
-                    f"CONF: {unity_confidence:.2f}",
-                    (30, 125),
-                    scale=0.8,
-                    color=(255, 255, 255),
-                    thickness=2,
-                )
-                for row, label in enumerate(movement_debug_lines(movement_result)):
                     draw_text(
-                        display_frame, label, (30, 160 + row * 27), scale=0.55,
+                        display_frame,
+                        f"RAW: {raw_action}",
+                        (30, 45),
+                        scale=0.9,
+                        color=(0, 255, 255),
+                        thickness=2,
                     )
-                draw_text(
-                    display_frame,
-                    f"LAST UDP: {last_sent_payload_label}",
-                    (30, 403), scale=0.55, color=(255, 200, 0),
-                )
+                    draw_text(
+                        display_frame,
+                        f"FINAL: {unity_action}",
+                        (30, 85),
+                        scale=1.0,
+                        color=(0, 255, 0),
+                        thickness=3,
+                    )
+                    draw_text(
+                        display_frame,
+                        f"CONF: {unity_confidence:.2f}",
+                        (30, 125),
+                        scale=0.8,
+                        color=(255, 255, 255),
+                        thickness=2,
+                    )
+                    for row, label in enumerate(movement_debug_lines(movement_result)):
+                        draw_text(
+                            display_frame, label, (30, 160 + row * 27), scale=0.55,
+                        )
+                    draw_text(
+                        display_frame,
+                        f"LAST UDP: {last_sent_payload_label}",
+                        (30, 403), scale=0.55, color=(255, 200, 0),
+                    )
+                    draw_text(
+                        display_frame,
+                        "Q: Quit",
+                        (30, height - 30),
+                        scale=0.7,
+                        color=(255, 255, 255),
+                        thickness=2,
+                    )
 
-                draw_text(
-                    display_frame,
-                    "Q: Quit",
-                    (30, height - 30),
-                    scale=0.7,
-                    color=(255, 255, 255),
-                    thickness=2,
-                )
+                    cv2.imshow("Motion Fighter Inference", display_frame)
 
-                cv2.imshow("Motion Fighter Inference", display_frame)
-
-                key = cv2.waitKey(1) & 0xFF
-                if key in (ord("q"), ord("Q")):
-                    break
+                    key = cv2.waitKey(1) & 0xFF
+                    if key in (ord("q"), ord("Q")):
+                        break
 
     finally:
         cap.release()
-        cv2.destroyAllWindows()
+        frame_sock.close()
+        if not args.headless:
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
