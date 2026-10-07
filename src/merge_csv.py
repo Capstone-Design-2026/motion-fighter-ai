@@ -7,6 +7,18 @@ import pandas as pd
 from config import MERGED_CSV_PATH, MERGED_DATA_DIR, RAW_DATA_DIR
 
 
+CANONICAL_COLUMNS = [
+    name
+    for landmark_idx in range(33)
+    for name in (
+        f"x{landmark_idx}",
+        f"y{landmark_idx}",
+        f"z{landmark_idx}",
+        f"v{landmark_idx}",
+    )
+] + ["label"]
+
+
 def find_csv_files(raw_data_dir: Path) -> list[Path]:
     """Return all CSV files in the raw data directory."""
     if not raw_data_dir.exists():
@@ -18,47 +30,63 @@ def find_csv_files(raw_data_dir: Path) -> list[Path]:
     return sorted(raw_data_dir.glob("*.csv"))
 
 
-def normalize_label_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename the final column to label."""
-    df = df.copy()
+def validate_csv_schema(df: pd.DataFrame, csv_path: Path):
+    """Fail fast when a raw CSV does not match the canonical feature schema."""
     columns = list(df.columns)
-    columns[-1] = "label"
-    df.columns = columns
-    return df
+    if columns == CANONICAL_COLUMNS:
+        return
+
+    mismatch_index = next(
+        (
+            idx
+            for idx, (actual, expected) in enumerate(zip(columns, CANONICAL_COLUMNS))
+            if actual != expected
+        ),
+        None,
+    )
+
+    if mismatch_index is None and len(columns) != len(CANONICAL_COLUMNS):
+        mismatch_detail = (
+            f"column count {len(columns)} != {len(CANONICAL_COLUMNS)}"
+        )
+    elif mismatch_index is None:
+        mismatch_detail = "unknown schema mismatch"
+    else:
+        mismatch_detail = (
+            f"column {mismatch_index}: "
+            f"expected '{CANONICAL_COLUMNS[mismatch_index]}', "
+            f"found '{columns[mismatch_index]}'"
+        )
+
+    raise ValueError(
+        "CSV schema mismatch. Refusing to merge incompatible training data.\n"
+        f"File: {csv_path}\n"
+        f"Problem: {mismatch_detail}"
+    )
 
 
-def read_valid_csv(csv_path: Path, expected_column_count: int | None):
-    """Read one CSV and return a normalized DataFrame when it is valid."""
+def read_valid_csv(csv_path: Path):
+    """Read one CSV and return a DataFrame when its schema is valid."""
     try:
         df = pd.read_csv(csv_path)
     except pd.errors.EmptyDataError:
         print(f"[WARN] Skipping empty CSV: {csv_path}")
-        return None, expected_column_count
+        return None
 
     if df.empty:
         print(f"[WARN] Skipping CSV with no rows: {csv_path}")
-        return None, expected_column_count
+        return None
 
-    column_count = len(df.columns)
-    if expected_column_count is None:
-        expected_column_count = column_count
-    elif column_count != expected_column_count:
-        print(
-            "[WARN] Skipping CSV with different column count: "
-            f"{csv_path} ({column_count} != {expected_column_count})"
-        )
-        return None, expected_column_count
-
-    return normalize_label_column(df), expected_column_count
+    validate_csv_schema(df, csv_path)
+    return df
 
 
 def load_valid_dataframes(csv_files: list[Path]) -> list[pd.DataFrame]:
     """Load all valid raw CSV files."""
     dataframes = []
-    expected_column_count = None
 
     for csv_path in csv_files:
-        df, expected_column_count = read_valid_csv(csv_path, expected_column_count)
+        df = read_valid_csv(csv_path)
         if df is None:
             continue
 

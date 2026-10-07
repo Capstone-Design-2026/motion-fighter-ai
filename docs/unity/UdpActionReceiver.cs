@@ -16,20 +16,37 @@ public class UdpActionReceiver : MonoBehaviour
     [Header("Confidence")]
     public float minConfidence = 0.7f;
 
+    [Header("Movement State")]
+    [SerializeField] private string currentMovement = "NEUTRAL";
+    [SerializeField] private int currentMovementAxis = 0;
+    [SerializeField] private float currentMovementStrength = 0f;
+
+    [Header("Optional Animator Movement")]
+    public bool updateAnimatorMoveX = false;
+    public string moveXParameter = "MoveX";
+
     private UdpClient udpClient;
     private Thread receiveThread;
     private bool isRunning = false;
 
     private readonly object lockObject = new object();
     private string latestAction = "";
+    private string latestMovement = "NEUTRAL";
     private float latestConfidence = 0f;
+    private float latestMovementStrength = 0f;
     private bool hasNewAction = false;
+
+    public string CurrentMovement => currentMovement;
+    public int CurrentMovementAxis => currentMovementAxis;
+    public float CurrentMovementStrength => currentMovementStrength;
 
     [Serializable]
     public class ActionMessage
     {
         public string action;
+        public string movement;
         public float confidence;
+        public float movement_strength;
         public double timestamp;
     }
 
@@ -41,20 +58,25 @@ public class UdpActionReceiver : MonoBehaviour
     void Update()
     {
         string actionToProcess = "";
+        string movementToProcess = "NEUTRAL";
         float confidenceToProcess = 0f;
+        float movementStrengthToProcess = 0f;
 
         lock (lockObject)
         {
             if (hasNewAction)
             {
                 actionToProcess = latestAction;
+                movementToProcess = latestMovement;
                 confidenceToProcess = latestConfidence;
+                movementStrengthToProcess = latestMovementStrength;
                 hasNewAction = false;
             }
         }
 
         if (!string.IsNullOrEmpty(actionToProcess))
         {
+            ProcessMovement(movementToProcess, movementStrengthToProcess);
             ProcessAction(actionToProcess, confidenceToProcess);
         }
     }
@@ -96,7 +118,11 @@ public class UdpActionReceiver : MonoBehaviour
                     lock (lockObject)
                     {
                         latestAction = message.action;
+                        latestMovement = string.IsNullOrEmpty(message.movement)
+                            ? "NEUTRAL"
+                            : message.movement;
                         latestConfidence = message.confidence;
+                        latestMovementStrength = Mathf.Clamp01(message.movement_strength);
                         hasNewAction = true;
                     }
                 }
@@ -110,6 +136,51 @@ public class UdpActionReceiver : MonoBehaviour
                 Debug.LogWarning($"UDP receive error: {e.Message}");
             }
         }
+    }
+
+    private void ProcessMovement(string movement, float movementStrength)
+    {
+        int axis = GetMovementAxis(movement);
+        float clampedStrength = Mathf.Clamp01(movementStrength);
+
+        currentMovement = NormalizeMovement(movement);
+        currentMovementAxis = axis;
+        currentMovementStrength = clampedStrength;
+
+        Debug.Log(
+            $"Received Movement: {currentMovement} / Axis: {currentMovementAxis} / Strength: {currentMovementStrength}"
+        );
+
+        if (updateAnimatorMoveX && animator != null)
+        {
+            animator.SetFloat(moveXParameter, currentMovementAxis * currentMovementStrength);
+        }
+    }
+
+    private int GetMovementAxis(string movement)
+    {
+        switch (NormalizeMovement(movement))
+        {
+            case "LEFT":
+                return -1;
+
+            case "RIGHT":
+                return 1;
+
+            case "NEUTRAL":
+            default:
+                return 0;
+        }
+    }
+
+    private string NormalizeMovement(string movement)
+    {
+        if (movement == "LEFT" || movement == "RIGHT" || movement == "NEUTRAL")
+        {
+            return movement;
+        }
+
+        return "NEUTRAL";
     }
 
     private void ProcessAction(string action, float confidence)

@@ -36,6 +36,20 @@ COLLECT_SECONDS = 5
 CONFIDENCE_THRESHOLD = 0.70
 STABLE_FRAME_COUNT = 5
 
+# Movement inference settings
+# These are reasonable starting values. Tune them with the run_inference debug
+# overlay because MediaPipe z values vary by camera, distance, and lighting.
+MOVEMENT_VISIBILITY_THRESHOLD = 0.5
+MOVEMENT_ENTER_THRESHOLD = 0.30
+MOVEMENT_EXIT_THRESHOLD = 0.15
+MOVEMENT_STABLE_FRAME_COUNT = 4
+MOVEMENT_MIRROR = False
+MOVEMENT_MAX_STRENGTH_DELTA = 0.75
+
+# Initial calibration values; adjust after real-user remeasurement.
+MOVEMENT_CALIBRATION_SECONDS = 3.0
+MOVEMENT_CALIBRATION_MIN_SAMPLES = 30
+
 # Unity UDP settings
 UNITY_HOST = "127.0.0.1"
 UNITY_PORT = 5055
