@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: ferry_lookout_visit
+  m_EditorClassIdentifier: 
+  location: "폐쇄된 보급 터"
+  background: {fileID: 0}
+  lines:
+  - speaker: "주인공"
+    text: "배는 떠났고 건너편 길도 유실됐어. 장부에는 수문을 고칠 철제 부품이 적혀 있군."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "주인공"
+    text: "포로 호송 기록은 계곡 관문에서 관리한다…… 청계역으로 돌아가자."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0

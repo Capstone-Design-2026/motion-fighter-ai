@@ -5,96 +5,90 @@ using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class UdpMiniMapReceiver : MonoBehaviour
+/// <summary>Displays JPEG webcam frames sent by the vision backend on UDP 5056.</summary>
+public class UDPWebcamReceiver : MonoBehaviour
 {
     [Header("Network Settings")]
     [SerializeField] private int port = 5056;
-
     [Header("UI Reference")]
     [SerializeField] private RawImage miniMapRawImage;
 
     private UdpClient udpClient;
     private Thread receiveThread;
-    private bool isRunning = true;
-
+    private volatile bool isRunning;
     private Texture2D webcamTexture;
     private byte[] latestFrameBytes;
+    private string receiveError;
     private readonly object lockObject = new object();
-    private bool hasNewFrame = false;
 
-    void Start()
+    void OnEnable()
     {
-        // 320x240 해상도 기본 텍스처 생성
         webcamTexture = new Texture2D(320, 240, TextureFormat.RGB24, false);
-        if (miniMapRawImage != null)
+        if (miniMapRawImage != null) miniMapRawImage.texture = webcamTexture;
+        try
         {
-            miniMapRawImage.texture = webcamTexture;
+            udpClient = new UdpClient(port);
+            isRunning = true;
+            var socket = udpClient;
+            receiveThread = new Thread(() => ReceiveData(socket)) { IsBackground = true, Name = "VisionStriker Webcam" };
+            receiveThread.Start();
         }
-
-        // UDP 수신 쓰레드 시작
-        receiveThread = new Thread(ReceiveData) { IsBackground = true };
-        receiveThread.Start();
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[UDP Webcam] Cannot listen on {port}: {ex.Message}");
+            enabled = false;
+        }
     }
 
-    private void ReceiveData()
+    private void ReceiveData(UdpClient socket)
     {
-        udpClient = new UdpClient(port);
-        IPEndPoint remoteEP = new IPEndPoint(IPAddress.Any, port);
-
+        IPEndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
         while (isRunning)
         {
             try
             {
-                byte[] data = udpClient.Receive(ref remoteEP);
-                if (data != null && data.Length > 0)
-                {
-                    lock (lockObject)
-                    {
-                        latestFrameBytes = data;
-                        hasNewFrame = true;
-                    }
-                }
+                byte[] data = socket.Receive(ref remoteEP);
+                if (data.Length > 0) lock (lockObject) latestFrameBytes = data;
             }
-            catch (Exception ex)
+            catch (ObjectDisposedException) { break; }
+            catch (SocketException ex)
             {
-                // 소켓 종료 시 발생하는 예외 무시
-                if (!isRunning) break;
-                Debug.LogWarning($"[UDP MiniMap] Receive Error: {ex.Message}");
+                if (isRunning) lock (lockObject) receiveError = ex.Message;
+                break;
             }
         }
     }
 
     void Update()
     {
-        // 메인 쓰레드에서 텍스처 업데이트
-        if (hasNewFrame)
+        byte[] frame;
+        string error;
+        lock (lockObject)
         {
-            byte[] frameToLoad = null;
-
-            lock (lockObject)
-            {
-                frameToLoad = latestFrameBytes;
-                hasNewFrame = false;
-            }
-
-            if (frameToLoad != null)
-            {
-                // JPEG 바이트 데이터를 Texture2D로 디코딩 (80% 화질 수용)
-                webcamTexture.LoadImage(frameToLoad);
-            }
+            frame = latestFrameBytes; latestFrameBytes = null;
+            error = receiveError; receiveError = null;
         }
+        if (error != null) Debug.LogWarning("[UDP Webcam] Receive stopped: " + error);
+        // Unity texture decoding must remain on the main thread.
+        if (frame != null && webcamTexture != null) webcamTexture.LoadImage(frame);
     }
 
-    private void OnDestroy()
+    void OnDisable() { StopReceiver(); }
+    void OnDestroy() { StopReceiver(); }
+    private void StopReceiver()
     {
         isRunning = false;
-        if (udpClient != null)
+        udpClient?.Close();
+        udpClient = null;
+        // Closing the socket wakes Receive; avoid unsupported Thread.Abort on scene changes.
+        if (receiveThread != null && receiveThread.IsAlive) receiveThread.Join(500);
+        receiveThread = null;
+        lock (lockObject) { latestFrameBytes = null; receiveError = null; }
+        if (webcamTexture != null)
         {
-            udpClient.Close();
-        }
-        if (receiveThread != null && receiveThread.IsAlive)
-        {
-            receiveThread.Abort();
+            if (miniMapRawImage != null && miniMapRawImage.texture == webcamTexture) miniMapRawImage.texture = null;
+            Destroy(webcamTexture);
+            webcamTexture = null;
         }
     }
 }

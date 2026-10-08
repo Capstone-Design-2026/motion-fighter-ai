@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -25,6 +25,7 @@ MonoBehaviour:
     eventWeight: 12
     shopWeight: 8
     eliteMinRow: 3
+  useStoryMap: 1
   useOrderedCampaign: 1
   campaignStageIds:
   - boss_01

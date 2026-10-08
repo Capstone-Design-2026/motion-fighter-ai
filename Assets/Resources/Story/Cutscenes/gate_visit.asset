@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: gate_visit
+  m_EditorClassIdentifier: 
+  location: "폐쇄된 관문"
+  background: {fileID: 0}
+  lines:
+  - speaker: "주인공"
+    text: "도윤이라는 사람을 어디로 데려갔지?"
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "호송대장 철문"
+    text: "이름까지 기억할 필요는 없었다. 정해진 곳에 넘겼으니까."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0

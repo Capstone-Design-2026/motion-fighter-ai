@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: cave_enter
+  m_EditorClassIdentifier: 
+  location: "마른 폭포 동굴 · 벽화 수련"
+  background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 8f936b4587c2430899d399487efa5f4a, type: 3}
+  lines:
+  - speaker: "주인공"
+    text: "이 벽화…… 사부님이 매일 가르치던 기본기다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: ""
+    text: "벽화의 왼쪽은 내가 취할 자세, 오른쪽은 그 자세로 나가는 게임 속 동작이다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "주인공"
+    text: "손동작으로 공격을 정하고, 자세를 되돌려 다음 동작을 준비한다. 하나씩 정확하게 익히자."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0

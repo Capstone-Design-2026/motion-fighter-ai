@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: cave_visit
+  m_EditorClassIdentifier: 
+  location: "마른 폭포 동굴"
+  background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 8f936b4587c2430899d399487efa5f4a, type: 3}
+  lines:
+  - speaker: "주인공"
+    text: "사부님이 남긴 벽화다. 매일 익히던 동작인데, 그날은 하나도 제대로 쓰지 못했어."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "도윤의 편지"
+    text: "내가 돌아오지 못하거든 청계역의 연화를 찾아가거라. 길을 모를 때는 사람에게 묻고, 들은 말은 네 눈으로 확인해라."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "주인공"
+    text: "지도를 챙기자. 먼저 산 아래 청계역으로 간다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0

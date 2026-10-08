@@ -6,6 +6,12 @@ using UnityEngine;
 [Serializable]
 public class RunData
 {
+    public List<string> discoveredNodeIds = new List<string>();
+    public int storyPresentationVersion;
+    public List<string> seenStoryIds = new List<string>();
+    public int tutorialVersion;
+    public bool tutorialCompleted;
+    public int tutorialStep;
     public int seed;
     public MapData map = new MapData();
 
@@ -80,12 +86,19 @@ public class RunState : MonoBehaviour
         Data = new RunData
         {
             seed = seed,
+            storyPresentationVersion = 1,
+            tutorialVersion = 1,
             playerMaxHealth = Mathf.Max(1, Config.playerMaxHealth),
         };
         Data.playerHealth = Data.playerMaxHealth;
         Data.map = MapGenerator.Generate(Config.map, Config, seed);
 
-        LastMessage = null;
+        if (IsStoryMap)
+        {
+            Data.currentNodeId = "cave";
+            Data.discoveredNodeIds.Add("cave");
+        }
+        LastMessage = IsStoryMap ? Data.map.Find("cave").story : null;
         LastBattleWon = false;
         RefreshStatus();
         Save();
@@ -111,6 +124,27 @@ public class RunState : MonoBehaviour
         }
         if (!HasRun) { Data = null; return false; }
 
+        if(Data.tutorialVersion==0) {
+            Data.tutorialVersion=1;
+            Data.tutorialCompleted=Data.clearedNodeIds.Contains("cave");
+            Data.tutorialStep=Data.tutorialCompleted?CaveTutorial.Actions.Length:0;
+            if(Data.tutorialCompleted) {
+                if(Data.seenStoryIds==null)Data.seenStoryIds=new List<string>();
+                if(!Data.seenStoryIds.Contains("cave_prologue"))Data.seenStoryIds.Add("cave_prologue");
+            }
+            Save();
+        }
+        // Existing saves must not replay places completed before cutscenes were introduced.
+        if (Data.seenStoryIds == null) Data.seenStoryIds = new List<string>();
+        if (Data.storyPresentationVersion == 0) {
+            foreach(var id in Data.clearedNodeIds) {
+                if(!Data.seenStoryIds.Contains(id+"_visit")) Data.seenStoryIds.Add(id+"_visit");
+                var oldNode=Data.map.Find(id);
+                if(oldNode!=null && oldNode.IsBattle && !Data.seenStoryIds.Contains(id+"_after")) Data.seenStoryIds.Add(id+"_after");
+            }
+            Data.storyPresentationVersion=1;
+            Save();
+        }
         RefreshStatus();
         return true;
     }
@@ -141,6 +175,25 @@ public class RunState : MonoBehaviour
     {
         if (!HasRun) return;
 
+        if (IsStoryMap)
+        {
+            if (Data.discoveredNodeIds == null) Data.discoveredNodeIds = new List<string>();
+            foreach (var id in Data.clearedNodeIds)
+            {
+                var visited = Data.map.Find(id);
+                if (visited == null) continue;
+                Discover(id);
+                foreach (var near in StoryMap.Neighbors(Data.map, visited)) Discover(near.id);
+            }
+            foreach (var node in Data.map.nodes)
+                node.status = Data.clearedNodeIds.Contains(node.id) ? NodeStatus.Cleared
+                    : FindTravelPath(node.id) != null ? NodeStatus.Available : NodeStatus.Locked;
+            if(!Data.tutorialCompleted && Data.currentNodeId=="cave") {
+                Discover("cave");
+                foreach(var node in Data.map.nodes)node.status=node.id=="cave"?NodeStatus.Available:NodeStatus.Locked;
+            }
+            return;
+        }
         foreach (var node in Data.map.nodes)
             node.status = Data.clearedNodeIds.Contains(node.id) ? NodeStatus.Cleared : NodeStatus.Locked;
 
@@ -162,6 +215,52 @@ public class RunState : MonoBehaviour
         }
     }
 
+    public void CompleteTutorial() {
+        if(!HasRun || Data.tutorialCompleted)return;
+        Data.tutorialCompleted=true;Data.tutorialStep=CaveTutorial.Actions.Length;AdvanceTo("cave");Save();
+    }
+    public bool HasSeenStory(string key) { return Data != null && Data.seenStoryIds != null && Data.seenStoryIds.Contains(key); }
+    public void CompleteStory(string key) {
+        if (!HasRun) return;
+        if (Data.seenStoryIds == null) Data.seenStoryIds = new List<string>();
+        if (!Data.seenStoryIds.Contains(key)) Data.seenStoryIds.Add(key);
+        if (!Data.finished) Save();
+    }
+    private System.Collections.IEnumerator StoryEnding() {
+        yield return StoryCutscene.Play(this,"final_after");
+        SceneRoutes.LoadEnding();
+    }
+
+    public bool IsStoryMap { get { return HasRun && Data.map.storyVersion > 0; } }
+    private void Discover(string id)
+    {
+        if (!Data.discoveredNodeIds.Contains(id)) Data.discoveredNodeIds.Add(id);
+    }
+    public bool IsDiscovered(string id)
+    {
+        return !IsStoryMap || (Data.discoveredNodeIds != null && Data.discoveredNodeIds.Contains(id));
+    }
+    // Each click crosses exactly one visible connection. Even cleared detours require visiting the junction.
+    public List<string> FindTravelPath(string destination)
+    {
+        if (!IsStoryMap || !IsDiscovered(destination)) return null;
+        var current = CurrentNode;
+        var target = Data.map.Find(destination);
+        if (current == null || target == null || !Data.clearedNodeIds.Contains(current.id)) return null;
+        if (destination == current.id) return new List<string> { current.id };
+        if (!current.next.Contains(destination) && !target.next.Contains(current.id)) return null;
+        return new List<string> { current.id, destination };
+    }
+    public bool MoveAlongClearedPath(string destination)
+    {
+        if (!HasRun || Data.finished || HasPendingBattle || !Data.clearedNodeIds.Contains(destination)) return false;
+        var path = FindTravelPath(destination);
+        if (path == null) return false;
+        Data.currentNodeId = destination;
+        LastMessage = "지나온 길로 이동했다. 체력과 휴식 사용 기록은 유지된다.";
+        RefreshStatus(); Save(); return true;
+    }
+
     public MapNode CurrentNode { get { return HasRun ? Data.map.Find(Data.currentNodeId) : null; } }
 
     public int CurrentFloor
@@ -180,7 +279,14 @@ public class RunState : MonoBehaviour
     public void EnterNode(MapNode node)
     {
         if (!HasRun || Data.finished || HasPendingBattle || node == null) return;
+        if(IsStoryMap && node.id=="cave" && !Data.tutorialCompleted)return;
+        if (IsStoryMap && node.status == NodeStatus.Cleared)
+        {
+            MoveAlongClearedPath(node.id);
+            return;
+        }
         if (node.status != NodeStatus.Available) return;
+        if (IsStoryMap && FindTravelPath(node.id) == null) return;
 
         if (node.IsBattle)
         {
@@ -200,7 +306,7 @@ public class RunState : MonoBehaviour
                 break;
 
             case NodeType.Event:
-                LastMessage = "이벤트 - 아직 준비 중입니다. 그냥 지나갑니다.";
+                LastMessage = string.IsNullOrEmpty(node.story) ? "주변을 살펴보았다." : node.story;
                 break;
 
             case NodeType.Shop:
@@ -208,6 +314,7 @@ public class RunState : MonoBehaviour
                 break;
         }
 
+        if (IsStoryMap && node.type == NodeType.Rest) LastMessage += "\n" + node.story;
         AdvanceTo(node.id);
         Save();
     }
@@ -242,12 +349,13 @@ public class RunState : MonoBehaviour
             Data.finished = true;
             LastMessage = "최종 보스 격파!";
             ClearSave(); // 완료한 판은 이어하기 대상으로 남기지 않는다.
-            SceneRoutes.LoadEnding();
+            if (IsStoryMap) StartCoroutine(StoryEnding());
+            else SceneRoutes.LoadEnding();
             return;
         }
         else
         {
-            LastMessage = "승리 - 남은 체력 " + Data.playerHealth + " / " + Data.playerMaxHealth;
+            LastMessage = IsStoryMap && node != null ? node.story : "승리 - 남은 체력 " + Data.playerHealth + " / " + Data.playerMaxHealth;
         }
 
         Save();
@@ -269,7 +377,12 @@ public class RunState : MonoBehaviour
         {
             if (!HasPendingBattle) return null;
             var node = Data.map.Find(Data.pendingNodeId);
-            return node != null ? Config.Get(node.stageId) : null;
+            var stage = node != null ? Config.Get(node.stageId) : null;
+            if (!IsStoryMap || stage == null) return stage;
+            var copy = JsonUtility.FromJson<StageDefinition>(JsonUtility.ToJson(stage));
+            copy.displayName = node.title;
+            copy.nodeType = node.type;
+            return copy;
         }
     }
 

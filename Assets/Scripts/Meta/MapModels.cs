@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -28,6 +28,9 @@ public enum NodeStatus
 [Serializable]
 public class MapNode
 {
+    public string title;
+    public string story;
+    public bool deadEnd;
     public string id;                 // "r03n01" 형태. 저장/참조용 고유 키
     public int row;                   // 0 = 맨 아래(시작), rows-1 = 보스
     public int column;                // 가로 위치 (0 ~ columns-1)
@@ -48,6 +51,7 @@ public class MapNode
 [Serializable]
 public class MapData
 {
+    public int storyVersion;
     public int rows;
     public int columns;
     public List<MapNode> nodes = new List<MapNode>();

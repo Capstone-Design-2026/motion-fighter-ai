@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -11,6 +11,7 @@ public static class MapGenerator
 {
     public static MapData Generate(MapSettings s, RunConfig config, int seed)
     {
+        if (config != null && config.useStoryMap) return StoryMap.Create();
         if (config != null && config.useOrderedCampaign)
             return GenerateCampaign(config, seed);
         if (s == null) s = new MapSettings();

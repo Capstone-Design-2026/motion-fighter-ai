@@ -5,12 +5,19 @@ using UnityEngine.UI;
 [RequireComponent(typeof(CanvasRenderer))]
 public class WuxiaGraphic : MaskableGraphic
 {
-    public enum Shape { Disc, Ring, Mist, Leaf, Swords, Pavilion, Fortress, Fade, Cloud, Plaque, PlaqueFrame, Resume, Guide, Exit }
+    public enum Shape { Disc, Ring, Mist, Leaf, Swords, Pavilion, Fortress, Fade, Cloud, Plaque, PlaqueFrame, Resume, Guide, Exit, Traveler }
     public Shape shape;
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
         Rect r = rectTransform.rect;
+        if(shape==Shape.Traveler)
+        {
+            // Cloaked silhouette and head; the base marks the precise route position.
+            Poly(vh,r,new[]{new Vector2(-.08f,.25f),new Vector2(.10f,.25f),new Vector2(.25f,-.35f),new Vector2(-.26f,-.35f)});
+            Poly(vh,r,new[]{new Vector2(-.10f,.32f),new Vector2(-.06f,.45f),new Vector2(.06f,.45f),new Vector2(.12f,.32f),new Vector2(.04f,.25f)});
+            Stroke(vh,r,new Vector2(-.30f,-.42f),new Vector2(.30f,-.42f),.06f);return;
+        }
         if(shape==Shape.Resume)
         {
             // Open circular arrow: return to the saved journey.

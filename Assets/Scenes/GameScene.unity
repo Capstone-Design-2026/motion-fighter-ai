@@ -1236,7 +1236,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 69f640a55f4836b46945dd0f59650707, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UdpMiniMapReceiver
+  m_EditorClassIdentifier: Assembly-CSharp::UDPWebcamReceiver
   port: 5056
   miniMapRawImage: {fileID: 879232034}
 --- !u!4 &1557763672

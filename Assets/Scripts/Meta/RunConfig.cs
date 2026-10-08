@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -58,6 +58,8 @@ public class RunConfig : ScriptableObject
 
     [Header("지도 생성")]
     public MapSettings map = new MapSettings();
+    [Tooltip("사부의 행방을 추적하는 탐험 지도. 새 게임부터 적용됩니다.")]
+    public bool useStoryMap = true;
 
     [Header("분기형 보스 지도")]
     [Tooltip("켜면 보스 순서와 휴식 시점이 다른 경로를 만듭니다. 목록의 마지막은 최종 보스, 나머지는 각 경로에서 한 번씩 만납니다.")]

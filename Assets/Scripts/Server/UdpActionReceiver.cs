@@ -9,6 +9,9 @@ using UnityEngine;
 /// <summary>Receives webcam action and shoulder movement from vision_backend over UDP.</summary>
 public class UdpActionReceiver : MonoBehaviour
 {
+    // Main-thread action stream for isolated training; training consumes packets without a combat player.
+    public static event Action<string,float,string,float> TutorialAction;
+
     [Header("UDP")]
     public int port = 5055;
 
@@ -106,6 +109,12 @@ public class UdpActionReceiver : MonoBehaviour
             return;
         }
         if (message == null) return;
+        if (TutorialAction != null) {
+            string trainingAction=string.IsNullOrEmpty(message.action)?"NONE":message.action.Trim().ToUpperInvariant();
+            TutorialAction.Invoke(trainingAction,message.confidence,
+                message.movement == null ? "" : message.movement.Trim().ToUpperInvariant(), message.movement_strength);
+            return;
+        }
 
         if (playerController == null)
             playerController = FindAnyObjectByType<PlayerController>();

@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: herb_visit
+  m_EditorClassIdentifier: 
+  location: "약초꾼의 쉼터"
+  background: {fileID: 0}
+  lines:
+  - speaker: "약초꾼"
+    text: "흑운협이 다시 열렸다면 아래 마을들이 위험하겠군. 네 사부는 과거 그곳의 피란민들을 구한 사람이야."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "약초꾼"
+    text: "닮은 사람은 돌가루 묻은 채석장 길로 갔어. 동쪽에는 다른 포로들이, 서쪽에는 수색대가 갔지."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+  - speaker: "주인공"
+    text: "사부님 외에도 붙잡힌 사람들이 있군요."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
