@@ -39,6 +39,8 @@ except ModuleNotFoundError as exc:
 from config import (
     CAMERA_INDEX,
     DATA_DIR,
+    MOVEMENT_CALIBRATION_SECONDS,
+    MOVEMENT_CALIBRATION_MIN_SAMPLES,
     MOVEMENT_ENTER_THRESHOLD,
     MOVEMENT_EXIT_THRESHOLD,
     MOVEMENT_MAX_STRENGTH_DELTA,
@@ -101,6 +103,9 @@ CONNECTIONS = [
 ]
 
 CSV_FIELDNAMES = [
+    "schema_version", "frame_id", "capture_monotonic_ns", "stage",
+    "pose_present", "score_valid", "calibration_state", "neutral_baseline",
+    "corrected_rotation_score", "calibration_mad",
     "phase",
     "elapsed",
     "rotation_score_raw",
@@ -504,6 +509,28 @@ def save_outputs(rows, report_text):
     return csv_path, report_path
 
 
+def build_observation_row(phase, stage, frame_id, capture_ns, elapsed,
+                          pose_present, left_visibility, right_visibility, result):
+    """Preserve every observed frame; unavailable scores are empty CSV cells."""
+    return {
+        "schema_version": 2, "frame_id": frame_id,
+        "capture_monotonic_ns": capture_ns, "stage": stage,
+        "phase": phase, "elapsed": round(elapsed, 3),
+        "pose_present": int(pose_present), "score_valid": int(result.score_valid),
+        "rotation_score_raw": result.raw_rotation_score if result.score_valid else None,
+        "left_visibility": left_visibility, "right_visibility": right_visibility,
+        "shoulders_visible": int(pose_present and
+            left_visibility >= MOVEMENT_VISIBILITY_THRESHOLD and
+            right_visibility >= MOVEMENT_VISIBILITY_THRESHOLD),
+        "live_raw_movement": result.raw_movement,
+        "live_final_movement": result.final_movement,
+        "calibration_state": result.calibration_state,
+        "neutral_baseline": result.neutral_baseline,
+        "corrected_rotation_score": result.corrected_rotation_score,
+        "calibration_mad": result.calibration_mad,
+    }
+
+
 def create_live_detector() -> ShoulderMovementDetector:
     """Create a detector using the current config, for the on-screen preview."""
     return ShoulderMovementDetector(
@@ -513,6 +540,8 @@ def create_live_detector() -> ShoulderMovementDetector:
         stable_frame_count=MOVEMENT_STABLE_FRAME_COUNT,
         mirror=MOVEMENT_MIRROR,
         max_strength_delta=MOVEMENT_MAX_STRENGTH_DELTA,
+        calibration_seconds=MOVEMENT_CALIBRATION_SECONDS,
+        calibration_min_samples=MOVEMENT_CALIBRATION_MIN_SAMPLES,
     )
 
 
@@ -525,20 +554,20 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
             "See README.md > MediaPipe Model Download."
         )
 
-    cap = open_camera()
     detector = create_live_detector()
+    cap = open_camera()
 
     samples_by_phase = {name: [] for name, _, _ in PHASES}
     rows = []
     visibility_values = []
     invisible_frames = 0
-    total_pose_frames = 0
+    total_observed_frames = 0
     frame_count = 0
 
     phase_index = 0
     state = STATE_COUNTDOWN
-    phase_start = time.time()
-    session_start = time.time()
+    phase_start = time.monotonic()
+    session_start = time.monotonic()
     completed = False
 
     print("=== Motion Fighter Movement Calibration ===")
@@ -553,6 +582,7 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
                 if not ret:
                     break
 
+                capture_monotonic_ns = time.monotonic_ns()
                 frame_count += 1
                 phase_name, instruction, record_seconds = PHASES[phase_index]
 
@@ -590,43 +620,37 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
                     live_raw = live_result.raw_movement
                     live_final = live_result.final_movement
 
-                    total_pose_frames += 1
-                    if not shoulders_visible:
-                        invisible_frames += 1
                 else:
-                    detector.reset()
+                    live_result = detector.reset()
 
-                elapsed = time.time() - phase_start
+                total_observed_frames += 1
+                if not live_result.score_valid:
+                    invisible_frames += 1
+
+                elapsed = time.monotonic() - phase_start
+                rows.append(build_observation_row(
+                    phase_name, state, frame_count, capture_monotonic_ns, elapsed,
+                    bool(result.pose_landmarks), left_visibility, right_visibility,
+                    live_result,
+                ))
 
                 if state == STATE_COUNTDOWN:
                     remaining = COUNTDOWN_SECONDS - elapsed
                     if remaining <= 0:
                         state = STATE_SETTLE
-                        phase_start = time.time()
+                        phase_start = time.monotonic()
                         remaining = SETTLE_SECONDS
                 elif state == STATE_SETTLE:
                     remaining = SETTLE_SECONDS - elapsed
                     if remaining <= 0:
                         state = STATE_RECORDING
-                        phase_start = time.time()
+                        phase_start = time.monotonic()
                         remaining = record_seconds
                 else:
                     remaining = record_seconds - elapsed
 
-                    if score is not None:
+                    if live_result.score_valid:
                         samples_by_phase[phase_name].append(score)
-                        rows.append(
-                            {
-                                "phase": phase_name,
-                                "elapsed": round(elapsed, 3),
-                                "rotation_score_raw": round(score, 5),
-                                "left_visibility": round(left_visibility, 3),
-                                "right_visibility": round(right_visibility, 3),
-                                "shoulders_visible": int(shoulders_visible),
-                                "live_raw_movement": live_raw,
-                                "live_final_movement": live_final,
-                            }
-                        )
 
                     if remaining <= 0:
                         collected = len(samples_by_phase[phase_name])
@@ -643,7 +667,7 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
                             break
 
                         state = STATE_COUNTDOWN
-                        phase_start = time.time()
+                        phase_start = time.monotonic()
                         detector.reset()
                         print_phase_intro(
                             phase_index, PHASES[phase_index][0], PHASES[phase_index][2]
@@ -676,7 +700,7 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
                     samples_by_phase[phase_name].clear()
                     rows = [row for row in rows if row["phase"] != phase_name]
                     state = STATE_COUNTDOWN
-                    phase_start = time.time()
+                    phase_start = time.monotonic()
                     detector.reset()
     finally:
         cap.release()
@@ -686,9 +710,9 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
         print("\n痢≪젙�� �꾨즺�섏� �딆븘 由ы룷�몃� 留뚮뱾吏� �딆븯�듬땲��. �ㅼ떆 �ㅽ뻾�섏꽭��.")
         return
 
-    duration = max(time.time() - session_start, 1e-6)
+    duration = max(time.monotonic() - session_start, 1e-6)
     fps = frame_count / duration
-    invisible_ratio = invisible_frames / max(total_pose_frames, 1)
+    invisible_ratio = invisible_frames / max(total_observed_frames, 1)
     visibility_all_zero = bool(visibility_values) and max(visibility_values) == 0.0
 
     report_text = build_report(samples_by_phase, fps, invisible_ratio, visibility_all_zero)
