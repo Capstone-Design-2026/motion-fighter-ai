@@ -14,14 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "폐쇄된 관문"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.20500000000000002, y: 0.2790625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "주인공"
+  - speaker: "서진"
     text: "도윤이라는 사람을 어디로 데려갔지?"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
-  - speaker: "호송대장 철문"
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: f127392586e64f729d6324a6fdc5fc2e, type: 2}
+  - speaker: "철문"
     text: "이름까지 기억할 필요는 없었다. 정해진 곳에 넘겼으니까."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: f127392586e64f729d6324a6fdc5fc2e, type: 2}

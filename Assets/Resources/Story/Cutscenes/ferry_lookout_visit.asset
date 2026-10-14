@@ -14,14 +14,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "폐쇄된 보급 터"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.2, y: 0, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "주인공"
+  - speaker: "서진"
     text: "배는 떠났고 건너편 길도 유실됐어. 장부에는 수문을 고칠 철제 부품이 적혀 있군."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
-  - speaker: "주인공"
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 0}
+    evidence: 2
+    evidenceTitle: "철제 부품 장부"
+  - speaker: "서진"
     text: "포로 호송 기록은 계곡 관문에서 관리한다…… 청계역으로 돌아가자."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 0}
+    evidence: 2
+    evidenceTitle: "포로 호송 기록의 행방"

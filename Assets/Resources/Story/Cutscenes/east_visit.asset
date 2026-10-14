@@ -14,14 +14,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "동쪽 능선"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.48, y: 0.34406250000000005, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "주인공"
+  - speaker: "서진"
     text: "여러 사람의 발자국과 찢어진 옷…… 포로들이 지나갔어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
-  - speaker: "마교 정예병"
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: a144869bb07f4c4a9582f282dc49e97d, type: 2}
+    evidence: 3
+    evidenceTitle: "포로들의 발자국"
+  - speaker: "능선 정예병"
     text: "거기 멈춰라!"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: a144869bb07f4c4a9582f282dc49e97d, type: 2}

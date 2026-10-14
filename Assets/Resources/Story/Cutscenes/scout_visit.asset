@@ -14,14 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "산길"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0, y: 0.1590625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "마교 척후병"
+  - speaker: "산길 척후병"
     text: "네 사부가 목숨을 구해 줬는데, 기어이 따라왔나?"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
-  - speaker: "주인공"
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 75017cb003fb40f791d1bb4d276c7def, type: 2}
+  - speaker: "서진"
     text: "이번에는 서두르지 않겠어. 상대를 보고 움직인다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 75017cb003fb40f791d1bb4d276c7def, type: 2}

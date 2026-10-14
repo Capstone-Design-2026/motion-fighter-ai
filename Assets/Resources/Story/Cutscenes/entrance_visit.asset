@@ -14,14 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "흑운협 입구"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.578125, width: 0.5, height: 0.421875}
   lines:
   - speaker: "흑견"
     text: "그때 살려 둔 놈이 네 발로 여기까지 왔군."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
-  - speaker: "주인공"
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+  - speaker: "서진"
     text: "이번에는 사부님을 데리고 돌아간다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}

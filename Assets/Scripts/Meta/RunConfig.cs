@@ -3,9 +3,17 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 스테이지(=전투 한 판) 정의. 보스마다 다른 값을 넣기 위한 껍데기다.
-/// 아직 적 프리팹이 없으므로 enemyPrefab 을 비워두면 GameScene 에 이미 배치된 Enemy 를 그대로 쓴다.
+/// 공통 전투 수치를 유지하면서 지도 노드별로 다른 적 외형을 지정한다.
 /// </summary>
+[Serializable]
+public class NodeEnemyVisual
+{
+    [Tooltip("스토리 지도 노드 ID. 예: scout. 체력과 AI 수치는 기존 스테이지 설정을 사용합니다.")]
+    public string nodeId;
+    public GameObject visualPrefab;
+}
+
+/// <summary>전투 한 판의 설정. enemyPrefab이 없으면 씬의 기본 적을 사용한다.</summary>
 [Serializable]
 public class StageDefinition
 {
@@ -84,6 +92,17 @@ public class RunConfig : ScriptableObject
 
     [Header("스테이지 목록")]
     public List<StageDefinition> stages = new List<StageDefinition>();
+
+    [Header("지도 노드별 적 외형")]
+    public List<NodeEnemyVisual> nodeEnemyVisuals = new List<NodeEnemyVisual>();
+
+    public GameObject GetEnemyVisual(string nodeId)
+    {
+        if (string.IsNullOrEmpty(nodeId) || nodeEnemyVisuals == null) return null;
+        foreach (var entry in nodeEnemyVisuals)
+            if (entry != null && entry.nodeId == nodeId) return entry.visualPrefab;
+        return null;
+    }
 
     public StageDefinition Get(string id)
     {

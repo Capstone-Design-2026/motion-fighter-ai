@@ -389,6 +389,9 @@ public static class Arena3DBuilder
         root.SetParent(parent, false);
         root.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
 
+        // Optional retired costume pack: keep the placement marker without missing-asset warnings.
+        if (!AssetDatabase.IsValidFolder(WearFolder)) return;
+
         foreach (var piece in wear)
         {
             var prefab = FindPrefab(piece, WearFolder);

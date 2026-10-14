@@ -416,7 +416,12 @@ public class CombatHUD : MonoBehaviour
             AddGuideRow(i++, Key(PlayerKey.Jump),   "점프");
             AddGuideRow(i++, Key(PlayerKey.Crouch), "앉기" + posture);
             AddGuideRow(i++, Key(PlayerKey.Block),  "막기 · 누르고 있는 동안" + posture);
-            AddGuideRow(i++, Key(PlayerKey.Attack), "공격 · 점프 중 상단 / 앉아서 하단");
+            AddGuideRow(i++, Key(PlayerKey.Attack), "기본 공격 · 앉아서 로우킥 / 공중 하이킥");
+            if (player != null && player.GetComponent<Fighter3DView>() != null)
+            {
+                AddGuideRow(i++, player.jabKey + " / " + player.straightKey, "잽 / 스트레이트");
+                AddGuideRow(i++, player.highKickKey + " / " + player.lowKickKey, "하이킥 / 로우킥");
+            }
             if (special != null)
                 AddGuideRow(i++, special.ActivateKey.ToString(),
                             "필살기 · " + special.HitsToCharge + "번 맞으면 사용 가능");

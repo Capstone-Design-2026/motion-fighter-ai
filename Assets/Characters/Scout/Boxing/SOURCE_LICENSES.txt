@@ -1,0 +1,24 @@
+Scout locomotion motion sources — acquired 2026-10-13
+
+1. Rokoko / Sam Lazarus — 16 free walk and run cycle animations
+Official source and usage permission:
+https://www.rokoko.com/resources/rokoko-mocap-16-free-walk-and-run-cycle-animations
+Official download: https://media.rokoko.com/WALK-RUN-CYCLES-MOCAP.zip
+Publisher states these captured motions can be used in animation, VFX, games and other projects, including commercial projects.
+Selected recordings: 10-WalkCycle_01_MIXAMO_769.fbx (frames 212–253 at 30fps), 05-running-treadmill.fbx (182–209 at 30fps).
+
+2. CMU Graphics Lab Motion Capture Database
+Original: https://mocap.cs.cmu.edu/
+BVH conversion: Bruce Hahne / cgspeed, MotionBuilder-friendly 2010 release.
+Download mirror: https://github.com/Shriinivas/cmubvh
+Selected recordings: 76_09.bvh (walking backwards), 16_03.bvh (high jump; source frames 31-65 at 24fps).
+The accompanying READMEFIRST.txt states that the data is free for research and commercial projects worldwide, and that the converter adds no restrictions. Complete accompanying notice retained in the source work folder.
+Credit: The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217.
+
+Adaptation: retargeted to the Scout's leg proportions, travel removed for the existing game controller, captured arm swing and chest counter-rotation retargeted together, loop closure and sole contact corrected. Jump uses captured body pose with game physics providing the airborne trajectory. Derived animation is embedded in the Scout game asset; original recordings are retained outside Assets for reproducibility.
+
+Source archive and processing records:
+C:/Users/sbpar/Documents/VisionStriker_CharacterWork/Scout_Mocap_20261013/Sources
+
+High-jump revision and source archive: C:/Users/sbpar/Documents/VisionStriker_CharacterWork/Scout_NaturalMotion_20261013/Sources
+https://raw.githubusercontent.com/Shriinivas/cmubvh/main/Sequence-015-019/16/Data/16_03.zip

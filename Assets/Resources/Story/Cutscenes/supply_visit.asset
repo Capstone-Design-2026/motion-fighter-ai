@@ -14,14 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "숨겨진 약품 보관소"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.1490625, width: 0.5, height: 0.421875}
   lines:
   - speaker: "의원"
     text: "당신이 열어 준 길로 내려가겠소. 도윤 어른도 꼭 데려와 주시오."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
-  - speaker: "주인공"
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}
+  - speaker: "서진"
     text: "뒤편은 절벽이다. 약품으로 상처를 돌보고 쉼터로 돌아가자. 특별 호송대는 채석장으로 갔다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}

@@ -162,7 +162,9 @@ public class EnemyAI : MonoBehaviour
         bool crouching = Time.time < crouchUntil;
         AttackHeight height = crouching ? AttackHeight.Low : AttackHeight.Mid;
 
-        if (fighter.TryAttack(height) && animator != null)
+        bool started = GetComponent<Fighter3DView>() != null
+            ? fighter.TryAttack((CombatMove)Random.Range(0, 4)) : fighter.TryAttack(height);
+        if (started && animator != null)
             animator.SetTrigger("Attack");
     }
 

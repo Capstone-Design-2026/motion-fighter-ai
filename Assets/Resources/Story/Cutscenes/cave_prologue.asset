@@ -24,13 +24,17 @@ MonoBehaviour:
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/02.mp4
     holdVideoFileName: Cinematics/PrologueSteps/02_hold.mp4
     text: "주먹보다 먼저, 상대를 보거라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "연화의 서신"
     videoFileName: Cinematics/PrologueSteps/03.mp4
     holdVideoFileName: Cinematics/PrologueSteps/03_hold.mp4
@@ -38,34 +42,44 @@ MonoBehaviour:
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/04.mp4
     holdVideoFileName: Cinematics/PrologueSteps/04_hold.mp4
     text: "서진아. 잠깐. 내 뒤에 있어라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/05.mp4
     holdVideoFileName: Cinematics/PrologueSteps/05_hold.mp4
     text: "도윤. 당신의 솜씨가 필요하다. 함께 가 주셔야겠어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/06.mp4
     holdVideoFileName: Cinematics/PrologueSteps/06_hold.mp4
     text: "볼일이 있으면 나에게 말해라. 아이는 건드리지 말고."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/07.mp4
     holdVideoFileName: Cinematics/PrologueSteps/07_hold.mp4
     text: "순순히 따라오면 제자는 살려 두지. 거절하면 보장 못 하고."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "서진"
     videoFileName: Cinematics/PrologueSteps/08.mp4
     holdVideoFileName: Cinematics/PrologueSteps/08_hold.mp4
@@ -73,55 +87,71 @@ MonoBehaviour:
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/09.mp4
     holdVideoFileName: Cinematics/PrologueSteps/09_hold.mp4
     text: "성급하군. 네가 끼어들 자리가 아니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/10.mp4
     holdVideoFileName: Cinematics/PrologueSteps/10_hold.mp4
     text: "그 아이에게서 떨어져라!"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/11.mp4
     holdVideoFileName: Cinematics/PrologueSteps/11_hold.mp4
     text: "거기서 멈춰. 한 걸음 더 오면 제자가 죽는다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/12.mp4
     holdVideoFileName: Cinematics/PrologueSteps/12_hold.mp4
     text: "칼을 거둬라. 네놈이 찾는 건 나다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/13.mp4
     holdVideoFileName: Cinematics/PrologueSteps/13_hold.mp4
     text: "그럼 주먹부터 풀어. 다시 움직이면 이 아이부터 벤다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/14.mp4
     holdVideoFileName: Cinematics/PrologueSteps/14_hold.mp4
     text: "내가 가겠다. 아이를 살려 둬라. 그래야 너도 원하는 걸 얻는다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/15.mp4
     holdVideoFileName: Cinematics/PrologueSteps/15_hold.mp4
     text: "손을 묶어라. 내가 문을 나설 때까지 아이에게서 칼을 떼지 마라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "서진"
     videoFileName: Cinematics/PrologueSteps/16.mp4
     holdVideoFileName: Cinematics/PrologueSteps/16_hold.mp4
@@ -129,31 +159,41 @@ MonoBehaviour:
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/17.mp4
     holdVideoFileName: Cinematics/PrologueSteps/17_hold.mp4
     text: "도윤. 허튼짓하면 약속은 없다. 제자를 살리고 싶으면 걸어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/18.mp4
     holdVideoFileName: Cinematics/PrologueSteps/18_hold.mp4
     text: "서진아. 지금은 뒤쫓지 마라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/19.mp4
     holdVideoFileName: Cinematics/PrologueSteps/19_hold.mp4
     text: "마른 폭포 뒤 동굴로 가거라. 그곳에서 폐관수련해라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/20.mp4
     holdVideoFileName: Cinematics/PrologueSteps/20_hold.mp4
     text: "벽에 그려진 동작을 처음부터 살펴라. 살아서 다시 만나자."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}

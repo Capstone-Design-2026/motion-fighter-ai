@@ -29,6 +29,10 @@ public class PlayerController : MonoBehaviour
     public KeyCode attackKey    = KeyCode.P;
     [Tooltip("누르고 있는 동안 막기. 기본값 U.")]
     public KeyCode blockKey     = KeyCode.U;
+    public KeyCode jabKey = KeyCode.J;
+    public KeyCode straightKey = KeyCode.K;
+    public KeyCode highKickKey = KeyCode.L;
+    public KeyCode lowKickKey = KeyCode.H;
 
     [Header("상대 (격투게임 방향 처리)")]
     [Tooltip("비워두면 씬에서 EnemyAI 를 자동으로 찾는다. 항상 이쪽을 바라본다.")]
@@ -51,7 +55,7 @@ public class PlayerController : MonoBehaviour
 
     public void SetOpponent(Transform value) { opponent = value; }
 
-    void Start()
+    void Awake()
     {
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
@@ -131,7 +135,7 @@ public class PlayerController : MonoBehaviour
         // 이동으로 캐릭터를 회전시키지 않는다. 방향은 아래 FaceOpponent() 가 정한다.
         // 막는 중에는 못 움직인다. 앉은 채로는 느리게 움직일 수 있다.
         float moveX = 0f;
-        if (!isBlocking)
+        if (!isBlocking && !fighter.IsAttacking)
         {
             if (externalControl) moveX = externalMoveX;
             // A/D still work for testing when the vision detector reports neutral movement.
@@ -159,12 +163,19 @@ public class PlayerController : MonoBehaviour
         if (!useKeyboard) return;
 
         // ── 점프 (막는 중엔 불가) ──
-        if (Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking)
+        if (Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking && !fighter.IsAttacking)
         {
             DoJump();
         }
 
         // ── 공격 (막는 중엔 불가) ──
+        if (!isBlocking)
+        {
+            if (Input.GetKeyDown(jabKey)) AttackMove(CombatMove.Jab);
+            if (Input.GetKeyDown(straightKey)) AttackMove(CombatMove.Straight);
+            if (Input.GetKeyDown(highKickKey)) AttackMove(CombatMove.HighKick);
+            if (Input.GetKeyDown(lowKickKey)) AttackMove(CombatMove.LowKick);
+        }
         if (Input.GetKeyDown(attackKey) && !isBlocking)
         {
             DoAttack();
@@ -200,6 +211,11 @@ public class PlayerController : MonoBehaviour
         animator.SetTrigger("Jump");
         animator.SetBool("IsGrounded", false);
         isGrounded = false;
+    }
+
+    public void AttackMove(CombatMove move)
+    {
+        if (fighter.TryAttack(move)) animator.SetTrigger("Attack");
     }
 
     void DoAttack()
@@ -276,6 +292,18 @@ public class PlayerController : MonoBehaviour
 
         switch (action)
         {
+            case "JAB":
+            case "STRAIGHT":
+            case "CROSS":
+            case "HIGH_KICK":
+            case "HIGHKICK":
+            case "LOW_KICK":
+            case "LOWKICK":
+                isBlocking = false; fighter.IsBlocking = false;
+                animator.SetBool("IsBlocking", false);
+                AttackMove(action == "JAB" ? CombatMove.Jab : action.StartsWith("HIGH") ? CombatMove.HighKick : action.StartsWith("LOW") ? CombatMove.LowKick : CombatMove.Straight);
+                break;
+
             case "ATTACK":
                 isBlocking = false;
                 fighter.IsBlocking = false;

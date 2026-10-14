@@ -14,14 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   location: "옛 나루"
   background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.09999999999999998, y: 0.08906249999999999, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "약탈자"
+  - speaker: "옛 나루 약탈자"
     text: "이 짐은 이제 우리 것이다!"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
-    speakerOnRight: 0
-  - speaker: "주인공"
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: c0166b1ca0ec4afba6bf4256c4b8070d, type: 2}
+  - speaker: "서진"
     text: "마교의 물자를 빼돌린 자들인가. 짐을 확인해야겠어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: c0166b1ca0ec4afba6bf4256c4b8070d, type: 2}

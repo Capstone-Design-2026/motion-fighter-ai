@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>공격 높이. 방어 성립 여부를 결정한다.</summary>
+public enum CombatMove { Jab, Straight, HighKick, LowKick }
+
 public enum AttackHeight
 {
     High,   // 점프 공격 (오버헤드) - 앉아막기로는 못 막음
@@ -60,6 +62,8 @@ public class Fighter : MonoBehaviour
 
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
+    private Fighter3DView view3D;
+    public CombatMove CurrentMove { get; private set; }
 
     public int AttackDamage => attackDamage;
     public float GuardReduction => 1f-blockDamageMultiplier;
@@ -71,12 +75,21 @@ public class Fighter : MonoBehaviour
     {
         Health = GetComponent<Health>();
         animator = GetComponent<Animator>();
+        view3D = GetComponent<Fighter3DView>();
     }
 
     /// <summary>공격 시작. 실제로 시작됐으면 true.</summary>
     public bool TryAttack(AttackHeight height)
     {
-        if (!CanAttack) return false;
+        return TryAttack(height == AttackHeight.High ? CombatMove.HighKick : height == AttackHeight.Low ? CombatMove.LowKick : CombatMove.Straight);
+    }
+
+    public bool TryAttack(CombatMove move)
+    {
+        if (!CanAttack || IsBlocking) return false;
+        CurrentMove = move;
+        AttackHeight height = move == CombatMove.HighKick ? AttackHeight.High : move == CombatMove.LowKick ? AttackHeight.Low : AttackHeight.Mid;
+        if (view3D != null) view3D.BeginAttack(move);
         // 공격 높이를 애니메이터에 정수로 고정 통보한다.
         // 자세 bool 로 분기하면 공격 도중 S 를 떼는 순간 상태가 튀기 때문.
         //   0 = High(점프) / 1 = Mid(서서) / 2 = Low(앉아)
@@ -91,12 +104,14 @@ public class Fighter : MonoBehaviour
     {
         IsAttacking = true;
 
-        yield return new WaitForSeconds(windup);
+        float startup = view3D != null ? Fighter3DView.Impact(CurrentMove) : windup;
+        float ending = view3D != null ? Fighter3DView.Duration(CurrentMove) - startup : recovery;
+        yield return new WaitForSeconds(startup);
 
-        if (!Health.IsDead && !InputLocked)
+        if (!Health.IsDead && !InputLocked && !Health.IsHitStunned)
             ResolveHit(height);
 
-        yield return new WaitForSeconds(recovery);
+        yield return new WaitForSeconds(ending);
 
         IsAttacking = false;
     }
@@ -144,6 +159,7 @@ public class Fighter : MonoBehaviour
                 }
             }
 
+            if (guarded) targetHealth.GetComponent<Fighter3DView>()?.GuardAgainst(CurrentMove);
             bool damaged = targetHealth.TakeDamage(damage, kb, guarded);
 
             // 헛방(무적시간에 씹힘)에는 반응하지 않는다. 실제로 대미지가 들어갔을 때만 연출.

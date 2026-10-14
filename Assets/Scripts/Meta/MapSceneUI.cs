@@ -233,10 +233,11 @@ public class MapSceneUI : MonoBehaviour
             var aspect=artwork.gameObject.AddComponent<AspectRatioFitter>();
             aspect.aspectMode=AspectRatioFitter.AspectMode.EnvelopeParent;
             aspect.aspectRatio=(float)mapTexture.width/mapTexture.height;
+            if (Run.IsStoryMap) StoryMapWater.Create(artwork, mapTexture);
         }
         if(!showWholeMap) {
             var clouds=UIFactory.CreateRect("DriftingMapClouds",content);UIFactory.Stretch(clouds);
-            var mist=clouds.gameObject.AddComponent<StoryMapFog>();mist.ambientOnly=true;mist.driftSpeed=12;mist.raycastTarget=false;
+            var mist=clouds.gameObject.AddComponent<StoryMapFog>();mist.ambientOnly=true;mist.driftSpeed=26;mist.raycastTarget=false;
         }
         nodePositions.Clear();
         foreach (var node in map.nodes)
@@ -280,19 +281,8 @@ public class MapSceneUI : MonoBehaviour
             UIFactory.Stretch(fogRect);
             fogRect.pivot = new Vector2(.5f,0);
             var fog = fogRect.gameObject.AddComponent<StoryMapFog>();
-            fog.raycastTarget = false; fog.radius=190;
-            foreach (var node in map.nodes)
-                if (Run.IsDiscovered(node.id)) fog.revealed.Add(nodePositions[node.id]);
-            // Reveal only actual discovered connections, following the same curve as travel.
-            foreach(var from in map.nodes) {
-                if(!Run.IsDiscovered(from.id))continue;
-                foreach(var nextId in from.next) {
-                    if(!Run.IsDiscovered(nextId))continue;
-                    Vector2 a=nodePositions[from.id],b=nodePositions[nextId];
-                    int steps=Mathf.Max(2,Mathf.CeilToInt(Vector2.Distance(a,b)/55));
-                    for(int i=0;i<=steps;i++)fog.routePoints.Add(StoryMapLayout.Point(a,b,(float)i/steps));
-                }
-            }
+            fog.raycastTarget = false;
+            fog.Configure(Run.Data, nodePositions);
             // Keep markers above the veil; hidden destinations have no UI objects or click targets.
             nodes.SetAsLastSibling();
         }

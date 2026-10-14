@@ -126,6 +126,8 @@ public class Health : MonoBehaviour
     public void SetAppearance(Color tint)
     {
         originalColor = tint;
+        var view = GetComponent<Fighter3DView>();
+        if (view != null) view.fighterTint = tint;
         var renderer = GetComponent<SpriteRenderer>();
         if (renderer != null) renderer.color = tint;
     }

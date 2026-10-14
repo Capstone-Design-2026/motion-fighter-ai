@@ -29,6 +29,8 @@ public class UdpActionReceiver : MonoBehaviour
     private string lastAction = "NONE";
     private string lastMovement = "NEUTRAL";
     private bool warnedMissingPlayer;
+    private float lastPacketTime;
+    private bool hasLiveInput;
 
     [Serializable]
     private class ActionMessage
@@ -86,6 +88,11 @@ public class UdpActionReceiver : MonoBehaviour
 
     private void Update()
     {
+        if (hasLiveInput && Time.unscaledTime - lastPacketTime > 1f)
+        {
+            hasLiveInput = false; lastAction = "NONE";
+            if (playerController != null) playerController.ClearExternalInput();
+        }
         // Process every message in order, so a short ATTACK followed by IDLE is not lost.
         while (true)
         {
@@ -109,6 +116,7 @@ public class UdpActionReceiver : MonoBehaviour
             return;
         }
         if (message == null) return;
+        lastPacketTime = Time.unscaledTime; hasLiveInput = true;
         if (TutorialAction != null) {
             string trainingAction=string.IsNullOrEmpty(message.action)?"NONE":message.action.Trim().ToUpperInvariant();
             TutorialAction.Invoke(trainingAction,message.confidence,
@@ -144,7 +152,9 @@ public class UdpActionReceiver : MonoBehaviour
         if (!passive && message.confidence < minConfidence) return;
 
         // Backend can resend the same attack when movement changes. Treat attack/jump as edges.
-        if ((action == "ATTACK" || action == "JUMP") && action == lastAction) return;
+        bool oneShot = action == "ATTACK" || action == "JUMP" || action == "JAB" || action == "STRAIGHT" || action == "CROSS"
+            || action == "HIGH_KICK" || action == "HIGHKICK" || action == "LOW_KICK" || action == "LOWKICK";
+        if (oneShot && action == lastAction) return;
         if (action != lastAction)
             Debug.Log("[Vision] Action: " + action + " confidence " + message.confidence.ToString("F2"));
         lastAction = action;

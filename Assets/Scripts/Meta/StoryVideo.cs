@@ -16,6 +16,7 @@ public class StoryVideo : MonoBehaviour
     readonly RenderTexture[] textures = new RenderTexture[2];
     GameObject root;
     RawImage image;
+    AspectRatioFitter pictureFit;
     Text speaker, body, hint, loading;
     int active = -1;
     bool advance;
@@ -35,6 +36,7 @@ public class StoryVideo : MonoBehaviour
     public IEnumerator Present(StoryCutsceneDefinition data)
     {
         Completed = false;
+        failure = null; active = -1;
         CurrentLineIndex = 0;
         if (data.lines == null || data.lines.Length == 0) yield break;
         foreach (var line in data.lines)
@@ -112,18 +114,21 @@ public class StoryVideo : MonoBehaviour
         UIFactory.Stretch(blocker.rectTransform);
         root = blocker.gameObject;
         root.AddComponent<CanvasGroup>();
-        var rect = UIFactory.CreateRect("CinematicImage", root.transform);
+        var stage = UIFactory.CreateRect("VideoFrame", root.transform);
+        stage.gameObject.AddComponent<CinematicFrame>().Fit();
+        var rect = UIFactory.CreateRect("CinematicImage", stage);
         rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
         var fit = rect.gameObject.AddComponent<AspectRatioFitter>();
         fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
         fit.aspectRatio = 16f / 9f;
+        pictureFit = fit;
         image = rect.gameObject.AddComponent<RawImage>();
         image.raycastTarget = false;
         image.enabled = false;
         loading = UIFactory.CreateText("VideoLoading", root.transform, "불러오는 중…", 24, TextAnchor.MiddleCenter);
         UIFactory.Stretch(loading.rectTransform);
         // Attach subtitles to the fitted picture, keeping them readable on wide/tall windows.
-        var panel = UIFactory.CreateImage("VideoDialogue", rect, new Color(.02f, .025f, .03f, .96f));
+        var panel = UIFactory.CreateImage("VideoDialogue", stage, new Color(.02f, .025f, .03f, .96f));
         panel.rectTransform.anchorMin = Vector2.zero;
         panel.rectTransform.anchorMax = new Vector2(1, .167f);
         panel.rectTransform.offsetMin = panel.rectTransform.offsetMax = Vector2.zero;
@@ -139,10 +144,6 @@ public class StoryVideo : MonoBehaviour
         {
             var go = new GameObject("CinematicPlayer" + i);
             go.transform.SetParent(root.transform, false);
-            var audio = go.AddComponent<AudioSource>();
-            audio.playOnAwake = false;
-            audio.spatialBlend = 0;
-            audio.ignoreListenerPause = true;
             var p = go.AddComponent<VideoPlayer>();
             players[i] = p;
             p.playOnAwake = false;
@@ -151,12 +152,10 @@ public class StoryVideo : MonoBehaviour
             p.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime;
             p.source = VideoSource.Url;
             p.renderMode = VideoRenderMode.RenderTexture;
-            textures[i] = new RenderTexture(1280,720,0,RenderTextureFormat.ARGB32);
-            textures[i].Create();
-            p.targetTexture = textures[i];
-            p.audioOutputMode = VideoAudioOutputMode.AudioSource;
-            p.controlledAudioTrackCount = 1;
-            p.SetTargetAudioSource(0,audio);
+            p.aspectRatio = VideoAspectRatio.FitInside;
+            // Generated movie audio is intentionally disabled. Music and dialogue use separate sources.
+            p.audioOutputMode = VideoAudioOutputMode.None;
+            p.controlledAudioTrackCount = 0;
             p.errorReceived += OnError;
         }
     }
@@ -173,13 +172,23 @@ public class StoryVideo : MonoBehaviour
         var p = players[next];
         p.Stop();
         p.isLooping = loop;
-        p.audioOutputMode = loop ? VideoAudioOutputMode.None : VideoAudioOutputMode.AudioSource;
-        p.GetComponent<AudioSource>().mute = true;
+        p.audioOutputMode = VideoAudioOutputMode.None;
         p.url = new Uri(Path.GetFullPath(Path.Combine(Application.streamingAssetsPath,path))).AbsoluteUri;
         try { p.Prepare(); } catch (Exception e) { failure = e.Message; }
         float deadline = Time.realtimeSinceStartup + 15;
         while (!p.isPrepared && failure == null && Time.realtimeSinceStartup < deadline) yield return null;
         if (!p.isPrepared || failure != null) { failure = failure ?? "Prepare timeout."; yield break; }
+        // Allocate from the prepared source dimensions, including non-square pixel aspect.
+        float pixelAspect = p.pixelAspectRatioDenominator > 0 ? (float)p.pixelAspectRatioNumerator / p.pixelAspectRatioDenominator : 1f;
+        float sourceAspect = p.height > 0 ? p.width * pixelAspect / p.height : 16f/9f;
+        int height = Mathf.Min(1080, Mathf.Max(1,(int)p.height));
+        int width = Mathf.Max(1, Mathf.RoundToInt(height * sourceAspect));
+        if(textures[next]==null || textures[next].width!=width || textures[next].height!=height){
+            if(textures[next]!=null){p.targetTexture=null;textures[next].Release();Destroy(textures[next]);}
+            textures[next]=new RenderTexture(width,height,0,RenderTextureFormat.ARGB32);
+            textures[next].Create();
+        }
+        p.targetTexture=textures[next];
         p.Play();
         deadline = Time.realtimeSinceStartup + 15;
         // Never expose an empty or stale render target during a clip change.
@@ -187,10 +196,10 @@ public class StoryVideo : MonoBehaviour
         if (p.frame < 1 || failure != null) { failure = failure ?? "First frame timeout."; yield break; }
         if (active >= 0) players[active].Stop();
         active = next;
+        pictureFit.aspectRatio = sourceAspect;
         image.texture = textures[next];
         image.enabled = true;
         loading.gameObject.SetActive(false);
-        p.GetComponent<AudioSource>().mute = loop;
     }
 
     void OnError(VideoPlayer source, string message) { failure = message; }

@@ -184,6 +184,15 @@ public class BattleSceneBridge : MonoBehaviour
         if (animator != null && stage.animatorController != null)
             animator.runtimeAnimatorController = stage.animatorController;
 
+        // A node can own a distinct model even when several nodes share combat stats.
+        var visualPrefab = Run.IsStoryMap && node != null ? Run.Config.GetEnemyVisual(node.id) : null;
+        var view = enemy.GetComponent<Fighter3DView>();
+        if (visualPrefab != null && view != null && view.ApplyVisual(visualPrefab))
+        {
+            // Preserve the authored texture colours instead of the placeholder boss tint.
+            if (health != null) health.SetAppearance(Color.white);
+        }
+
         var player = FindAnyObjectByType<PlayerController>();
         if (player != null)
         {

@@ -45,39 +45,63 @@ public class StoryCutscene : MonoBehaviour {
         bool manualVideo=!string.IsNullOrEmpty(data.videoFileName);
         next=skip=false;
         var group=gameObject.AddComponent<CanvasGroup>();group.alpha=0;
-        var root=UIFactory.CreateImage("InputBlocker",transform,new Color(.025f,.032f,.035f,1),true);UIFactory.Stretch(root.rectTransform);
-        if(data.background!=null){var bg=UIFactory.CreateImage("SceneBackground",transform,Color.white);bg.sprite=data.background;bg.preserveAspect=true;UIFactory.Stretch(bg.rectTransform);}
-        else if(data.backgroundTexture!=null){var rect=UIFactory.CreateRect("SceneBackground",transform);UIFactory.Stretch(rect);var bg=rect.gameObject.AddComponent<RawImage>();bg.texture=data.backgroundTexture;bg.raycastTarget=false;}
-        else {var bg=WuxiaBackdrop.Create(transform,null,true);bg.animate=false;}
-        var tint=UIFactory.CreateImage("CinematicShade",transform,new Color(.015f,.025f,.03f,.56f));UIFactory.Stretch(tint.rectTransform);
-        var left=Portrait("LeftPortrait",new Vector2(.25f,.5f));var right=Portrait("RightPortrait",new Vector2(.75f,.5f));
-        var top=UIFactory.CreateImage("LetterboxTop",transform,new Color(.02f,.025f,.025f,.96f));
-        top.rectTransform.anchorMin=new Vector2(0,1);top.rectTransform.anchorMax=Vector2.one;top.rectTransform.pivot=new Vector2(.5f,1);top.rectTransform.sizeDelta=new Vector2(0,105);
-        var place=WuxiaTheme.Text("Location",top.transform,data.location,28,TextAnchor.MiddleLeft,WuxiaTheme.Gold);UIFactory.Stretch(place.rectTransform,85,0,250,0);
-        if(!manualVideo) {
-        var skipButton=UIFactory.CreateButton("SkipStory",top.transform,"건너뛰기",23,Color.clear,()=>skip=true);
-        UIFactory.Place(skipButton.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-65,-24),new Vector2(165,56));
+        var blocker=UIFactory.CreateImage("InputBlocker",transform,Color.black,true);UIFactory.Stretch(blocker.rectTransform);
+        var frame=UIFactory.CreateRect("DialogueFrame",transform);frame.gameObject.AddComponent<CinematicFrame>().Fit();
+        if(data.background!=null){
+            var bg=UIFactory.CreateImage("SceneBackground",frame,Color.white);bg.sprite=data.background;bg.preserveAspect=true;UIFactory.Stretch(bg.rectTransform);
+        } else if(data.backgroundTexture!=null){
+            var rect=UIFactory.CreateRect("SceneBackground",frame);
+            var bg=rect.gameObject.AddComponent<RawImage>();bg.texture=data.backgroundTexture;bg.raycastTarget=false;
+            var uv=data.backgroundUv;if(uv.width<=0||uv.height<=0)uv=new Rect(0,0,1,1);bg.uvRect=uv;
+            var fit=rect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.FitInParent;
+            fit.aspectRatio=data.backgroundTexture.width*uv.width/(data.backgroundTexture.height*uv.height);
+            var motion=rect.gameObject.AddComponent<StorySceneMotion>();motion.background=bg;motion.view=uv;
+        } else {var bg=WuxiaBackdrop.Create(frame,null,true);bg.animate=true;}
+        var tint=UIFactory.CreateImage("CinematicShade",frame,new Color(.015f,.025f,.03f,.42f));UIFactory.Stretch(tint.rectTransform);
+        var left=CreatePortrait("LeftActor",frame,120);var right=CreatePortrait("RightActor",frame,1080);
+        var leftLegacy=LegacyPortrait("LeftLegacy",frame,120);var rightLegacy=LegacyPortrait("RightLegacy",frame,1080);
+        var inspection=StoryInspection.Create(frame);
+        var air=UIFactory.CreateRect("SceneAtmosphere",frame);UIFactory.Stretch(air);air.gameObject.AddComponent<StoryAtmosphere>();
+        var top=UIFactory.CreateImage("LocationBand",frame,new Color(.02f,.025f,.025f,.88f));Box(top.rectTransform,0,1000,1920,80);
+        var place=WuxiaTheme.Text("Location",top.transform,data.location,27,TextAnchor.MiddleLeft,WuxiaTheme.Gold);UIFactory.Stretch(place.rectTransform,90,0,240,0);
+        if(!manualVideo){
+            var skipButton=UIFactory.CreateButton("SkipStory",top.transform,"건너뛰기",23,Color.clear,()=>skip=true);Box(skipButton.GetComponent<RectTransform>(),1640,12,190,56);
         }
-        var panel=UIFactory.CreateImage("DialoguePanel",transform,new Color(.02f,.025f,.025f,.97f),true);
-        panel.rectTransform.anchorMin=Vector2.zero;panel.rectTransform.anchorMax=new Vector2(1,0);panel.rectTransform.pivot=new Vector2(.5f,0);panel.rectTransform.sizeDelta=new Vector2(0,300);
-        var speaker=WuxiaTheme.Text("Speaker",panel.transform,"",28,TextAnchor.UpperLeft,WuxiaTheme.Gold);UIFactory.Place(speaker.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(160,-34),new Vector2(1000,45));
-        var body=WuxiaTheme.Text("Dialogue",panel.transform,"",32,TextAnchor.UpperLeft,WuxiaTheme.Paper);UIFactory.Stretch(body.rectTransform,160,90,160,93);body.horizontalOverflow=HorizontalWrapMode.Wrap;body.supportRichText=false;
-        var advance=UIFactory.CreateButton("NextStory",panel.transform,"다음  ·  Space",24,Color.clear,()=>next=true);
-        UIFactory.Place(advance.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-110,20),new Vector2(180,54));
+        var panel=UIFactory.CreateImage("DialoguePanel",frame,new Color(.02f,.025f,.025f,.97f),true);Box(panel.rectTransform,0,0,1920,260);
+        var rule=UIFactory.CreateImage("GoldRule",panel.transform,new Color(.65f,.52f,.32f,.75f));Box(rule.rectTransform,90,258,1740,2);
+        var speaker=WuxiaTheme.Text("Speaker",panel.transform,"",30,TextAnchor.MiddleLeft,WuxiaTheme.Gold);Box(speaker.rectTransform,110,192,1500,44);
+        var body=WuxiaTheme.Text("Dialogue",panel.transform,"",34,TextAnchor.UpperLeft,WuxiaTheme.Paper);Box(body.rectTransform,110,70,1670,112);
+        body.horizontalOverflow=HorizontalWrapMode.Wrap;body.verticalOverflow=VerticalWrapMode.Truncate;body.supportRichText=false;
+        body.resizeTextForBestFit=true;body.resizeTextMinSize=26;body.resizeTextMaxSize=34;
+        var advance=UIFactory.CreateButton("NextStory",panel.transform,"다음  ·  Space",24,Color.clear,()=>next=true);Box(advance.GetComponent<RectTransform>(),1590,12,220,48);
+        var counter=WuxiaTheme.Text("LineCount",panel.transform,"",20,TextAnchor.MiddleLeft,new Color(.6f,.58f,.52f));Box(counter.rectTransform,110,15,200,40);
         for(float t=0;t<.2f;t+=Time.unscaledDeltaTime){group.alpha=t/.2f;yield return null;}group.alpha=1;
         for(int lineIndex=startLine;lineIndex<data.lines.Length;lineIndex++){
-            var line=data.lines[lineIndex];
-            if(skip)break;next=false;speaker.text=line.speaker;body.text="";
-            SetPortrait(left,line.leftPortrait,!line.speakerOnRight);SetPortrait(right,line.rightPortrait,line.speakerOnRight);
+            var line=data.lines[lineIndex];if(skip)break;next=false;
+            speaker.text=line.speaker;body.text="";counter.text=(lineIndex+1)+" / "+data.lines.Length;
+            inspection.Show(line);
+            bool examining=line.evidence!=StoryEvidence.None;
+            left.SetActor(examining?null:line.leftActor);right.SetActor(examining?null:line.rightActor);
+            left.BeginBeat();right.BeginBeat();
+            bool hasSpeaker=!string.IsNullOrEmpty(line.speaker);
+            left.Highlighted=hasSpeaker&&!line.speakerOnRight&&line.leftActor!=null&&line.speaker==line.leftActor.displayName;
+            right.Highlighted=hasSpeaker&&line.speakerOnRight&&line.rightActor!=null&&line.speaker==line.rightActor.displayName;
+            SetLegacy(leftLegacy,line.leftPortrait,!examining&&line.leftActor==null,left.Highlighted);
+            SetLegacy(rightLegacy,line.rightPortrait,!examining&&line.rightActor==null,right.Highlighted);
             string text=line.text??"";
             if(manualVideo){body.text=text;yield return null;while(!next)yield return null;continue;}
-            float letters=0;
-            while(letters<text.Length&&!skip&&!next){letters+=Time.unscaledDeltaTime*42;body.text=text.Substring(0,Mathf.Min(text.Length,(int)letters));yield return null;}
+            float speechUntil=Time.unscaledTime+Mathf.Clamp(text.Length/10f,2f,7f);
+            float letters=0;left.Speaking=left.Highlighted;right.Speaking=right.Highlighted;
+            while(letters<text.Length&&!skip&&!next){letters+=Time.unscaledDeltaTime*32;body.text=text.Substring(0,Mathf.Min(text.Length,(int)letters));yield return null;}
             body.text=text;next=false;yield return null;
-            while(!next&&!skip)yield return null;
+            while(!next&&!skip){left.Speaking=left.Highlighted&&Time.unscaledTime<speechUntil;right.Speaking=right.Highlighted&&Time.unscaledTime<speechUntil;yield return null;}
+            left.Speaking=right.Speaking=false;
         }
+        left.Speaking=right.Speaking=false;
         for(float t=0;t<.18f;t+=Time.unscaledDeltaTime){group.alpha=1-t/.18f;yield return null;}
     }
-    Image Portrait(string name,Vector2 position){var img=UIFactory.CreateImage(name,transform,Color.white);img.preserveAspect=true;UIFactory.Place(img.rectTransform,position,new Vector2(.5f,.5f),new Vector2(0,45),new Vector2(660,690));return img;}
-    void SetPortrait(Image image,Sprite sprite,bool active){image.sprite=sprite;image.enabled=sprite!=null;image.color=active?Color.white:new Color(.5f,.5f,.5f,1);}
+    static void Box(RectTransform r,float x,float y,float w,float h){r.anchorMin=r.anchorMax=r.pivot=Vector2.zero;r.anchoredPosition=new Vector2(x,y);r.sizeDelta=new Vector2(w,h);}
+    static StoryPortrait CreatePortrait(string name,Transform parent,float x){var rect=UIFactory.CreateRect(name,parent);Box(rect,x,260,720,725);return rect.gameObject.AddComponent<StoryPortrait>();}
+    static Image LegacyPortrait(string name,Transform parent,float x){var img=UIFactory.CreateImage(name,parent,Color.white);img.preserveAspect=true;Box(img.rectTransform,x,260,720,725);return img;}
+    static void SetLegacy(Image img,Sprite sprite,bool visible,bool active){img.sprite=sprite;img.enabled=visible&&sprite!=null;img.color=active?Color.white:new Color(.65f,.65f,.65f,1);}
 }
