@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: scout_visit
+  m_EditorClassIdentifier: 
+  location: "산길"
+  background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0, y: 0.1590625, width: 0.5, height: 0.421875}
+  lines:
+  - speaker: "산길 척후병"
+    text: "네 사부가 목숨을 구해 줬는데, 기어이 따라왔나?"
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 75017cb003fb40f791d1bb4d276c7def, type: 2}
+  - speaker: "서진"
+    text: "이번에는 서두르지 않겠어. 상대를 보고 움직인다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 75017cb003fb40f791d1bb4d276c7def, type: 2}

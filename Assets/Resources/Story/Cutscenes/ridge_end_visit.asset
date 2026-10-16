@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: ridge_end_visit
+  m_EditorClassIdentifier: 
+  location: "꺼진 봉화대"
+  background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.08000000000000002, y: 0.578125, width: 0.5, height: 0.421875}
+  lines:
+  - speaker: "서진"
+    text: "서찰은 지원군을 부르는 연락이었어. 포로 호송로가 아니야."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 0}
+    evidence: 2
+    evidenceTitle: "지원군 연락 서찰"
+  - speaker: "서진"
+    text: "뒤는 절벽이고 연락책도 떠났군. 기록에는 포로 수레가 계곡 관문을 통과했다고 되어 있어. 청계역으로 돌아가자."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 0}
+    evidence: 2
+    evidenceTitle: "계곡 관문 호송 기록"

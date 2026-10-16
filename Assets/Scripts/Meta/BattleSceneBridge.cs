@@ -19,6 +19,12 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(-500)]
 public class BattleSceneBridge : MonoBehaviour
 {
+    [Header("제한 시간")]
+    [Min(1f)]
+    [SerializeField] private float roundDuration = 120f;
+    public float RemainingSeconds { get; private set; }
+    public bool IsResolved => resolved;
+
     [Header("전투 종료 후")]
     [Tooltip("K.O. 뒤 지도로 돌아가기까지 기다리는 시간(초). 실제 시간 기준이라 슬로우모션의 영향을 받지 않는다.")]
     [SerializeField] private float returnDelay = 2.5f;
@@ -47,6 +53,7 @@ public class BattleSceneBridge : MonoBehaviour
     void Awake()
     {
         defaultFixedDelta = Time.fixedDeltaTime;
+        RemainingSeconds = Mathf.Max(1f, roundDuration);
 
         runMode = Run != null && Run.HasPendingBattle;
         if (runMode) ApplyStage();
@@ -57,7 +64,7 @@ public class BattleSceneBridge : MonoBehaviour
         var player = FindAnyObjectByType<PlayerController>();
         if (player != null) playerHealth = player.GetComponent<Health>();
 
-        var enemy = FindAnyObjectByType<FighterAI>();
+        var enemy = FindAnyObjectByType<EnemyAI>();
         if (enemy != null) enemyHealth = enemy.GetComponent<Health>();
 
         // 스테이지 프리팹으로 적을 교체했을 수도 있으므로 Awake 가 아니라 여기서 모은다.
@@ -86,14 +93,27 @@ public class BattleSceneBridge : MonoBehaviour
 
     void Update()
     {
-        // 단독 실행에서 R 키로 라운드를 다시 시작했으면 조작 잠금을 푼다.
-        if (runMode || !resolved) return;
+        if (resolved || playerHealth == null || enemyHealth == null) return;
+        if (playerHealth.IsDead || enemyHealth.IsDead) return;
 
-        bool someoneDead = (playerHealth != null && playerHealth.IsDead)
-                        || (enemyHealth  != null && enemyHealth.IsDead);
-        if (someoneDead) return;
+        // 게임 시간 기준: 일시정지/필살기 정지 중에는 제한 시간도 멈춘다.
+        RemainingSeconds = Mathf.Max(0f, RemainingSeconds - Time.deltaTime);
+        if (RemainingSeconds > 0f) return;
 
+        // 최대 HP가 다른 보스도 공정하게 비교한다. 같은 비율이면 플레이어 패배.
+        bool won = (long)playerHealth.CurrentHealth * enemyHealth.MaxHealth
+                 > (long)enemyHealth.CurrentHealth * playerHealth.MaxHealth;
+        ResolveResult(won, true);
+    }
+
+    public void ResetRoundTimer()
+    {
+        if (runMode) return;
+        StopAllCoroutines();
+        HitImpact.ReleaseTimeControl();
+        RestoreTimeScale();
         resolved = false;
+        RemainingSeconds = Mathf.Max(1f, roundDuration);
         SetInputLock(false);
     }
 
@@ -121,57 +141,105 @@ public class BattleSceneBridge : MonoBehaviour
             return;
         }
 
-        var enemy = FindAnyObjectByType<FighterAI>();
+        var enemy = FindAnyObjectByType<EnemyAI>();
 
-        // 전용 적이 만들어져 있으면 씬의 기본 적과 교체한다.
-        if (stage.enemyPrefab != null && enemy != null)
+        // 잘못된 프리팹이면 기존 적을 보존한다. 전투 컴포넌트는 루트에 둔다.
+        if (stage.enemyPrefab != null)
         {
-            var oldGO = enemy.gameObject;
-            Vector3 pos = oldGO.transform.position;
-            Quaternion rot = oldGO.transform.rotation;
-
-            // 비활성화를 먼저 해야 이번 프레임의 FindAnyObjectByType 에서 걸리지 않는다.
-            oldGO.SetActive(false);
-            Destroy(oldGO);
-
-            var spawned = Instantiate(stage.enemyPrefab, pos, rot);
-            spawned.name = "Enemy (" + stage.id + ")";
-            enemy = spawned.GetComponent<FighterAI>();
+            var prefab = stage.enemyPrefab;
+            bool valid = prefab.activeSelf && prefab.GetComponent<EnemyAI>() != null
+                && prefab.GetComponent<EnemyAI>().enabled && prefab.GetComponent<Health>() != null
+                && prefab.GetComponent<Fighter>() != null && prefab.GetComponent<Rigidbody2D>() != null
+                && prefab.GetComponent<Collider2D>() != null && prefab.GetComponent<Pushbox>() != null;
+            if (!valid)
+                Debug.LogError("[BattleSceneBridge] 보스 프리팹에 활성 EnemyAI, Health, Fighter, Rigidbody2D, Collider2D, Pushbox가 필요합니다: " + stage.id);
+            else
+            {
+                Vector3 pos = enemy != null ? enemy.transform.position : new Vector3(3f, 0f, 0f);
+                Quaternion rot = enemy != null ? enemy.transform.rotation : Quaternion.identity;
+                if (enemy != null)
+                {
+                    enemy.gameObject.SetActive(false);
+                    Destroy(enemy.gameObject);
+                }
+                var spawned = Instantiate(prefab, pos, rot);
+                spawned.name = "Enemy (" + stage.id + ")";
+                enemy = spawned.GetComponent<EnemyAI>();
+            }
         }
-
         if (enemy == null) return;
 
         var health = enemy.GetComponent<Health>();
         if (health != null)
+        {
             health.Configure(stage.displayName, stage.enemyMaxHealth);
+            if (stage.overrideTint) health.SetAppearance(stage.enemyTint);
+        }
+        if (stage.overrideCombatStats)
+        {
+            enemy.ConfigureStage(stage);
+            enemy.GetComponent<Fighter>().ConfigureDamage(stage.attackDamage);
+        }
+        var animator = enemy.GetComponent<Animator>();
+        if (animator != null && stage.animatorController != null)
+            animator.runtimeAnimatorController = stage.animatorController;
 
-        if (stage.aiDifficulty != null)
-            enemy.SetDifficulty(stage.aiDifficulty);
+        // A node can own a distinct model even when several nodes share combat stats.
+        var visualPrefab = Run.IsStoryMap && node != null ? Run.Config.GetEnemyVisual(node.id) : null;
+        var view = enemy.GetComponent<Fighter3DView>();
+        if (visualPrefab != null && view != null && view.ApplyVisual(visualPrefab))
+        {
+            // Preserve the authored texture colours instead of the placeholder boss tint.
+            if (health != null) health.SetAppearance(Color.white);
+        }
+
+        var player = FindAnyObjectByType<PlayerController>();
+        if (player != null)
+        {
+            player.SetOpponent(enemy.transform);
+            var playerPushbox = player.GetComponent<Pushbox>();
+            var enemyPushbox = enemy.GetComponent<Pushbox>();
+            if (playerPushbox != null) playerPushbox.SetOpponent(enemyPushbox);
+            if (enemyPushbox != null) enemyPushbox.SetOpponent(playerPushbox);
+        }
+        var hud = FindAnyObjectByType<CombatHUD>();
+        if (hud != null) hud.SetTargets(player != null ? player.GetComponent<Health>() : null, health);
+
     }
 
     // ─────────────────────── K.O. ───────────────────────
 
     private void OnAnyDeath(Health dead)
     {
-        if (resolved) return;
-        resolved = true;
-
-        bool won = (dead != playerHealth);
-        StartCoroutine(FinishRoutine(won));
+        ResolveResult(dead != playerHealth, false);
     }
 
-    private IEnumerator FinishRoutine(bool won)
+    private void ResolveResult(bool won, bool timedOut)
+    {
+        if (resolved) return;
+        resolved = true;
+        SetInputLock(true);
+        if (timedOut)
+        {
+            var hud = FindAnyObjectByType<CombatHUD>();
+            if (hud != null) hud.ShowTimeOut(won);
+        }
+        StartCoroutine(FinishRoutine(won, timedOut));
+    }
+
+    private IEnumerator FinishRoutine(bool won, bool timedOut)
     {
         // 타격 히트스톱이 아직 돌고 있으면 여기서 정리한다.
         // 지금부터 timeScale 은 K.O. 연출이 혼자 쓴다. 둘이 겹치면 서로를 덮어써서 연출이 끊긴다.
         HitImpact.ReleaseTimeControl();
+        if (timedOut) RestoreTimeScale();
 
         // 이긴 쪽까지 포함해 양쪽 조작을 잠근다. 쓰러진 상대를 계속 때리는 걸 막는다.
         SetInputLock(true);
 
         // 마무리 일격을 눈에 남기기 위한 슬로우모션. 기본 타격의 슬로우보다 길게 간다.
         // timeScale 을 0 으로 만들지 않는 이유: 쓰러지는 모션과 넉백이 첫 프레임에서 얼어붙는다.
-        if (useSlowMotion && slowMotionDuration > 0f)
+        if (!timedOut && useSlowMotion && slowMotionDuration > 0f)
         {
             SetTimeScale(slowMotionScale);
 
@@ -194,7 +262,8 @@ public class BattleSceneBridge : MonoBehaviour
 
         if (bannerText != null)
         {
-            bannerText.text  = won ? "승리 - 지도로 돌아갑니다" : "패배 - 이 판이 끝납니다";
+            bannerText.text  = won ? (Run.PendingNode != null && Run.PendingNode.type == NodeType.Boss
+                ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 - 이 판이 끝납니다";
             bannerText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.5f, 0.5f);
             bannerText.gameObject.SetActive(true);
         }
@@ -209,6 +278,8 @@ public class BattleSceneBridge : MonoBehaviour
 
     private void SetInputLock(bool locked)
     {
+        if (playerHealth != null) playerHealth.DamageLocked = locked;
+        if (enemyHealth != null) enemyHealth.DamageLocked = locked;
         if (fighters == null) return;
         for (int i = 0; i < fighters.Length; i++)
             if (fighters[i] != null) fighters[i].InputLocked = locked;

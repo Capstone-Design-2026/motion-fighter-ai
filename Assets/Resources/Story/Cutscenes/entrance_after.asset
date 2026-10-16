@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
+  m_Name: entrance_after
+  m_EditorClassIdentifier: 
+  location: "흑운협 입구"
+  background: {fileID: 0}
+  backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
+  backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.578125, width: 0.5, height: 0.421875}
+  lines:
+  - speaker: "서진"
+    text: "늦었습니다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+  - speaker: "도윤"
+    text: "아니다. 여기까지 네 힘으로 왔구나."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 1
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+  - speaker: ""
+    text: "요새에서 경종이 울린다. 무진이 수문을 열 준비를 시작했다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+  - speaker: "서진"
+    text: "사람들을 데리고 내려가세요. 돌아갈 길은 제가 지키겠습니다."
+    leftPortrait: {fileID: 0}
+    rightPortrait: {fileID: 0}
+    speakerOnRight: 0
+    leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
+    rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}

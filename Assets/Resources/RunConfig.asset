@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: RunConfig
   m_EditorClassIdentifier: 
   map:
-    rows: 12
+    rows: 7
     columns: 6
     entryNodes: 3
     minNodesPerRow: 2
@@ -25,6 +25,24 @@ MonoBehaviour:
     eventWeight: 12
     shopWeight: 8
     eliteMinRow: 3
+  useStoryMap: 1
+  useOrderedCampaign: 1
+  campaignStageIds:
+  - boss_01
+  - boss_02
+  - boss_03
+  - boss_04
+  - boss_final
+  campaignBranches: 3
+  endingTitle: VISION STRIKER
+  creditsText: "\uC81C\uC791\uC9C4\n\n\uD504\uB85C\uC81D\uD2B8 \uCD1D\uAD04 \xB7
+    PM\n\uBC15\uC7AC\uD64D\n\n\uAC8C\uC784 \uAE30\uD68D\n\uBC15\uC7AC\uD64D \xB7
+    \uC548\uB3C4\uD604\n\n\uAC8C\uC784 \uD504\uB85C\uADF8\uB798\uBC0D\n\uBC15\uC7AC\uD64D
+    \xB7 \uAE40\uC6C5\uBE48 \xB7 \uC548\uB3C4\uD604 \xB7 \uC624\uC2B9\uC900\n\nAI
+    \xB7 \uBE44\uC804 \uC778\uC2DD\n\uAE40\uC6C5\uBE48 \xB7 \uC624\uC2B9\uC900\n\n3D
+    \uCE90\uB9AD\uD130 \uBAA8\uB378\uB9C1\n\uAE40\uD558\uC740"
+  creditsAttributions: 
+  creditsDuration: 32
   playerMaxHealth: 100
   carryPlayerHealth: 1
   restHealPercent: 0.3
@@ -34,6 +52,17 @@ MonoBehaviour:
     nodeType: 0
     minRow: 0
     enemyMaxHealth: 80
+    overrideCombatStats: 0
+    attackDamage: 8
+    moveSpeed: 2.6
+    decisionInterval: 0.8
+    attackWeight: 5
+    blockWeight: 3
+    backstepWeight: 1.5
+    crouchWeight: 1
+    overrideTint: 0
+    enemyTint: {r: 1, g: 1, b: 1, a: 1}
+    animatorController: {fileID: 0}
     portrait: {fileID: 0}
     battleBackground: {fileID: 0}
     introText: 
@@ -43,6 +72,17 @@ MonoBehaviour:
     nodeType: 0
     minRow: 2
     enemyMaxHealth: 100
+    overrideCombatStats: 0
+    attackDamage: 8
+    moveSpeed: 2.6
+    decisionInterval: 0.8
+    attackWeight: 5
+    blockWeight: 3
+    backstepWeight: 1.5
+    crouchWeight: 1
+    overrideTint: 0
+    enemyTint: {r: 1, g: 1, b: 1, a: 1}
+    animatorController: {fileID: 0}
     portrait: {fileID: 0}
     battleBackground: {fileID: 0}
     introText: 
@@ -52,6 +92,17 @@ MonoBehaviour:
     nodeType: 1
     minRow: 3
     enemyMaxHealth: 150
+    overrideCombatStats: 0
+    attackDamage: 8
+    moveSpeed: 2.6
+    decisionInterval: 0.8
+    attackWeight: 5
+    blockWeight: 3
+    backstepWeight: 1.5
+    crouchWeight: 1
+    overrideTint: 0
+    enemyTint: {r: 1, g: 1, b: 1, a: 1}
+    animatorController: {fileID: 0}
     portrait: {fileID: 0}
     battleBackground: {fileID: 0}
     introText: 
@@ -61,7 +112,121 @@ MonoBehaviour:
     nodeType: 2
     minRow: 0
     enemyMaxHealth: 220
+    overrideCombatStats: 0
+    attackDamage: 8
+    moveSpeed: 2.6
+    decisionInterval: 0.8
+    attackWeight: 5
+    blockWeight: 3
+    backstepWeight: 1.5
+    crouchWeight: 1
+    overrideTint: 0
+    enemyTint: {r: 1, g: 1, b: 1, a: 1}
+    animatorController: {fileID: 0}
     portrait: {fileID: 0}
     battleBackground: {fileID: 0}
     introText: 
     enemyPrefab: {fileID: 0}
+  - id: boss_01
+    displayName: "\uBB38\uC9C0\uAE30"
+    nodeType: 0
+    minRow: 0
+    enemyMaxHealth: 80
+    overrideCombatStats: 1
+    attackDamage: 6
+    moveSpeed: 2.2
+    decisionInterval: 1
+    attackWeight: 4
+    blockWeight: 2
+    backstepWeight: 1
+    crouchWeight: 1
+    overrideTint: 1
+    enemyTint: {r: 0.65, g: 0.9, b: 1, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: boss_02
+    displayName: "\uCD94\uACA9\uC790"
+    nodeType: 0
+    minRow: 1
+    enemyMaxHealth: 100
+    overrideCombatStats: 1
+    attackDamage: 8
+    moveSpeed: 3.2
+    decisionInterval: 0.85
+    attackWeight: 6
+    blockWeight: 2
+    backstepWeight: 2
+    crouchWeight: 1
+    overrideTint: 1
+    enemyTint: {r: 0.55, g: 1, b: 0.65, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: boss_03
+    displayName: "\uCCA0\uBCBD"
+    nodeType: 0
+    minRow: 2
+    enemyMaxHealth: 120
+    overrideCombatStats: 1
+    attackDamage: 10
+    moveSpeed: 2.4
+    decisionInterval: 0.75
+    attackWeight: 4
+    blockWeight: 5
+    backstepWeight: 1
+    crouchWeight: 1
+    overrideTint: 1
+    enemyTint: {r: 0.65, g: 0.65, b: 1, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: boss_04
+    displayName: "\uAD11\uC804\uC0AC"
+    nodeType: 0
+    minRow: 3
+    enemyMaxHealth: 140
+    overrideCombatStats: 1
+    attackDamage: 12
+    moveSpeed: 3.4
+    decisionInterval: 0.65
+    attackWeight: 8
+    blockWeight: 1
+    backstepWeight: 1
+    crouchWeight: 2
+    overrideTint: 1
+    enemyTint: {r: 1, g: 0.6, b: 0.3, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  - id: boss_final
+    displayName: "\uB3C4\uAE68\uBE44 \uC655"
+    nodeType: 2
+    minRow: 4
+    enemyMaxHealth: 180
+    overrideCombatStats: 1
+    attackDamage: 15
+    moveSpeed: 3.6
+    decisionInterval: 0.5
+    attackWeight: 8
+    blockWeight: 4
+    backstepWeight: 2
+    crouchWeight: 2
+    overrideTint: 1
+    enemyTint: {r: 1, g: 0.35, b: 0.45, a: 1}
+    animatorController: {fileID: 0}
+    portrait: {fileID: 0}
+    battleBackground: {fileID: 0}
+    introText: 
+    enemyPrefab: {fileID: 0}
+  nodeEnemyVisuals:
+  - nodeId: scout
+    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}

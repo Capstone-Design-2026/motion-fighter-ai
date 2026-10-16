@@ -29,9 +29,13 @@ public class PlayerController : MonoBehaviour
     public KeyCode attackKey    = KeyCode.P;
     [Tooltip("누르고 있는 동안 막기. 기본값 U.")]
     public KeyCode blockKey     = KeyCode.U;
+    public KeyCode jabKey = KeyCode.J;
+    public KeyCode straightKey = KeyCode.K;
+    public KeyCode highKickKey = KeyCode.L;
+    public KeyCode lowKickKey = KeyCode.H;
 
     [Header("상대 (격투게임 방향 처리)")]
-    [Tooltip("비워두면 씬에서 FighterAI 를 자동으로 찾는다. 항상 이쪽을 바라본다.")]
+    [Tooltip("비워두면 씬에서 EnemyAI 를 자동으로 찾는다. 항상 이쪽을 바라본다.")]
     [SerializeField] private Transform opponent;
     [Tooltip("뒤로 걸을 때 속도 배율. 격투게임은 보통 후진이 조금 느리다.")]
     [SerializeField] private float backwardSpeedMultiplier = 0.8f;
@@ -47,8 +51,11 @@ public class PlayerController : MonoBehaviour
     // 이때부터 앉기/막기 자세는 키보드가 아니라 인식 결과가 결정한다.
     // (이동/점프/공격 키는 테스트용으로 계속 살아있다)
     public bool externalControl = false;
+    private float externalMoveX;
 
-    void Start()
+    public void SetOpponent(Transform value) { opponent = value; }
+
+    void Awake()
     {
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
@@ -56,10 +63,10 @@ public class PlayerController : MonoBehaviour
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
 
-        // 상대를 지정하지 않았으면 씬에서 찾는다. (FighterAI 가 플레이어를 찾는 것과 대칭)
+        // 상대를 지정하지 않았으면 씬에서 찾는다. (EnemyAI 가 플레이어를 찾는 것과 대칭)
         if (opponent == null)
         {
-            var enemy = FindAnyObjectByType<FighterAI>();
+            var enemy = FindAnyObjectByType<EnemyAI>();
             if (enemy != null) opponent = enemy.transform;
         }
 
@@ -128,35 +135,47 @@ public class PlayerController : MonoBehaviour
         // 이동으로 캐릭터를 회전시키지 않는다. 방향은 아래 FaceOpponent() 가 정한다.
         // 막는 중에는 못 움직인다. 앉은 채로는 느리게 움직일 수 있다.
         float moveX = 0f;
-        if (useKeyboard && !isBlocking)
+        if (!isBlocking && !fighter.IsAttacking)
         {
-            if (Input.GetKey(moveLeftKey))       moveX = -1f;
-            else if (Input.GetKey(moveRightKey)) moveX =  1f;
+            if (externalControl) moveX = externalMoveX;
+            // A/D still work for testing when the vision detector reports neutral movement.
+            if (useKeyboard && Mathf.Abs(moveX) < 0.01f)
+            {
+                if (Input.GetKey(moveLeftKey))       moveX = -1f;
+                else if (Input.GetKey(moveRightKey)) moveX =  1f;
+            }
         }
 
         // 바라보는 방향을 먼저 확정해야 전진/후진 판정이 맞는다.
         FaceOpponent(moveX);
 
         // 바라보는 방향과 이동 방향이 반대면 후진.
-        bool movingBack = moveX != 0f && moveX * fighter.Facing < 0f;
+        bool movingBack = Mathf.Abs(moveX) > 0.01f && moveX * fighter.Facing < 0f;
 
         float speed = moveSpeed;
         if (movingBack)  speed *= backwardSpeedMultiplier;
         if (isCrouching) speed *= crouchSpeedMultiplier;
 
         rb.linearVelocity = new Vector2(moveX * speed, rb.linearVelocity.y);
-        animator.SetBool("IsMoving", moveX != 0f);
+        animator.SetBool("IsMoving", Mathf.Abs(moveX) > 0.01f);
         animator.SetBool("IsMovingBack", movingBack);
 
         if (!useKeyboard) return;
 
         // ── 점프 (막는 중엔 불가) ──
-        if (Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking)
+        if (Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking && !fighter.IsAttacking)
         {
             DoJump();
         }
 
         // ── 공격 (막는 중엔 불가) ──
+        if (!isBlocking)
+        {
+            if (Input.GetKeyDown(jabKey)) AttackMove(CombatMove.Jab);
+            if (Input.GetKeyDown(straightKey)) AttackMove(CombatMove.Straight);
+            if (Input.GetKeyDown(highKickKey)) AttackMove(CombatMove.HighKick);
+            if (Input.GetKeyDown(lowKickKey)) AttackMove(CombatMove.LowKick);
+        }
         if (Input.GetKeyDown(attackKey) && !isBlocking)
         {
             DoAttack();
@@ -192,6 +211,11 @@ public class PlayerController : MonoBehaviour
         animator.SetTrigger("Jump");
         animator.SetBool("IsGrounded", false);
         isGrounded = false;
+    }
+
+    public void AttackMove(CombatMove move)
+    {
+        if (fighter.TryAttack(move)) animator.SetTrigger("Attack");
     }
 
     void DoAttack()
@@ -235,19 +259,62 @@ public class PlayerController : MonoBehaviour
     // ── 파이썬(웹캠 동작인식) 연동용 ────────────────────────────────
     // UdpActionReceiver 가 인식 결과를 여기로 넘긴다.
     // 애니메이터를 직접 건드리지 않고 이 함수를 거쳐야 데미지 판정까지 함께 들어간다.
+    // Shoulder movement is a continuous signed axis, independent of the action confidence.
+    public void ExternalMovement(float axis)
+    {
+        externalControl = true;
+        externalMoveX = Mathf.Clamp(axis, -1f, 1f);
+    }
+
+    public void ClearExternalInput()
+    {
+        externalControl = false;
+        externalMoveX = 0f;
+        isCrouching = false;
+        isBlocking = false;
+        if (fighter != null)
+        {
+            fighter.IsCrouching = false;
+            fighter.IsBlocking = false;
+        }
+        if (animator != null)
+        {
+            animator.SetBool("IsCrouching", false);
+            animator.SetBool("IsBlocking", false);
+        }
+    }
+
     public void ExternalAction(string action)
     {
-        if (health.IsDead || health.IsHitStunned) return;
+        if (health.IsDead || health.IsHitStunned || fighter.InputLocked) return;
 
         currentAction = action;
 
         switch (action)
         {
+            case "JAB":
+            case "STRAIGHT":
+            case "CROSS":
+            case "HIGH_KICK":
+            case "HIGHKICK":
+            case "LOW_KICK":
+            case "LOWKICK":
+                isBlocking = false; fighter.IsBlocking = false;
+                animator.SetBool("IsBlocking", false);
+                AttackMove(action == "JAB" ? CombatMove.Jab : action.StartsWith("HIGH") ? CombatMove.HighKick : action.StartsWith("LOW") ? CombatMove.LowKick : CombatMove.Straight);
+                break;
+
             case "ATTACK":
+                isBlocking = false;
+                fighter.IsBlocking = false;
+                animator.SetBool("IsBlocking", false);
                 DoAttack();
                 break;
 
             case "JUMP":
+                isBlocking = false;
+                fighter.IsBlocking = false;
+                animator.SetBool("IsBlocking", false);
                 if (isGrounded) DoJump();
                 break;
 
@@ -261,8 +328,11 @@ public class PlayerController : MonoBehaviour
                 break;
 
             case "BLOCK":
+                isCrouching = false;
                 isBlocking = true;
+                animator.SetBool("IsCrouching", false);
                 animator.SetBool("IsBlocking", true);
+                fighter.IsCrouching = false;
                 fighter.IsBlocking = true;
                 break;
 

@@ -9,6 +9,8 @@ public static class SceneRoutes
     public const string Start  = "StartScene";
     public const string Map    = "MapScene";
     public const string Battle = "GameScene";
+    public const string Ending = "EndingScene";
+    public static void LoadEnding() { SceneManager.LoadScene(Ending); }
 
     public static void LoadStart()  { SceneManager.LoadScene(Start);  }
     public static void LoadMap()    { SceneManager.LoadScene(Map);    }

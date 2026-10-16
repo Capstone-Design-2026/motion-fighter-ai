@@ -28,6 +28,7 @@ public class Health : MonoBehaviour
     public string DisplayName => displayName;
     public int MaxHealth => maxHealth;
     public int CurrentHealth { get; private set; }
+    public bool DamageLocked { get; set; }
     public bool IsDead => CurrentHealth <= 0;
     public bool IsInvulnerable => Time.time < invulnerableUntil;
 
@@ -78,7 +79,7 @@ public class Health : MonoBehaviour
     /// </param>
     public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false, bool ignoreInvulnerability = false)
     {
-        if (IsDead || amount <= 0)
+        if (DamageLocked || IsDead || amount <= 0)
             return false;
 
         if (IsInvulnerable && !ignoreInvulnerability)
@@ -127,6 +128,15 @@ public class Health : MonoBehaviour
         }
 
         return true;
+    }
+
+    public void SetAppearance(Color tint)
+    {
+        originalColor = tint;
+        var view = GetComponent<Fighter3DView>();
+        if (view != null) view.fighterTint = tint;
+        var renderer = GetComponent<SpriteRenderer>();
+        if (renderer != null) renderer.color = tint;
     }
 
     public void Heal(int amount)

@@ -1,11 +1,19 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 스테이지(=전투 한 판) 정의. 보스마다 다른 값을 넣기 위한 껍데기다.
-/// 아직 적 프리팹이 없으므로 enemyPrefab 을 비워두면 GameScene 에 이미 배치된 Enemy 를 그대로 쓴다.
+/// 공통 전투 수치를 유지하면서 지도 노드별로 다른 적 외형을 지정한다.
 /// </summary>
+[Serializable]
+public class NodeEnemyVisual
+{
+    [Tooltip("스토리 지도 노드 ID. 예: scout. 체력과 AI 수치는 기존 스테이지 설정을 사용합니다.")]
+    public string nodeId;
+    public GameObject visualPrefab;
+}
+
+/// <summary>전투 한 판의 설정. enemyPrefab이 없으면 씬의 기본 적을 사용한다.</summary>
 [Serializable]
 public class StageDefinition
 {
@@ -21,8 +29,20 @@ public class StageDefinition
     [Header("전투 설정 (0 이면 GameScene 기본값 유지)")]
     [Tooltip("적의 최대 체력. 0 이면 씬에 설정된 값을 그대로 쓴다.")]
     public int enemyMaxHealth = 0;
-    [Tooltip("적 AI 난이도. 비워두면 씬의 FighterAI 에 설정된 난이도를 그대로 쓴다.")]
-    public FighterAIDifficulty aiDifficulty;
+
+    [Header("단계별 전투 조정 (켜면 아래 수치를 적용)")]
+    public bool overrideCombatStats;
+    [Min(1)] public int attackDamage = 8;
+    [Min(0.1f)] public float moveSpeed = 2.6f;
+    [Min(0.1f)] public float decisionInterval = 0.8f;
+    [Min(0f)] public float attackWeight = 5f;
+    [Min(0f)] public float blockWeight = 3f;
+    [Min(0f)] public float backstepWeight = 1.5f;
+    [Min(0f)] public float crouchWeight = 1f;
+    public bool overrideTint;
+    public Color enemyTint = Color.white;
+    [Tooltip("비워두면 적의 기존 애니메이터를 사용합니다.")]
+    public RuntimeAnimatorController animatorController;
 
     [Header("연출용 (나중에 채우면 됨)")]
     public Sprite portrait;
@@ -46,6 +66,22 @@ public class RunConfig : ScriptableObject
 
     [Header("지도 생성")]
     public MapSettings map = new MapSettings();
+    [Tooltip("사부의 행방을 추적하는 탐험 지도. 새 게임부터 적용됩니다.")]
+    public bool useStoryMap = true;
+
+    [Header("분기형 보스 지도")]
+    [Tooltip("켜면 보스 순서와 휴식 시점이 다른 경로를 만듭니다. 목록의 마지막은 최종 보스, 나머지는 각 경로에서 한 번씩 만납니다.")]
+    public bool useOrderedCampaign;
+    public List<string> campaignStageIds = new List<string>();
+    [Tooltip("지도 경로 수. 전투 횟수는 보스 목록의 개수로 결정됩니다.")]
+    [Range(2, 3)] public int campaignBranches = 3;
+
+    [Header("엔딩 크레딧")]
+    public string endingTitle = "VISION STRIKER";
+    [TextArea(6, 20)] public string creditsText = "제작진";
+    [Tooltip("음악, 사운드, 폰트, 외부 에셋의 제작자와 출처/라이선스를 입력합니다. 비어 있으면 표시하지 않습니다.")]
+    [TextArea(3, 12)] public string creditsAttributions = "";
+    [Min(5f)] public float creditsDuration = 32f;
 
     [Header("플레이어")]
     public int playerMaxHealth = 100;
@@ -56,6 +92,17 @@ public class RunConfig : ScriptableObject
 
     [Header("스테이지 목록")]
     public List<StageDefinition> stages = new List<StageDefinition>();
+
+    [Header("지도 노드별 적 외형")]
+    public List<NodeEnemyVisual> nodeEnemyVisuals = new List<NodeEnemyVisual>();
+
+    public GameObject GetEnemyVisual(string nodeId)
+    {
+        if (string.IsNullOrEmpty(nodeId) || nodeEnemyVisuals == null) return null;
+        foreach (var entry in nodeEnemyVisuals)
+            if (entry != null && entry.nodeId == nodeId) return entry.visualPrefab;
+        return null;
+    }
 
     public StageDefinition Get(string id)
     {

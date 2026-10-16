@@ -1,0 +1,104 @@
+{
+  "tool": "Built-in image_gen",
+  "reference": "VisionStriker_CharacterConcepts_01-11/00_전체_미리보기.jpg",
+  "enemyPrompts": [
+    {
+      "name": "산길 척후병",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 01 산길 척후병 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: young masked man black headband sleeveless ragged gray clothes red armband. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "계곡 잠복병",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 02 계곡 잠복병 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: hooded masked male ambusher dark layered clothes black metal shoulder. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "고용 산적",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 03 고용 산적 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: stocky bearded rugged man sleeveless brown leather vest bare chest. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "옛 나루 약탈자",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 04 옛 나루 약탈자 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: short-haired athletic woman navy sleeveless tunic maroon neck wrap. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "철문",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 05 철문 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: massive bald man broad dark red lamellar cuirass shoulder armor. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "채석장 정예병",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 06 채석장 정예병 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: stern short-haired scarred man gray sleeveless crosswrap shoulder armor. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "능선 정예병",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 07 능선 정예병 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: athletic woman black hair in bun lower face black cloth mask high neck sleeveless armor. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "수색대 추적자",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 08 수색대 추적자 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: weathered middle-aged male tracker black bandana goatee layered black capelet. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "포로 감시관",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 09 포로 감시관 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: tall male black swept-back hair rigid dark metal lower face mask sleeveless black leather armor. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "흑견",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 10 흑견 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: lean intimidating male commander swept-back black hair loose cheek strands stubble sleeveless ragged charcoal armor burgundy belt. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    },
+    {
+      "name": "무진",
+      "prompt": "Create ONE isolated waist-up game dialogue portrait based STRICTLY on character number 11 무진 in the attached reference contact sheet. Identify this exact character and preserve their gender, face, hair, clothing, armor, mask and color palette. Identity description: powerful middle-aged male warlord slicked-back tied black hair stern clean-shaven face broad layered black shoulder armor high collar. Do NOT include other characters or views from the contact sheet. Single character centered, entire head with generous top margin, waist-up with both hands visible low near waist, relaxed natural threatening conversational posture, facing slightly LEFT toward a player on the left of screen. Semi-realistic painted Korean wuxia style, detailed natural skin, grounded human anatomy, restrained warm side light. Mouth closed, both eyes visible. No weapon, no new accessories, no text or captions, no layout panels, no floor, no gray or colored backdrop. TRUE transparent alpha background around the entire silhouette. Do not crop hair, shoulders, fingers. This will be composited over a painted landscape in a dialogue scene."
+    }
+  ],
+  "enemyOutputs": [
+    {
+      "number": 1,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-1979a566-3978-49d6-8ab4-899197eceab6.png"
+    },
+    {
+      "number": 2,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-351b7a31-85db-4010-957a-d3b53c491328.png"
+    },
+    {
+      "number": 3,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-1fec0d99-b68b-49c5-9cbe-8c5a4cace26a.png"
+    },
+    {
+      "number": 4,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-75796da2-e59a-4aa0-9abe-562d71b80cdf.png"
+    },
+    {
+      "number": 5,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-952b4f22-5563-4e3c-bf42-74945199479d.png"
+    },
+    {
+      "number": 6,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-c55805e2-9bbd-43d9-ab59-612b067a88aa.png"
+    },
+    {
+      "number": 7,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-5b35df0b-e1e9-4d74-9dc6-5c8510a57a1d.png"
+    },
+    {
+      "number": 8,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-71b5d968-b8c6-45dd-9f44-15023a133d6c.png"
+    },
+    {
+      "number": 9,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-6444e05a-27a4-472e-83af-58503f7a0fa7.png"
+    },
+    {
+      "number": 10,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-19a3fca5-eab0-464c-9aaf-c31ba26cb887.png"
+    },
+    {
+      "number": 11,
+      "path": "C:\\Users\\sbpar\\.codex\\generated_images\\01a07f15-5849-7560-8986-4ec334e11590\\exec-5a49cfb3-9751-48d3-9bc6-5ee180e2b807.png"
+    }
+  ],
+  "supportingCast": {
+    "reference": "New supporting characters from story: Yeonhwa, herbalist, physician.",
+    "prompt": "Three separate equal-width waist-up portraits, semi-realistic painted Korean wuxia, transparent background. Yeonhwa: practical woman age35 teal/cream clothes and folded letter. Herbalist: weathered man age55 moss-green robe and herb pouch. Physician: rescued man age45 dusty ivory robe, bandaged forearm. Both hands visible low near waist, closed mouths, no labels."
+  },
+  "leads": {
+    "reference": "Prologue_v6/training.png",
+    "prompt": "Two separate waist-up dialogue portraits preserving the young Korean boxer Seojin with pale headband, bare torso, black gloves; and powerful middle-aged master Doyun with topknot, short beard, charcoal robe and gray-green sash. Face each other, closed mouths, restrained warm light, transparent background."
+  }
+}

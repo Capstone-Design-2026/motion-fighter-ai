@@ -42,6 +42,9 @@ public class Pushbox : MonoBehaviour
     /// <summary>내가 상대의 어느 쪽에 있는지. +1 = 오른쪽, -1 = 왼쪽.</summary>
     private float side = 1f;
 
+    // BattleSceneBridge가 Start 전에 교체된 상대를 연결한다.
+    public void SetOpponent(Pushbox value) { opponent = value; }
+
     void Awake()
     {
         myCollider = GetComponent<Collider2D>();
