@@ -93,10 +93,10 @@ public sealed class Fighter3DView : MonoBehaviour
         float speed = clip.length / Duration(move);
         Play(names[(int)move], speed, true);
     }
+    static readonly string[] GuardStates = { "GUARD_JAB", "GUARD_CROSS", "GUARD_HIGHKICK", "GUARD_LOWKICK" };
     public void GuardAgainst(CombatMove move)
     {
-        string[] names = { "GUARD_JAB", "GUARD_CROSS", "GUARD_HIGHKICK", "GUARD_LOWKICK" };
-        guardState = names[(int)move]; guardHitUntil = Time.time + .2f;
+        guardState = GuardStates[(int)move]; guardHitUntil = Time.time + .2f;
     }
     // Only the Scout override opts into these short authored reaction clips.
     void CacheReactionStyle()
@@ -171,7 +171,10 @@ public sealed class Fighter3DView : MonoBehaviour
         {
             if (fighter.IsBlocking)
             {
-                string pose = Time.time < guardHitUntil ? guardState : fighter.IsCrouching ? "GUARD_LOWKICK" : "GUARD_JAB";
+                // While the opponent has announced an attack, hold the guard that matches it (high / low / mid).
+                string pose = Time.time < guardHitUntil ? guardState
+                    : fighter.IncomingMove.HasValue ? GuardStates[(int)fighter.IncomingMove.Value]
+                    : fighter.IsCrouching ? "GUARD_LOWKICK" : "GUARD_JAB";
                 if (scoutReactions) HoldScoutGuard(pose);
                 else Play(pose);
                 // Keep the guard pose held rather than allowing the source clip to return to idle.

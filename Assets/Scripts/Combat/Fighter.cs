@@ -99,6 +99,28 @@ public class Fighter : MonoBehaviour
     public bool IsGuarding => guarding;
     public float GuardDuration => guardDuration;
 
+    /// <summary>
+    /// 상대가 하기로 정한 공격. 없으면 null.
+    /// 방어 자세(상단/하단)와 방어 모션이 이걸 따른다 — 상단 공격이면 서서 상단 방어, 하단 공격이면 앉아서 하단 방어.
+    /// 상대가 DeclareIntent 로 알리고, 공격 판정이 끝나거나 취소되면 ClearIntent 로 거둔다.
+    /// </summary>
+    public CombatMove? IncomingMove => incomingFrom != null ? incomingMove : (CombatMove?)null;
+
+    /// <summary>무방비가 된 이유. OpeningIndicator 가 화면에 적는다.</summary>
+    public enum OpeningCause { None, Blocked, Whiffed, GuardFailed }
+
+    /// <summary>
+    /// 딜레이가 걸려 아무것도 못 하는 무방비 상태인지. 상대에게는 공격 기회다.
+    ///   Blocked    : 공격이 막혀 후딜이 길어진 동안 (판정 직후 ~ 후딜 끝)
+    ///   Whiffed    : 공격이 빗나가 후딜이 길어진 동안 (판정 직후 ~ 후딜 끝)
+    ///   GuardFailed: 아무것도 막지 못하고 방어가 끝나 딜레이가 걸린 동안
+    /// 그 틈에 공격이 들어가면(막히지 않은 타격) 바로 끝난다.
+    /// </summary>
+    public bool IsOpen => Time.time < openUntil && !Health.IsDead && !InputLocked;
+    public float OpenRemaining => Mathf.Max(0f, openUntil - Time.time);
+    public float OpenDuration { get; private set; }
+    public OpeningCause OpenCause { get; private set; }
+
     /// <summary>방어 실패 딜레이 중인지.</summary>
     public bool IsGuardRecovering => Time.time < guardRecoverUntil;
 
@@ -145,6 +167,13 @@ public class Fighter : MonoBehaviour
     private float guardStartedAt;
     private float guardRecoverUntil;  // 방어 실패 딜레이가 끝나는 시각
     private Action bufferedAction;    // 방어 중에 들어온 입력. 성공하면 실행, 아니면 버린다.
+
+    // 공격 의도를 주고받을 상대 목록. 1:1 이라 보통 둘뿐이다.
+    private static readonly List<Fighter> active = new List<Fighter>();
+    private Fighter incomingFrom;     // 공격을 예고한 상대
+    private CombatMove incomingMove;
+
+    private float openUntil;          // 무방비가 끝나는 시각
     private Fighter3DView view3D;
     public CombatMove CurrentMove { get; private set; }
 
@@ -153,6 +182,20 @@ public class Fighter : MonoBehaviour
     public void ConfigureGuard(float reduction) { blockDamageMultiplier=1f-Mathf.Clamp(reduction,0,.9f); }
     public int GuardedDamage(int incoming) { return Mathf.Max(1,Mathf.CeilToInt(incoming*blockDamageMultiplier-.00001f)); }
     public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
+
+    void OnEnable()
+    {
+        if (!active.Contains(this)) active.Add(this);
+        Health.OnDamaged += OnDamaged;
+    }
+
+    void OnDisable()
+    {
+        Health.OnDamaged -= OnDamaged;
+        ClearIntent();
+        active.Remove(this);
+        incomingFrom = null;
+    }
 
     void Awake()
     {
@@ -177,6 +220,7 @@ public class Fighter : MonoBehaviour
         {
             EndGuard();
             guardRecoverUntil = Time.time + guardFailDelay;
+            MarkOpen(guardFailDelay, OpeningCause.GuardFailed);
             Debug.Log($"[Fighter] {name} 방어 실패 (막은 공격 없음) → {guardFailDelay:0.##}초 딜레이");
         }
     }
@@ -187,7 +231,8 @@ public class Fighter : MonoBehaviour
         if (!CanAct) return false;
 
         guarding = true;
-        guardCrouching = low;
+        // 상대가 이미 공격을 정했으면 그 공격에 맞는 자세로 막는다. 아니면 지금 입력한 자세.
+        guardCrouching = IncomingMove.HasValue ? HeightOf(IncomingMove.Value) == AttackHeight.Low : low;
         guardStartedAt = Time.time;
         bufferedAction = null;
         return true;
@@ -200,6 +245,53 @@ public class Fighter : MonoBehaviour
     public void BufferAction(Action action)
     {
         if (guarding) bufferedAction = action;
+    }
+
+    private void MarkOpen(float seconds, OpeningCause cause)
+    {
+        if (seconds <= 0f) return;
+        openUntil = Time.time + seconds;
+        OpenDuration = seconds;
+        OpenCause = cause;
+    }
+
+    /// <summary>막히지 않은 타격을 맞으면 무방비는 끝난다 — 기회를 살린 것이다.</summary>
+    private void OnDamaged(bool guarded)
+    {
+        if (!guarded) openUntil = 0f;
+    }
+
+    public static AttackHeight HeightOf(CombatMove move)
+    {
+        return move == CombatMove.HighKick ? AttackHeight.High
+             : move == CombatMove.LowKick ? AttackHeight.Low
+             : AttackHeight.Mid;
+    }
+
+    /// <summary>
+    /// 어떤 공격을 할지 정했다고 상대에게 알린다. 상대는 방어 중이면 그 즉시, 아니면 이후 방어를 시전할 때
+    /// 그 공격에 맞는 방어 자세와 모션을 자동으로 취한다. 판정이 끝나거나 공격을 접으면 ClearIntent 로 거둔다.
+    /// </summary>
+    public void DeclareIntent(CombatMove move)
+    {
+        for (int i = 0; i < active.Count; i++)
+            if (active[i] != this) active[i].ReceiveIntent(this, move);
+    }
+
+    /// <summary>DeclareIntent 로 알린 공격을 거둔다.</summary>
+    public void ClearIntent()
+    {
+        for (int i = 0; i < active.Count; i++)
+            if (active[i] != this && active[i].incomingFrom == this) active[i].incomingFrom = null;
+    }
+
+    private void ReceiveIntent(Fighter attacker, CombatMove move)
+    {
+        incomingFrom = attacker;
+        incomingMove = move;
+
+        // 이미 방어 중이면 자세를 바로 맞춘다. 상단·중단은 서서, 하단은 앉아서.
+        if (guarding) guardCrouching = HeightOf(move) == AttackHeight.Low;
     }
 
     /// <summary>방어 성공. 남은 시간과 상관없이 즉시 풀고, 기억해 둔 동작이 있으면 바로 시전한다.</summary>
@@ -227,7 +319,11 @@ public class Fighter : MonoBehaviour
     {
         if (!CanAttack || IsBlocking) return false;
         CurrentMove = move;
-        AttackHeight height = move == CombatMove.HighKick ? AttackHeight.High : move == CombatMove.LowKick ? AttackHeight.Low : AttackHeight.Mid;
+        AttackHeight height = HeightOf(move);
+
+        // 어떤 공격인지 상대에게 알린다. 상대 방어 자세·모션이 이걸 따른다.
+        // (EnemyAI 는 공격 딜레이 전에, 공격을 정한 순간 이미 알렸다. 여기서 다시 알려도 같은 값이다)
+        DeclareIntent(move);
 
         var attack = new FighterAttack
         {
@@ -260,13 +356,20 @@ public class Fighter : MonoBehaviour
         yield return new WaitForSeconds(startup);
 
         float punish = 0f;
+        OpeningCause cause = OpeningCause.None;
         if (!Health.IsDead && !InputLocked && !Health.IsHitStunned)
         {
             AttackHitFrame?.Invoke(attack);
-            punish = ResolveHit(attack.Height);
+            punish = ResolveHit(attack.Height, out cause);
         }
 
+        // 판정이 끝났다(혹은 맞아서 끊겼다). 예고를 거둔다.
+        ClearIntent();
+
         // 막히거나 헛치면 후딜이 길어진다. 그동안은 공격 중(IsAttacking)이라 이동·공격·방어 모두 못 한다.
+        // 남은 후딜 전체가 상대에게는 공격 기회다.
+        if (punish > 0f) MarkOpen(ending + punish, cause);
+
         yield return new WaitForSeconds(ending + punish);
 
         IsAttacking = false;
@@ -278,7 +381,7 @@ public class Fighter : MonoBehaviour
     ///   막힘: 방어한 쪽의 blockPunish.
     ///   헛침(아무에게도 대미지가 들어가지 않음): 내 whiffPunish.
     /// </summary>
-    private float ResolveHit(AttackHeight height)
+    private float ResolveHit(AttackHeight height, out OpeningCause cause)
     {
         float punish = 0f;
         bool landed = false;    // 직격이 하나라도 들어갔는지
@@ -385,6 +488,7 @@ public class Fighter : MonoBehaviour
         // 공격 실패(헛침): 공격한 쪽 후딜이 늘어난다.
         if (!landed && !blocked) punish = whiffPunish;
 
+        cause = blocked ? OpeningCause.Blocked : !landed ? OpeningCause.Whiffed : OpeningCause.None;
         return punish;
     }
 

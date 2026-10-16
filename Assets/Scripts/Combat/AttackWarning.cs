@@ -1,13 +1,10 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
 /// 적이 공격하기 직전, 머리 위에 빨간 느낌표를 띄워 플레이어에게 알린다.
 /// EnemyAI 가 공격 딜레이를 시작할 때 Show, 공격이 나가거나 취소되면 Hide 를 부른다.
 ///
-/// 화면 위 UI(Screen Space Overlay)로 그리므로 2D/3D 카메라와 상관없이 항상 정면을 보고,
-/// 배경이나 다른 캐릭터에 가려지지 않는다. 위치는 매 프레임 캐릭터 렌더러의 머리 꼭대기를
-/// 화면 좌표로 바꿔 따라간다. 3D 모델을 갈아끼워도(Fighter3DView.ApplyVisual) Show 할 때 다시 찾는다.
+/// 그리는 방식(화면 UI, 머리 위 따라가기)은 OverheadUI 를 쓴다. OpeningIndicator 와 같다.
 ///
 /// 연출: 크게 튀어나오며 나타나고(pop), 공격 순간이 다가올수록 조금씩 커진다.
 /// 시간은 EnemyAI 의 딜레이와 같은 게임 시간(Time.time)으로 재므로, 슬로우 연출로 시간이 느려지면 같이 느려진다.
@@ -43,7 +40,6 @@ public class AttackWarning : MonoBehaviour
     private RectTransform canvasRect;
     private RectTransform markRect;
     private Renderer[] renderers;
-    private Collider2D bodyCollider;
 
     private bool visible;
     private float shownAt;
@@ -53,10 +49,7 @@ public class AttackWarning : MonoBehaviour
     public void Show(float duration)
     {
         EnsureUI();
-
-        // 모델이 바뀌었을 수 있으니 보일 때마다 다시 찾는다.
-        renderers = GetComponentsInChildren<Renderer>();
-        bodyCollider = GetComponent<Collider2D>();
+        renderers = OverheadUI.BodyRenderers(this);
 
         this.duration = Mathf.Max(0.01f, duration);
         shownAt = Time.time;
@@ -89,20 +82,9 @@ public class AttackWarning : MonoBehaviour
 
     private void UpdateMark()
     {
-        Camera cam = Camera.main;
-        if (cam == null)
-        {
-            markRect.gameObject.SetActive(false);
-            return;
-        }
-
-        Vector3 screen = cam.WorldToScreenPoint(HeadTop());
-        bool onScreen = screen.z > 0f;   // 카메라 뒤에 있으면 그리지 않는다
+        bool onScreen = OverheadUI.PlaceAbove(canvasRect, markRect, OverheadUI.HeadTop(this, renderers), screenOffset);
         markRect.gameObject.SetActive(onScreen);
         if (!onScreen) return;
-
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screen, null, out Vector2 local);
-        markRect.anchoredPosition = local + new Vector2(0f, screenOffset);
 
         float t = Time.time - shownAt;
         float scale = t < popTime
@@ -111,52 +93,14 @@ public class AttackWarning : MonoBehaviour
         markRect.localScale = Vector3.one * scale;
     }
 
-    /// <summary>캐릭터 머리 꼭대기(월드 좌표). 3D 모델이면 메시, 2D 면 스프라이트 범위를 쓴다.</summary>
-    private Vector3 HeadTop()
-    {
-        bool found = false;
-        Bounds bounds = default;
-        if (renderers != null)
-        {
-            for (int i = 0; i < renderers.Length; i++)
-            {
-                var r = renderers[i];
-                if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
-                // 이펙트는 머리 높이 계산에서 뺀다.
-                if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
-
-                if (!found) { bounds = r.bounds; found = true; }
-                else bounds.Encapsulate(r.bounds);
-            }
-        }
-
-        if (!found && bodyCollider != null)
-        {
-            bounds = bodyCollider.bounds;
-            found = true;
-        }
-
-        if (!found) return transform.position + Vector3.up * 2f;
-        return new Vector3(bounds.center.x, bounds.max.y, bounds.center.z);
-    }
-
     private void EnsureUI()
     {
         if (canvas != null) return;
 
-        // 캐릭터 밑에 두지 않는다. 캐릭터가 뒤집히거나 크기가 바뀌어도 UI 가 따라 변하지 않게 하려는 것.
-        canvas = UIFactory.CreateCanvas(name + " AttackWarning", null, sortingOrder);
+        canvas = OverheadUI.CreateCanvas(name + " AttackWarning", sortingOrder);
         canvasRect = (RectTransform)canvas.transform;
-        Destroy(canvas.GetComponent<GraphicRaycaster>());   // 클릭을 가로채지 않게
 
-        var text = UIFactory.CreateText("Mark", canvas.transform, symbol, fontSize, TextAnchor.MiddleCenter, color);
-        text.fontStyle = FontStyle.Bold;
-
-        // 밝은 배경에서도 잘 보이도록 테두리를 두른다.
-        var outline = text.gameObject.AddComponent<Outline>();
-        outline.effectColor = outlineColor;
-        outline.effectDistance = new Vector2(4f, -4f);
-
+        var text = OverheadUI.CreateOutlinedText("Mark", canvas.transform, symbol, fontSize, color, outlineColor, 4f);
         markRect = text.rectTransform;
         UIFactory.Place(markRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0f), Vector2.zero,
                         new Vector2(fontSize, fontSize * 1.2f));

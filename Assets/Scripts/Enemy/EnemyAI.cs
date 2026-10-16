@@ -61,6 +61,9 @@ public class EnemyAI : MonoBehaviour
         // 공격 딜레이 동안 머리 위에 느낌표를 띄운다. 따로 붙여 두지 않았으면 기본 설정으로 만든다.
         warning = GetComponent<AttackWarning>();
         if (warning == null) warning = gameObject.AddComponent<AttackWarning>();
+
+        // 딜레이로 무방비가 된 동안 머리 위에 "공격 기회!" 를 띄운다. 상태는 Fighter 를 보고 알아서 따라간다.
+        if (GetComponent<OpeningIndicator>() == null) gameObject.AddComponent<OpeningIndicator>();
     }
 
     public void ConfigureStage(StageDefinition stage)
@@ -194,6 +197,10 @@ public class EnemyAI : MonoBehaviour
         pendingHeight = crouching ? AttackHeight.Low : AttackHeight.Mid;
         pendingMove = (CombatMove)Random.Range(0, 4);
 
+        // 공격을 정한 이 순간 상대에게 알린다. 상대 방어 자세·모션이 이 공격에 맞춰진다.
+        fighter.DeclareIntent(GetComponent<Fighter3DView>() != null ? pendingMove
+            : pendingHeight == AttackHeight.Low ? CombatMove.LowKick : CombatMove.Straight);
+
         if (attackDelay <= 0f)
         {
             StartAttack();
@@ -208,6 +215,8 @@ public class EnemyAI : MonoBehaviour
     /// <summary>딜레이 중인 공격을 접고 경고 표시를 내린다. 공격이 실제로 나갈 때도 이걸로 정리한다.</summary>
     private void CancelPendingAttack()
     {
+        // 기다리던 공격을 접으면 예고도 거둔다. 실제로 공격이 나가면 Fighter.TryAttack 이 다시 알린다.
+        if (attackPending) fighter.ClearIntent();
         attackPending = false;
         warning.Hide();
     }
