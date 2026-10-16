@@ -47,6 +47,7 @@ public class Fighter : MonoBehaviour
     [SerializeField] private float recovery = 0.35f;  // 후딜: 다음 공격까지
 
     [Header("방어")]
+    [Tooltip("지금은 쓰지 않는다 — 방어에 성공하면 피해가 0 이다. ConfigureGuard / GuardedDamage 호환용으로 남겨 둔다.")]
     [Range(0f, 1f)]
     [SerializeField] private float blockDamageMultiplier = 0.2f;
 
@@ -61,6 +62,16 @@ public class Fighter : MonoBehaviour
            + "후딜이 끝날 때까지 공격한 쪽은 움직이지도, 다시 공격하지도, 방어하지도 못한다.")]
     [Min(0f)]
     [SerializeField] private float blockPunish = 0.4f;
+
+    [Header("공격 규칙 (공격하는 쪽 기준)")]
+    [Tooltip("공격이 직격했을 때 맞은 쪽의 피격 경직에 더해지는 시간(초). "
+           + "너무 길면 같은 공격을 연달아 확정으로 맞히게 된다 — 잽 연타 기준 0.2초 미만으로 둘 것.")]
+    [Min(0f)]
+    [SerializeField] private float hitStunBonus = 0.15f;
+    [Tooltip("공격이 아무에게도 맞지 않았을 때(헛침) 공격한 쪽의 후딜에 더해지는 시간(초). "
+           + "막힌 경우는 방어 규칙의 blockPunish(방어한 쪽 값)를 따른다.")]
+    [Min(0f)]
+    [SerializeField] private float whiffPunish = 0.3f;
 
     [Header("타격감")]
     [Tooltip("대미지가 실제로 들어간 순간 카메라 확대 + 슬로우 연출을 넣는다. 수치는 HitImpact 컴포넌트에서 조정.")]
@@ -255,16 +266,23 @@ public class Fighter : MonoBehaviour
             punish = ResolveHit(attack.Height);
         }
 
-        // 상대가 막아냈으면 후딜이 길어진다. 그동안은 공격 중(IsAttacking)이라 이동·공격·방어 모두 못 한다.
+        // 막히거나 헛치면 후딜이 길어진다. 그동안은 공격 중(IsAttacking)이라 이동·공격·방어 모두 못 한다.
         yield return new WaitForSeconds(ending + punish);
 
         IsAttacking = false;
     }
 
-    /// <summary>판정. 상대가 막아냈으면 그 상대가 정한 후딜 페널티(초)를, 아니면 0 을 돌려준다.</summary>
+    /// <summary>
+    /// 판정. 공격한 쪽 후딜에 더할 시간(초)을 돌려준다.
+    ///   직격: 0. 대신 맞은 쪽 경직이 hitStunBonus 만큼 늘어난다.
+    ///   막힘: 방어한 쪽의 blockPunish.
+    ///   헛침(아무에게도 대미지가 들어가지 않음): 내 whiffPunish.
+    /// </summary>
     private float ResolveHit(AttackHeight height)
     {
         float punish = 0f;
+        bool landed = false;    // 직격이 하나라도 들어갔는지
+        bool blocked = false;   // 막힌 타격이 하나라도 있었는지
         alreadyHit.Clear();
 
         Vector2 center = GetHitboxCenter();
@@ -297,7 +315,7 @@ public class Fighter : MonoBehaviour
 
                 if (guarded)
                 {
-                    damage = targetFighter.GuardedDamage(damage); // Defender owns mitigation, not the attacker.
+                    damage = 0;   // 방어에 성공하면 피해를 입지 않는다. 넉백도 없다.
                     kb = Vector2.zero;
                     Debug.Log($"[Fighter] {name} 의 {height} 공격을 {targetFighter.name} 가 방어 (데미지 {damage})");
                 }
@@ -322,8 +340,22 @@ public class Fighter : MonoBehaviour
                 }
                 else if (targetGuarding)
                 {
-                    // 뚫림: 방어는 끝나고 일반 피격 경직만 받는다.
+                    // 뚫림: 방어는 끝나고 일반 피격 경직을 받는다.
                     targetFighter.EndGuard();
+                }
+            }
+
+            // 공격 규칙: 직격이면 맞은 쪽 경직이 늘어난다. 막혔으면 위 방어 규칙이 처리했다.
+            if (damaged)
+            {
+                if (guarded)
+                {
+                    blocked = true;
+                }
+                else
+                {
+                    landed = true;
+                    targetHealth.ExtendStun(hitStunBonus);
                 }
             }
 
@@ -349,6 +381,9 @@ public class Fighter : MonoBehaviour
                 }
             }
         }
+
+        // 공격 실패(헛침): 공격한 쪽 후딜이 늘어난다.
+        if (!landed && !blocked) punish = whiffPunish;
 
         return punish;
     }
