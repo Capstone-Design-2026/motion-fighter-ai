@@ -76,8 +76,7 @@ public class GuardWidth : MonoBehaviour
     }
 
     static readonly int[] GuardMotionHashes = {
-        Animator.StringToHash("GUARD_JAB"), Animator.StringToHash("GUARD_CROSS"),
-        Animator.StringToHash("GUARD_HIGHKICK"), Animator.StringToHash("GUARD_LOWKICK") };
+        Animator.StringToHash("GUARD_JAB"), Animator.StringToHash("GUARD_CROSS") };
 
     static bool IsGuardMotion(int hash)
     {

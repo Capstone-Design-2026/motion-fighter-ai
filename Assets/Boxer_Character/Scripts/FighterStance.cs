@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// 모든 동작 위에 파이터다운 자세를 덧씌운다.
@@ -65,8 +65,8 @@ public class FighterStance : MonoBehaviour
         // 발 폭 넓히기 (몸 중심선 기준으로 각 발을 바깥쪽으로)
         Vector3 right = transform.right;
         float baseY = transform.position.y;
-        lFoot += Widen(lFoot, body, right, baseY + anim.leftFeetBottomHeight);
-        rFoot += Widen(rFoot, body, right, baseY + anim.rightFeetBottomHeight);
+        lFoot += Widen(lFoot, -1f, right, baseY + anim.leftFeetBottomHeight);
+        rFoot += Widen(rFoot, 1f, right, baseY + anim.rightFeetBottomHeight);
 
         // 발은 원래 자리에 고정 → 무릎이 굽혀지면서 자세가 낮아짐
         anim.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 1f);
@@ -79,12 +79,12 @@ public class FighterStance : MonoBehaviour
         anim.SetIKRotation(AvatarIKGoal.RightFoot, rRot);
     }
 
-    Vector3 Widen(Vector3 foot, Vector3 body, Vector3 right, float plantedY)
+    // sideSign: 왼발 -1, 오른발 +1 로 고정 (몸이 한 발 위에 실려도 방향이 뒤집혀 발이 튀지 않게)
+    Vector3 Widen(Vector3 foot, float sideSign, Vector3 right, float plantedY)
     {
         // plantedY = 발이 바닥에 붙어 있을 때의 발목 높이
         float lift = foot.y - plantedY;
         float fade = 1f - Mathf.Clamp01(lift / Mathf.Max(0.01f, footLiftFade));
-        float sideSign = Mathf.Sign(Vector3.Dot(foot - body, right));
         return right * sideSign * widenPerFoot * fade * weight;
     }
 

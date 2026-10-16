@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 #endif
 
 // 복싱 5동작 시연용: 화면 버튼 또는 키보드로 동작을 바꿔 보는 스크립트
-// 기본 자세 = Boxing_idle / J = 잽 / K = 크로스 / U = 하이킥 / I = 로우킥
+// 기본 자세 = Boxing_idle / J = 잽 / K = 크로스 / U = 하이킥 / I = 로우킥 / H = 머리 피격 / B = 복부 피격 / V = 킥 가드 / C = 킥 가드(낮게)
 [RequireComponent(typeof(Animator))]
 public class HanbokDemoControl : MonoBehaviour
 {
@@ -14,8 +14,14 @@ public class HanbokDemoControl : MonoBehaviour
     static readonly int LowKickId = Animator.StringToHash("LowKick");
     static readonly int GuardJabId = Animator.StringToHash("GuardJab");
     static readonly int GuardCrossId = Animator.StringToHash("GuardCross");
-    static readonly int GuardHighKickId = Animator.StringToHash("GuardHighKick");
-    static readonly int GuardLowKickId = Animator.StringToHash("GuardLowKick");
+    static readonly int KickGuardLowTrig = Animator.StringToHash("KickGuardLow");
+    static readonly int HitHeadId = Animator.StringToHash("HitHead");
+    static readonly int HitStomachId = Animator.StringToHash("HitStomach");
+    static readonly int HitLegId = Animator.StringToHash("HitLeg");
+    static readonly int HitJabId = Animator.StringToHash("HitJab");
+    static readonly int HighGuardV2Id = Animator.StringToHash("HighGuardV2");
+    static readonly int KickGuardTrig = Animator.StringToHash("KickGuard");
+    bool highGuardV2;
 
     Animator anim;
 
@@ -32,8 +38,13 @@ public class HanbokDemoControl : MonoBehaviour
         if (kb.iKey.wasPressedThisFrame) LowKick();
         if (kb.digit1Key.wasPressedThisFrame) GuardJab();
         if (kb.digit2Key.wasPressedThisFrame) GuardCross();
-        if (kb.digit3Key.wasPressedThisFrame) GuardHighKick();
-        if (kb.digit4Key.wasPressedThisFrame) GuardLowKick();
+        if (kb.cKey.wasPressedThisFrame) KickGuardLowMove();
+        if (kb.gKey.wasPressedThisFrame) ToggleHighGuardV2();
+        if (kb.vKey.wasPressedThisFrame) KickGuardMove();
+        if (kb.hKey.wasPressedThisFrame) HitHead();
+        if (kb.bKey.wasPressedThisFrame) HitStomach();
+        if (kb.lKey.wasPressedThisFrame) HitLeg();
+        if (kb.jKey.wasPressedThisFrame) HitJab();
 #else
         if (Input.GetKeyDown(KeyCode.J)) Jab();
         if (Input.GetKeyDown(KeyCode.K)) Cross();
@@ -41,19 +52,29 @@ public class HanbokDemoControl : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.I)) LowKick();
         if (Input.GetKeyDown(KeyCode.Alpha1)) GuardJab();
         if (Input.GetKeyDown(KeyCode.Alpha2)) GuardCross();
-        if (Input.GetKeyDown(KeyCode.Alpha3)) GuardHighKick();
-        if (Input.GetKeyDown(KeyCode.Alpha4)) GuardLowKick();
+        if (Input.GetKeyDown(KeyCode.C)) KickGuardLowMove();
+        if (Input.GetKeyDown(KeyCode.G)) ToggleHighGuardV2();
+        if (Input.GetKeyDown(KeyCode.V)) KickGuardMove();
+        if (Input.GetKeyDown(KeyCode.H)) HitHead();
+        if (Input.GetKeyDown(KeyCode.B)) HitStomach();
+        if (Input.GetKeyDown(KeyCode.L)) HitLeg();
+        if (Input.GetKeyDown(KeyCode.J)) HitJab();
 #endif
     }
 
+    public void ToggleHighGuardV2() { highGuardV2 = !highGuardV2; anim.SetBool(HighGuardV2Id, highGuardV2); }
     public void Jab() { anim.SetTrigger(JabId); }
     public void Cross() { anim.SetTrigger(CrossId); }
     public void HighKick() { anim.SetTrigger(HighKickId); }
     public void LowKick() { anim.SetTrigger(LowKickId); }
     public void GuardJab() { anim.SetTrigger(GuardJabId); }
     public void GuardCross() { anim.SetTrigger(GuardCrossId); }
-    public void GuardHighKick() { anim.SetTrigger(GuardHighKickId); }
-    public void GuardLowKick() { anim.SetTrigger(GuardLowKickId); }
+    public void KickGuardLowMove() { anim.SetTrigger(KickGuardLowTrig); }
+    public void KickGuardMove() { anim.SetTrigger(KickGuardTrig); }
+    public void HitHead() { anim.SetTrigger(HitHeadId); }
+    public void HitStomach() { anim.SetTrigger(HitStomachId); }
+    public void HitLeg() { anim.SetTrigger(HitLegId); }
+    public void HitJab() { anim.SetTrigger(HitJabId); }
 
     static readonly string[,] Names = {
         { "JAB",      "JAB (잽)" },
@@ -62,8 +83,13 @@ public class HanbokDemoControl : MonoBehaviour
         { "LOWKICK",  "LOW KICK (로우킥)" },
         { "GUARD_JAB",      "GUARD vs JAB" },
         { "GUARD_CROSS",    "GUARD vs CROSS" },
-        { "GUARD_HIGHKICK", "GUARD vs HIGH KICK" },
-        { "GUARD_LOWKICK",  "GUARD vs LOW KICK" },
+        { "KICK_GUARD_LOW", "KICK GUARD LOW (킥 가드 낮게)" },
+        { "KICK_GUARD", "KICK GUARD (킥 가드)" },
+        { "HIT_HEAD",    "HIT (머리 피격)" },
+        { "HIT_STOMACH", "HIT (복부 피격)" },
+        { "HIT_LEG", "HIT (다리 피격)" },
+        { "HIT_JAB", "HIT (잽 피격)" },
+        { "HIGHGUARD_V2", "HIGH GUARD v2 (하이가드)" },
     };
 
     string CurrentName()
@@ -88,8 +114,14 @@ public class HanbokDemoControl : MonoBehaviour
         y += gap * 2;
         if (GUI.Button(new Rect(x, y += h + gap, w, h), "GUARD JAB (1)")) GuardJab();
         if (GUI.Button(new Rect(x, y += h + gap, w, h), "GUARD CROSS (2)")) GuardCross();
-        if (GUI.Button(new Rect(x, y += h + gap, w, h), "GUARD HIGH KICK (3)")) GuardHighKick();
-        if (GUI.Button(new Rect(x, y += h + gap, w, h), "GUARD LOW KICK (4)")) GuardLowKick();
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), "KICK GUARD LOW (C)")) KickGuardLowMove();
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), "KICK GUARD (V)")) KickGuardMove();
+        y += gap * 2;
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), "HIT HEAD (H)")) HitHead();
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), "HIT STOMACH (B)")) HitStomach();
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), "HIT LEG (L)")) HitLeg();
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), "HIT JAB (J)")) HitJab();
+        if (GUI.Button(new Rect(x, y += h + gap, w, h), highGuardV2 ? "HIGH GUARD v2: ON (G)" : "HIGH GUARD v2: OFF (G)")) ToggleHighGuardV2();
         GUI.Box(new Rect(x, y + h + gap * 2, w, 40 * uiScale), "NOW: " + CurrentName());
     }
 }
