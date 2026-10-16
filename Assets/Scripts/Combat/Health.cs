@@ -71,6 +71,12 @@ public class Health : MonoBehaviour
         OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
     }
 
+    /// <summary>경직을 바로 끝낸다. 방어에 성공한 쪽이 다음 동작을 즉시 할 수 있게 할 때 쓴다.</summary>
+    public void ClearStun()
+    {
+        hitStunUntil = 0f;
+    }
+
     /// <summary>데미지 적용. 실제로 들어갔으면 true.</summary>
     /// <param name="guarded">가드에 막혔으면 true. 애니메이션과 경직시간이 달라진다.</param>
     /// <param name="ignoreInvulnerability">

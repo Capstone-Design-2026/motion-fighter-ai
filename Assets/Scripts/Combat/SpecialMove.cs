@@ -150,7 +150,12 @@ public class SpecialMove : MonoBehaviour
             AddCharge(chargeKeyAmount);
 
         if (controller != null && !controller.useKeyboard) return;
-        if (Input.GetKeyDown(activateKey)) Activate();
+        if (Input.GetKeyDown(activateKey))
+        {
+            // 방어 중에는 바로 나가지 않는다. 방어에 성공하면 그때 나간다.
+            if (fighter != null && fighter.IsGuarding) fighter.BufferAction(() => Activate());
+            else Activate();
+        }
     }
 
     /// <summary>게이지를 한 칸 채운다.</summary>
@@ -180,6 +185,7 @@ public class SpecialMove : MonoBehaviour
         if (!IsReady || IsPlaying) return false;
         if (health.IsDead || health.IsHitStunned) return false;
         if (fighter != null && fighter.InputLocked) return false;
+        if (fighter != null && (fighter.IsGuarding || fighter.IsGuardRecovering)) return false;
 
         charge = 0;
         OnChargeChanged?.Invoke(charge, hitsToCharge);

@@ -415,7 +415,10 @@ public class CombatHUD : MonoBehaviour
             AddGuideRow(i++, Key(PlayerKey.Left) + " / " + Key(PlayerKey.Right), "이동 · 뒤로는 조금 느리다");
             AddGuideRow(i++, Key(PlayerKey.Jump),   "점프");
             AddGuideRow(i++, Key(PlayerKey.Crouch), "앉기" + posture);
-            AddGuideRow(i++, Key(PlayerKey.Block),  "막기 · 누르고 있는 동안" + posture);
+            // 막기는 시전형이라 웹캠 제어 중에도 키로 쓸 수 있다. (공격 키와 같다)
+            var guardFighter = player != null ? player.GetComponent<Fighter>() : null;
+            string guardTime = guardFighter != null ? guardFighter.GuardDuration.ToString("0.#") : "1.5";
+            AddGuideRow(i++, Key(PlayerKey.Block),  "막기 · " + guardTime + "초 유지 / 막아내면 바로 다음 동작");
             AddGuideRow(i++, Key(PlayerKey.Attack), "기본 공격 · 앉아서 로우킥 / 공중 하이킥");
             if (player != null && player.GetComponent<Fighter3DView>() != null)
             {

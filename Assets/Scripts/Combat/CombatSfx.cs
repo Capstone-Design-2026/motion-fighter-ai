@@ -11,7 +11,7 @@ using UnityEngine;
 /// 씬에 이 컴포넌트가 있고 클립이 꽂혀 있을 때만 동작한다. 없으면 조용히 아무 일도 하지 않는다.
 /// (HitVfx 와 마찬가지로 에셋 참조가 필요하므로 자동 생성하지 않는다)
 ///
-/// 히트스톱이 timeScale 을 크게 낮추지만 오디오 재생 속도는 timeScale 의 영향을 받지 않으므로
+/// K.O.·필살기 슬로우가 timeScale 을 크게 낮추지만 오디오 재생 속도는 timeScale 의 영향을 받지 않으므로
 /// 타격음이 늘어지지 않는다.
 /// </summary>
 [DefaultExecutionOrder(-400)]

@@ -27,7 +27,7 @@ public class PlayerController : MonoBehaviour
     public KeyCode jumpKey      = KeyCode.W;
     public KeyCode crouchKey    = KeyCode.S;
     public KeyCode attackKey    = KeyCode.P;
-    [Tooltip("누르고 있는 동안 막기. 기본값 U.")]
+    [Tooltip("누르면 방어 시전. Fighter 의 방어 시간 동안 유지된다. 기본값 U.")]
     public KeyCode blockKey     = KeyCode.U;
     public KeyCode jabKey = KeyCode.J;
     public KeyCode straightKey = KeyCode.K;
@@ -44,7 +44,6 @@ public class PlayerController : MonoBehaviour
 
     private bool isGrounded = true;
     private bool isCrouching = false;
-    private bool isBlocking = false;
     public String currentAction = "IDLE";
 
     // UDP(웹캠 동작인식) 패킷이 한 번이라도 들어오면 true 가 된다.
@@ -81,9 +80,7 @@ public class PlayerController : MonoBehaviour
         {
             rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
             isCrouching = false;
-            isBlocking  = false;
             fighter.IsCrouching = false;
-            fighter.IsBlocking  = false;
             animator.SetBool("IsMoving", false);
             animator.SetBool("IsMovingBack", false);
             animator.SetBool("IsCrouching", false);
@@ -116,26 +113,22 @@ public class PlayerController : MonoBehaviour
 
     void HandleKeyInput()
     {
-        // ── 유지 상태: 누르고 있는 동안 true ──
+        // ── 앉기: 누르고 있는 동안 true ──
         // 외부(웹캠) 제어 중에는 ExternalAction() 이 정한 자세를 덮어쓰지 않는다.
         if (useKeyboard && !externalControl)
-        {
             isCrouching = Input.GetKey(crouchKey);
-            isBlocking  = Input.GetKey(blockKey);
-        }
 
-        animator.SetBool("IsCrouching", isCrouching);
-        animator.SetBool("IsBlocking",  isBlocking);
-
-        // 전투 시스템에 현재 자세를 알려준다 (방어 성립 판정에 사용)
+        // 전투 시스템에 현재 자세를 알려준다. 방어 중에는 Fighter 가 방어를 시전한 자세로 고정하므로
+        // 화면은 넣은 값이 아니라 Fighter 값을 따른다.
         fighter.IsCrouching = isCrouching;
-        fighter.IsBlocking  = isBlocking;
+        animator.SetBool("IsCrouching", fighter.IsCrouching);
+        animator.SetBool("IsBlocking",  fighter.IsBlocking);
 
-        // ── 이동 (막기/앉기 중에는 정지) ──
+        // ── 이동 ──
         // 이동으로 캐릭터를 회전시키지 않는다. 방향은 아래 FaceOpponent() 가 정한다.
-        // 막는 중에는 못 움직인다. 앉은 채로는 느리게 움직일 수 있다.
+        // 공격·방어·방어 실패 딜레이 중에는 못 움직인다. 앉은 채로는 느리게 움직일 수 있다.
         float moveX = 0f;
-        if (!isBlocking && !fighter.IsAttacking)
+        if (fighter.CanAct)
         {
             if (externalControl) moveX = externalMoveX;
             // A/D still work for testing when the vision detector reports neutral movement.
@@ -162,24 +155,36 @@ public class PlayerController : MonoBehaviour
 
         if (!useKeyboard) return;
 
-        // ── 점프 (막는 중엔 불가) ──
-        if (Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking && !fighter.IsAttacking)
-        {
-            DoJump();
-        }
+        // ── 동작 입력 ──
+        // 방어 중에 누른 동작은 바로 나가지 않고 기억된다. 방어에 성공하면 그 즉시 나간다. (Act 참고)
+        if (Input.GetKeyDown(blockKey))    Act(Guard);
+        if (Input.GetKeyDown(jumpKey))     Act(TryJump);
+        if (Input.GetKeyDown(jabKey))      Act(() => AttackMove(CombatMove.Jab));
+        if (Input.GetKeyDown(straightKey)) Act(() => AttackMove(CombatMove.Straight));
+        if (Input.GetKeyDown(highKickKey)) Act(() => AttackMove(CombatMove.HighKick));
+        if (Input.GetKeyDown(lowKickKey))  Act(() => AttackMove(CombatMove.LowKick));
+        if (Input.GetKeyDown(attackKey))   Act(DoAttack);
+    }
 
-        // ── 공격 (막는 중엔 불가) ──
-        if (!isBlocking)
-        {
-            if (Input.GetKeyDown(jabKey)) AttackMove(CombatMove.Jab);
-            if (Input.GetKeyDown(straightKey)) AttackMove(CombatMove.Straight);
-            if (Input.GetKeyDown(highKickKey)) AttackMove(CombatMove.HighKick);
-            if (Input.GetKeyDown(lowKickKey)) AttackMove(CombatMove.LowKick);
-        }
-        if (Input.GetKeyDown(attackKey) && !isBlocking)
-        {
-            DoAttack();
-        }
+    /// <summary>
+    /// 동작 입력 하나를 처리한다. 방어 중이면 실행하지 않고 Fighter 에 맡겨 둔다(마지막 하나만).
+    /// 맡긴 동작은 방어에 성공하면 그 순간 나가고, 방어가 실패하거나 뚫리면 버려진다.
+    /// </summary>
+    private void Act(Action action)
+    {
+        if (fighter.IsGuarding) fighter.BufferAction(action);
+        else action();
+    }
+
+    /// <summary>방어 시전. 지금 자세(서서/앉아)로 방어가 끝날 때까지 고정된다.</summary>
+    private void Guard()
+    {
+        fighter.TryGuard(isCrouching);
+    }
+
+    private void TryJump()
+    {
+        if (isGrounded && fighter.CanAct) DoJump();
     }
 
     /// <summary>
@@ -271,17 +276,8 @@ public class PlayerController : MonoBehaviour
         externalControl = false;
         externalMoveX = 0f;
         isCrouching = false;
-        isBlocking = false;
-        if (fighter != null)
-        {
-            fighter.IsCrouching = false;
-            fighter.IsBlocking = false;
-        }
-        if (animator != null)
-        {
-            animator.SetBool("IsCrouching", false);
-            animator.SetBool("IsBlocking", false);
-        }
+        if (fighter != null) fighter.IsCrouching = false;
+        if (animator != null) animator.SetBool("IsCrouching", false);
     }
 
     public void ExternalAction(string action)
@@ -290,6 +286,8 @@ public class PlayerController : MonoBehaviour
 
         currentAction = action;
 
+        // 자세(앉기·방어)는 여기서 정하고, 화면과 Fighter 반영은 매 프레임 HandleKeyInput 이 한다.
+        // 공격·점프는 방어 중이면 기억해 뒀다가 방어에 성공하면 나간다. (Act 참고)
         switch (action)
         {
             case "JAB":
@@ -299,61 +297,43 @@ public class PlayerController : MonoBehaviour
             case "HIGHKICK":
             case "LOW_KICK":
             case "LOWKICK":
-                isBlocking = false; fighter.IsBlocking = false;
-                animator.SetBool("IsBlocking", false);
-                AttackMove(action == "JAB" ? CombatMove.Jab : action.StartsWith("HIGH") ? CombatMove.HighKick : action.StartsWith("LOW") ? CombatMove.LowKick : CombatMove.Straight);
+            {
+                CombatMove move = action == "JAB" ? CombatMove.Jab
+                                : action.StartsWith("HIGH") ? CombatMove.HighKick
+                                : action.StartsWith("LOW") ? CombatMove.LowKick
+                                : CombatMove.Straight;
+                Act(() => AttackMove(move));
                 break;
+            }
 
             case "ATTACK":
-                isBlocking = false;
-                fighter.IsBlocking = false;
-                animator.SetBool("IsBlocking", false);
-                DoAttack();
+                Act(DoAttack);
                 break;
 
             case "JUMP":
-                isBlocking = false;
-                fighter.IsBlocking = false;
-                animator.SetBool("IsBlocking", false);
-                if (isGrounded) DoJump();
+                Act(TryJump);
                 break;
 
             case "CROUCH":
                 isCrouching = true;
-                isBlocking = false;
-                animator.SetBool("IsCrouching", true);
-                animator.SetBool("IsBlocking", false);
-                fighter.IsCrouching = true;
-                fighter.IsBlocking = false;
                 break;
 
+            // 인식은 방어 자세를 패킷마다 보낸다. 그래서 방어 중에 들어온 것은 기억하지 않는다.
+            // 기억해 두면 미리 입력한 공격을 덮어쓴다. 방어가 끝난 뒤 다음 패킷이 오면 그때 다시 시전된다.
             case "BLOCK":
                 isCrouching = false;
-                isBlocking = true;
-                animator.SetBool("IsCrouching", false);
-                animator.SetBool("IsBlocking", true);
-                fighter.IsCrouching = false;
-                fighter.IsBlocking = true;
+                if (!fighter.IsGuarding) Guard();
                 break;
 
             // 앉아막기. 인식 쪽에서 이 라벨을 보내면 하단 가드가 성립한다.
             case "CROUCH_BLOCK":
                 isCrouching = true;
-                isBlocking = true;
-                animator.SetBool("IsCrouching", true);
-                animator.SetBool("IsBlocking", true);
-                fighter.IsCrouching = true;
-                fighter.IsBlocking = true;
+                if (!fighter.IsGuarding) Guard();
                 break;
 
             case "IDLE":
             case "NONE":
                 isCrouching = false;
-                isBlocking = false;
-                animator.SetBool("IsCrouching", false);
-                animator.SetBool("IsBlocking", false);
-                fighter.IsCrouching = false;
-                fighter.IsBlocking = false;
                 break;
 
             default:

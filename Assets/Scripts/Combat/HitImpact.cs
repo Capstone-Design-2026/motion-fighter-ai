@@ -4,13 +4,14 @@ using UnityEngine;
 /// <summary>
 /// 타격감 연출. 공격이 실제로 대미지를 입힌 순간에만 카메라를 확대하고 시간을 늦춘다.
 ///
-/// 두 가지가 동시에 돌아간다.
-///   시간  : 모든 타격. 히트스톱(거의 정지) → 원래 속도로 부드럽게 복귀. 이 복귀 구간이 "슬로우" 로 보인다.
+/// 두 가지가 있다.
+///   시간  : 일반 타격. 히트스톱(거의 정지) → 원래 속도로 부드럽게 복귀. 이 복귀 구간이 "슬로우" 로 보인다.
+///           기본은 꺼져 있다(slowOnRegularHits). 슬로우는 마무리 일격(BattleSceneBridge 의 K.O. 슬로우모션)과
+///           필살기(SpecialMove)에만 남겨서, 그 순간이 눈에 띄게 한다.
 ///   카메라: 마무리 일격에만. 확대(orthographicSize 축소) + 타격 지점 쪽으로 살짝 밀기.
 ///
 /// 카메라 확대를 마무리 일격으로 제한한 이유:
 /// 타격마다 확대/축소가 반복되면 화면이 쉴 새 없이 출렁여서 보는 사람이 어지럽다.
-/// 기본 타격은 시간만 늦추고 화면은 가만히 두는 편이 훨씬 읽기 편하다.
 ///
 /// 시간 연출은 실제 시간(unscaled) 기준으로 재기 때문에 자기가 늦춘 시간에 자기가 갇히지 않는다.
 ///
@@ -31,6 +32,9 @@ public class HitImpact : MonoBehaviour
     [SerializeField] private bool enableImpact = true;
     [Tooltip("가드로 막힌 타격에도 (훨씬 약하게) 연출을 넣을지")]
     [SerializeField] private bool impactOnGuard = true;
+    [Tooltip("일반 타격(피격)마다 히트스톱·슬로우를 넣을지. "
+           + "꺼 두면 시간 연출은 마무리 일격(K.O. 슬로우모션)과 필살기에만 남는다.")]
+    [SerializeField] private bool slowOnRegularHits = false;
 
     [Header("대상 카메라 (비워두면 Camera.main)")]
     [SerializeField] private Camera targetCamera;
@@ -165,13 +169,13 @@ public class HitImpact : MonoBehaviour
         if (!enableImpact) return;
         if (guarded && !impactOnGuard) return;
 
-        if (allowTimeStop)
+        if (allowTimeStop && slowOnRegularHits)
         {
             if (timeRoutine != null) StopCoroutine(timeRoutine);
             timeRoutine = StartCoroutine(TimeRoutine(guarded));
         }
 
-        // 기본 타격은 여기서 끝. 화면은 건드리지 않고 시간만 늦춘다.
+        // 기본 타격은 여기서 끝. 화면은 건드리지 않는다.
         if (!finisher) return;
 
         StartZoom(hitPoint, zoomRatio, zoomInTime, zoomHoldTime, zoomOutTime);
