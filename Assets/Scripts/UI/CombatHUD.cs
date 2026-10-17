@@ -413,10 +413,15 @@ public class CombatHUD : MonoBehaviour
             string posture = external ? "   (지금은 웹캠이 결정)" : "";
 
             AddGuideRow(i++, Key(PlayerKey.Left) + " / " + Key(PlayerKey.Right), "이동 · 뒤로는 조금 느리다");
-            AddGuideRow(i++, Key(PlayerKey.Jump),   "점프");
-            AddGuideRow(i++, Key(PlayerKey.Crouch), "앉기" + posture);
-            AddGuideRow(i++, Key(PlayerKey.Block),  "막기 · 누르고 있는 동안" + posture);
-            AddGuideRow(i++, Key(PlayerKey.Attack), "기본 공격 · 앉아서 로우킥 / 공중 하이킥");
+            bool boxing = player != null && player.GetComponent<Fighter3DView>() != null;
+            if (!boxing)
+            {
+                AddGuideRow(i++, Key(PlayerKey.Jump), "점프");
+                AddGuideRow(i++, Key(PlayerKey.Crouch), "앉기" + posture);
+            }
+            AddGuideRow(i++, Key(PlayerKey.Block), "기본 방어 · 누르고 있는 동안" + posture);
+            if (boxing) AddGuideRow(i++, Key(PlayerKey.Crouch) + " + " + Key(PlayerKey.Block), "로우킥 방어" + posture);
+            AddGuideRow(i++, Key(PlayerKey.Attack), boxing ? "스트레이트" : "기본 공격 · 앉아서 로우킥 / 공중 하이킥");
             if (player != null && player.GetComponent<Fighter3DView>() != null)
             {
                 AddGuideRow(i++, player.jabKey + " / " + player.straightKey, "잽 / 스트레이트");

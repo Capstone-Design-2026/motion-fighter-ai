@@ -63,6 +63,7 @@ public class Fighter : MonoBehaviour
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
     private Fighter3DView view3D;
+    private Coroutine attackRoutine;
     public CombatMove CurrentMove { get; private set; }
 
     public int AttackDamage => attackDamage;
@@ -76,6 +77,15 @@ public class Fighter : MonoBehaviour
         Health = GetComponent<Health>();
         animator = GetComponent<Animator>();
         view3D = GetComponent<Fighter3DView>();
+    }
+
+    void OnEnable() { if (Health != null) Health.OnDamaged += InterruptAttack; }
+    void OnDisable() { if (Health != null) Health.OnDamaged -= InterruptAttack; CancelAttack(); }
+    void InterruptAttack(bool guarded) { CancelAttack(); }
+    public void CancelAttack()
+    {
+        if (attackRoutine != null) StopCoroutine(attackRoutine);
+        attackRoutine = null; IsAttacking = false;
     }
 
     /// <summary>공격 시작. 실제로 시작됐으면 true.</summary>
@@ -96,7 +106,7 @@ public class Fighter : MonoBehaviour
         if (animator != null)
             animator.SetInteger("AttackHeight", (int)height);
 
-        StartCoroutine(AttackRoutine(height));
+        attackRoutine = StartCoroutine(AttackRoutine(height));
         return true;
     }
 
@@ -114,6 +124,7 @@ public class Fighter : MonoBehaviour
         yield return new WaitForSeconds(ending);
 
         IsAttacking = false;
+        attackRoutine = null;
     }
 
     private void ResolveHit(AttackHeight height)
@@ -159,7 +170,6 @@ public class Fighter : MonoBehaviour
                 }
             }
 
-            if (guarded) targetHealth.GetComponent<Fighter3DView>()?.GuardAgainst(CurrentMove);
             bool damaged = targetHealth.TakeDamage(damage, kb, guarded);
 
             // 헛방(무적시간에 씹힘)에는 반응하지 않는다. 실제로 대미지가 들어갔을 때만 연출.

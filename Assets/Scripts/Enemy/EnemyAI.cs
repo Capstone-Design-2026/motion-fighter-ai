@@ -100,8 +100,8 @@ public class EnemyAI : MonoBehaviour
 
         FaceTarget();
 
-        bool isBlocking = Time.time < blockUntil;
-        bool isCrouching = Time.time < crouchUntil;
+        bool isBlocking = Time.time < blockUntil && !fighter.IsAttacking;
+        bool isCrouching = Time.time < crouchUntil && !fighter.IsAttacking;
 
         fighter.IsBlocking = isBlocking;
         fighter.IsCrouching = isCrouching;
@@ -124,7 +124,7 @@ public class EnemyAI : MonoBehaviour
         SetAnimatorFlags(moveX != 0f, isCrouching, isBlocking);
 
         // ── 행동 결정 ──
-        if (Time.time >= nextDecisionTime)
+        if (!fighter.IsAttacking && Time.time >= nextDecisionTime)
         {
             nextDecisionTime = Time.time + decisionInterval;
             Decide(distance);
@@ -154,6 +154,7 @@ public class EnemyAI : MonoBehaviour
         else
         {
             crouchUntil = Time.time + 0.5f;
+            if (GetComponent<Fighter3DView>() != null) blockUntil = crouchUntil;
         }
     }
 

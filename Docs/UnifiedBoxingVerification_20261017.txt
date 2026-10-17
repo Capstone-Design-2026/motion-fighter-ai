@@ -1,0 +1,180 @@
+기본 이동 및 동작 전환 검사
+PASS Stage Scout visual binds new walking system
+PASS FORWARD sampled moving contacts
+PASS FORWARD contact target error=0.00001m
+PASS FORWARD leg reach error=0.00001m
+PASS FORWARD planted-foot frame drift=0.00001m
+PASS FORWARD correct locomotion state
+PASS FORWARD settles to idle
+PASS BACKWARD sampled moving contacts
+PASS BACKWARD contact target error=0.00001m
+PASS BACKWARD leg reach error=0.00001m
+PASS BACKWARD planted-foot frame drift=0.00001m
+PASS BACKWARD correct locomotion state
+PASS BACKWARD settles to idle
+PASS SLOW_VISION sampled moving contacts
+PASS SLOW_VISION contact target error=0.00001m
+PASS SLOW_VISION leg reach error=0.00001m
+PASS SLOW_VISION planted-foot frame drift=0.00001m
+PASS SLOW_VISION correct locomotion state
+PASS SLOW_VISION settles to idle
+PASS FAST_ENEMY sampled moving contacts
+PASS FAST_ENEMY contact target error=0.00001m
+PASS FAST_ENEMY leg reach error=0.00001m
+PASS FAST_ENEMY planted-foot frame drift=0.00001m
+PASS FAST_ENEMY correct locomotion state
+PASS FAST_ENEMY settles to idle
+PASS LEFT_FACING sampled moving contacts
+PASS LEFT_FACING contact target error=0.00001m
+PASS LEFT_FACING leg reach error=0.00001m
+PASS LEFT_FACING planted-foot frame drift=0.00001m
+PASS LEFT_FACING correct locomotion state
+PASS REVERSE sampled moving contacts
+PASS REVERSE contact target error=0.00001m
+PASS REVERSE leg reach error=0.00001m
+PASS REVERSE planted-foot frame drift=0.00001m
+PASS REVERSE correct locomotion state
+PASS Wall prevents walking in place despite nonzero movement input
+PASS Jab fully releases walk IK and restores attack timing
+PASS Jab returns to idle
+PASS Straight fully releases walk IK and restores attack timing
+PASS Straight returns to idle
+PASS HighKick fully releases walk IK and restores attack timing
+PASS HighKick returns to idle
+PASS LowKick fully releases walk IK and restores attack timing
+PASS LowKick returns to idle
+PASS WALK_TO_GUARD no planted-foot interference
+PASS WALK_TO_LOW_GUARD no planted-foot interference
+PASS Hit interrupts walking
+PASS KO releases both feet
+PASS Round reset clears old anchors
+PASS No runtime errors
+
+프레임 속도·실제 입력·Pushbox·발바닥 메시 검사
+PASS Stage Scout visual binds new walking system
+PASS 30FPS_0.6 sampled moving contacts
+PASS 30FPS_0.6 contact target error=0.00001m
+PASS 30FPS_0.6 leg reach error=0.00001m
+PASS 30FPS_0.6 planted-foot frame drift=0.00001m
+PASS 30FPS_0.6 correct locomotion state
+PASS 30FPS_2.7 sampled moving contacts
+PASS 30FPS_2.7 contact target error=0.00001m
+PASS 30FPS_2.7 leg reach error=0.00001m
+PASS 30FPS_2.7 planted-foot frame drift=0.00001m
+PASS 30FPS_2.7 correct locomotion state
+PASS 30FPS_-2.16 sampled moving contacts
+PASS 30FPS_-2.16 contact target error=0.00001m
+PASS 30FPS_-2.16 leg reach error=0.00001m
+PASS 30FPS_-2.16 planted-foot frame drift=0.00001m
+PASS 30FPS_-2.16 correct locomotion state
+PASS 30FPS_3.6 sampled moving contacts
+PASS 30FPS_3.6 contact target error=0.00001m
+PASS 30FPS_3.6 leg reach error=0.00001m
+PASS 30FPS_3.6 planted-foot frame drift=0.00001m
+PASS 30FPS_3.6 correct locomotion state
+PASS 30fps stop settles
+PASS 120FPS_0.6 sampled moving contacts
+PASS 120FPS_0.6 contact target error=0.00001m
+PASS 120FPS_0.6 leg reach error=0.00001m
+PASS 120FPS_0.6 planted-foot frame drift=0.00001m
+PASS 120FPS_0.6 correct locomotion state
+PASS 120FPS_2.7 sampled moving contacts
+PASS 120FPS_2.7 contact target error=0.00001m
+PASS 120FPS_2.7 leg reach error=0.00001m
+PASS 120FPS_2.7 planted-foot frame drift=0.00001m
+PASS 120FPS_2.7 correct locomotion state
+PASS 120FPS_-2.16 sampled moving contacts
+PASS 120FPS_-2.16 contact target error=0.00001m
+PASS 120FPS_-2.16 leg reach error=0.00001m
+PASS 120FPS_-2.16 planted-foot frame drift=0.00001m
+PASS 120FPS_-2.16 correct locomotion state
+PASS 120FPS_3.6 sampled moving contacts
+PASS 120FPS_3.6 contact target error=0.00001m
+PASS 120FPS_3.6 leg reach error=0.00001m
+PASS 120FPS_3.6 planted-foot frame drift=0.00001m
+PASS 120FPS_3.6 correct locomotion state
+PASS 120fps stop settles
+PASS Actual vision movement entry and EnemyAI both drive walking
+PASS Actual player/AI supporting feet remain planted
+PASS Actual player backward multiplier routes into back walk
+PASS Vision neutral input settles both feet
+PASS Real pushboxes preserve sides
+PASS Pushing opponent does not march in place
+PASS Skinned support-foot sole penetration=-0.0002m
+PASS Skinned support-foot sole gap=0.0124m
+PASS No runtime errors during frame-rate/input/pushbox checks
+
+기존 전투 회귀 검사
+PASS GameScene ordinary avatars valid
+PASS Ordinary player/enemy share controller
+PASS Legacy model demo/IK/key handlers are inactive
+PASS Scout stage visual replacement succeeds
+PASS Scout uses the same state machine
+PASS Scout finger mapping available
+PASS Idle on both avatars
+PASS Player starts Jab
+PASS Enemy starts Jab
+PASS Jab completes and returns to common idle
+PASS Jab idle blend completes
+PASS Player starts Straight
+PASS Enemy starts Straight
+PASS Straight completes and returns to common idle
+PASS Straight idle blend completes
+PASS Player starts HighKick
+PASS Enemy starts HighKick
+PASS HighKick completes and returns to common idle
+PASS HighKick idle blend completes
+PASS Player starts LowKick
+PASS Enemy starts LowKick
+PASS LowKick completes and returns to common idle
+PASS LowKick idle blend completes
+PASS GUARD remains held beyond source clip end
+PASS GUARD holds without freezing transitions
+PASS Guard chip damage/reaction
+PASS Guard chip damage/reaction
+PASS GUARD reacts to hit
+PASS GUARD returns to held guard
+PASS GUARD releases to idle
+PASS GUARD_LOWKICK remains held beyond source clip end
+PASS GUARD_LOWKICK holds without freezing transitions
+PASS Guard chip damage/reaction
+PASS Guard chip damage/reaction
+PASS GUARD_LOWKICK reacts to hit
+PASS GUARD_LOWKICK returns to held guard
+PASS GUARD_LOWKICK releases to idle
+PASS Slower hurt is not cut at the old 0.3s stun
+PASS Hurt recovers to idle
+PASS WALK_FORWARD loops on both avatars; no run state
+PASS WALK_FORWARD stops smoothly
+PASS WALK_BACK loops on both avatars; no run state
+PASS WALK_BACK stops smoothly
+PASS KO holds fallen pose
+PASS KO bodies settle on ground
+PASS Round reset restores idle instead of replaying KO
+PASS Live hit starts Jab
+PASS Jab hits through real overlap box
+PASS Jab damage matches contact time: 0.217
+PASS Live hit starts Straight
+PASS Straight hits through real overlap box
+PASS Straight damage matches contact time: 0.417
+PASS Live hit starts HighKick
+PASS HighKick hits through real overlap box
+PASS HighKick damage matches contact time: 0.483
+PASS Live hit starts LowKick
+PASS LowKick hits through real overlap box
+PASS LowKick damage matches contact time: 0.433
+PASS Scout starts live Jab
+PASS Scout deals damage with Jab
+PASS Scout starts live Straight
+PASS Scout deals damage with Straight
+PASS Scout starts live HighKick
+PASS Scout deals damage with HighKick
+PASS Scout starts live LowKick
+PASS Scout deals damage with LowKick
+PASS Basic guard reduces punch damage
+PASS Low guard reduces actual low-kick damage
+PASS Interrupted attack cannot deal a delayed hit
+PASS Removed jump/crouch inputs are ignored in 3D
+PASS Existing vision low-guard label remains compatible
+PASS Vision jab routes into shared combat
+PASS No runtime exceptions or missing animation states

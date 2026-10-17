@@ -80,7 +80,10 @@ public class Health : MonoBehaviour
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
         invulnerableUntil = Time.time + invulnerableTime;
-        hitStunUntil = Time.time + (guarded ? guardStunTime : hitStunTime);
+        float stun = guarded ? guardStunTime : hitStunTime;
+        if (GetComponent<Fighter3DView>() != null)
+            stun = Mathf.Max(stun, guarded ? Fighter3DView.GuardReactionDuration : Fighter3DView.HurtDuration);
+        hitStunUntil = Time.time + stun;
 
         OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
         OnDamaged?.Invoke(guarded);
@@ -164,6 +167,8 @@ public class Health : MonoBehaviour
     {
         if (flashRoutine != null) { StopCoroutine(flashRoutine); flashRoutine = null; }
 
+        GetComponent<Fighter>()?.CancelAttack();
+        GetComponent<Fighter3DView>()?.ResetPresentation();
         CurrentHealth = maxHealth;
         invulnerableUntil = 0f;
         hitStunUntil = 0f;

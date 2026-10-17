@@ -1,6 +1,6 @@
-﻿using UnityEngine;
+using UnityEngine;
 
-/// <summary>Humanoid presentation on the existing single-plane combat simulation.</summary>
+/// <summary>One boxing vocabulary for every Humanoid on the 2D combat plane.</summary>
 [DefaultExecutionOrder(100)]
 public sealed class Fighter3DView : MonoBehaviour
 {
@@ -9,202 +9,149 @@ public sealed class Fighter3DView : MonoBehaviour
     public Color fighterTint = Color.white;
     public AnimationClip[] strikeClips;
     public AnimationClip[] guardClips;
+    public const float HurtDuration = .70f;
+    public const float GuardReactionDuration = .225f;
+    const float GuardEntry = .27f, GuardRelease = .252f;
+    static readonly string[] Attacks = { "JAB", "CROSS", "HIGHKICK", "LOWKICK" };
     Fighter fighter;
     Health health;
-    Rigidbody2D body;
-    Animator flags;
     Renderer[] renderers;
     MaterialPropertyBlock properties;
-    string currentState;
-    bool scoutReactions;
-    bool holdingScoutGuard;
-    bool scoutWasAirborne;
-    float scoutRiseSpeed;
-    float scoutLandUntil;
-    const float ScoutTakeoffPhase = 5f / 34f;
-    const float ScoutLandingPhase = 22f / 34f;
-    float flashUntil;
-    bool guardFlash;
     Vector3 origin;
-    float guardHitUntil;
-    string guardState = "GUARD_JAB";
+    string currentState;
+    float stateStarted, reactionUntil, flashUntil;
+    bool guardFlash;
+    GroundedBoxingWalk walk;
+    public GroundedBoxingWalk Walk => walk;
     public string CurrentState => currentState;
 
-    /// <summary>Replace presentation only; the actor's AI, health and hitboxes stay in place.</summary>
+    void CacheVisual()
+    {
+        renderers = visualRoot.GetComponentsInChildren<Renderer>();
+        properties = new MaterialPropertyBlock();
+        origin = visualRoot.localPosition;
+        modelAnimator.applyRootMotion = false;
+        modelAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        walk = new GroundedBoxingWalk(visualRoot, modelAnimator);
+    }
+    void Awake()
+    {
+        fighter = GetComponent<Fighter>(); health = GetComponent<Health>();
+        if (visualRoot != null && modelAnimator != null) CacheVisual();
+    }
+    void OnEnable() { if (health != null) health.OnDamaged += OnDamaged; }
+    void OnDisable() { if (health != null) health.OnDamaged -= OnDamaged; }
+
+    // BattleSceneBridge may replace the visual before this component's Awake.
     public bool ApplyVisual(GameObject prefab)
     {
         if (prefab == null) return false;
-        var templateAnimator = prefab.GetComponentInChildren<Animator>(true);
-        if (!prefab.activeSelf || templateAnimator == null || templateAnimator.avatar == null
-            || !templateAnimator.avatar.isValid || !templateAnimator.avatar.isHuman)
+        var template = prefab.GetComponentInChildren<Animator>(true);
+        if (!prefab.activeSelf || template == null || template.avatar == null
+            || !template.avatar.isValid || !template.avatar.isHuman)
         {
-            Debug.LogError("[Fighter3DView] A valid humanoid visual prefab is required: " + prefab.name);
+            Debug.LogError("[Fighter3DView] Valid Humanoid required: " + prefab.name);
             return false;
         }
         var oldRoot = visualRoot;
-        var controller = modelAnimator != null ? modelAnimator.runtimeAnimatorController : null;
+        var fallback = modelAnimator != null ? modelAnimator.runtimeAnimatorController : null;
         var replacement = Instantiate(prefab, transform, false);
         replacement.name = prefab.name;
         visualRoot = replacement.transform;
         visualRoot.localPosition = oldRoot != null ? oldRoot.localPosition : Vector3.zero;
         visualRoot.localRotation = oldRoot != null ? oldRoot.localRotation : Quaternion.identity;
         modelAnimator = replacement.GetComponentInChildren<Animator>(true);
-        if (modelAnimator.runtimeAnimatorController == null) modelAnimator.runtimeAnimatorController = controller;
-        modelAnimator.applyRootMotion = false;
-        modelAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-        renderers = replacement.GetComponentsInChildren<Renderer>();
-        properties = new MaterialPropertyBlock();
-        origin = visualRoot.localPosition;
-        currentState = null;
-        CacheReactionStyle();
-        modelAnimator.Play("IDLE", 0, 0f);
-        modelAnimator.Update(0f);
+        if (modelAnimator.runtimeAnimatorController == null) modelAnimator.runtimeAnimatorController = fallback;
+        CacheVisual();
+        ResetPresentation();
         if (oldRoot != null) { oldRoot.gameObject.SetActive(false); Destroy(oldRoot.gameObject); }
         return true;
     }
-
-    void Awake()
-    {
-        fighter = GetComponent<Fighter>(); health = GetComponent<Health>();
-        body = GetComponent<Rigidbody2D>(); flags = GetComponent<Animator>();
-        renderers = visualRoot.GetComponentsInChildren<Renderer>();
-        properties = new MaterialPropertyBlock(); origin = visualRoot.localPosition;
-        modelAnimator.applyRootMotion = false;
-        CacheReactionStyle();
-    }
-    void OnEnable() { health.OnDamaged += OnDamaged; }
-    void OnDisable() { health.OnDamaged -= OnDamaged; }
-
     public static float Duration(CombatMove move)
     {
-        switch(move) { case CombatMove.Jab: return .5f; case CombatMove.HighKick: return .8f;
-            case CombatMove.LowKick: return .72f; default: return .62f; }
+        switch (move) { case CombatMove.Jab: return .60f; case CombatMove.HighKick: return 1.24f;
+            case CombatMove.LowKick: return 1.14f; default: return .96f; }
     }
     public static float Impact(CombatMove move)
     {
-        return Duration(move) * (move == CombatMove.Jab ? .27f : move == CombatMove.HighKick ? .31f : move == CombatMove.LowKick ? .33f : .32f);
+        switch (move) { case CombatMove.Jab: return .20f; case CombatMove.HighKick: return .48f;
+            case CombatMove.LowKick: return .42f; default: return .40f; }
     }
     public void BeginAttack(CombatMove move)
     {
-        string[] names = { "JAB", "CROSS", "HIGHKICK", "LOWKICK" };
-        var clip = strikeClips[(int)move];
-        if (modelAnimator.runtimeAnimatorController is AnimatorOverrideController overrides)
-            clip = overrides[clip] ?? clip;
-        float speed = clip.length / Duration(move);
-        Play(names[(int)move], speed, true);
+        reactionUntil = 0f;
+        Play(Attacks[(int)move], true);
     }
-    public void GuardAgainst(CombatMove move)
-    {
-        string[] names = { "GUARD_JAB", "GUARD_CROSS", "GUARD_HIGHKICK", "GUARD_LOWKICK" };
-        guardState = names[(int)move]; guardHitUntil = Time.time + .2f;
-    }
-    // Only the Scout override opts into these short authored reaction clips.
-    void CacheReactionStyle()
-    {
-        scoutReactions = false; holdingScoutGuard = false; scoutWasAirborne = false; scoutLandUntil = 0f;
-        if (!(modelAnimator.runtimeAnimatorController is AnimatorOverrideController)) return;
-        foreach (var clip in modelAnimator.runtimeAnimatorController.animationClips)
-            if (clip.name == "BoxingV3_GUARD_JAB") { scoutReactions = true; break; }
-    }
-    void HoldScoutGuard(string state)
-    {
-        if (currentState != state || !holdingScoutGuard)
-        {
-            // Start at the recovered pose and let the non-looping clip hold its end.
-            // Keeping animator speed nonzero allows the transition to finish.
-            Play(state, 1f, true, .19f);
-            holdingScoutGuard = true;
-        }
-    }
+    // The defender's selected posture determines the guard; there are only two guards.
+    public void GuardAgainst(CombatMove move) { }
     void OnDamaged(bool guarded)
     {
         flashUntil = Time.time + .12f; guardFlash = guarded;
-        if (scoutReactions && guarded) guardHitUntil = Time.time + .2f;
-        if (!health.IsDead) Play(guarded ? guardState : "HURT", 1f, true);
+        if (health.IsDead) { reactionUntil = 0f; Play("KO", true); return; }
+        reactionUntil = Time.time + (guarded ? GuardReactionDuration : HurtDuration);
+        string pose = fighter.IsCrouching ? "GUARD_LOWKICK" : "GUARD";
+        Play(guarded ? pose + "_HIT" : "HURT", true, guarded ? .351f : 0f);
     }
-    void Play(string state, float speed = 1f, bool restart = false, float offsetSeconds = 0f)
+    public void ResetPresentation()
+    {
+        reactionUntil = flashUntil = 0f; guardFlash = false; currentState = "IDLE";
+        stateStarted = Time.time;
+        walk?.Reset();
+        if (modelAnimator == null) return;
+        modelAnimator.speed = 1f;
+        modelAnimator.Play("IDLE", 0, 0f);
+        modelAnimator.Update(0f);
+    }
+    void Play(string state, bool restart = false, float offsetSeconds = 0f)
     {
         if (!restart && state == currentState) return;
-        currentState = state; modelAnimator.speed = speed; holdingScoutGuard = false;
-        bool impactReaction = scoutReactions && restart && offsetSeconds == 0f && speed > 0f
-            && (state == "HURT" || state.StartsWith("GUARD_"));
-        bool locomotion = scoutReactions && (state == "IDLE" || state == "RUN" || state.StartsWith("WALK_"));
-        float blendSeconds = state == "KO" ? .12f : impactReaction ? .025f : locomotion ? .12f : .06f;
-        modelAnimator.CrossFadeInFixedTime(state, blendSeconds, 0, offsetSeconds);
+        float blend = state == "HURT" || state.EndsWith("_HIT") ? .035f
+            : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .10f : .06f;
+        currentState = state; stateStarted = Time.time;
+        // Never freeze the animator: held guards have dedicated looping pose clips,
+        // so fades can finish and a subsequent action cannot stick in a T-pose.
+        modelAnimator.speed = 1f;
+        modelAnimator.CrossFadeInFixedTime(state, blend, 0, offsetSeconds);
     }
-    // Phase follows physics, so the avatar never lands while its collider is still airborne.
-    // The capture's ballistic translation is removed from the clip to avoid double jumping.
-    void SampleScoutJump(float phase)
+    void Guard(bool low)
     {
-        currentState = "JUMP"; holdingScoutGuard = false;
-        modelAnimator.speed = 0f;
-        modelAnimator.Play("JUMP", 0, Mathf.Clamp01(phase));
-        modelAnimator.Update(0f);
+        string pose = low ? "GUARD_LOWKICK" : "GUARD";
+        if (currentState == pose + "_HOLD") return;
+        if (currentState == pose)
+        {
+            if (Time.time - stateStarted >= GuardEntry) Play(pose + "_HOLD");
+        }
+        else if (currentState == pose + "_HIT") Play(pose + "_HOLD");
+        else Play(pose);
     }
     void LateUpdate()
     {
-        // Rotate the presentation only. Rigidbody2D and hit boxes stay on the combat plane.
+        if (modelAnimator == null || visualRoot == null) return;
         visualRoot.localRotation = Quaternion.Euler(0, fighter.Facing * 90f, 0);
         visualRoot.localPosition = origin;
-        bool grounded = flags.GetBool("IsGrounded");
-        bool capturedMovement = scoutReactions && modelAnimator.HasState(0, Animator.StringToHash("RUN"));
-        if (capturedMovement)
-        {
-            if (!grounded)
-            {
-                if (!scoutWasAirborne) scoutRiseSpeed = Mathf.Max(.1f, body.linearVelocity.y);
-                scoutRiseSpeed = Mathf.Max(scoutRiseSpeed, body.linearVelocity.y);
-                scoutLandUntil = 0f;
-            }
-            else if (scoutWasAirborne && currentState == "JUMP") scoutLandUntil = Time.time + .20f;
-            scoutWasAirborne = !grounded;
-            if (health.IsDead || health.IsHitStunned || fighter.IsAttacking || fighter.IsBlocking)
-                scoutLandUntil = 0f;
-        }
+        walk?.Measure(Time.deltaTime, fighter.Facing);
         if (health.IsDead) Play("KO");
-        else if (health.IsHitStunned) { if (!guardFlash) Play("HURT"); }
-        else if (scoutReactions && guardFlash && Time.time < guardHitUntil)
-        {
-            // Finish the brief block recoil before returning to the held guard.
-        }
+        else if (Time.time < reactionUntil || health.IsHitStunned) { }
         else if (!fighter.IsAttacking)
         {
-            if (fighter.IsBlocking)
+            if (fighter.IsBlocking && !fighter.InputLocked) Guard(fighter.IsCrouching);
+            else if (currentState != null && currentState.StartsWith("GUARD"))
             {
-                string pose = Time.time < guardHitUntil ? guardState : fighter.IsCrouching ? "GUARD_LOWKICK" : "GUARD_JAB";
-                if (scoutReactions) HoldScoutGuard(pose);
-                else Play(pose);
-                // Keep the guard pose held rather than allowing the source clip to return to idle.
-                if (!scoutReactions && modelAnimator.GetCurrentAnimatorStateInfo(0).normalizedTime > .32f)
-                    modelAnimator.speed = 0f;
+                if (!currentState.EndsWith("_RELEASE"))
+                    Play(currentState.StartsWith("GUARD_LOWKICK") ? "GUARD_LOWKICK_RELEASE" : "GUARD_RELEASE", false, .648f);
+                else if (Time.time - stateStarted >= GuardRelease) Play("IDLE");
             }
-            else if (!grounded)
-            {
-                if (capturedMovement)
-                    SampleScoutJump(Mathf.Lerp(ScoutTakeoffPhase, ScoutLandingPhase,
-                        Mathf.InverseLerp(scoutRiseSpeed, -scoutRiseSpeed, body.linearVelocity.y)));
-                else Play("JUMP");
-            }
-            else if (capturedMovement && Time.time < scoutLandUntil)
-                SampleScoutJump(Mathf.Lerp(ScoutLandingPhase, 1f, 1f - (scoutLandUntil - Time.time) / .20f));
-            else if (fighter.IsCrouching) Play("CROUCH");
-            else if (Mathf.Abs(body.linearVelocity.x) > .12f)
-            {
-                float moveSpeed = Mathf.Abs(body.linearVelocity.x);
-                bool backwards = body.linearVelocity.x * fighter.Facing < 0;
-                // Only the Scout's private controller has RUN. Other fighters keep their presentation.
-                string state = backwards ? "WALK_BACK" : "WALK_FORWARD";
-                if (capturedMovement && !backwards && moveSpeed > (currentState == "RUN" ? 1.1f : 1.35f)) state = "RUN";
-                Play(state);
-                if (capturedMovement)
-                    modelAnimator.speed = Mathf.Clamp(moveSpeed / (state == "RUN" ? 1.65f : backwards ? .65f : .62f), .65f, 2.2f);
-            }
+            else if (!fighter.InputLocked && walk != null && walk.IsMoving)
+                Play(walk.Direction * fighter.Facing < 0 ? "WALK_BACK" : "WALK_FORWARD");
             else Play("IDLE");
         }
+        bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
+        modelAnimator.speed = walkingState ? Mathf.Clamp((currentState == "WALK_BACK" ? 1.30f : 1.20f) * walk.Speed / Mathf.Max(.1f, 2 * walk.StepLength), .7f, 3.5f) : 1f;
+        walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;
-        else if (Time.time < flashUntil) tint = guardFlash ? new Color(.5f,.8f,1f) : new Color(1f,.45f,.4f);
+        else if (Time.time < flashUntil) tint = guardFlash ? new Color(.5f, .8f, 1f) : new Color(1f, .45f, .4f);
         properties.SetColor("_BaseColor", tint); properties.SetColor("_Color", tint);
-        foreach (var renderer in renderers) renderer.SetPropertyBlock(properties);
+        foreach (var renderer in renderers) if (renderer != null) renderer.SetPropertyBlock(properties);
     }
 }

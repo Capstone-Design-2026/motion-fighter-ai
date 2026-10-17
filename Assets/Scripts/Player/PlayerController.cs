@@ -10,6 +10,7 @@ public class PlayerController : MonoBehaviour
     private SpriteRenderer spriterenderer;
     private Health health;
     private Fighter fighter;
+    private bool unifiedBoxing;
 
     [Header("이동")]
     public float moveSpeed = 5f;
@@ -62,6 +63,7 @@ public class PlayerController : MonoBehaviour
         spriterenderer = GetComponent<SpriteRenderer>();
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
+        unifiedBoxing = GetComponent<Fighter3DView>() != null;
 
         // 상대를 지정하지 않았으면 씬에서 찾는다. (EnemyAI 가 플레이어를 찾는 것과 대칭)
         if (opponent == null)
@@ -120,8 +122,8 @@ public class PlayerController : MonoBehaviour
         // 외부(웹캠) 제어 중에는 ExternalAction() 이 정한 자세를 덮어쓰지 않는다.
         if (useKeyboard && !externalControl)
         {
-            isCrouching = Input.GetKey(crouchKey);
-            isBlocking  = Input.GetKey(blockKey);
+            isBlocking = Input.GetKey(blockKey) && !fighter.IsAttacking;
+            isCrouching = Input.GetKey(crouchKey) && (!unifiedBoxing || isBlocking);
         }
 
         animator.SetBool("IsCrouching", isCrouching);
@@ -163,7 +165,7 @@ public class PlayerController : MonoBehaviour
         if (!useKeyboard) return;
 
         // ── 점프 (막는 중엔 불가) ──
-        if (Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking && !fighter.IsAttacking)
+        if (!unifiedBoxing && Input.GetKeyDown(jumpKey) && isGrounded && !isBlocking && !fighter.IsAttacking)
         {
             DoJump();
         }
@@ -220,6 +222,7 @@ public class PlayerController : MonoBehaviour
 
     void DoAttack()
     {
+        if (unifiedBoxing) { AttackMove(CombatMove.Straight); return; }
         // 상황에 따라 공격 높이가 달라진다.
         //   공중 = High(오버헤드) / 앉기 = Low / 그 외 = Mid
         AttackHeight height = !isGrounded ? AttackHeight.High
@@ -288,6 +291,10 @@ public class PlayerController : MonoBehaviour
     {
         if (health.IsDead || health.IsHitStunned || fighter.InputLocked) return;
 
+        // Removed 3D actions cannot leave the fighter airborne or in an unmapped pose.
+        if (unifiedBoxing && (action == "JUMP" || action == "CROUCH")) return;
+        if (fighter.IsAttacking && (action == "BLOCK" || action == "CROUCH_BLOCK"
+            || action == "LOW_BLOCK" || action == "GUARD_LOWKICK")) return;
         currentAction = action;
 
         switch (action)
@@ -337,6 +344,8 @@ public class PlayerController : MonoBehaviour
                 break;
 
             // 앉아막기. 인식 쪽에서 이 라벨을 보내면 하단 가드가 성립한다.
+            case "LOW_BLOCK":
+            case "GUARD_LOWKICK":
             case "CROUCH_BLOCK":
                 isCrouching = true;
                 isBlocking = true;
