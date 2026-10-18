@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import platform
 import queue
 import threading
 from pathlib import Path
@@ -12,7 +13,7 @@ import time
 from statistics import median
 
 from config import POSE_MODEL_PATH
-from pose_capture import open_camera, create_pose_landmarker
+from pose_capture import CAMERA_BACKENDS, open_camera, create_pose_landmarker, require_pose_model
 from session_recording import DEFAULT_SESSION_ROOT, SessionRecorder
 
 
@@ -182,27 +183,39 @@ class PilotVideo:
         for name in CODECS if codec == "auto" else (codec,):
             fourcc, suffix = CODECS[name]
             path = recorder.directory / ("video" + suffix)
-            writer = None
-            try:
-                writer = cv.VideoWriter(str(path), cv.VideoWriter_fourcc(*fourcc), fps, self.size)
-                if writer.isOpened():
-                    self.writer, self.path = writer, path
-                    break
-            except Exception as exc:
-                attempted.append(f"{name}: {exc}")
-            else:
-                attempted.append(name)
-            finally:
-                if writer is not None and self.writer is not writer:
-                    writer.release()
+            # Windows camera APIs are independent of the file encoder. Prefer
+            # FFmpeg explicitly there; retain the existing macOS writer call.
+            apis = [("default", None)]
+            if platform.system() == "Windows" and hasattr(cv, "CAP_FFMPEG"):
+                apis.insert(0, ("FFMPEG", cv.CAP_FFMPEG))
+            for api_name, api in apis:
+                writer = None
+                try:
+                    args = (str(path), cv.VideoWriter_fourcc(*fourcc), fps, self.size)
+                    writer = cv.VideoWriter(*args) if api is None else cv.VideoWriter(args[0], api, *args[1:])
+                    if writer.isOpened():
+                        self.writer, self.path = writer, path
+                        selected_api = api_name
+                        break
+                    attempted.append(f"{name}/{api_name}: not opened")
+                except Exception as exc:
+                    attempted.append(f"{name}/{api_name}: {exc}")
+                finally:
+                    if writer is not None and self.writer is not writer:
+                        writer.release()
+            if self.writer is not None:
+                break
         if self.writer is None:
             raise RuntimeError(
                 f"No lossless VideoWriter opened ({', '.join(attempted)}). "
                 "Select --codec ffv1, hfyu or png and/or --width/--height. "
                 "RGB recording is required for the pilot; landmark-only fallback is disabled."
+                " On Windows install requirements-pilot-windows.txt in a clean Python 3.11 "
+                "environment (GUI OpenCV with FFmpeg); see docs/gesture-pilot-windows.md."
             )
         self.metadata = {"enabled": True, "path": self.path.name, "codec": name,
                          "fps": fps, "resolution": list(size), "mirror": False,
+                         "writer_api_requested": selected_api, "writer_open_failures": attempted,
                          "requested_fps": override_fps, "measured_effective_capture_fps": measured_fps,
                          "writer_fps": fps, "container_fps": None,
                          "fps_decision_method": "explicit_override" if override_fps is not None else "warmup_median_capture_interval",
@@ -422,6 +435,7 @@ def run_collector(opts, *, cv, pose_factory, image_factory, camera_factory=None,
                           "countdown_seconds": opts.countdown, "duration_seconds": opts.duration,
                           "source_mirrored": False, "code_dirty": code_dirty,
                           "codec_requested": opts.codec, "video_fps_requested": opts.video_fps,
+                          "camera_backend_requested": opts.camera_backend,
                           "video_queue_size": opts.video_queue_size, "show_skeleton": opts.show_skeleton},
     )
     trial = TrialController(recorder, schedule, opts.countdown, opts.duration)
@@ -437,7 +451,7 @@ def run_collector(opts, *, cv, pose_factory, image_factory, camera_factory=None,
     print(f"Session: {recorder.directory}\n{KEY_HELP}")
     print("Anatomical LEFT/RIGHT. Seated, shoulders and hands visible. No action classifier.")
     try:
-        cap = (camera_factory or (lambda index: open_camera(cv, index)))(opts.camera)
+        cap = (camera_factory or (lambda index: open_camera(cv, index, opts.camera_backend)))(opts.camera)
         cap.set(cv.CAP_PROP_FRAME_WIDTH, opts.width)
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, opts.height)
         # Backend may ignore this hint; the video FIFO is separate from capture.
@@ -469,7 +483,9 @@ def run_collector(opts, *, cv, pose_factory, image_factory, camera_factory=None,
                     reason = "user_quit"
                     break
                 if failures >= 5:
-                    raise RuntimeError("Five consecutive capture failures; check camera permission/device")
+                    raise RuntimeError("Five consecutive capture failures; check camera permission/device. "
+                                       "On Windows retry with --camera-backend msmf or dshow; "
+                                       "see docs/gesture-pilot-windows.md")
                 continue
             failures = 0
             interval = None if last_ns is None else (capture_ns - last_ns) / 1e9
@@ -583,6 +599,8 @@ def parse_args(argv=None):
     parser.add_argument("--subject", required=True)
     parser.add_argument("--take", default="T01")
     parser.add_argument("--camera", type=int, default=0)
+    parser.add_argument("--camera-backend", choices=["auto", "any", *CAMERA_BACKENDS], default="auto",
+                        help="Windows auto: DSHOW, MSMF, default; macOS auto preserves default backend")
     parser.add_argument("--repetitions", type=int, default=5)
     parser.add_argument("--countdown", type=float, default=3.0)
     parser.add_argument("--duration", type=float, default=3.0)
@@ -617,8 +635,7 @@ def parse_args(argv=None):
 
 def main(argv=None):
     opts = parse_args(argv)
-    if not POSE_MODEL_PATH.is_file():
-        raise FileNotFoundError(f"Restore existing Lite model: {POSE_MODEL_PATH}")
+    require_pose_model(POSE_MODEL_PATH)
     import cv2
     import mediapipe as mp
     from mediapipe.tasks import python

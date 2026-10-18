@@ -1,0 +1,6 @@
+# Collector only, Windows 10/11 x86-64, CPython 3.11.
+# Keep the existing macOS/training environment and requirements.txt unchanged.
+# One GUI-enabled cv2 distribution only; no opencv-python/headless alongside it.
+mediapipe==0.10.35
+opencv-contrib-python==4.13.0.92
+numpy==2.4.6

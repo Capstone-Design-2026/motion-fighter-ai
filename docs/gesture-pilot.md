@@ -1,5 +1,7 @@
 # REDBOOL Vision V2 Gesture Pilot — pilot-v1
 
+Windows 10/11 참가자 P02~P05는 [Windows 설치·수집·ZIP 전달 안내](gesture-pilot-windows.md)를 따른다.
+
 ## 목적과 조건
 
 노트북 내장 카메라 앞에 **앉은 자세**, 상반신과 양쪽 어깨·손이 보이는 환경에서
@@ -48,6 +50,8 @@ BLOCK/MOVE는 유지 상태 수집이며, 실제 분류/이동 판정으로 labe
 ```
 
 - `--show-skeleton`: 선택할 때만 preview skeleton 표시. 기본 smoke test는 OFF.
+- `--camera-backend auto|any|dshow|msmf|avfoundation`: Windows auto는 DSHOW → MSMF → default;
+  macOS auto는 기존 default(보통 AVFOUNDATION)를 유지한다. 명시 backend는 해당 OS에서만 사용한다.
 - `--video-queue-size 8`: 대기 영상 프레임 상한(기본 8), 실행 중인 1프레임은 별도.
 - `--mirror-preview` / `--no-mirror-preview`: 화면만 변경.
 - `--video` / `--no-video`: 기본 enabled. disabled는 개발 진단용이며 RGB A/B 자료가 아니다.
