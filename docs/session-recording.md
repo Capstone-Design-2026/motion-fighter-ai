@@ -7,6 +7,16 @@ No extra dependencies. This records observations, not camera images; changing Po
 Lite/Full later requires original images/video or a fresh capture. Stored landmarks
 alone cannot rerun a different pose model.
 
+The separate [Gesture Pilot Collector](gesture-pilot.md) now supplies optional
+lossless source video and a `video_frames.jsonl` mapping. The core recorder still
+does not encode images. `enable_video_mapping()` registers that extra log with the
+same flush/fsync policy; `record_video_frame()` maps selected successful captures
+in increasing order, with gaps allowed for omitted READY frames. Video indices
+remain contiguous; optional trial_id/trial_state/label identify recorded segments.
+`update_manifest()` persists discovered camera backend/resolution and video status.
+`finalize(metadata=...)` adds collector metadata to the summary without replacing
+the recorder's counts or completion status. These are additive schema v1 fields.
+
 ## Files
 
 ```text

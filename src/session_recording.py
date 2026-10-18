@@ -130,6 +130,9 @@ class SessionRecorder:
         self._unsynced_records = 0
         self._dirty_logs = set()
         self._capture_attempt_id = 0
+        self._video_frame_count = 0
+        self._last_video_frame_id = 0
+        self._log_names = ["frames.jsonl", "annotations.jsonl", "diagnostics.jsonl"]
         session_id = session_id or uuid.uuid4().hex
         if not isinstance(session_id, str) or session_id in (".", "..") or any(
             char in session_id for char in ("/", "\\")
@@ -173,7 +176,7 @@ class SessionRecorder:
         self.manifest = sanitize(manifest)
         self.directory.mkdir(parents=True, exist_ok=False)
         _write_json(self.directory / "manifest.json", self.manifest)
-        for name in ("frames.jsonl", "annotations.jsonl", "diagnostics.jsonl"):
+        for name in self._log_names:
             (self.directory / name).touch(exist_ok=False)
         self._save_summary("incomplete")
 
@@ -182,7 +185,7 @@ class SessionRecorder:
             raise RuntimeError("Session has already been finalized")
 
     def _sync_logs(self, *, all_logs=False):
-        names = ("frames.jsonl", "annotations.jsonl", "diagnostics.jsonl") if all_logs else sorted(self._dirty_logs)
+        names = self._log_names if all_logs else sorted(self._dirty_logs)
         for name in names:
             with (self.directory / name).open("a", encoding="utf-8") as stream:
                 stream.flush()
@@ -196,6 +199,50 @@ class SessionRecorder:
         self._unsynced_records += 1
         if self._fsync_every_n_records is not None and self._unsynced_records >= self._fsync_every_n_records:
             self._sync_logs()
+
+    def update_manifest(self, **metadata):
+        """Persist runtime-discovered camera/video metadata without changing IDs."""
+        self._ensure_open()
+        allowed = {"camera_backend", "actual_resolution", "video"}
+        if metadata.keys() - allowed:
+            raise ValueError("Only camera backend, actual resolution and video can be updated")
+        updated = sanitize({**self.manifest, **metadata})
+        _write_json(self.directory / "manifest.json", updated)
+        self.manifest = updated
+
+    def enable_video_mapping(self):
+        self._ensure_open()
+        name = "video_frames.jsonl"
+        if name not in self._log_names:
+            (self.directory / name).touch(exist_ok=False)
+            self._log_names.append(name)
+
+    def record_video_frame(self, frame_record, *, source_rgb_sha256,
+                           trial_id=None, trial_state=None, label=None):
+        """Map selected successful captures in order; observation gaps are allowed."""
+        self._ensure_open()
+        if "video_frames.jsonl" not in self._log_names:
+            raise RuntimeError("Video mapping is not enabled")
+        if (not 1 <= frame_record["frame_id"] <= self._counts["captured_frame_count"]
+                or frame_record["frame_id"] <= self._last_video_frame_id
+                or not frame_record["frame_id"] <= frame_record["capture_attempt_id"] <= self._capture_attempt_id
+                or frame_record["capture_return_monotonic_ns"] > self._last_capture_ns):
+            raise ValueError("Video mapping must reference a captured frame in increasing order")
+        row = dict(schema_version=SCHEMA_VERSION, video_frame_index=self._video_frame_count,
+                   frame_id=frame_record["frame_id"], capture_attempt_id=frame_record["capture_attempt_id"],
+                   capture_return_monotonic_ns=frame_record["capture_return_monotonic_ns"],
+                   source_rgb_sha256=source_rgb_sha256,
+                   trial_id=trial_id, trial_state=trial_state, label=label)
+        # Single video-worker owner. Keep its fsync bookkeeping independent of
+        # observation logs so video I/O never holds a lock needed by capture.
+        _append(self.directory / "video_frames.jsonl", row)
+        self._video_frame_count += 1
+        if (self._fsync_every_n_records is not None
+                and self._video_frame_count % self._fsync_every_n_records == 0):
+            with (self.directory / "video_frames.jsonl").open("a", encoding="utf-8") as stream:
+                os.fsync(stream.fileno())
+        self._last_video_frame_id = frame_record["frame_id"]
+        return row
 
     def record_frame(self, *, capture_return_monotonic_ns, pose_success,
                      pose_start_monotonic_ns=None, pose_end_monotonic_ns=None,
@@ -300,7 +347,7 @@ class SessionRecorder:
         self._annotation_ids.add(annotation_id)
         return record
 
-    def _save_summary(self, status, ended_at=None):
+    def _save_summary(self, status, ended_at=None, metadata=None):
         summary = dict(schema_version=SCHEMA_VERSION, **self._counts,
                        started_at=self.manifest["started_at_utc"], ended_at=ended_at,
                        duration=(time.monotonic_ns() - self._started_ns) / 1_000_000_000,
@@ -308,13 +355,15 @@ class SessionRecorder:
                            "count": len(self._processing_ms),
                            "p50": _percentile(self._processing_ms, .5),
                            "p95": _percentile(self._processing_ms, .95)})
+        if metadata is not None:
+            summary["metadata"] = sanitize(metadata)
         _write_json(self.directory / "summary.json", summary)
         return summary
 
-    def finalize(self, *, completed=True):
+    def finalize(self, *, completed=True, metadata=None):
         self._ensure_open()
         self._sync_logs(all_logs=True)
-        summary = self._save_summary("completed" if completed else "incomplete", utc_now())
+        summary = self._save_summary("completed" if completed else "incomplete", utc_now(), metadata)
         self._closed = True
         return summary
 

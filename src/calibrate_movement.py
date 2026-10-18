@@ -17,10 +17,11 @@ from datetime import datetime
 from pathlib import Path
 import csv
 import math
-import platform
 import time
 
 import numpy as np
+from pose_capture import open_camera as open_pose_camera
+from pose_capture import create_pose_landmarker as create_image_pose
 
 try:
     import cv2
@@ -359,35 +360,12 @@ def build_report(samples_by_phase: dict, fps: float, invisible_ratio: float,
 
 def open_camera():
     """Open the configured webcam on Windows or macOS."""
-    if platform.system() == "Windows":
-        cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
-        if cap.isOpened():
-            return cap
-        cap.release()
-
-    cap = cv2.VideoCapture(CAMERA_INDEX)
-    if cap.isOpened():
-        return cap
-
-    cap.release()
-    message = f"Cannot open webcam at camera index {CAMERA_INDEX}."
-    if platform.system() == "Darwin":
-        message += (
-            "\nAllow camera access for the app that starts Python "
-            "(VS Code or Terminal) in System Settings > Privacy & Security > Camera."
-        )
-    raise RuntimeError(message)
+    return open_pose_camera(cv2, CAMERA_INDEX)
 
 
 def create_pose_landmarker():
     """Create the MediaPipe PoseLandmarker used for per-frame detection."""
-    base_options = python.BaseOptions(model_asset_path=str(POSE_MODEL_PATH))
-    options = vision.PoseLandmarkerOptions(
-        base_options=base_options,
-        running_mode=vision.RunningMode.IMAGE,
-        num_poses=1,
-    )
-    return vision.PoseLandmarker.create_from_options(options)
+    return create_image_pose(python, vision, POSE_MODEL_PATH)
 
 
 def draw_skeleton(frame, landmarks, width, height):
