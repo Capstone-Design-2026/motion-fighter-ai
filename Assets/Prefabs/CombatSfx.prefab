@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &7849639909346328794
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2761939977202231110}
+  - component: {fileID: 4356628932595215811}
+  m_Layer: 0
+  m_Name: CombatSfx
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2761939977202231110
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7849639909346328794}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4356628932595215811
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7849639909346328794}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebcac9185ca54daa9030cb8907b6b9c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatSfx
+  enableSfx: 1
+  attackClip: {fileID: 8300000, guid: 508e86bf0c2f8b3449521a36eda1f436, type: 3}
+  attackVolume: 1
+  attackStartOffset: 0.3
+  hitClips:
+  - {fileID: 8300000, guid: 035618451d4695c4e8c773d2a7dbd598, type: 3}
+  - {fileID: 8300000, guid: aef9d334018e93948a9262281beac456, type: 3}
+  - {fileID: 8300000, guid: 2c1eaa5e307d02a42a528dbd90247525, type: 3}
+  hitVolume: 1
+  playOnGuard: 1
+  guardVolumeMultiplier: 0.5
+  finisherClip: {fileID: 8300000, guid: 24c34c01c266e8843953384b957af08f, type: 3}
+  finisherVolume: 1

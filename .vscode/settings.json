@@ -67,6 +67,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "VisionStriker.slnx",
+    "dotnet.defaultSolution": "motion-fighter-ai.slnx",
     "dotnet.enableWorkspaceBasedDevelopment": false
 }

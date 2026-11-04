@@ -71,11 +71,35 @@ public class Health : MonoBehaviour
         OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
     }
 
-    /// <summary>데미지 적용. 실제로 들어갔으면 true.</summary>
-    /// <param name="guarded">가드에 막혔으면 true. 애니메이션과 경직시간이 달라진다.</param>
-    public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false)
+    /// <summary>
+    /// 지금 경직을 seconds 만큼 늘린다. 직격의 추가 경직처럼 일반 피격보다 오래 묶어야 할 때 쓴다.
+    /// 경직이 끝난 뒤에 부르면 지금부터 seconds 동안 묶는다.
+    /// </summary>
+    public void ExtendStun(float seconds)
     {
-        if (DamageLocked || IsDead || IsInvulnerable || amount <= 0)
+        if (IsDead || seconds <= 0f) return;
+        hitStunUntil = Mathf.Max(hitStunUntil, Time.time) + seconds;
+    }
+
+    /// <summary>경직을 바로 끝낸다. 방어에 성공한 쪽이 다음 동작을 즉시 할 수 있게 할 때 쓴다.</summary>
+    public void ClearStun()
+    {
+        hitStunUntil = 0f;
+    }
+
+    /// <summary>데미지 적용. 타격이 들어갔으면 true. 막힌 타격은 대미지가 0 이어도 true 다.</summary>
+    /// <param name="guarded">가드에 막혔으면 true. 애니메이션과 경직시간이 달라진다.</param>
+    /// <param name="ignoreInvulnerability">
+    /// 무적시간을 무시하고 무조건 넣는다. 필살기처럼 판정 없이 확정으로 들어가야 하는 것에 쓴다.
+    /// 일반 타격에는 쓰지 말 것. 연속 피격 방지가 통째로 풀린다.
+    /// </param>
+    public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false, bool ignoreInvulnerability = false)
+    {
+        // 막힌 타격은 대미지 0 이어도 맞은 것으로 친다. 가드 반응 연출·필살기 게이지·방어 성공 처리가 여기서 이어진다.
+        if (DamageLocked || IsDead || amount < 0 || (amount == 0 && !guarded))
+            return false;
+
+        if (IsInvulnerable && !ignoreInvulnerability)
             return false;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
