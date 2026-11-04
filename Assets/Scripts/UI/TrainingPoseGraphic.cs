@@ -1,3 +1,4 @@
+// REDBOOL raised-kicks-v3
 using UnityEngine;
 using UnityEngine.UI;
 /// <summary>Animated wall diagram: front-facing user input on left, in-game side-view action on right.</summary>
@@ -39,15 +40,15 @@ public class TrainingPoseGraphic : MaskableGraphic {
    if(step==0){le=Vector2.Lerp(le,new Vector2(.70f,.68f),t);lh=Vector2.Lerp(lh,new Vector2(.70f,.79f),t);Ring(vh,lh,.025f+t*.04f,active);}
    if(step==1){re=Vector2.Lerp(re,new Vector2(.30f,.68f),t);rh=Vector2.Lerp(rh,new Vector2(.30f,.79f),t);Ring(vh,rh,.025f+t*.04f,active);}
    if(step==2){le=Vector2.Lerp(le,new Vector2(.72f,.84f),t);lh=Vector2.Lerp(lh,new Vector2(.69f,.98f),t);}
-   if(step==3){le=Vector2.Lerp(le,new Vector2(.69f,.49f),t);lh=Vector2.Lerp(lh,new Vector2(.69f,.31f),t);}
+   if(step==3){re=Vector2.Lerp(re,new Vector2(.28f,.84f),t);rh=Vector2.Lerp(rh,new Vector2(.31f,.98f),t);}
   }else{
    if(step<2){le=Vector2.Lerp(le,new Vector2(.76f,.69f),t);lh=Vector2.Lerp(lh,new Vector2(.95f,.72f),t);}
    if(step==2){lknee=Vector2.Lerp(lknee,new Vector2(.73f,.57f),t);lfoot=Vector2.Lerp(lfoot,new Vector2(.96f,.78f),t);}
    if(step==3){lknee=Vector2.Lerp(lknee,new Vector2(.73f,.34f),t);lfoot=Vector2.Lerp(lfoot,new Vector2(.96f,.28f),t);}
   }
   if(step==4){lh=new Vector2(.57f,.86f);rh=new Vector2(.43f,.86f);le=new Vector2(.68f,.70f);re=new Vector2(.32f,.70f);}
-  bool leftActive=gameAction?(step<2||step==4):step!=1;
-  bool rightActive=gameAction?step==4:(step==1||step==4);
+  bool leftActive=gameAction?(step<2||step==4):(step!=1&&step!=3);
+  bool rightActive=gameAction?step==4:(step==1||step==3||step==4);
   Bone(vh,lshoulder,le,leftActive?active:ink);Bone(vh,le,lh,leftActive?active:ink);
   Bone(vh,rshoulder,re,rightActive?active:ink);Bone(vh,re,rh,rightActive?active:ink);
   Bone(vh,hip,lknee,gameAction&&(step==2||step==3)?active:ink);Bone(vh,lknee,lfoot,gameAction&&(step==2||step==3)?active:ink);

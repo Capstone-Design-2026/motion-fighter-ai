@@ -1,3 +1,4 @@
+// REDBOOL raised-kicks-v3
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,8 +7,8 @@ using UnityEngine.UI;
 public class CaveTutorial : MonoBehaviour {
  public static readonly string[] Actions={"JAB","STRAIGHT","HIGH_KICK","LOW_KICK","BLOCK","MOVE_LEFT","MOVE_RIGHT"};
  static readonly string[] Names={"잽","스트레이트","하이킥","로우킥","막기","왼쪽 이동","오른쪽 이동"};
- static readonly string[] Gestures={"왼손을 앞으로 지르세요","오른손을 앞으로 뻗으세요","왼손을 위로 들어 올리세요","왼손을 아래로 내리세요","두 손을 올려 가드 자세를 취하세요","어깨 중심을 왼쪽으로 옮기세요","어깨 중심을 오른쪽으로 옮기세요"};
- static readonly string[] Tips={"왼손 주먹이 카메라에 가려지지 않게, 한 번 뻗고 되돌리세요.","왼손은 가드에 두고 오른손만 앞으로 뻗어보세요.","실제로 다리를 차지 않아도 됩니다. 왼손을 어깨보다 높이 들어보세요.","실제로 다리를 차지 않아도 됩니다. 왼손을 허리 쪽으로 내려보세요.","두 손을 얼굴 앞에 올린 뒤 기본 자세로 내려보세요.","몸을 비틀기보다 두 어깨의 중심을 왼쪽으로 옮겨보세요.","두 어깨의 중심을 오른쪽으로 옮긴 뒤 중앙으로 돌아오세요."};
+ static readonly string[] Gestures={"왼손을 앞으로 지르세요","오른손을 앞으로 뻗으세요","왼손을 위로 들어 올리세요","오른손을 위로 들어 올리세요","두 손을 올려 가드 자세를 취하세요","어깨 중심을 왼쪽으로 옮기세요","어깨 중심을 오른쪽으로 옮기세요"};
+ static readonly string[] Tips={"왼손 주먹이 카메라에 가려지지 않게, 한 번 뻗고 되돌리세요.","왼손은 가드에 두고 오른손만 앞으로 뻗어보세요.","실제로 다리를 차지 않아도 됩니다. 왼손을 어깨보다 높이 들어보세요.","실제로 다리를 차지 않아도 됩니다. 오른손을 어깨보다 높이 들어보세요.","두 손을 얼굴 앞에 올린 뒤 기본 자세로 내려보세요.","몸을 비틀기보다 두 어깨의 중심을 왼쪽으로 옮겨보세요.","두 어깨의 중심을 오른쪽으로 옮긴 뒤 중앙으로 돌아오세요."};
  RunState run;Transform frame;Text title,instruction,progress,status,modeLabel,inputHint,signal,phaseLabel;TrainingPoseGraphic inputPose,resultPose;
  RectTransform focus;Image flash;bool keyboard,armed,exit,advancing;int hits,mistakes;float lastPacket=-100,nextStepAt,demoUntil,stepStarted,feedbackUntil,successPulse;string lastSignal="";
  public int CurrentStep=>run==null?0:Mathf.Clamp(run.Data.tutorialStep,0,Actions.Length-1);
@@ -18,11 +19,11 @@ public class CaveTutorial : MonoBehaviour {
   if(state.Data.tutorialCompleted)yield break;
   if(state.Data.tutorialStep>=Actions.Length){state.CompleteTutorial();yield break;}
   UIFactory.EnsureEventSystem();var canvas=UIFactory.CreateCanvas("CaveTutorialCanvas",null,210);var tutorial=canvas.gameObject.AddComponent<CaveTutorial>();tutorial.run=state;tutorial.Build();
-  UdpActionReceiver.TutorialAction+=tutorial.OnVision;
-  if(Object.FindAnyObjectByType<UdpActionReceiver>()==null){var receiver=new GameObject("TutorialVisionReceiver");receiver.transform.SetParent(canvas.transform);receiver.AddComponent<UdpActionReceiver>();}
-  try{while(!tutorial.exit)yield return null;}finally{UdpActionReceiver.TutorialAction-=tutorial.OnVision;if(canvas!=null)Destroy(canvas.gameObject);}
+  RedboolDemoReceiver.TutorialAction+=tutorial.OnVision;
+  if(Object.FindAnyObjectByType<RedboolDemoReceiver>()==null){var receiver=new GameObject("TutorialVisionReceiver");receiver.transform.SetParent(canvas.transform);receiver.AddComponent<RedboolDemoReceiver>();}
+  try{while(!tutorial.exit)yield return null;}finally{RedboolDemoReceiver.TutorialAction-=tutorial.OnVision;if(canvas!=null)Destroy(canvas.gameObject);}
  }
- void OnDestroy(){UdpActionReceiver.TutorialAction-=OnVision;}
+ void OnDestroy(){RedboolDemoReceiver.TutorialAction-=OnVision;}
  void Build(){
   var backdrop=UIFactory.CreateImage("BlockMapInput",transform,Color.black,true);UIFactory.Stretch(backdrop.rectTransform);
   var logical=UIFactory.CreateRect("TrainingFrame",transform);logical.gameObject.AddComponent<CinematicFrame>().Fit();frame=logical;
@@ -73,7 +74,7 @@ public class CaveTutorial : MonoBehaviour {
   if(Time.unscaledTime>feedbackUntil&&!advancing)status.text=Time.unscaledTime-stepStarted>12||mistakes>=3?Tips[CurrentStep]:armed?Gestures[CurrentStep]:"손과 어깨를 기본 자세로 되돌리면 다음 동작을 받을게요.";
  }
  void OnVision(string action,float confidence,string movement,float strength){
-  if(keyboard||exit)return;lastPacket=Time.unscaledTime;
+  if(keyboard||exit)return;lastPacket=Time.unscaledTime;if(action=="UNAVAILABLE"){armed=false;return;}
   if(CurrentStep<5){Accept(action,confidence);return;}
   if(movement=="NEUTRAL")Accept("IDLE",1);
   else if(movement=="LEFT"||movement=="RIGHT"){
@@ -82,7 +83,7 @@ public class CaveTutorial : MonoBehaviour {
   }
  }
  public void SubmitKeyboardAction(string action){if(keyboard)Accept(action,1);}
- public static string Normalize(string action){switch((action??"").Trim().ToUpperInvariant()){case "LEFT_PUNCH":return "JAB";case "RIGHT_PUNCH":case "CROSS":return "STRAIGHT";case "LEFT_HAND_UP":case "HIGHKICK":return "HIGH_KICK";case "LEFT_HAND_DOWN":case "LOWKICK":return "LOW_KICK";case "GUARD":return "BLOCK";default:return (action??"").Trim().ToUpperInvariant();}}
+ public static string Normalize(string action){switch((action??"").Trim().ToUpperInvariant()){case "LEFT_PUNCH":return "JAB";case "RIGHT_PUNCH":case "CROSS":return "STRAIGHT";case "LEFT_RAISE":case "LEFT_HAND_UP":case "HIGHKICK":return "HIGH_KICK";case "RIGHT_RAISE":case "RIGHT_HAND_UP":case "LOWKICK":return "LOW_KICK";case "GUARD":return "BLOCK";default:return (action??"").Trim().ToUpperInvariant();}}
  void Accept(string raw,float confidence){
   if(run==null||exit||advancing||IsDemonstrating)return;string action=Normalize(raw);
   if(float.IsNaN(confidence)||float.IsInfinity(confidence)||confidence<.7f){Feedback("자세가 불분명해요. 양손이 카메라에 보이도록 다시 준비해보세요.");return;}
