@@ -1,11 +1,11 @@
-# REDBOOL 모션 입력 연결 — Python v6 / Unity 수신기 v5
+# REDBOOL 모션 입력 연결 — Python v7 / Unity 수신기 v5
 
 이 브랜치에는 연결 코드가 `Assets/RedboolVision`에 들어 있습니다. ZIP을 따로 복사하지 않습니다.
 `CaveTutorial`과 `TrainingPoseGraphic`도 오른손 레이즈 → 로우킥 및 새 수신기로 연결되어 있습니다.
 
 확인한 게임 기준: `feature/unity`의 `e1af7d3` (Unity 6000.4.5f1).
 전투 API는 `55844cd`와 같으므로 수신기 버전은 `unity-55844cd-v5`입니다.
-Python 쪽은 짝이 되는 [앉은 자세 데모 v6 PR #5](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/5)의 코드를 사용합니다. 기존 5055 송신기는 이 수신기와 호환되지 않습니다.
+Python 쪽은 짝이 되는 [앉은 자세 데모 v7 PR #5](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/5)의 코드를 사용합니다. 기존 5055 송신기는 이 수신기와 호환되지 않습니다.
 
 ## 팀원 PC에서
 
@@ -47,8 +47,8 @@ Python PC에서 `C`로 가드를 보정합니다. 상체를 자기 왼쪽/오른
 
 ## 검증 범위와 남은 확인
 
-Python v6의 58개 검사가 촬영 회귀·중복 방지·통신·모의 카메라 저장을 통과했습니다. 15:47 개발 촬영 재생에서 펀치6/6, 레이즈5/5, 블락3/3, 이동/정지6/6, 실제 동작 뒤 복귀20/20입니다. 이는 독립 촬영 인식률이나 Unity 실행 검증이 아닙니다.
-Python v6는 작은 중심 이동과 같은 방향 어깨 기울기를 함께 사용하며, 이 수신기의 기존 60ms 평활화와 호환됩니다. 이동 최소 세기는 .35로 바뀌었으므로 실제 화면에서 속도도 확인합니다.
+Python v7은 실제 분류기 학습과 Lite/Full 재생을 비교한 뒤 Lite + 보정 규칙을 기본으로 선택했습니다. 최신 16:17 개발 자료에서 왼손 레이즈 3/5→5/5, 전체 공격 16/16, 블락3/3, 이동/정지7/7을 확인했습니다. 69개 로컬 검사가 통과했습니다. 이미 수정에 참고한 자료이므로 독립 인식률이나 Unity 실행 검증은 아닙니다. 새 짧은 촬영은 `bash scripts/run_left_raise_check.command`로 진행하며 PREPARE에서 가드 복귀 후 GO를 기다립니다. 자세한 비교는 Python PR의 `docs/seated-demo-v7.md`에 있습니다.
+Python v7는 작은 중심 이동과 같은 방향 어깨 기울기를 함께 사용하며, 이 수신기의 기존 60ms 평활화와 호환됩니다. 이동 최소 세기는 .35로 바뀌었으므로 실제 화면에서 속도도 확인합니다.
 연결 검사의 `passed`는 네 공격 기술명, 수신기 버전, 방어 1회 발동과 종료를 확인합니다. 이동·HP·접촉·애니메이션·실제 지연은 화면에서 확인합니다.
 이번 변경을 준비한 Mac에는 Unity Editor가 없어 C# 컴파일, 위 메뉴 검사, Play Mode 검사는 아직 실행하지 못했습니다.
 
