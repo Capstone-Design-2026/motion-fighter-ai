@@ -230,16 +230,6 @@ MonoBehaviour:
   nodeEnemyVisuals:
   - nodeId: scout
     visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
-  - nodeId: river
-    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
-  - nodeId: ridge
-    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
-  - nodeId: old_ferry
-    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
-  - nodeId: gate
-    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
-  - nodeId: quarry
-    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
   - nodeId: east
     visualPrefab: {fileID: 3395757179108215034, guid: cd07cca51fb99e944bd11f9c19446095, type: 3}
   - nodeId: camp
@@ -250,6 +240,16 @@ MonoBehaviour:
     visualPrefab: {fileID: 3720097519169826311, guid: 7b049a25e5fe3b148b9cc8b8b8f80753, type: 3}
   - nodeId: final
     visualPrefab: {fileID: 6499032389633817172, guid: ab9fb5fa19171854c809beee349f297f, type: 3}
+  - nodeId: river
+    visualPrefab: {fileID: 3130298362888566778, guid: ba8057444514e9a47aeec0797d130cbb, type: 3}
+  - nodeId: ridge
+    visualPrefab: {fileID: 3124773149405504299, guid: f2d0810be9fd41d4890a4f4eccf4d345, type: 3}
+  - nodeId: old_ferry
+    visualPrefab: {fileID: 2895369761395164534, guid: 48ff036ae9f337946973a0bafeeecad5, type: 3}
+  - nodeId: gate
+    visualPrefab: {fileID: 5958969936875220115, guid: 145ed67744b2e714eb7c78f4458b7ef0, type: 3}
+  - nodeId: quarry
+    visualPrefab: {fileID: 413684891346348912, guid: bcd695372e6d70041b77ed9933afdcca, type: 3}
   nodeBattleScenes:
   - nodeId: scout
     sceneName: ScoutPass

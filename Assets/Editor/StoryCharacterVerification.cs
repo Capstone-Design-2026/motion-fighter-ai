@@ -84,8 +84,10 @@ public static class StoryCharacterVerification
     {
         yield return null;
         var config=RunState.Instance.Config;var original=AssetDatabase.LoadAssetAtPath<GameObject>(UnifiedBoxingInstaller.Scout);
-        foreach(string id in new[]{"scout","river","ridge","old_ferry","gate","quarry"})Check(config.GetEnemyVisual(id)==original,id+" existing character preserved");
-        for(int i=0;i<5;i++)
+        Check(config.GetEnemyVisual("scout")==original,"scout keeps the original scout visual");
+        var selected=StoryCharacterInstaller.Selected;
+        foreach(int i in selected)Check(config.GetEnemyVisual(StoryCharacterInstaller.Nodes[i])==AssetDatabase.LoadAssetAtPath<GameObject>(StoryCharacterInstaller.PrefabPath(i)),StoryCharacterInstaller.Nodes[i]+" configured with "+StoryCharacterInstaller.Keys[i]);
+        foreach(int i in selected)
         {
             string id=StoryCharacterInstaller.Nodes[i];key=StoryCharacterInstaller.Keys[i];Isolate(id);SceneRoutes.LoadBattle();
             for(var w=WaitReal(1);w.MoveNext();)yield return null;
@@ -113,17 +115,28 @@ public static class StoryCharacterVerification
                 Check(enemyF.TryAttack(move),key+" starts "+move);
                 for(var w=Wait(Fighter3DView.Impact(move));w.MoveNext();)yield return null;
                 Pose(move.ToString());
-                for(var w=Wait(Fighter3DView.Duration(move)-Fighter3DView.Impact(move)+.30f);w.MoveNext();)yield return null;
+                // A whiffed attack now adds whiffPunish recovery, so allow for it before checking idle.
+                for(var w=Wait(Fighter3DView.Duration(move)-Fighter3DView.Impact(move)+.65f);w.MoveNext();)yield return null;
                 Check(view.CurrentState=="IDLE"&&!enemyF.IsAttacking&&!view.modelAnimator.IsInTransition(0),key+" "+move+" recovers to idle");
             }
+            // Timed guard: a cast guard holds for guardDuration, ends on a successful block, and fails (with a delay) when nothing is blocked.
+            // In 3D the guard height is automatic: it goes low only when the opponent has telegraphed a low kick.
             foreach(bool low in new[]{false,true})
             {
-                string state=low?"GUARD_LOWKICK":"GUARD";enemyF.IsBlocking=true;enemyF.IsCrouching=low;
+                string state=low?"GUARD_LOWKICK":"GUARD";
+                if(low)playerF.DeclareIntent(CombatMove.LowKick);
+                Check(enemyF.TryGuard(low),key+" "+state+" cast");
                 for(var w=Wait(.5f);w.MoveNext();)yield return null;Check(view.CurrentState==state+"_HOLD",key+" "+state+" holds");Pose(state);
                 eh.TakeDamage(1,Vector2.zero,true);yield return null;Check(view.CurrentState==state+"_HIT",key+" "+state+" reacts");
-                for(var w=Wait(.4f);w.MoveNext();)yield return null;Check(view.CurrentState==state+"_HOLD",key+" "+state+" returns to hold");
-                enemyF.IsBlocking=enemyF.IsCrouching=false;for(var w=Wait(.5f);w.MoveNext();)yield return null;Check(view.CurrentState=="IDLE",key+" "+state+" releases");
+                float guardUntil=Time.time+2.5f;while(Time.time<guardUntil&&view.CurrentState!="IDLE")yield return null;
+                Check(view.CurrentState=="IDLE"&&!enemyF.IsGuarding,key+" "+state+" ends after the block and returns to idle");
+                if(low)playerF.ClearIntent();
+                for(var w=Wait(.3f);w.MoveNext();)yield return null;
             }
+            Check(enemyF.TryGuard(false),key+" guard cast for timeout");
+            for(var w=Wait(enemyF.GuardDuration+.2f);w.MoveNext();)yield return null;Check(!enemyF.IsGuarding,key+" unblocked guard expires after "+enemyF.GuardDuration.ToString("F1")+"s");
+            float releaseUntil=Time.time+3f;while(Time.time<releaseUntil&&view.CurrentState!="IDLE")yield return null;Check(view.CurrentState=="IDLE",key+" expired guard releases to idle");
+            for(var w=Wait(.6f);w.MoveNext();)yield return null;
             eh.TakeDamage(2,Vector2.zero);for(var w=Wait(.25f);w.MoveNext();)yield return null;Check(view.CurrentState=="HURT",key+" hurt reaction");Pose("HURT");
             for(var w=Wait(.65f);w.MoveNext();)yield return null;Check(view.CurrentState=="IDLE",key+" hurt recovers");
             foreach(int dir in new[]{-1,1})
@@ -136,23 +149,27 @@ public static class StoryCharacterVerification
             recording=false;
             // Real hitboxes, damage and guard mitigation, not just animation playback.
             foreach(var p in Object.FindObjectsByType<Pushbox>())p.enabled=false;
-            Position(-.55f,.55f);ph.ResetHealth();eh.ResetHealth();enemyF.IsBlocking=false;
+            // 0.9 centre distance: the measured jab reach (CombatContacts doc) and inside the 3D AI attack range of 1.0.
+            Position(-.45f,.45f);ph.ResetHealth();eh.ResetHealth();
             int hp=ph.CurrentHealth;Check(enemyF.TryAttack(CombatMove.Jab),key+" live jab accepted");
             for(var w=Wait(.85f);w.MoveNext();)yield return null;Check(ph.CurrentHealth<hp,key+" live attack damages player");
-            Position(-.55f,.55f);ph.ResetHealth();eh.ResetHealth();enemyF.IsBlocking=true;enemyF.IsCrouching=false;
+            for(var w=Wait(.6f);w.MoveNext();)yield return null;
+            Position(-.45f,.45f);ph.ResetHealth();eh.ResetHealth();Check(enemyF.TryGuard(false),key+" live guard cast");
+            bool guardedHit=false;Action<bool> onHit=g=>{if(g)guardedHit=true;};eh.OnDamaged+=onHit;
             for(var w=Wait(.4f);w.MoveNext();)yield return null;hp=eh.CurrentHealth;playerF.TryAttack(CombatMove.Jab);
-            for(var w=Wait(.8f);w.MoveNext();)yield return null;int chip=hp-eh.CurrentHealth;Check(chip>0&&chip<playerF.AttackDamage,key+" live guard mitigates damage: "+chip);
-            enemyF.IsBlocking=false;for(var w=Wait(.4f);w.MoveNext();)yield return null;
+            for(var w=Wait(.8f);w.MoveNext();)yield return null;eh.OnDamaged-=onHit;int chip=hp-eh.CurrentHealth;
+            Check(guardedHit&&chip==0,key+" live guard blocks the player's jab (blocked hits deal 0): guarded="+guardedHit+" damage="+chip);
+            for(var w=Wait(1.2f);w.MoveNext();)yield return null;
             // Retain actual stage AI for a brief autonomous approach check.
             Position(-2,2);ph.ResetHealth();eh.ResetHealth();float before=eb.position.x;enemy.enabled=true;
             for(var w=Wait(1.2f);w.MoveNext();)yield return null;enemy.enabled=false;enemyF.CancelAttack();Check(eb.position.x<before-.1f,key+" stage AI approaches with new visual");
-            Position(-1.6f,1.6f);ph.ResetHealth();eh.ResetHealth();enemyF.IsBlocking=false;
+            Position(-1.6f,1.6f);ph.ResetHealth();eh.ResetHealth();
             for(var w=Wait(.4f);w.MoveNext();)yield return null;recording=true;
             eh.TakeDamage(eh.MaxHealth+100,Vector2.zero);yield return null;Check(view.CurrentState=="KO",key+" KO plays");
             for(var w=Wait(.95f);w.MoveNext();)yield return null;if(cam&&view)Pose("KO");recording=false;
             float until=Time.realtimeSinceStartup+8;while(RunState.Instance.HasPendingBattle&&Time.realtimeSinceStartup<until)yield return null;
             Check(RunState.Instance.LastBattleWon&&!RunState.Instance.HasPendingBattle,key+" victory resolves progression");
-            if(i<4)Check(RunState.Instance.Data.clearedNodeIds.Contains(id),key+" stage marked cleared");else Check(RunState.Instance.Data.finished,key+" final battle marks run finished");
+            if(id!="final")Check(RunState.Instance.Data.clearedNodeIds.Contains(id),key+" stage marked cleared");else Check(RunState.Instance.Data.finished,key+" final battle marks run finished");
             Time.captureFramerate=0;
         }
     }

@@ -30,7 +30,7 @@
 
 ## 스테이지 연결
 
-- `RunConfig.asset`의 위 5개 `nodeEnemyVisuals`만 교체했다. 앞의 6개 노드와 플레이어는 기존 모델을 유지한다.
+- `RunConfig.asset`의 위 5개 `nodeEnemyVisuals`만 교체했다. 앞의 6개 노드와 플레이어는 기존 모델을 유지한다. (2026-11-04: 02–06도 전용 캐릭터로 교체. [StoryCharacters02-06](StoryCharacters02-06.md) 참고)
 - 위 5개 전투 씬의 Enemy 시각 모델도 변경했다. 개별 씬을 열어 확인할 수 있다.
 - `StoryStagesBuilder`가 개별 적 프리팹을 척후병으로 덮어쓰지 않도록 보완했다. 다시 만들 때 `StoryCharacterInstaller.ApplyConfiguredVisual`로 해당 모델을 씬에 배치한다.
 - 맵 입장 시 기존 `BattleSceneBridge`가 설정된 Visual 프리팹을 사용한다. 전투 판정·AI·스테이지 능력치는 원래 컴포넌트를 사용한다.
