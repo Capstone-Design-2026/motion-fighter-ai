@@ -21,7 +21,7 @@ class GuidedCheckTests(unittest.TestCase):
 
     def test_rest_and_guard_prompts_are_distinct(self):
         g=GuidedCheck();r=Recorder()
-        self.assertIn('fists at C height',g.update(1,0,True,r))
+        self.assertIn('fists by chin',g.update(1,0,True,r))
         g.index=len(g.steps)-2
         self.assertIn('hands relaxed, body centered',g.update(2,100_000_000,True,r))
 

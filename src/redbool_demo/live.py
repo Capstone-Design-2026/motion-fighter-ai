@@ -29,17 +29,25 @@ def run(a):
     from collect_gesture_pilot import PilotVideo,AsyncPilotVideo
     from pose_capture import open_camera
     from realtime_vision.live import Latest,AsyncLog
-    verify_pose_asset(a.pose,'Lite')
+    variant=getattr(a,'pose_variant','Lite')
+    verify_pose_asset(a.pose,variant)
+    if getattr(a,'guard_model',None):
+        from .learned import LearnedGuardEngine
+        engine=LearnedGuardEngine(a.guard_model,movement=a.movement)
+        trained_variant=engine.posture_model.meta['provenance']['pose_variant']
+        if trained_variant!=variant:raise ValueError('Guard model and Pose variant do not match')
+    else:
+        engine=DemoEngine(movement=a.movement)
     if a.check:
-        print('Demo modules and Lite asset OK. Camera/UDP not opened.');return
+        mode='learned guard confirmation' if getattr(a,'guard_model',None) else 'calibrated rules'
+        print(f'Demo modules, {variant} asset and {mode} OK. Camera/UDP not opened.');return
     stream=a.stream_id or uuid.uuid4().hex
     out=a.output/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+stream[:8])
     out.mkdir(parents=True,exist_ok=False)
-    engine=DemoEngine(movement=a.movement)
     sender=DemoSender(a.host,a.port,stream,a.actor)
     log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
     counts={'captured':0,'processed':0,'events':0,'left':0,'right':0}
-    guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False)) if getattr(a,'guided',False) else None
+    guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False), focus=getattr(a,'guided_focus','all')) if getattr(a,'guided',False) else None
     display={'event':'NONE','event_ns':0};cap=None;pose=None;video=None;recorder=None
     def fail(where,exc):
         errors.append({'where':where,'error':repr(exc)});stop.set()
@@ -106,9 +114,10 @@ def run(a):
             if recorder is None:
                 recorder=SessionRecorder(out/'sessions',subject_id=a.actor,take_id='seated-live-demo',
                     camera_index=a.camera,requested_resolution=[640,480],pose_model_path=a.pose.resolve(),
-                    pose_model_variant='Lite',pose_running_mode='VIDEO',mirror_display=a.mirror,
+                    pose_model_variant=variant,pose_running_mode='VIDEO',mirror_display=a.mirror,
                     gesture_set_version='raised-kicks-v3',recording_config={'source_mirrored':False,
                         'engine_version':engine.config.version,
+                        'guard_model':engine.posture_model.meta if getattr(a,'guard_model',None) else None,
                         'stream_id':stream,'scope':'processed RGB + Pose + FSM; not human ground truth',
                         'all_successful_captures_saved':False,'frame_policy':'latest camera slot; all processed frames saved'})
                 recorder.update_manifest(actual_resolution=[bgr.shape[1],bgr.shape[0]],camera_backend=cap.getBackendName())
@@ -128,7 +137,7 @@ def run(a):
             counts['processed']+=1;pose_ms=(end-start)/1e6
             log.write({'type':'frame','frame_id':frame['frame_id'],'camera_frame_id':fid,'capture_ns':stamp,
                 'pose_end_ns':end,'engine_end_ns':time.monotonic_ns(),'state':asdict(state)})
-            view=overlay(bgr,frame,name='REDBOOL Lite VIDEO',mirror=a.mirror)
+            view=overlay(bgr,frame,name=f'REDBOOL {variant} VIDEO',mirror=a.mirror)
             panel=view[bgr.shape[0]:];panel[:]=0
             with engine.lock:
                 armed=engine.calibrated;progress=engine.calibration_progress
@@ -138,7 +147,7 @@ def run(a):
             message=display['event'] if time.monotonic_ns()-display['event_ns']<1_000_000_000 else ''
             mode=('C: CALIBRATE GUARD' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
                 else 'BLOCK' if state.block else 'READY' if ready else 'RETURN TO GUARD')
-            prompt=guide.update(frame['frame_id'],stamp,armed,recorder) if guide else arms
+            prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else arms
             lines=[f"{mode}  {progress:.0%}   {message}",prompt,
                 f"LEFT {counts['left']}  RIGHT {counts['right']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                 f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
@@ -188,14 +197,19 @@ def run(a):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output',type=Path,default=Path('local_data/demo_20261103'))
-    p.add_argument('--pose',type=Path,default=Path('pose_landmarker.task'))
+    p.add_argument('--pose',type=Path)
+    p.add_argument('--pose-variant',choices=['Lite','Full'],default='Lite')
+    p.add_argument('--guard-model',type=Path,help='Optional learned confirmation for relaxed guard; match Pose variant')
     p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=5065)
     p.add_argument('--actor',default='DEV01');p.add_argument('--stream-id');p.add_argument('--camera',type=int,default=0)
     p.add_argument('--backend',default='auto');p.add_argument('--seconds',type=float,default=180)
     p.add_argument('--guided',action='store_true',help='Self-paced prompts: SPACE advances after each action/guard; saves instructions, not ground truth')
+    p.add_argument('--guided-focus',choices=['all','left-return'],default='all',help='Short five-repeat left raise and return check')
     p.add_argument('--guided-timed',action='store_true',help='Use legacy fixed-duration prompts instead of SPACE')
     p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action='store_true')
     p.add_argument('--check',action='store_true');a=p.parse_args()
+    if a.pose is None:
+        a.pose=Path('pose_landmarker.task' if a.pose_variant=='Lite' else 'local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task')
     import math
     if not math.isfinite(a.seconds) or a.seconds<=0 or not 1<=a.port<=65535:p.error('Positive seconds and valid UDP port required')
     run(a)

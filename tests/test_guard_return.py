@@ -23,7 +23,7 @@ class GuardReturnCaptureTests(unittest.TestCase):
             state = engine.process(obs, now_ns=obs.capture_ns)
             cls.events.extend(engine.drain_events(obs.capture_ns))
             cls.states[obs.frame_id] = (state.attack_state,
-                engine.vertical_state=='READY' and all(u.state=='READY' for u in engine.attack.units.values()),
+                engine.calibrated and engine.guard_held and engine.vertical_state=='READY' and all(u.state=='READY' for u in engine.attack.units.values()),
                 state.block)
             engine.take_logs()
             # Same ordering as the live C key, after processing this frame.

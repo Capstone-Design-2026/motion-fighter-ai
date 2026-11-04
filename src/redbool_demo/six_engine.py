@@ -14,6 +14,15 @@ from .lateral import LateralMovement
 
 class SixAttack(DemoAttack):
     inhibited = False
+    learned_guard_required = False
+    guard_probability = 0.
+
+    @staticmethod
+    def guard_position(arm, base):
+        dx, dy = arm['position'][:2] - base['position'][:2]
+        # Accommodate eye-height calibration followed by a relaxed chin guard.
+        # The absolute shoulder-relative height prevents drift into hands-down rest.
+        return abs(dx) <= .35 and -.30 <= dy <= .45 and arm['position'][1] <= .20
 
     def update(self, arms, now, allow_commit=True, block=False):
         # An upward gesture may first look diagonal in its first two frames.
@@ -38,7 +47,8 @@ class SixAttack(DemoAttack):
         Returning fists need not occupy the exact calibration pixel: inward
         horizontal variation is normal. Image-depth elbow estimates fluctuate;
         allow modest variation but cap extension and also check the 2D elbow.
-        Allow a relaxed return up to .30 shoulder-width below the anchor.
+        Allow a relaxed return within .45 shoulder-width of the anchor,
+        with an additional absolute shoulder-height bound.
         Keep vertical position, bent elbow and
         low speed mandatory so lowered/raised/extended holds cannot re-arm.
         The original calibration anchor never drifts toward an action pose.
@@ -48,7 +58,9 @@ class SixAttack(DemoAttack):
         for side, arm in arms.items():
             base = self.baseline[side]
             dx, dy = arm['position'][:2] - base['position'][:2]
-            if not (abs(dx) <= .35 and -.30 <= dy <= .30
+            if self.learned_guard_required and dy > .30 and self.guard_probability < .80:
+                return False
+            if not (self.guard_position(arm, base)
                     and arm['speed_xy'] <= self.cfg.neutral_speed
                     and arm['angle'] <= 1.5
                     and arm['angle3d'] is not None
@@ -73,17 +85,18 @@ class SixGestureEngine(DemoEngine):
         self.movement = LateralMovement(self.config)
         self.vertical_signals = ChannelSignals(self.config)
         self.vertical_state = 'DISARMED'
+        self.guard_held = False
         self.vertical_candidate = None
         self.vertical_since = self.return_since = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-lean-guard-20261104-v6')
+        self.config = replace(self.config, version='seated-guard-height-20261104-v7')
         self._components()
 
     @property
     def ready(self):
-        return (self.calibrated and self.vertical_state == 'READY'
+        return (self.calibrated and self.guard_held and self.vertical_state == 'READY'
                 and all(u.state == 'READY' for u in self.attack.units.values()))
 
     def _publish_state(self, state):
@@ -105,6 +118,7 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.vertical_signals.reset()
+        self.guard_held = False
         self.vertical_state = 'DISARMED'
         self.vertical_candidate = self.vertical_since = self.return_since = None
 
@@ -132,12 +146,14 @@ class SixGestureEngine(DemoEngine):
                 state = replace(state, movement='NEUTRAL', movement_strength=0.)
             valid = fresh and not validity['BLOCK'] and set(arms) == {'LEFT', 'RIGHT'}
             if not self.calibrated or not valid:
+                self.guard_held = False
                 self.vertical_state = 'DISARMED'
                 self.vertical_candidate = self.vertical_since = self.return_since = None
                 return self._publish_state(state)
             anchors = self.attack.anchors()
             delta = {s: a['position'] - anchors[s]['position'] for s, a in arms.items()}
             neutral = all(self.attack.units[s].neutral({s: a}) for s, a in arms.items())
+            self.guard_held = neutral
             # Re-arm only after a real return, including after invalid tracking.
             if neutral:
                 if self.return_since is None:
@@ -156,7 +172,7 @@ class SixGestureEngine(DemoEngine):
                 for side, other in (('LEFT', 'RIGHT'), ('RIGHT', 'LEFT')):
                     dx, dy = delta[side][:2]
                     other_dx, other_dy = delta[other][:2]
-                    other_guard = abs(other_dx) <= .35 and -.30 <= other_dy <= .30
+                    other_guard = SixAttack.guard_position(arms[other], anchors[other])
                     vertical = abs(dx) <= .35 and abs(dy) > abs(dx) * 1.2
                     if other_guard and vertical:
                         if dy <= -.40:

@@ -102,9 +102,10 @@ class SelfPacedGuideTests(unittest.TestCase):
             self.assertFalse(g.advance_requested)
             g.advance(stamp+2_000_000_000)
             stamp+=3_000_000_000;fid+=1
-        self.assertEqual(len(self.rows),45)
+        self.assertEqual(sum(r['label']!='PREPARE' for r in self.rows),45)
+        self.assertEqual(sum(r['label']=='PREPARE' for r in self.rows),21)
         self.assertTrue(all(a['end_frame_id']<b['start_frame_id'] for a,b in zip(self.rows,self.rows[1:])))
-        g.finish(self);self.assertEqual(len(self.rows),45)
+        g.finish(self);self.assertEqual(len(self.rows),66)
 
 
 @unittest.skipUnless(os.environ.get('REDBOOL_LEAN_SESSION'),'Reviewed 15:47 capture required')
