@@ -1,15 +1,15 @@
-# REDBOOL 모션 입력 연결 (v5)
+# REDBOOL 모션 입력 연결 — Python v6 / Unity 수신기 v5
 
 이 브랜치에는 연결 코드가 `Assets/RedboolVision`에 들어 있습니다. ZIP을 따로 복사하지 않습니다.
 `CaveTutorial`과 `TrainingPoseGraphic`도 오른손 레이즈 → 로우킥 및 새 수신기로 연결되어 있습니다.
 
 확인한 게임 기준: `feature/unity`의 `e1af7d3` (Unity 6000.4.5f1).
 전투 API는 `55844cd`와 같으므로 수신기 버전은 `unity-55844cd-v5`입니다.
-Python 쪽은 짝이 되는 **Seated vision demo v5** PR의 코드를 사용합니다. 기존 5055 송신기는 이 수신기와 호환되지 않습니다.
+Python 쪽은 짝이 되는 [앉은 자세 데모 v6 PR #5](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/5)의 코드를 사용합니다. 기존 5055 송신기는 이 수신기와 호환되지 않습니다.
 
 ## 팀원 PC에서
 
-1. 이 PR이 합쳐진 브랜치를 pull하고 Unity에서 엽니다. PR 검토 중에는 이 PR의 head 브랜치를 checkout합니다.
+1. Unity PR #4가 합쳐진 feature/unity를 pull하고 Unity에서 엽니다. 아직 검토 중에는 변경 없는 별도 작업 폴더에서 `codex/unity-vision-demo-v5-20261104` 브랜치를 사용합니다. Python PR #5는 별도 feature/vision-v2 대상이며 자동으로 함께 합쳐지지 않습니다.
 2. Console 컴파일 오류가 없는지 확인합니다.
 3. `Tools > REDBOOL > Run Input Adapter Self Check`를 실행합니다.
 4. 테스트할 전투 씬을 열고 `Tools > REDBOOL > Add Vision Demo Receiver`를 한 번 실행한 뒤 씬을 저장합니다. 사용할 다른 전투 씬도 동일하게 설정합니다.
@@ -47,7 +47,8 @@ Python PC에서 `C`로 가드를 보정합니다. 상체를 자기 왼쪽/오른
 
 ## 검증 범위와 남은 확인
 
-Python 47개 검사가 촬영 회귀·중복 방지·통신·모의 카메라 저장을 통과했습니다. 이는 Unity 실행 검증이 아닙니다.
+Python v6의 58개 검사가 촬영 회귀·중복 방지·통신·모의 카메라 저장을 통과했습니다. 15:47 개발 촬영 재생에서 펀치6/6, 레이즈5/5, 블락3/3, 이동/정지6/6, 실제 동작 뒤 복귀20/20입니다. 이는 독립 촬영 인식률이나 Unity 실행 검증이 아닙니다.
+Python v6는 작은 중심 이동과 같은 방향 어깨 기울기를 함께 사용하며, 이 수신기의 기존 60ms 평활화와 호환됩니다. 이동 최소 세기는 .35로 바뀌었으므로 실제 화면에서 속도도 확인합니다.
 연결 검사의 `passed`는 네 공격 기술명, 수신기 버전, 방어 1회 발동과 종료를 확인합니다. 이동·HP·접촉·애니메이션·실제 지연은 화면에서 확인합니다.
 이번 변경을 준비한 Mac에는 Unity Editor가 없어 C# 컴파일, 위 메뉴 검사, Play Mode 검사는 아직 실행하지 못했습니다.
 
