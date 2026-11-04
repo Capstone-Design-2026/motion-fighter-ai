@@ -84,6 +84,16 @@ class Sender:
         for _ in range(100):
             try:data,peer=self.sock.recvfrom(8192)
             except BlockingIOError:break
+            except ConnectionResetError as exc:
+                # UDP on Windows reports a previous ICMP port-unreachable as
+                # WSAECONNRESET (10054). It is not a successful ACK or a TCP
+                # disconnect. End this receive batch, but still run lease and
+                # event expiry, and allow the next scheduled SYNC to retry.
+                self.counts['receive_reset']+=1
+                rows.append({'type':'receive_error','error':str(exc),
+                    'errno':exc.errno,'winerror':getattr(exc,'winerror',None),
+                    'recoverable':True})
+                break
             t4=time.monotonic_ns()
             if peer!=self.target:continue
             try:

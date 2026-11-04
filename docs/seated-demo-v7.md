@@ -71,7 +71,7 @@ bash scripts/run_left_raise_check.command
 3. Space로 GUARD 안내로 넘어가 중앙·가드로 복귀합니다. READY 확인 후 다시 Space를 누릅니다.
 4. 5회 뒤 REST에서 중앙을 유지하고 양손을 편하게 내려 약 10초 쉽니다. Space 후 마지막 가드로 돌아와 READY가 되면 Space로 마칩니다. 중간 종료는 Q입니다.
 
-전체 동작 확인은 기존 `bash scripts/run_six_gesture_check.command --movement`입니다. 이 새 촬영은 아직 수행되지 않았습니다. 먼저 짧은 독립 촬영으로 수정의 재현성을 확인한 뒤 Unity 실제 플레이를 진행합니다.
+전체 동작 확인은 기존 `bash scripts/run_six_gesture_check.command --movement`입니다. 19:09 새 촬영에서 GO 이후 왼손 레이즈5/5, 가드 복귀5/5, 11.53초 휴식 중 오발동 없음이 확인됐습니다. 이 항목은 추가 반복 촬영 없이 Unity 연결 단계로 진행합니다. 상세 결과는 docs/capture-review-20261104-1909.md에 있습니다.
 
 ## 학습 재실행·선택 모델
 
@@ -102,6 +102,6 @@ bash scripts/run_seated_demo.command --check --pose-variant Full
 - Python PR #5: https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/5
 - Unity PR #4: https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/4
 
-UDP 5065, `unity-55844cd-v5` 수신기, 네 공격 매핑과 시간제 블락은 그대로 호환됩니다. 최신 `feature/unity`는 e1af7d3이며 추가 전투 API 변경은 없습니다. 두 PR은 서로 다른 브랜치 대상이고 아직 검토용입니다.
+UDP 5065, `unity-55844cd-v5` 수신기, 네 공격 매핑과 시간제 블락은 그대로 호환됩니다. 최신 `feature/unity`는 249ba5d이며 스토리 캐릭터·검증 도구 변경을 연결 PR에 반영했습니다. 추가 전투 입력 API 변경은 없습니다. 두 PR은 서로 다른 브랜치 대상이고 아직 검토용입니다.
 
-새 촬영 확인 뒤 팀원 PC에서 Unity 컴파일 → Input Adapter Self Check → 수신기 씬 추가/저장 → 연결 검사 → 2~3분 실제 플레이가 필요합니다. 이 Mac에는 Unity Editor가 없어 C# 컴파일·Play Mode·최종 화면 지연은 확인하지 못했습니다. 동작이 잡혔는지와 게임이 GAME_BUSY로 거절했는지를 분리해 확인합니다.
+새 촬영 확인을 마쳤으며, 다음은 팀원 PC에서 Unity 컴파일 → Input Adapter Self Check → 수신기 씬 추가/저장 → 연결 검사 → 2~3분 실제 플레이가 필요합니다. 이 Mac에는 Unity Editor가 없어 C# 컴파일·Play Mode·최종 화면 지연은 확인하지 못했습니다. 동작이 잡혔는지와 게임이 GAME_BUSY로 거절했는지를 분리해 확인합니다.
