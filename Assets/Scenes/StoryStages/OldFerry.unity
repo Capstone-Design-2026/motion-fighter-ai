@@ -23394,6 +23394,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enableImpact: 1
   impactOnGuard: 1
+  slowOnRegularHits: 0
   targetCamera: {fileID: 1177926585}
   hitStopScale: 0.05
   hitStopDuration: 0.07
@@ -25637,6 +25638,11 @@ MonoBehaviour:
   windup: 0.12
   recovery: 0.35
   blockDamageMultiplier: 0.2
+  guardDuration: 1.5
+  guardFailDelay: 0.5
+  blockPunish: 0.4
+  hitStunBonus: 0.15
+  whiffPunish: 0.3
   useHitImpact: 1
   drawHitboxGizmo: 1
 --- !u!114 &1351601489
@@ -25669,6 +25675,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpecialMove
   hitsToCharge: 5
+  damage: 30
   chargeKey: 105
   chargeKeyAmount: 1
   activateKey: 111
@@ -30442,6 +30449,63 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1030995642, guid: abc00000000015057184218182310551, type: 3}
   m_PrefabInstance: {fileID: 1811834094}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1820139992
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 6360268882225154714, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_Name
+      value: BattleBgm
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7320136892496552612, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 564c422bae4150842a9eddbd6355fbc9, type: 3}
 --- !u!1001 &1841850780
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -31587,6 +31651,11 @@ MonoBehaviour:
   windup: 0.12
   recovery: 0.35
   blockDamageMultiplier: 0.2
+  guardDuration: 1.5
+  guardFailDelay: 0.5
+  blockPunish: 0.4
+  hitStunBonus: 0.15
+  whiffPunish: 0.3
   useHitImpact: 1
   drawHitboxGizmo: 1
 --- !u!114 &1900000018
@@ -31606,11 +31675,11 @@ MonoBehaviour:
   attackRange: 1.2
   keepDistance: 0.8
   decisionInterval: 0.8
-  blockDuration: 0.7
   attackWeight: 5
   blockWeight: 3
   backstepWeight: 1.5
   crouchWeight: 1
+  attackDelay: 0.3
 --- !u!114 &1900000019
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -34745,3 +34814,4 @@ SceneRoots:
   - {fileID: 467602003}
   - {fileID: 1557763672}
   - {fileID: 979316437}
+  - {fileID: 1820139992}
