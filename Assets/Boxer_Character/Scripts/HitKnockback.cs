@@ -71,6 +71,9 @@ public class HitKnockback : MonoBehaviour
     [Tooltip("맞는 순간 상체가 움찔하는 각도")]
     [Range(0f, 10f)] public float shinImpactFlinch = 3f;
 
+    [Tooltip("하이킥 팔 막기에서 맞는 순간 몸이 움찔하는 정도 (0 = 움찔 없음). 정강이 젖힘·상체 움찔은 다리로 막는 로우 가드용")]
+    [Range(0f, 1f)] public float highGuardJolt = 0f;
+
     [Tooltip("원본 킥 가드 클립은 다리를 올리며 몸이 뒤로 45cm쯤 빠짐. 다리 올리는 동안 그 이동을 얼마나 지울지 (1 = 완전히 제자리)")]
     [Range(0f, 1f)] public float kickGuardRaiseHold = 1f;
     [Tooltip("몸을 앞에 붙잡아 두는 만큼 디딤다리 무릎을 굽혀 낮춤. 안 낮추면 디딤다리가 닿지 않아 IK가 몸을 다시 뒤로 끌어당김")]
@@ -96,6 +99,12 @@ public class HitKnockback : MonoBehaviour
 
     [Header("시연 UI")]
     public bool showButtons = true;
+    [Tooltip("끄면 키보드·버튼 입력을 받지 않음 (FightTestManager가 조종하지 않는 쪽을 끌 때 사용)")]
+    public bool acceptInput = true;
+
+    /// <summary>위치 리셋(R) 때 돌아갈 자리를 바꿈 (FightTestManager가 맞대결 기본 위치로 지정)</summary>
+    public void SetHome(Vector3 pos, Quaternion rot) { homePos = pos; homeRot = rot; }
+    public bool IsPushing { get { return active || kickSeq != null; } }
 
     Animator anim;
     HanbokDemoControl demo;
@@ -133,7 +142,7 @@ public class HitKnockback : MonoBehaviour
     public void HitJabKB()     { if (demo) demo.HitJab();     else anim.SetTrigger("HitJab");     Push(jab); }
     public void GuardJabKB()      { if (demo) demo.GuardJab();         else anim.SetTrigger("GuardJab");     Push(guardJab); }
     public void GuardCrossKB()    { if (demo) demo.GuardCross();       else anim.SetTrigger("GuardCross");   Push(guardCross); }
-    public void KickGuardKB()     { if (demo) demo.KickGuardMove();    else anim.SetTrigger("KickGuard");    StartKickSeq("KICK_GUARD", kickGuard, 1f); }
+    public void KickGuardKB()     { if (demo) demo.KickGuardMove();    else anim.SetTrigger("KickGuard");    StartKickSeq("KICK_GUARD", kickGuard, highGuardJolt); }
     public void KickGuardLowKB()  { if (demo) demo.KickGuardLowMove(); else anim.SetTrigger("KickGuardLow"); StartKickSeq("KICK_GUARD_LOW", kickGuardLow, 0.7f); }
 
     void StartKickSeq(string state, Setting s, float joltScale)
@@ -272,6 +281,7 @@ public class HitKnockback : MonoBehaviour
 
     void ReadKeys()
     {
+        if (!acceptInput) return;
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current;
         if (kb == null) return;
@@ -404,7 +414,7 @@ public class HitKnockback : MonoBehaviour
 
     void OnGUI()
     {
-        if (!showButtons) return;
+        if (!showButtons || !acceptInput) return;
         // HanbokDemoControl 버튼 열 바로 오른쪽에 같은 크기로 배치
         float s = Mathf.Clamp(Screen.height / 900f, 0.4f, 1.25f);
         float w = 230 * s, h = 46 * s, gap = 6 * s, head = 34 * s;

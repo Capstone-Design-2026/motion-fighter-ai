@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 // 한복 캐릭터 "절도감" 조절용 스크립트
 // 2단계(완급): 동작 구간별 재생 속도 + 타격 순간 멈춤(히트스톱)
@@ -117,6 +117,22 @@ public class HanbokActionFeel : MonoBehaviour
             Make("HIGHKICK", HumanBodyBones.RightFoot, 0.31f, 0.09f, 1.3f, 1.8f, 1.8f, 1.2f),
             Make("LOWKICK",  HumanBodyBones.RightFoot, 0.33f, 0.08f, 1.1f, 1.8f, 1.8f, 1.2f),
         };
+    }
+
+    [Header("막혔을 때 튕겨 나오기")]
+    [Tooltip("되감는 속도 (배속)")] public float reboundSpeed = 1.2f;
+    [Tooltip("이 진행도까지 되감은 뒤 대기 자세로")] [Range(0f, 1f)] public float reboundBack = 0.15f;
+    [Tooltip("대기 자세로 돌아가는 시간 (초)")] public float reboundFade = 0.3f;
+    public string reboundState = "IDLE";
+    bool rebounding; int reboundHash; float reboundTo, reboundFadeUntil;
+
+    /// <summary>공격이 막혔을 때 호출: 맞은 순간 멈춘 뒤, 차던 다리(주먹)를 거꾸로 되감아 거둬들인다 (상대 몸을 뚫고 지나가지 않게)</summary>
+    public void Rebound()
+    {
+        var info = anim.IsInTransition(0) ? anim.GetNextAnimatorStateInfo(0) : anim.GetCurrentAnimatorStateInfo(0);
+        if (FindStrike(info.shortNameHash) == null) return;
+        rebounding = true; reboundHash = info.shortNameHash;
+        reboundTo = Mathf.Max(0f, info.normalizedTime - reboundBack);
     }
 
     Strike FindStrike(int shortHash)
@@ -283,6 +299,15 @@ public class HanbokActionFeel : MonoBehaviour
             if (useTiming && strike.hitStop > 0f) stopUntil = Time.time + strike.hitStop;
             OnImpactAt(strike.bone, strike.power, true);
         }
+        // 막혀서 튕겨 나옴: 잠깐 멈췄다가 동작을 거꾸로 되감고 대기 자세로
+        if (rebounding)
+        {
+            if (strike == null || info.shortNameHash != reboundHash) rebounding = false;
+            else if (t > reboundTo) speed = -reboundSpeed;
+            else { rebounding = false; anim.CrossFadeInFixedTime(reboundState, reboundFade, 0); reboundFadeUntil = Time.time + reboundFade; }
+        }
+        // 대기 자세로 섞이는 동안에도 차던 동작이 다시 앞으로 나가지 않게 천천히 계속 거둬들임
+        else if (Time.time < reboundFadeUntil && anim.IsInTransition(0) && anim.GetCurrentAnimatorStateInfo(0).shortNameHash == reboundHash) speed = -reboundSpeed * 0.5f;
         if (Time.time < stopUntil) speed = 0f;
         anim.SetFloat(SpeedId, speed);
 
