@@ -21,6 +21,8 @@
 
 ## 임시 캐릭터
 
+> 2026-11-04 기준: 10개 노드 모두 전용 캐릭터로 교체됨. 02–06은 [StoryCharacters02-06](StoryCharacters02-06.md), 07–11은 [StoryCharacters07-11](StoryCharacters07-11.md) 참고. 아래는 처음 무대를 만들 때의 기록입니다.
+
 10개 노드의 적 외형은 `Assets/Characters/Scout/Scout_Visual.prefab`으로 연결했습니다.
 
 각 스테이지의 기존 이름과 전투 수치는 유지합니다. 나중에 캐릭터가 완성되면 `Assets/Resources/RunConfig.asset`의 **지도 노드별 적 외형**에서 해당 `nodeId`의 프리팹을 교체하면 됩니다. 전투 씬을 다시 만들 필요는 없습니다.

@@ -18,8 +18,8 @@ public static class CombatContactProbe
   try {
    EditorSceneManager.OpenScene("Assets/Scenes/ScoutPass.unity");
    var source=Object.FindAnyObjectByType<PlayerController>().GetComponent<Fighter3DView>();
-   var paths=new[]{AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(source.visualRoot.gameObject)),UnifiedBoxingInstaller.Scout}.Concat(Enumerable.Range(0,5).Select(StoryCharacterInstaller.PrefabPath)).ToArray();
-   var names=new[]{"player","scout","elite","tracker","warden","heukgyeon","mujin"};
+   var paths=new[]{AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(source.visualRoot.gameObject)),UnifiedBoxingInstaller.Scout}.Concat(Enumerable.Range(0,StoryCharacterInstaller.Keys.Length).Select(StoryCharacterInstaller.PrefabPath)).ToArray();
+   var names=new[]{"player","scout"}.Concat(StoryCharacterInstaller.Keys.Select(k=>k.Substring(3).ToLowerInvariant())).ToArray();
    for(int k=0;k<paths.Length;k++){
     var root=Object.Instantiate(k==0?source.visualRoot.gameObject:AssetDatabase.LoadAssetAtPath<GameObject>(paths[k]));
     root.transform.SetPositionAndRotation(Vector3.zero,Quaternion.Euler(0,90,0));

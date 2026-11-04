@@ -9,15 +9,18 @@ using UnityEngine.Animations;
 using UnityEngine.Playables;
 using Object=UnityEngine.Object;
 
-/// <summary>Imports the five approved story opponents; preserves the shared combat state machine.</summary>
+/// <summary>Imports the approved story opponents 02-11 (01 is the scout); preserves the shared combat state machine.</summary>
 public static class StoryCharacterInstaller
 {
     public const string Root="Assets/Characters/StoryOpponents";
-    public static readonly string[] Keys={"07_RidgeElite","08_Tracker","09_Warden","10_Heukgyeon","11_Mujin"};
-    public static readonly string[] Nodes={"east","camp","rescue","entrance","final"};
-    public static readonly string[] Names={"능선 정예병","수색대 추적자","포로 감시관","흑견","무진"};
-    public static readonly float[] Heights={1.78f,1.85f,1.94f,1.89f,2f};
+    public static readonly string[] Keys={"02_ValleyAmbusher","03_HiredBandit","04_FerryRaider","05_Cheolmun","06_QuarryElite","07_RidgeElite","08_Tracker","09_Warden","10_Heukgyeon","11_Mujin"};
+    public static readonly string[] Nodes={"river","ridge","old_ferry","gate","quarry","east","camp","rescue","entrance","final"};
+    public static readonly string[] Scenes={"RiverAmbush","WindRidge","OldFerry","SealedGate","HiddenQuarry","EasternRidge","SearchCamp","PrisonStockade","BlackCloudEntrance","SluiceFortress"};
+    public static readonly string[] Names={"계곡 잠복병","고용 산적","옛 나루 약탈자","철문","채석장 정예병","능선 정예병","수색대 추적자","포로 감시관","흑견","무진"};
+    public static readonly float[] Heights={1.80f,1.92f,1.72f,1.98f,1.86f,1.78f,1.85f,1.94f,1.89f,2f};
     public static string Out {get{var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,"-characterReport");return i>=0?args[i+1]:Path.Combine(Application.temporaryCachePath,"StoryCharacters");}}
+    /// <summary>Indices to install/finalize/verify. "-characterKeys 02_ValleyAmbusher,03_HiredBandit" limits the run; default is every character.</summary>
+    public static int[] Selected {get{var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,"-characterKeys");var all=Enumerable.Range(0,Keys.Length);if(i<0||i+1>=args.Length)return all.ToArray();var want=args[i+1].Split(',');return all.Where(k=>want.Contains(Keys[k])).ToArray();}}
     public static string PrefabPath(int i)=>Root+"/"+Keys[i]+"/"+Keys[i]+"_Visual.prefab";
     public static void ApplyConfiguredVisual(string nodeId)
     {
@@ -36,16 +39,16 @@ public static class StoryCharacterInstaller
         Directory.CreateDirectory(Out+"/Backup/Scenes");
         try
         {
-            AssetDatabase.Refresh();var scenes=new[]{"EasternRidge","SearchCamp","PrisonStockade","BlackCloudEntrance","SluiceFortress"};
+            AssetDatabase.Refresh();
             var notes=new List<string>();
-            for(int i=0;i<scenes.Length;i++)
+            foreach(int i in Selected)
             {
-                string path="Assets/Scenes/StoryStages/"+scenes[i]+".unity", backup=Out+"/Backup/Scenes/"+scenes[i]+".unity";
+                string path="Assets/Scenes/StoryStages/"+Scenes[i]+".unity", backup=Out+"/Backup/Scenes/"+Scenes[i]+".unity";
                 if(!File.Exists(backup))File.Copy(path,backup);
                 var scene=EditorSceneManager.OpenScene(path);ApplyConfiguredVisual(Nodes[i]);
                 var view=Object.FindAnyObjectByType<EnemyAI>().GetComponent<Fighter3DView>();
-                if(!view.modelAnimator.isHuman||!view.modelAnimator.avatar.isValid||view.visualRoot.name!=Keys[i]+"_Visual")throw new Exception("Scene visual invalid "+scenes[i]);
-                EditorSceneManager.MarkSceneDirty(scene);EditorSceneManager.SaveScene(scene);notes.Add(scenes[i]+": "+view.visualRoot.name);
+                if(!view.modelAnimator.isHuman||!view.modelAnimator.avatar.isValid||view.visualRoot.name!=Keys[i]+"_Visual")throw new Exception("Scene visual invalid "+Scenes[i]);
+                EditorSceneManager.MarkSceneDirty(scene);EditorSceneManager.SaveScene(scene);notes.Add(Scenes[i]+": "+view.visualRoot.name);
             }
             AssetDatabase.SaveAssets();File.WriteAllLines(Out+"/scene_installation.txt",notes);EditorApplication.Exit(0);
         }catch(Exception e){File.WriteAllText(Out+"/scene_error.txt",e.ToString());Debug.LogException(e);EditorApplication.Exit(1);}
@@ -62,7 +65,7 @@ public static class StoryCharacterInstaller
             var shared=AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(UnifiedBoxingInstaller.Folder+"/Unified_Combat.controller");
             var scoutController=AssetDatabase.LoadAssetAtPath<AnimatorOverrideController>(UnifiedBoxingInstaller.Folder+"/Unified_Scout.overrideController");
             var sourcePairs=new List<KeyValuePair<AnimationClip,AnimationClip>>();scoutController.GetOverrides(sourcePairs);
-            foreach(int i in Enumerable.Range(0,Keys.Length))
+            foreach(int i in Selected)
             {
                 string folder=Root+"/"+Keys[i], fbx=folder+"/"+Keys[i]+".fbx";
                 var importer=(ModelImporter)AssetImporter.GetAtPath(fbx);
