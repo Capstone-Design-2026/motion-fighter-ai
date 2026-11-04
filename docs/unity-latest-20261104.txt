@@ -1,0 +1,17 @@
+REDBOOL Unity 연결 최신 안내 — 2026-11-04
+
+GitHub 반영 경로로 변경했습니다. 이전 ZIP 설치 안내 대신 아래 문서를 사용합니다.
+Unity PR: https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/4
+Python PR: https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/5
+
+원격 feature/unity 확인 HEAD: e1af7d3a99529da9d7a971e1cfb904399ca3cdad
+55844cd 이후 추가 변경은 전투 씬 BGM이며 검토한 전투 API는 동일합니다.
+Python 인식: seated-lean-guard-20261104-v6
+호환 Unity 수신기: unity-55844cd-v5 / UDP 5065
+
+로컬 실행·검증 결과: docs/seated-demo-v6.md
+Unity 팀원 설치: PR #4의 Docs/RedboolVisionSetup.md
+두 PR 모두 검토용이며 아직 공유 브랜치에 병합하지 않았습니다.
+이 Mac의 Python 코드는 v6로 직접 갱신했습니다. 촬영 원본과 학습 모델은 그대로입니다.
+
+Unity 컴파일·Play Mode·실제 화면 동작은 팀원 PC에서 확인해야 합니다.

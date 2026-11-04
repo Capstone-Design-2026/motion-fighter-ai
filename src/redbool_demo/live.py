@@ -39,7 +39,7 @@ def run(a):
     sender=DemoSender(a.host,a.port,stream,a.actor)
     log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
     counts={'captured':0,'processed':0,'events':0,'left':0,'right':0}
-    guide=GuidedCheck(movement=a.movement) if getattr(a,'guided',False) else None
+    guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False)) if getattr(a,'guided',False) else None
     display={'event':'NONE','event_ns':0};cap=None;pose=None;video=None;recorder=None
     def fail(where,exc):
         errors.append({'where':where,'error':repr(exc)});stop.set()
@@ -143,8 +143,11 @@ def run(a):
                 f"LEFT {counts['left']}  RIGHT {counts['right']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                 f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
                 f"Pose {pose_ms:.1f}ms | {fps:.1f} FPS | capture skipped {slot.dropped}",
-                'C: hold guard 2 sec | M: movement | X: pause | Q: finish']
-            for i,line in enumerate(lines):cv.putText(panel,line,(6,22+i*24),0,.47,(80,230,160) if armed else (50,200,255),1)
+                'C: hold guard 2 sec | SPACE: next prompt | M: move | X: pause | Q: finish']
+            for i,line in enumerate(lines):
+                width=cv.getTextSize(line,0,.47,1)[0][0]
+                scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))
+                cv.putText(panel,line,(6,22+i*24),0,scale,(80,230,160) if armed else (50,200,255),1)
             cv.imshow('REDBOOL DEMO',view);key=cv.waitKey(1)&255
             if key==ord('q') or (guide and guide.completed):break
             if key in (ord('c'),ord('x')):
@@ -152,6 +155,7 @@ def run(a):
                 if key==ord('x'):engine.calibrating=False
                 recorder.record_annotation(label='CALIBRATE' if key==ord('c') else 'PAUSE',annotation_type='marker',event_frame_id=frame['frame_id'],source='human_demo_control')
             if key==ord('m'):engine.toggle_movement()
+            if key==ord(' ') and guide:guide.advance(stamp)
             video.check_error()
     except KeyboardInterrupt:pass
     except BaseException as exc:fail('main',exc)
@@ -176,7 +180,7 @@ def run(a):
         report={'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
             'camera_slot_drops':slot.dropped,'duration_seconds':time.monotonic()-started,
             'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
-            'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index} if guide else None}
+            'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
         (out/'summary.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
     if errors:raise RuntimeError(errors)
 
@@ -188,7 +192,8 @@ def main():
     p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=5065)
     p.add_argument('--actor',default='DEV01');p.add_argument('--stream-id');p.add_argument('--camera',type=int,default=0)
     p.add_argument('--backend',default='auto');p.add_argument('--seconds',type=float,default=180)
-    p.add_argument('--guided',action='store_true',help='Prompt five gestures three times after calibration; saves prompt intervals, not ground truth')
+    p.add_argument('--guided',action='store_true',help='Self-paced prompts: SPACE advances after each action/guard; saves instructions, not ground truth')
+    p.add_argument('--guided-timed',action='store_true',help='Use legacy fixed-duration prompts instead of SPACE')
     p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action='store_true')
     p.add_argument('--check',action='store_true');a=p.parse_args()
     import math

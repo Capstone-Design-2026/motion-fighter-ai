@@ -2,10 +2,13 @@
 import random
 
 class GuidedCheck:
-    def __init__(self, movement=False):
+    def __init__(self, movement=False, self_paced=False):
+        self.self_paced = self_paced
+        self.advance_requested = False
         gestures=['LEFT_PUNCH','RIGHT_PUNCH','LEFT_RAISE','RIGHT_RAISE','BLOCK']
         if movement: gestures.extend(['MOVE_LEFT','MOVE_RIGHT'])
         self.protocol='raised-kicks-movement-check-v4' if movement else 'raised-kicks-check-v3'
+        if self_paced: self.protocol = 'raised-kicks-self-paced-v6'
         rng=random.Random(20261103)
         self.steps=[('GUARD',4.)]
         for _ in range(3):
@@ -24,7 +27,8 @@ class GuidedCheck:
         if not calibrated:
             self.finish(recorder);return 'CHECK INTERRUPTED - Q then restart'
         label,duration=self.steps[self.index]
-        if stamp-self.start_ns >= duration*1e9:
+        if (self.advance_requested if self.self_paced else stamp-self.start_ns >= duration*1e9):
+            self.advance_requested = False
             self._record(recorder,self.last_frame,'complete')
             self.index+=1
             if self.index==len(self.steps):
@@ -41,14 +45,23 @@ class GuidedCheck:
             'RIGHT_RAISE':'YOUR RIGHT HAND UP: low kick',
             'LEFT_PUNCH':'YOUR LEFT PUNCH: jab',
             'RIGHT_PUNCH':'YOUR RIGHT PUNCH: straight'}.get(label,label)
-        return f'{self.index+1}/{len(self.steps)} {instruction} {remaining:.1f}s'
+        suffix = ' | SPACE: next when done' if self.self_paced else f' {remaining:.1f}s'
+        return f'{self.index+1}/{len(self.steps)} {instruction}{suffix}'
+
+    def advance(self, stamp):
+        # Keypresses mark operator progress, never recognition success. Require
+        # a real interval and ignore accidental immediate/repeated keypresses.
+        if (self.self_paced and not self.completed and not self.interrupted
+                and self.start_ns is not None and stamp-self.start_ns >= 1_000_000_000):
+            self.advance_requested = True
 
     def _record(self, recorder, end, outcome):
         if end is not None and end>=self.start_frame:
             recorder.record_annotation(label=self.steps[self.index][0],annotation_type='interval',
                 start_frame_id=self.start_frame,end_frame_id=end,source='prompt',
                 notes={'protocol':self.protocol,'step':self.index+1,'outcome':outcome,
-                       'ground_truth_status':'NOT_REVIEWED'})
+                       'ground_truth_status':'NOT_REVIEWED',
+                       'advance_mode':'operator_space' if self.self_paced else 'timer'})
 
     def finish(self, recorder):
         if self.start_ns is not None and not self.completed and not self.interrupted:

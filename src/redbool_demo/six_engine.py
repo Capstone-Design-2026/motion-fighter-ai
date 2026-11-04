@@ -38,6 +38,7 @@ class SixAttack(DemoAttack):
         Returning fists need not occupy the exact calibration pixel: inward
         horizontal variation is normal. Image-depth elbow estimates fluctuate;
         allow modest variation but cap extension and also check the 2D elbow.
+        Allow a relaxed return up to .30 shoulder-width below the anchor.
         Keep vertical position, bent elbow and
         low speed mandatory so lowered/raised/extended holds cannot re-arm.
         The original calibration anchor never drifts toward an action pose.
@@ -47,7 +48,7 @@ class SixAttack(DemoAttack):
         for side, arm in arms.items():
             base = self.baseline[side]
             dx, dy = arm['position'][:2] - base['position'][:2]
-            if not (abs(dx) <= .35 and -.30 <= dy <= .20
+            if not (abs(dx) <= .35 and -.30 <= dy <= .30
                     and arm['speed_xy'] <= self.cfg.neutral_speed
                     and arm['angle'] <= 1.5
                     and arm['angle3d'] is not None
@@ -77,7 +78,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-guard-return-20261104-v5')
+        self.config = replace(self.config, version='seated-lean-guard-20261104-v6')
         self._components()
 
     @property
@@ -155,7 +156,7 @@ class SixGestureEngine(DemoEngine):
                 for side, other in (('LEFT', 'RIGHT'), ('RIGHT', 'LEFT')):
                     dx, dy = delta[side][:2]
                     other_dx, other_dy = delta[other][:2]
-                    other_guard = abs(other_dx) <= .35 and -.30 <= other_dy <= .20
+                    other_guard = abs(other_dx) <= .35 and -.30 <= other_dy <= .30
                     vertical = abs(dx) <= .35 and abs(dy) > abs(dx) * 1.2
                     if other_guard and vertical:
                         if dy <= -.40:

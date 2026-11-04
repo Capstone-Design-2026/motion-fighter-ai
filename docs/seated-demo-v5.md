@@ -1,3 +1,5 @@
+> 이 문서는 이전 v5 기록입니다. 현재 실행·검증 결과는 [v6 안내](seated-demo-v6.md)를 사용합니다.
+
 # Seated vision demo v5
 
 앉은 자세의 Mac 내장 카메라 입력을 Unity UDP 5065 수신기로 전달합니다.
