@@ -22531,10 +22531,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BattleBgm
   clips:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  - {fileID: 8300000, guid: ff02bb08486b95043af1c976cbb84715, type: 3}
+  - {fileID: 8300000, guid: 90ae9bc7508466a4a9cd075a6aeea4e3, type: 3}
+  - {fileID: 8300000, guid: 45998c2c42b1b2f4d8a8381be381639e, type: 3}
+  - {fileID: 8300000, guid: 71e00227ac61e9749b92dff07c998d12, type: 3}
   volume: 0.4
 --- !u!82 &837922491
 AudioSource:
