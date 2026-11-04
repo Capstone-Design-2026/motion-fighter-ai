@@ -10,7 +10,7 @@ class GuidedCheck:
         gestures=['LEFT_PUNCH','RIGHT_PUNCH','LEFT_RAISE','RIGHT_RAISE','BLOCK']
         if movement: gestures.extend(['MOVE_LEFT','MOVE_RIGHT'])
         self.protocol='raised-kicks-movement-check-v4' if movement else 'raised-kicks-check-v3'
-        if self_paced: self.protocol = 'raised-kicks-self-paced-v7'
+        if self_paced: self.protocol = 'raised-kicks-self-paced-v7-cues2'
         rng=random.Random(20261103)
         self.steps=[('GUARD',4.)]
         for _ in range(3):
@@ -56,8 +56,8 @@ class GuidedCheck:
                 self.start_ns=stamp;self.start_frame=fid
             else:
                 self.last_frame=fid
-                status='hold guard' if not ready else 'hold steady'
-                return f'{self.index+1}/{len(self.steps)} PREPARE {label}: {status}; wait for GO'
+                status='RETURN BOTH HANDS TO GUARD' if not ready else 'HOLD GUARD STILL'
+                return f'{self.index+1}/{len(self.steps)} PREPARE / WAIT: {status}'
         self.last_frame=fid
         remaining=max(0.,duration-(stamp-self.start_ns)/1e9)
         instruction={'GUARD':'GUARD: fists by chin, center; wait READY',
@@ -68,8 +68,10 @@ class GuidedCheck:
             'RIGHT_RAISE':'YOUR RIGHT HAND UP: low kick',
             'LEFT_PUNCH':'YOUR LEFT PUNCH: jab',
             'RIGHT_PUNCH':'YOUR RIGHT PUNCH: straight'}.get(label,label)
-        suffix = ' | GO; SPACE when done' if self.self_paced else f' {remaining:.1f}s'
-        return f'{self.index+1}/{len(self.steps)} {instruction}{suffix}'
+        if self.self_paced:
+            cue='GO: ' if label not in ('GUARD','NONE') else ''
+            return f'{self.index+1}/{len(self.steps)} {cue}{instruction} | SPACE when done'
+        return f'{self.index+1}/{len(self.steps)} {instruction} {remaining:.1f}s'
 
     def advance(self, stamp):
         # Keypresses mark operator progress, never recognition success. Require

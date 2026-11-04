@@ -156,7 +156,10 @@ def run(a):
             for i,line in enumerate(lines):
                 width=cv.getTextSize(line,0,.47,1)[0][0]
                 scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))
-                cv.putText(panel,line,(6,22+i*24),0,scale,(80,230,160) if armed else (50,200,255),1)
+                color=(80,230,160) if armed else (50,200,255)
+                if guide and i==1:
+                    color=(40,190,255) if guide.preparing else (80,255,80) if 'GO: ' in line else (220,220,220)
+                cv.putText(panel,line,(6,22+i*24),0,scale,color,1)
             cv.imshow('REDBOOL DEMO',view);key=cv.waitKey(1)&255
             if key==ord('q') or (guide and guide.completed):break
             if key in (ord('c'),ord('x')):

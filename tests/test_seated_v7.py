@@ -9,6 +9,18 @@ from action_engine.types import PoseObservation
 class PreparationTests(unittest.TestCase):
     def setUp(self):self.rows=[]
     def record_annotation(self,**r):self.rows.append(r)
+    def test_prepare_hides_next_attack_and_only_action_phase_says_go(self):
+        g=GuidedCheck(self_paced=True,focus='left-return')
+        self.assertNotIn('GO',g.update(1,0,True,self))
+        g.advance(2_000_000_000)
+        text=g.update(2,2_100_000_000,True,self,ready=False)
+        self.assertIn('WAIT',text);self.assertNotIn('LEFT',text);self.assertNotIn('GO',text)
+        g.update(3,4_000_000_000,True,self,ready=True)
+        text=g.update(4,4_800_000_000,True,self,ready=True)
+        self.assertIn('GO: YOUR LEFT HAND UP',text)
+        g.advance(6_000_000_000)
+        self.assertNotIn('GO',g.update(5,6_100_000_000,True,self,ready=False))
+
     def test_keyboard_progress_waits_for_recovered_guard_without_claiming_success(self):
         g=GuidedCheck(self_paced=True)
         g.update(1,0,True,self);g.advance(2_000_000_000)
