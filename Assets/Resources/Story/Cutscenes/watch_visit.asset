@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "남겨진 통신문"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "찢어진 통신문"
     text: "흑운협 재가동 전까지 외부인의 접근을 차단할 것."
     leftPortrait: {fileID: 0}
@@ -35,6 +38,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "흑운협 재가동 명령"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "나머지 기록은 위쪽 정자로 옮겨졌군."
     leftPortrait: {fileID: 0}
@@ -42,3 +48,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

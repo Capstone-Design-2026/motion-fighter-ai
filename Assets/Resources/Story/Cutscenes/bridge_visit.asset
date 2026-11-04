@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "곡식 낟알과 짐꾼들의 발자국이다. 옛 나루까지 따라가 보자."
     leftPortrait: {fileID: 0}
@@ -33,3 +36,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 3
     evidenceTitle: "짐꾼의 발자국과 곡식"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

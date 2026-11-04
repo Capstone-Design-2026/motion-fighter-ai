@@ -1,0 +1,6 @@
+Poly Haven — CC0 assets
+License: https://polyhaven.com/license
+Forest Ground 04: https://polyhaven.com/a/forest_ground_04
+Cobblestone Floor 02: https://polyhaven.com/a/cobblestone_floor_02
+Rock Face 03: https://polyhaven.com/a/rock_face_03
+2K sources. Diffuse converted to JPEG; normal and roughness retained as PNG.

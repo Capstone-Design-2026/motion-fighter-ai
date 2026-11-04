@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: bc053e0699984d83ab4b722b88c8c24c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "연화"
     text: "계곡으로는 무거운 수레가 갔어. 안에서 기침 소리가 났지. 능선에는 말을 탄 무인들이, 서쪽 다리에는 짐꾼들이 갔고."
     leftPortrait: {fileID: 0}
@@ -31,6 +34,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: bc053e0699984d83ab4b722b88c8c24c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "서로 다른 행렬이군요. 흔적을 직접 확인하겠습니다."
     leftPortrait: {fileID: 0}
@@ -38,3 +44,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: bc053e0699984d83ab4b722b88c8c24c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

@@ -1,0 +1,19 @@
+{
+  "version": "PerformanceV2",
+  "verifiedAt": "2026-10-16T16:32:29.345444",
+  "unity": "6000.4.5f1",
+  "cutscenes": 38,
+  "lines": 103,
+  "dialogueTransitionsPassed": 103,
+  "movieBeatsPassed": 20,
+  "clipsPlayingWhenSampled": 103,
+  "clipsWithAdvancingClock": 103,
+  "screenshots": 58,
+  "importPassed": true,
+  "runtimePassed": true,
+  "notes": [
+    "Automated playback and integration checks are not human pronunciation or performance approval.",
+    "2D amplitude-driven mouth motion, not phoneme lip sync.",
+    "All 103 lines generated again with per-character voices and per-line acting cues."
+  ]
+}

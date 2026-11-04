@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 1
     evidenceTitle: "수련을 마친 벽화"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤의 편지"
     text: "내가 돌아오지 못하거든 청계역의 연화를 찾아가거라. 길을 모를 때는 사람에게 묻고, 들은 말은 네 눈으로 확인해라."
     leftPortrait: {fileID: 0}
@@ -35,6 +38,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "도윤의 편지"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "지도를 챙기자. 먼저 산 아래 청계역으로 간다."
     leftPortrait: {fileID: 0}
@@ -44,3 +50,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 1
     evidenceTitle: "벽화를 뒤로하고 청계역으로"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

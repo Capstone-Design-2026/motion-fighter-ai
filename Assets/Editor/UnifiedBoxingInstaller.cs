@@ -77,6 +77,12 @@ public static class UnifiedBoxingInstaller
         actor.applyRootMotion = false; actor.cullingMode = AnimatorCullingMode.AlwaysAnimate; actor.Rebind();
         foreach (string key in Keys)
         {
+            // Approved 2026-10-19 idle/steps are independently authored for each rig.
+            // Preserve their aerial idle frames instead of grounding away the hop.
+            var locomotion = AssetDatabase.LoadAssetAtPath<AnimationClip>(Folder + "/" + subfolder + "/Unified_" + subfolder + "_" + key + ".anim");
+            if ((key == "IDLE" || key.StartsWith("WALK_")) && locomotion != null
+                && AssetDatabase.IsValidFolder(Folder + "/LocomotionReference"))
+            { result[key] = locomotion; continue; }
             var source = AssetDatabase.LoadAssetAtPath<AnimationClip>(Folder + "/Source/Unified_" + key + ".anim");
             if (!source || !source.humanMotion) throw new Exception("Missing Humanoid clip " + key);
             var clip = UnityEngine.Object.Instantiate(source); clip.name = "Unified_" + subfolder + "_" + key;

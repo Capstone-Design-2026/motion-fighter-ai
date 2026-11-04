@@ -11,6 +11,7 @@ public class PlayerController : MonoBehaviour
     private Health health;
     private Fighter fighter;
     private bool unifiedBoxing;
+    private Battle3DCamera battleCamera;
 
     [Header("이동")]
     public float moveSpeed = 5f;
@@ -64,6 +65,7 @@ public class PlayerController : MonoBehaviour
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
         unifiedBoxing = GetComponent<Fighter3DView>() != null;
+        if(Camera.main!=null)battleCamera=Camera.main.GetComponent<Battle3DCamera>();
 
         // 상대를 지정하지 않았으면 씬에서 찾는다. (EnemyAI 가 플레이어를 찾는 것과 대칭)
         if (opponent == null)
@@ -148,13 +150,16 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+        // Rotating behind the fighters must not reverse screen-left/right keyboard or vision intent.
+        if(battleCamera!=null)moveX=battleCamera.ScreenHorizontalToWorld(moveX);
+
         // 바라보는 방향을 먼저 확정해야 전진/후진 판정이 맞는다.
         FaceOpponent(moveX);
 
         // 바라보는 방향과 이동 방향이 반대면 후진.
         bool movingBack = Mathf.Abs(moveX) > 0.01f && moveX * fighter.Facing < 0f;
 
-        float speed = moveSpeed;
+        float speed = moveSpeed * (unifiedBoxing ? Fighter3DView.BoxingTravelScale : 1f);
         if (movingBack)  speed *= backwardSpeedMultiplier;
         if (isCrouching) speed *= crouchSpeedMultiplier;
 

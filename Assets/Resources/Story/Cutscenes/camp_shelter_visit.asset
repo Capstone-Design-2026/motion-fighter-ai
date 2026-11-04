@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "남겨진 짧은 기록"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "사부님이 벌어 주신 시간 덕분에 살아 돌아간 사람들이 있어."
     leftPortrait: {fileID: 0}
@@ -33,6 +36,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "앞은 낙석으로 막혔다. 쉬었다가 약초꾼의 쉼터로 돌아가자."
     leftPortrait: {fileID: 0}
@@ -40,3 +46,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,15 +8,15 @@ public enum CombatMove { Jab, Straight, HighKick, LowKick }
 
 public enum AttackHeight
 {
-    High,   // 점프 공격 (오버헤드) - 앉아막기로는 못 막음
-    Mid,    // 기본 공격          - 서서/앉아 둘 다 막힘
-    Low     // 앉아 공격          - 서서막기로는 못 막음
+    High,   // 하이킥: 일반 가드로 방어
+    Mid,    // 펀치: 일반 / 로우 가드로 방어
+    Low     // 로우킥: 로우 가드로 방어
 }
 
 /// <summary>
 /// 공격 판정을 담당하는 공통 전투 컴포넌트. 플레이어와 적이 함께 사용한다.
-/// 애니메이션 이벤트에 의존하지 않고 코드 타이밍(선딜 → 판정 → 후딜)으로 처리하므로
-/// .anim 파일을 건드리지 않아도 동작한다.
+/// Humanoid uses pose-driven swept contacts in CombatContactWorld after animation.
+/// The original one-shot box remains only for legacy sprite fighters.
 /// </summary>
 [RequireComponent(typeof(Health))]
 [DisallowMultipleComponent]
@@ -64,6 +65,38 @@ public class Fighter : MonoBehaviour
     private Animator animator;
     private Fighter3DView view3D;
     private Coroutine attackRoutine;
+    private bool preciseRoutine;
+    public CombatBodyPose Contacts { get; private set; }
+    public float AttackStarted { get; private set; }
+    public int AttackSerial { get; private set; }
+    public bool PreciseAttackActive => preciseRoutine && IsAttacking && isActiveAndEnabled && !InputLocked && !Health.IsDead && !Health.IsHitStunned && Contacts.Ready;
+    public event Action<Fighter, Vector3, CombatBodyPart, bool> ContactResolved;
+    public bool HasContacted(Health target) => alreadyHit.Contains(target);
+    public static AttackHeight HeightOf(CombatMove move) => move == CombatMove.HighKick ? AttackHeight.High : move == CombatMove.LowKick ? AttackHeight.Low : AttackHeight.Mid;
+    public bool IsGuardedBy(Fighter target)
+    {
+        if (!target || !target.IsBlocking || !FacesMe(target)) return false;
+        var height=HeightOf(CurrentMove);
+        return height==AttackHeight.Mid || (height==AttackHeight.Low && target.IsCrouching) || (height==AttackHeight.High && !target.IsCrouching);
+    }
+    public void FinishPreciseAttack(float now)
+    {
+        if (preciseRoutine && IsAttacking && (InputLocked || Health.IsDead || Health.IsHitStunned || now-AttackStarted >= Fighter3DView.Duration(CurrentMove)))
+            CancelAttack();
+    }
+    public void ResolveContact(Fighter target, Vector3 point, CombatBodyPart part)
+    {
+        alreadyHit.Add(target.Health);
+        bool guarded=IsGuardedBy(target);
+        int damage=guarded ? target.GuardedDamage(attackDamage) : attackDamage;
+        Vector2 force=guarded ? Vector2.zero : new Vector2(knockback.x*Facing,knockback.y);
+        if (!target.Health.TakeDamage(damage,force,guarded)) return;
+        HitVfx.Play(point,guarded);
+        CombatContactAudio.Play(CurrentMove,guarded);
+        bool finisher=target.Health.IsDead;
+        if (useHitImpact) HitImpact.Play(point,guarded,finisher,!finisher);
+        ContactResolved?.Invoke(target,point,part,guarded);
+    }
     public CombatMove CurrentMove { get; private set; }
 
     public int AttackDamage => attackDamage;
@@ -77,15 +110,16 @@ public class Fighter : MonoBehaviour
         Health = GetComponent<Health>();
         animator = GetComponent<Animator>();
         view3D = GetComponent<Fighter3DView>();
+        Contacts = new CombatBodyPose(this);
     }
 
-    void OnEnable() { if (Health != null) Health.OnDamaged += InterruptAttack; }
-    void OnDisable() { if (Health != null) Health.OnDamaged -= InterruptAttack; CancelAttack(); }
+    void OnEnable() { if (Health != null) Health.OnDamaged += InterruptAttack; CombatContactWorld.Register(this); }
+    void OnDisable() { if (Health != null) Health.OnDamaged -= InterruptAttack; CancelAttack(); CombatContactWorld.Unregister(this); }
     void InterruptAttack(bool guarded) { CancelAttack(); }
     public void CancelAttack()
     {
         if (attackRoutine != null) StopCoroutine(attackRoutine);
-        attackRoutine = null; IsAttacking = false;
+        attackRoutine = null; preciseRoutine = false; IsAttacking = false;
     }
 
     /// <summary>공격 시작. 실제로 시작됐으면 true.</summary>
@@ -98,6 +132,7 @@ public class Fighter : MonoBehaviour
     {
         if (!CanAttack || IsBlocking) return false;
         CurrentMove = move;
+        alreadyHit.Clear(); AttackSerial++; AttackStarted=Time.time;
         AttackHeight height = move == CombatMove.HighKick ? AttackHeight.High : move == CombatMove.LowKick ? AttackHeight.Low : AttackHeight.Mid;
         if (view3D != null) view3D.BeginAttack(move);
         // 공격 높이를 애니메이터에 정수로 고정 통보한다.
@@ -106,7 +141,9 @@ public class Fighter : MonoBehaviour
         if (animator != null)
             animator.SetInteger("AttackHeight", (int)height);
 
-        attackRoutine = StartCoroutine(AttackRoutine(height));
+        preciseRoutine = view3D != null && Contacts.Ready;
+        if (preciseRoutine) IsAttacking=true;
+        else attackRoutine = StartCoroutine(AttackRoutine(height));
         return true;
     }
 
@@ -209,6 +246,16 @@ public class Fighter : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         if (!drawHitboxGizmo) return;
+        if (Application.isPlaying && Contacts != null && Contacts.Ready)
+        {
+            var w=CombatContactWorld.Window(CurrentMove);
+            Gizmos.color=PreciseAttackActive && Time.time-AttackStarted>=w.x && Time.time-AttackStarted<=w.y ? Color.red : Color.gray;
+            var strike=Contacts.strikes[(int)CurrentMove];
+            Gizmos.DrawWireSphere(strike.a,strike.radius);Gizmos.DrawWireSphere(strike.b,strike.radius);Gizmos.DrawLine(strike.a,strike.b);
+            Gizmos.color=new Color(0,.8f,1,.55f);
+            for(int i=0;i<7;i++){var h=Contacts.hurt[i];Gizmos.DrawWireSphere(h.a,h.radius);Gizmos.DrawWireSphere(h.b,h.radius);Gizmos.DrawLine(h.a,h.b);}
+            return;
+        }
         Gizmos.color = new Color(1f, 0.3f, 0.2f, 0.5f);
         Gizmos.DrawWireCube(GetHitboxCenter(), hitboxSize);
     }

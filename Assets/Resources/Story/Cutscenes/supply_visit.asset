@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "뒤편은 절벽이다. 약품으로 상처를 돌보고 쉼터로 돌아가자. 특별 호송대는 채석장으로 갔다."
     leftPortrait: {fileID: 0}
@@ -31,3 +34,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

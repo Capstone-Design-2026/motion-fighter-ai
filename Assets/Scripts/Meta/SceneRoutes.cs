@@ -1,4 +1,4 @@
-using UnityEngine.SceneManagement;
+﻿using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 씬 이름을 한 곳에 모아둔다. 씬 이름을 바꾸면 여기만 고치면 된다.
@@ -14,5 +14,19 @@ public static class SceneRoutes
 
     public static void LoadStart()  { SceneManager.LoadScene(Start);  }
     public static void LoadMap()    { SceneManager.LoadScene(Map);    }
-    public static void LoadBattle() { SceneManager.LoadScene(Battle); }
+    public static string PendingBattleScene
+    {
+        get
+        {
+            var run = RunState.Instance;
+            return run != null && run.IsStoryMap && run.PendingNode != null
+                ? run.Config.GetBattleScene(run.PendingNode.id) : Battle;
+        }
+    }
+    public static void LoadBattle()
+    {
+        string scene = PendingBattleScene;
+        if (!UnityEngine.Application.CanStreamedLevelBeLoaded(scene)) scene = Battle;
+        SceneManager.LoadScene(scene);
+    }
 }

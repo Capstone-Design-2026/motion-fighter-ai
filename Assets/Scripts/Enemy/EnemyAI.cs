@@ -114,13 +114,14 @@ public class EnemyAI : MonoBehaviour
         {
             if (Time.time < backstepUntil)
                 moveX = -fighter.Facing;                    // 뒤로 물러남
-            else if (distance > attackRange)
+            else if (distance > EffectiveAttackRange)
                 moveX = fighter.Facing;                     // 접근
             else if (distance < keepDistance)
                 moveX = -fighter.Facing;                    // 너무 붙었으면 조금 뒤로
         }
 
-        rb.linearVelocity = new Vector2(moveX * moveSpeed, rb.linearVelocity.y);
+        float travelSpeed = moveSpeed * (GetComponent<Fighter3DView>() != null ? Fighter3DView.BoxingTravelScale : 1f);
+        rb.linearVelocity = new Vector2(moveX * travelSpeed, rb.linearVelocity.y);
         SetAnimatorFlags(moveX != 0f, isCrouching, isBlocking);
 
         // ── 행동 결정 ──
@@ -131,10 +132,12 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
+    // Pose-based jab reach is shorter than the former shared attack rectangle.
+    private float EffectiveAttackRange => GetComponent<Fighter3DView>() != null ? Mathf.Min(attackRange, 1.0f) : attackRange;
     private void Decide(float distance)
     {
         // 사거리 밖이면 그냥 접근만 한다.
-        if (distance > attackRange + 0.4f) return;
+        if (distance > EffectiveAttackRange + (GetComponent<Fighter3DView>() != null ? .05f : .4f)) return;
 
         float total = attackWeight + blockWeight + backstepWeight + crouchWeight;
         float roll = Random.value * total;

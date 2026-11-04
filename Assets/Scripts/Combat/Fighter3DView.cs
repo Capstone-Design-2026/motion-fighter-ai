@@ -9,6 +9,9 @@ public sealed class Fighter3DView : MonoBehaviour
     public Color fighterTint = Color.white;
     public AnimationClip[] strikeClips;
     public AnimationClip[] guardClips;
+    // The old run-speed travel forced tiny boxing steps to play several times too fast.
+    // Scale only grounded 3D locomotion; stage-relative speeds and 2D mode stay intact.
+    public const float BoxingTravelScale = .4f;
     public const float HurtDuration = .70f;
     public const float GuardReactionDuration = .225f;
     const float GuardEntry = .27f, GuardRelease = .252f;
@@ -106,7 +109,7 @@ public sealed class Fighter3DView : MonoBehaviour
     {
         if (!restart && state == currentState) return;
         float blend = state == "HURT" || state.EndsWith("_HIT") ? .035f
-            : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .10f : .06f;
+            : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .16f : .06f;
         currentState = state; stateStarted = Time.time;
         // Never freeze the animator: held guards have dedicated looping pose clips,
         // so fades can finish and a subsequent action cannot stick in a T-pose.
@@ -130,6 +133,13 @@ public sealed class Fighter3DView : MonoBehaviour
         visualRoot.localRotation = Quaternion.Euler(0, fighter.Facing * 90f, 0);
         visualRoot.localPosition = origin;
         walk?.Measure(Time.deltaTime, fighter.Facing);
+        // Physics contact offsets can leave the collider a little above the floor.
+        // Align only the presentation root; retain the intentional hop inside the clip.
+        if (walk != null)
+        {
+            Vector3 grounded = visualRoot.position; grounded.y = walk.GroundY;
+            visualRoot.position = grounded;
+        }
         if (health.IsDead) Play("KO");
         else if (Time.time < reactionUntil || health.IsHitStunned) { }
         else if (!fighter.IsAttacking)
@@ -146,7 +156,7 @@ public sealed class Fighter3DView : MonoBehaviour
             else Play("IDLE");
         }
         bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
-        modelAnimator.speed = walkingState ? Mathf.Clamp((currentState == "WALK_BACK" ? 1.30f : 1.20f) * walk.Speed / Mathf.Max(.1f, 2 * walk.StepLength), .7f, 3.5f) : 1f;
+        modelAnimator.speed = walkingState ? walk.PlaybackSpeed : 1f;
         walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;

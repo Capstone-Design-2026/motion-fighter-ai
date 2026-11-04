@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "지금 어디 계십니까?"
     leftPortrait: {fileID: 0}
@@ -31,6 +34,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "의원"
     text: "채석장에서 온 특별 호송대가 데려갔소. 가까운 약품 보관소에 치료할 약이 남아 있소."
     leftPortrait: {fileID: 0}
@@ -38,3 +44,6 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: d952de2b523c40d69c7541f95459a33c, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

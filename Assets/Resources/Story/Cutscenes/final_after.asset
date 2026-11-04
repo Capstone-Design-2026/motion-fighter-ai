@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "이제 돌아갈 수 있어."
     leftPortrait: {fileID: 0}
@@ -31,6 +34,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     text: "이 길들을 모두 네가 찾았느냐?"
     leftPortrait: {fileID: 0}
@@ -38,6 +44,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "몇 번은 잘못 갔습니다."
     leftPortrait: {fileID: 0}
@@ -45,6 +54,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     text: "그래도 돌아왔구나."
     leftPortrait: {fileID: 0}
@@ -52,6 +64,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "이제 돌아가는 길은 압니다."
     leftPortrait: {fileID: 0}
@@ -59,6 +74,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: ""
     text: "무진은 생포되고 잔당은 흩어졌다. 수문은 마을 사람들에게 인계되었다. 사부와 제자는 함께 도장으로 돌아간다."
     leftPortrait: {fileID: 0}
@@ -66,3 +84,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

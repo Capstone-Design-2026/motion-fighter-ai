@@ -20,5 +20,38 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/EndingScene.unity
     guid: d505e65f42b64132abdbca6dc3bb9467
+  - enabled: 1
+    path: Assets/Scenes/ScoutPass.unity
+    guid: bd77c29d77e974f44b50cc26c24c8311
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/RiverAmbush.unity
+    guid: 782fe9f35f28a534cbafb2e9cfe9cd4d
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/WindRidge.unity
+    guid: 7cd3a8f9f0e5ee140b7e4b29033ff943
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/OldFerry.unity
+    guid: 4a2cecf1744e1734ebc702f2202223c2
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/SealedGate.unity
+    guid: ae28958e4836cbe43bc5d571214ecf93
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/HiddenQuarry.unity
+    guid: 560d040ff09535046ba8fbf8ee208744
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/EasternRidge.unity
+    guid: 0ecb5c29ec427694b834ca0668a7788c
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/SearchCamp.unity
+    guid: 9ad4950fb478a7148b48d19043ee0108
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/PrisonStockade.unity
+    guid: 55ef9a977db23db45a992b3805acdd73
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/BlackCloudEntrance.unity
+    guid: 2b15b571fbfe56d4c996d986b17bde70
+  - enabled: 1
+    path: Assets/Scenes/StoryStages/SluiceFortress.unity
+    guid: dff11284df052c74e939281e8c543749
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

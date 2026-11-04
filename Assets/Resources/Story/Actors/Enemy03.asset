@@ -15,6 +15,8 @@ MonoBehaviour:
   displayName: "고용 산적"
   artwork: {fileID: 2800000, guid: 1de20c4fa3b94b8d9d5c4c6384b24763, type: 3}
   crop: {serializedVersion: 2, x: 0, y: 0, width: 1, height: 1}
-  mouth: {x: 0.5, y: 0.76}
+  mouth: {x: 0.45, y: 0.697}
   hand: {x: 0.72, y: 0.22}
   masked: 0
+  mouthWidth: 0.055
+  mouthAngle: -8

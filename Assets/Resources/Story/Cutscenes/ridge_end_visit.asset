@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "지원군 연락 서찰"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "뒤는 절벽이고 연락책도 떠났군. 기록에는 포로 수레가 계곡 관문을 통과했다고 되어 있어. 청계역으로 돌아가자."
     leftPortrait: {fileID: 0}
@@ -35,3 +38,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "계곡 관문 호송 기록"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

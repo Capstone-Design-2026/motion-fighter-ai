@@ -26,3 +26,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 4
     evidenceTitle: "통로 입구의 매듭"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

@@ -7,6 +7,12 @@ using UnityEngine.UI;
 public class StoryCutscene : MonoBehaviour {
     public static bool IsOpen { get; private set; }
     bool next,skip;
+    StoryVoice voice;
+    StoryPortrait speechLeft, speechRight;
+    void LateUpdate() {
+        if(speechLeft!=null){speechLeft.Speaking=speechLeft.Highlighted&&voice!=null&&voice.IsPlaying;speechLeft.VoiceAmplitude=speechLeft.Speaking?voice.Level:0;}
+        if(speechRight!=null){speechRight.Speaking=speechRight.Highlighted&&voice!=null&&voice.IsPlaying;speechRight.VoiceAmplitude=speechRight.Speaking?voice.Level:0;}
+    }
     public static StoryCutsceneDefinition Load(string key) {
         return Resources.Load<StoryCutsceneDefinition>("Story/Cutscenes/"+key);
     }
@@ -44,6 +50,7 @@ public class StoryCutscene : MonoBehaviour {
     IEnumerator PresentDialogue(StoryCutsceneDefinition data,int startLine=0) {
         bool manualVideo=!string.IsNullOrEmpty(data.videoFileName);
         next=skip=false;
+        voice=gameObject.AddComponent<StoryVoice>();
         var group=gameObject.AddComponent<CanvasGroup>();group.alpha=0;
         var blocker=UIFactory.CreateImage("InputBlocker",transform,Color.black,true);UIFactory.Stretch(blocker.rectTransform);
         var frame=UIFactory.CreateRect("DialogueFrame",transform);frame.gameObject.AddComponent<CinematicFrame>().Fit();
@@ -60,6 +67,7 @@ public class StoryCutscene : MonoBehaviour {
         var tint=UIFactory.CreateImage("CinematicShade",frame,new Color(.015f,.025f,.03f,.42f));UIFactory.Stretch(tint.rectTransform);
         var left=CreatePortrait("LeftActor",frame,120);var right=CreatePortrait("RightActor",frame,1080);
         var leftLegacy=LegacyPortrait("LeftLegacy",frame,120);var rightLegacy=LegacyPortrait("RightLegacy",frame,1080);
+        speechLeft=left;speechRight=right;
         var inspection=StoryInspection.Create(frame);
         var air=UIFactory.CreateRect("SceneAtmosphere",frame);UIFactory.Stretch(air);air.gameObject.AddComponent<StoryAtmosphere>();
         var top=UIFactory.CreateImage("LocationBand",frame,new Color(.02f,.025f,.025f,.88f));Box(top.rectTransform,0,1000,1920,80);
@@ -88,15 +96,16 @@ public class StoryCutscene : MonoBehaviour {
             right.Highlighted=hasSpeaker&&line.speakerOnRight&&line.rightActor!=null&&line.speaker==line.rightActor.displayName;
             SetLegacy(leftLegacy,line.leftPortrait,!examining&&line.leftActor==null,left.Highlighted);
             SetLegacy(rightLegacy,line.rightPortrait,!examining&&line.rightActor==null,right.Highlighted);
-            string text=line.text??"";
-            if(manualVideo){body.text=text;yield return null;while(!next)yield return null;continue;}
-            float speechUntil=Time.unscaledTime+Mathf.Clamp(text.Length/10f,2f,7f);
-            float letters=0;left.Speaking=left.Highlighted;right.Speaking=right.Highlighted;
-            while(letters<text.Length&&!skip&&!next){letters+=Time.unscaledDeltaTime*32;body.text=text.Substring(0,Mathf.Min(text.Length,(int)letters));yield return null;}
-            body.text=text;next=false;yield return null;
-            while(!next&&!skip){left.Speaking=left.Highlighted&&Time.unscaledTime<speechUntil;right.Speaking=right.Highlighted&&Time.unscaledTime<speechUntil;yield return null;}
+            body.text=line.text??"";
+            voice.Play(line);
+            // One press advances the whole line, interrupting speech immediately.
+            yield return null;
+            while(!next&&!skip) yield return null;
+            voice.Stop();
             left.Speaking=right.Speaking=false;
+            left.VoiceAmplitude=right.VoiceAmplitude=0;
         }
+        voice.Stop();
         left.Speaking=right.Speaking=false;
         for(float t=0;t<.18f;t+=Time.unscaledDeltaTime){group.alpha=1-t/.18f;yield return null;}
     }

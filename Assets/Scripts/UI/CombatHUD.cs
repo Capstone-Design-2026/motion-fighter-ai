@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,10 +13,10 @@ public class CombatHUD : MonoBehaviour
     [SerializeField] private Health enemyHealth;
 
     [Header("체력바 모양")]
-    [SerializeField] private Vector2 barSize = new Vector2(620f, 46f);
-    [SerializeField] private Vector2 barMargin = new Vector2(60f, 40f);
-    [SerializeField] private Color playerColor = new Color(0.25f, 0.85f, 0.35f);
-    [SerializeField] private Color enemyColor = new Color(0.95f, 0.35f, 0.30f);
+    [SerializeField] private Vector2 barSize = new Vector2(788f, 44f);
+    [SerializeField] private Vector2 barMargin = new Vector2(72f, 62f);
+    [SerializeField] private Color playerColor = new Color(.94f, .61f, .16f);
+    [SerializeField] private Color enemyColor = new Color(.68f, .12f, .10f);
     [SerializeField] private Color chipColor = new Color(1f, 0.85f, 0.25f);
     [SerializeField] private float chipSpeed = 0.6f;   // 노란 잔량바가 따라오는 속도
 
@@ -36,12 +36,10 @@ public class CombatHUD : MonoBehaviour
     [SerializeField] private Vector2 keyGuideMargin = new Vector2(60f, 40f);
 
     [Header("필살기 게이지")]
-    [SerializeField] private Vector2 gaugeSize = new Vector2(360f, 22f);
-    [Tooltip("체력바 아래로 얼마나 내릴지.")]
-    [SerializeField] private float gaugeTopOffset = 132f;
-    [SerializeField] private Color gaugeEmptyColor = new Color(1f, 1f, 1f, 0.16f);
-    [SerializeField] private Color gaugeFillColor = new Color(0.35f, 0.7f, 1f);
-    [SerializeField] private Color gaugeReadyColor = new Color(1f, 0.85f, 0.25f);
+    [SerializeField] private Color gaugeFillColor = new Color(.17f, .59f, .77f);
+    [SerializeField] private Color gaugeReadyColor = new Color(.32f, .81f, 1f);
+    [Tooltip("피격 직후 잔량이 남아 있는 시간. 전투 속도와 무관한 표시 전용 값.")]
+    [SerializeField] private float damageTrailDelay = .25f;
 
     /// <summary>
     /// 지도(런) 진행 중에는 false 가 된다.
@@ -52,6 +50,8 @@ public class CombatHUD : MonoBehaviour
 
     private Canvas canvas;
     private Font font;
+    private RectTransform topRail;
+    private float railWidth = -1f;
 
     private Bar playerBar;
     private Bar enemyBar;
@@ -76,21 +76,17 @@ public class CombatHUD : MonoBehaviour
     private bool guideVisible;
     private float guideShownAt;              // 자동 숨김 기준 시각 (실제 시간)
 
-    // 필살기 게이지
     private SpecialMove special;
-    private Image[] gaugeCells;
-    private Text gaugeLabel;
 
-    /// <summary>체력바 한 세트 (배경 / 잔량 / 실제 HP / 라벨)</summary>
     private class Bar
     {
-        public RectTransform fill;
-        public RectTransform chip;
-        public Text label;
+        public WuxiaCombatBar graphic, gauge;
+        public Text label, amount, gaugeLabel;
         public Health health;
+        public SpecialMove resource;
         public bool leftSide;
-        public float targetRatio = 1f;
-        public float chipRatio = 1f;
+        public float targetRatio, chipRatio, trailUntil;
+        public System.Action<int, int> healthChanged, chargeChanged;
     }
 
     // HUD가 생성되기 전에 새 프리팹의 Health로 연결한다.
@@ -117,15 +113,13 @@ public class CombatHUD : MonoBehaviour
         BuildCanvas();
         battle = FindAnyObjectByType<BattleSceneBridge>();
         BuildTimer();
-        BuildSpecialGauge();
         BuildKeyGuide();
 
         if (playerHealth != null)
         {
             playerBar = BuildBar(playerHealth, playerColor, true);
             playerStartPos = playerHealth.transform.position;
-            playerHealth.OnHealthChanged += (c, m) => OnChanged(playerBar, c, m);
-            playerHealth.OnDeath += OnDeath;
+            Bind(playerBar);
         }
         else Debug.LogWarning("[CombatHUD] Player 의 Health 를 찾지 못했습니다.");
 
@@ -133,8 +127,7 @@ public class CombatHUD : MonoBehaviour
         {
             enemyBar = BuildBar(enemyHealth, enemyColor, false);
             enemyStartPos = enemyHealth.transform.position;
-            enemyHealth.OnHealthChanged += (c, m) => OnChanged(enemyBar, c, m);
-            enemyHealth.OnDeath += OnDeath;
+            Bind(enemyBar);
         }
         else Debug.LogWarning("[CombatHUD] Enemy 의 Health 를 찾지 못했습니다.");
     }
@@ -150,51 +143,68 @@ public class CombatHUD : MonoBehaviour
             RestartRound();
     }
 
+    void LateUpdate()
+    {
+        if (canvas == null || topRail == null) return;
+        float width = ((RectTransform)canvas.transform).rect.width;
+        if (Mathf.Approximately(width, railWidth)) return;
+        railWidth = width;
+        topRail.localScale = Vector3.one * (width / 1920f);
+    }
+
+    private void Bind(Bar bar)
+    {
+        bar.healthChanged = (current, max) => OnChanged(bar, current, max);
+        bar.health.OnHealthChanged += bar.healthChanged;
+        bar.health.OnDeath += OnDeath;
+        bar.chipRatio = bar.health.MaxHealth > 0 ? (float)bar.health.CurrentHealth / bar.health.MaxHealth : 0;
+        OnChanged(bar, bar.health.CurrentHealth, bar.health.MaxHealth);
+        if (bar.resource != null)
+        {
+            bar.chargeChanged = (current, max) => OnChargeChanged(bar, current, max);
+            bar.resource.OnChargeChanged += bar.chargeChanged;
+            OnChargeChanged(bar, bar.resource.Charge, bar.resource.HitsToCharge);
+        }
+    }
+
+    void OnDestroy()
+    {
+        Unbind(playerBar); Unbind(enemyBar);
+    }
+
+    private void Unbind(Bar bar)
+    {
+        if (bar == null) return;
+        if (bar.health != null)
+        {
+            bar.health.OnHealthChanged -= bar.healthChanged;
+            bar.health.OnDeath -= OnDeath;
+        }
+        if (bar.resource != null) bar.resource.OnChargeChanged -= bar.chargeChanged;
+    }
+
     private void OnChanged(Bar bar, int current, int max)
     {
         if (bar == null) return;
-
-        bar.targetRatio = max > 0 ? (float)current / max : 0f;
-        ApplyRatio(bar.fill, bar.targetRatio, bar.leftSide);
-
-        // 회복하거나 라운드가 리셋되면 잔량바도 바로 따라 올린다.
-        if (bar.targetRatio > bar.chipRatio)
-        {
-            bar.chipRatio = bar.targetRatio;
-            ApplyRatio(bar.chip, bar.chipRatio, bar.leftSide);
-        }
-
-        if (bar.label != null) bar.label.text = bar.health.DisplayName + "   " + current + " / " + max;
-    }
-
-    /// <summary>
-    /// 앵커를 직접 움직여서 바 길이를 조절한다.
-    /// Image.Type.Filled 는 스프라이트가 없으면 fillAmount 가 무시되므로 이 방식을 쓴다.
-    /// 플레이어 바는 왼쪽 끝에, 적 바는 오른쪽 끝에 남은 체력이 붙는다.
-    /// </summary>
-    private static void ApplyRatio(RectTransform rect, float ratio, bool leftSide)
-    {
-        if (rect == null) return;
-        ratio = Mathf.Clamp01(ratio);
-
-        Vector2 min = rect.anchorMin;
-        Vector2 max = rect.anchorMax;
-        if (leftSide) { min.x = 0f;         max.x = ratio; }
-        else          { min.x = 1f - ratio; max.x = 1f;    }
-        rect.anchorMin = min;
-        rect.anchorMax = max;
-
-        rect.offsetMin = new Vector2(0f, 0f);
-        rect.offsetMax = new Vector2(0f, 0f);
+        float next = max > 0 ? Mathf.Clamp01((float)current / max) : 0;
+        if (next < bar.targetRatio) bar.trailUntil = Time.unscaledTime + damageTrailDelay;
+        // A heal/reset must never leave the previous damage trail behind.
+        else if (next > bar.targetRatio) bar.chipRatio = next;
+        bar.targetRatio = next;
+        bar.graphic.SetValues(next, bar.chipRatio);
+        string name = bar.health.DisplayName;
+        if (string.IsNullOrWhiteSpace(name) || name == "PLAYER" || name == "ENEMY")
+            name = bar.leftSide ? "서진" : "상대";
+        bar.label.text = name;
+        bar.amount.text = current + " / " + max;
     }
 
     private void UpdateChip(Bar bar)
     {
-        if (bar == null || bar.chip == null) return;
+        if (bar == null || Time.unscaledTime < bar.trailUntil) return;
         if (Mathf.Approximately(bar.chipRatio, bar.targetRatio)) return;
-
-        bar.chipRatio = Mathf.MoveTowards(bar.chipRatio, bar.targetRatio, chipSpeed * Time.deltaTime);
-        ApplyRatio(bar.chip, bar.chipRatio, bar.leftSide);
+        bar.chipRatio = Mathf.MoveTowards(bar.chipRatio, bar.targetRatio, chipSpeed * Time.unscaledDeltaTime);
+        bar.graphic.SetValues(bar.targetRatio, bar.chipRatio);
     }
 
     private void OnDeath(Health dead)
@@ -219,16 +229,15 @@ public class CombatHUD : MonoBehaviour
     private void BuildTimer()
     {
         if (battle == null) return;
-        var panel = CreateImage("RoundTimer", canvas.transform, new Color(0.06f, 0.05f, 0.04f, 0.9f));
-        var rect = panel.rectTransform;
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -24f);
-        rect.sizeDelta = new Vector2(160f, 104f);
-        timerText = CreateText("Seconds", rect, 58, TextAnchor.MiddleCenter);
-        timerText.rectTransform.anchorMin = Vector2.zero;
-        timerText.rectTransform.anchorMax = Vector2.one;
-        timerText.rectTransform.offsetMin = timerText.rectTransform.offsetMax = Vector2.zero;
+        var rect = CreateRect("RoundTimer", topRail);
+        rect.anchorMin = rect.anchorMax = new Vector2(.5f, 1);
+        rect.pivot = new Vector2(.5f, 1);
+        rect.anchoredPosition = new Vector2(0, -35);
+        rect.sizeDelta = new Vector2(176, 92);
+        timerText = CreateText("Seconds", rect, 76, TextAnchor.MiddleCenter);
+        timerText.font = WuxiaTheme.DisplayFont;
+        Stretch(timerText.rectTransform);
+        AddShadow(timerText, new Vector2(2, -3));
         UpdateTimer();
     }
 
@@ -237,7 +246,7 @@ public class CombatHUD : MonoBehaviour
         if (timerText == null || battle == null) return;
         timerText.text = Mathf.CeilToInt(battle.RemainingSeconds).ToString("D2");
         timerText.color = battle.RemainingSeconds <= 10f
-            ? new Color(1f, 0.3f, 0.25f) : new Color(1f, 0.88f, 0.6f);
+            ? new Color(1f, .36f, .25f) : new Color(1f, .93f, .77f);
     }
 
     private void RestartRound()
@@ -252,6 +261,7 @@ public class CombatHUD : MonoBehaviour
         if (enemyBar != null) enemyBar.chipRatio = 1f;
 
         if (special != null) special.ResetCharge();
+        if (enemyBar != null && enemyBar.resource != null) enemyBar.resource.ResetCharge();
         if (battle != null) battle.ResetRoundTimer();
         UpdateTimer();
     }
@@ -265,77 +275,35 @@ public class CombatHUD : MonoBehaviour
         health.ResetHealth();
     }
 
-    // ─────────────────────── 필살기 게이지 ───────────────────────
-
-    /// <summary>
-    /// 플레이어 체력바 아래에 칸으로 나뉜 게이지를 만든다.
-    /// 몇 대 맞아야 차는지는 SpecialMove 가 정하므로 칸 수도 거기서 받아온다.
-    /// </summary>
-    private void BuildSpecialGauge()
+    // A resource is displayed only from a real SpecialMove component; no fictitious enemy MP.
+    private void BuildSpecialGauge(Bar bar, RectTransform parent)
     {
-        if (special == null) return;
-
-        int cells = Mathf.Max(1, special.HitsToCharge);
-
-        var root = CreateImage("SpecialGauge", canvas.transform, new Color(0f, 0f, 0f, 0.55f));
-        var rect = root.rectTransform;
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.sizeDelta = gaugeSize;
-        rect.anchoredPosition = new Vector2(barMargin.x, -gaugeTopOffset);
-
-        // 칸 사이를 4px 씩 띄운다. 남은 폭을 칸 수로 나눠 쓴다.
-        const float gap = 4f;
-        const float pad = 4f;
-        float cellWidth = (gaugeSize.x - pad * 2f - gap * (cells - 1)) / cells;
-
-        gaugeCells = new Image[cells];
-        for (int i = 0; i < cells; i++)
-        {
-            var cell = CreateImage("Cell" + i, root.transform, gaugeEmptyColor);
-            var crect = cell.rectTransform;
-            crect.anchorMin = new Vector2(0f, 0f);
-            crect.anchorMax = new Vector2(0f, 1f);
-            crect.pivot = new Vector2(0f, 0.5f);
-            crect.offsetMin = new Vector2(pad + i * (cellWidth + gap), pad);
-            crect.offsetMax = new Vector2(pad + i * (cellWidth + gap) + cellWidth, -pad);
-            gaugeCells[i] = cell;
-        }
-
-        gaugeLabel = CreateText("GaugeLabel", root.transform, 22, TextAnchor.UpperLeft);
-        var lrect = gaugeLabel.rectTransform;
-        lrect.anchorMin = new Vector2(0f, 0f);
-        lrect.anchorMax = new Vector2(1f, 0f);
-        lrect.pivot = new Vector2(0.5f, 1f);
-        lrect.offsetMin = new Vector2(2f, -32f);
-        lrect.offsetMax = new Vector2(-2f, -4f);
-
-        special.OnChargeChanged += OnChargeChanged;
-        OnChargeChanged(special.Charge, special.HitsToCharge);
+        bar.resource = bar.health.GetComponent<SpecialMove>();
+        bar.gauge = CreateBarGraphic("SpecialGauge", parent, true, !bar.leftSide, gaugeFillColor);
+        var r = bar.gauge.rectTransform;
+        r.anchorMin = new Vector2(bar.leftSide ? 0 : .13f, 0);
+        r.anchorMax = new Vector2(bar.leftSide ? .87f : 1, 0);
+        r.offsetMin = new Vector2(bar.leftSide ? 26 : 0, -22);
+        r.offsetMax = new Vector2(bar.leftSide ? 0 : -26, -5);
+        bar.gaugeLabel = CreateText("GaugeLabel", parent, 16, bar.leftSide ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight);
+        var l = bar.gaugeLabel.rectTransform;
+        l.anchorMin = Vector2.zero; l.anchorMax = new Vector2(1,0);
+        l.offsetMin = new Vector2(29,-47); l.offsetMax = new Vector2(-29,-24);
+        bar.gaugeLabel.color = new Color(.65f,.76f,.79f);
+        AddShadow(bar.gaugeLabel, new Vector2(1,-1));
+        bar.gauge.SetValues(0,0,false,bar.resource != null);
+        bar.gaugeLabel.text = "";
     }
 
-    private void OnChargeChanged(int current, int max)
+    private void OnChargeChanged(Bar bar, int current, int max)
     {
-        if (gaugeCells == null) return;
-
-        bool ready = current >= max;
-
-        for (int i = 0; i < gaugeCells.Length; i++)
-        {
-            if (gaugeCells[i] == null) continue;
-            gaugeCells[i].color = i < current
-                ? (ready ? gaugeReadyColor : gaugeFillColor)
-                : gaugeEmptyColor;
-        }
-
-        if (gaugeLabel != null)
-        {
-            gaugeLabel.text = ready
-                ? "필살기 준비 완료   [" + special.ActivateKey + "]"
-                : "필살기   " + current + " / " + max;
-            gaugeLabel.color = ready ? gaugeReadyColor : new Color(0.8f, 0.85f, 0.95f);
-        }
+        bool ready = max > 0 && current >= max;
+        bar.gauge.fillColor = ready ? gaugeReadyColor : gaugeFillColor;
+        bar.gauge.SetValues(max > 0 ? (float)current/max : 0, 0, ready);
+        bar.gaugeLabel.text = ready
+            ? "필살기 준비  [" + bar.resource.ActivateKey + "]"
+            : "필살기  " + current + " / " + max;
+        bar.gaugeLabel.color = ready ? new Color(.66f,.93f,1f) : new Color(.83f,.88f,.88f);
     }
 
     // ─────────────────────── 조작 안내 ───────────────────────
@@ -513,6 +481,15 @@ public class CombatHUD : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
+        topRail = CreateRect("DuelHeader", canvas.transform);
+        topRail.anchorMin = topRail.anchorMax = new Vector2(.5f, 1);
+        topRail.pivot = new Vector2(.5f, 1);
+        topRail.sizeDelta = new Vector2(1920, 180);
+        topRail.anchoredPosition = Vector2.zero;
+        var shade = CreateRect("TopShade", topRail).gameObject.AddComponent<WuxiaHUDShade>();
+        shade.raycastTarget = false;
+        Stretch(shade.rectTransform);
+
         koText = CreateText("KOText", canvas.transform, 72, TextAnchor.MiddleCenter);
         var koRect = koText.rectTransform;
         koRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -526,50 +503,54 @@ public class CombatHUD : MonoBehaviour
     private Bar BuildBar(Health health, Color color, bool leftSide)
     {
         var bar = new Bar { health = health, leftSide = leftSide };
+        var rect = CreateRect(leftSide ? "PlayerVitals" : "EnemyVitals", topRail);
+        rect.anchorMin = rect.anchorMax = new Vector2(leftSide ? 0 : 1, 1);
+        rect.pivot = new Vector2(leftSide ? 0 : 1, 1);
+        // Clamp authoring values to preserve the central timer and outer screen margins.
+        float margin = Mathf.Clamp(barMargin.x, 36, 120);
+        rect.sizeDelta = new Vector2(Mathf.Min(barSize.x, 960-margin-100), Mathf.Clamp(barSize.y, 36, 60));
+        rect.anchoredPosition = new Vector2(leftSide ? margin : -margin, -Mathf.Max(56,barMargin.y));
+        bar.graphic = CreateBarGraphic("HealthBar", rect, false, !leftSide, color);
+        bar.graphic.trailColor = chipColor;
+        Stretch(bar.graphic.rectTransform);
 
-        // 루트 (검은 배경 테두리)
-        var root = CreateImage("Bar_" + health.DisplayName, canvas.transform, new Color(0f, 0f, 0f, 0.65f));
-        var rect = root.rectTransform;
-        rect.anchorMin = new Vector2(leftSide ? 0f : 1f, 1f);
-        rect.anchorMax = rect.anchorMin;
-        rect.pivot = new Vector2(leftSide ? 0f : 1f, 1f);
-        rect.sizeDelta = barSize;
-        rect.anchoredPosition = new Vector2(leftSide ? barMargin.x : -barMargin.x, -barMargin.y);
+        bar.label = CreateText("FighterName", rect, 30, leftSide ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight);
+        bar.label.font = WuxiaTheme.MenuFont;
+        bar.label.color = new Color(1,.94f,.79f);
+        bar.label.resizeTextForBestFit = true;
+        bar.label.resizeTextMinSize = 20; bar.label.resizeTextMaxSize = 30;
+        var name = bar.label.rectTransform;
+        name.anchorMin = new Vector2(leftSide ? 0 : .24f,1);
+        name.anchorMax = new Vector2(leftSide ? .76f : 1,1);
+        name.offsetMin = new Vector2(29,3); name.offsetMax = new Vector2(-29,40);
+        AddShadow(bar.label, new Vector2(1,-2));
 
-        // 테두리 4px 를 남기는 안쪽 영역. 바 길이는 이 영역 기준으로 계산된다.
-        var inner = CreateRect("Inner", root.transform);
-        inner.anchorMin = Vector2.zero;
-        inner.anchorMax = Vector2.one;
-        inner.offsetMin = new Vector2(4f, 4f);
-        inner.offsetMax = new Vector2(-4f, -4f);
-
-        // 잔량바(노랑)를 먼저 만들어 뒤에 깔고, 그 위에 체력바(색)를 얹는다.
-        bar.chip = CreateFill("Chip", inner, chipColor, leftSide);
-        bar.fill = CreateFill("Fill", inner, color, leftSide);
-
-        // 라벨은 바 아래쪽에
-        bar.label = CreateText("Label", root.transform, 26,
-            leftSide ? TextAnchor.UpperLeft : TextAnchor.UpperRight);
-        var lrect = bar.label.rectTransform;
-        lrect.anchorMin = new Vector2(0f, 0f);
-        lrect.anchorMax = new Vector2(1f, 0f);
-        lrect.pivot = new Vector2(0.5f, 1f);
-        lrect.offsetMin = new Vector2(4f, -40f);
-        lrect.offsetMax = new Vector2(-4f, -6f);
-
-        bar.label.text = health.DisplayName + "   " + health.CurrentHealth + " / " + health.MaxHealth;
+        bar.amount = CreateText("HealthValue", rect, 17, leftSide ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft);
+        bar.amount.color = new Color(.84f,.80f,.67f);
+        var value = bar.amount.rectTransform;
+        value.anchorMin = new Vector2(leftSide ? .76f : 0,1);
+        value.anchorMax = new Vector2(leftSide ? 1 : .24f,1);
+        value.offsetMin = new Vector2(29,4); value.offsetMax = new Vector2(-29,33);
+        AddShadow(bar.amount, new Vector2(1,-1));
+        BuildSpecialGauge(bar, rect);
         return bar;
     }
 
-    private RectTransform CreateFill(string name, Transform parent, Color color, bool leftSide)
+    private WuxiaCombatBar CreateBarGraphic(string name, Transform parent, bool resource, bool mirror, Color fill)
     {
-        var img = CreateImage(name, parent, color);
-        var rect = img.rectTransform;
-        rect.anchorMin = new Vector2(0f, 0f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(leftSide ? 0f : 1f, 0.5f);
-        ApplyRatio(rect, 1f, leftSide);
-        return rect;
+        var g = CreateRect(name, parent).gameObject.AddComponent<WuxiaCombatBar>();
+        g.resource = resource; g.mirror = mirror; g.fillColor = fill; g.raycastTarget = false;
+        return g;
+    }
+    private static void Stretch(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
+    }
+    private static void AddShadow(Text text, Vector2 offset)
+    {
+        var shadow = text.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0,0,0,.95f); shadow.effectDistance = offset;
     }
 
     private RectTransform CreateRect(string name, Transform parent)
@@ -606,18 +587,8 @@ public class CombatHUD : MonoBehaviour
 
     private Font LoadFont()
     {
-        Font f = null;
-        try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-        if (f == null)
-        {
-            try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { }
-        }
-        if (f == null)
-        {
-            try { f = Font.CreateDynamicFontFromOSFont("Malgun Gothic", 24); } catch { }
-        }
-        if (f == null)
-            Debug.LogWarning("[CombatHUD] 폰트를 찾지 못했습니다. 텍스트가 안 보일 수 있습니다.");
-        return f;
+        return WuxiaTheme.Font;
     }
+
+
 }

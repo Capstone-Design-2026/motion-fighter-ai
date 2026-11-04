@@ -9,5 +9,7 @@ public class StoryActorDefinition : ScriptableObject
     [Tooltip("Coordinates within the cropped portrait, bottom-left origin.")]
     public Vector2 mouth = new Vector2(.5f,.72f);
     public Vector2 hand = new Vector2(.74f,.25f);
+    public float mouthWidth = .045f;
+    public float mouthAngle;
     public bool masked;
 }

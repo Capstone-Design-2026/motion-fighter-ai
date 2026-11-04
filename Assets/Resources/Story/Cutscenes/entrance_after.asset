@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     text: "아니다. 여기까지 네 힘으로 왔구나."
     leftPortrait: {fileID: 0}
@@ -31,6 +34,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: ""
     text: "요새에서 경종이 울린다. 무진이 수문을 열 준비를 시작했다."
     leftPortrait: {fileID: 0}
@@ -38,6 +44,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "사람들을 데리고 내려가세요. 돌아갈 길은 제가 지키겠습니다."
     leftPortrait: {fileID: 0}
@@ -45,3 +54,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

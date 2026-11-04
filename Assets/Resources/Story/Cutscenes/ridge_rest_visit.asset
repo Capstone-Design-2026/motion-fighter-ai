@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "봉한 서찰의 수신인"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "잠시 숨을 고르고 위쪽을 확인하자."
     leftPortrait: {fileID: 0}
@@ -33,3 +36,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

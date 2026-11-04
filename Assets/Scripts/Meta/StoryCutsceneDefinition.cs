@@ -6,6 +6,10 @@ public class StoryDialogueLine {
     public string videoFileName;
     [Tooltip("Silent loop shown after the entry video until Space is pressed.")]
     public string holdVideoFileName;
+    public AudioClip voice;
+    [HideInInspector] public float[] voiceEnvelope;
+    [Tooltip("Tracked mouth positions for entry/hold cinematics; omitted for off-screen speech.")]
+    public TextAsset videoSpeechTrack;
     public string speaker;
     public StoryEvidence evidence;
     public string evidenceTitle;

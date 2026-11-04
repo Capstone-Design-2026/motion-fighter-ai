@@ -83,6 +83,8 @@ public class HitImpact : MonoBehaviour
     private Coroutine timeRoutine;
     private Coroutine cameraRoutine;
 
+    public static bool CameraEffectActive => instance != null && instance.cameraRoutine != null;
+
     /// <summary>씬에 없으면 자동으로 만들어 준다. 종료 중에는 만들지 않는다.</summary>
     public static HitImpact Instance
     {
@@ -297,7 +299,13 @@ public class HitImpact : MonoBehaviour
             {
                 Vector2 toHit = focusPoint - new Vector2(rest.x, rest.y);
                 Vector2 focus = Vector2.ClampMagnitude(toHit * focusWeight, maxFocusOffset) * eased;
-                offset += new Vector3(focus.x, focus.y, 0f);
+                var rig=cam.GetComponent<Battle3DCamera>();
+                if(rig!=null&&rig.orbitArena)
+                {
+                    Vector3 aim=new Vector3(focusPoint.x,focusPoint.y,0)-rest;
+                    offset+=Vector3.ClampMagnitude(Vector3.ProjectOnPlane(aim,cam.transform.forward)*focusWeight,maxFocusOffset)*eased;
+                }
+                else offset += new Vector3(focus.x, focus.y, 0f);
             }
 
             if (shake > 0f)

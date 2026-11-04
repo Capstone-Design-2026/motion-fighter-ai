@@ -24,6 +24,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "수로 도면 아래에 청계역이 있어. 수문이 열리면 지나온 마을들이 잠기겠어."
     leftPortrait: {fileID: 0}
@@ -33,6 +36,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 5
     evidenceTitle: "수문 아래의 마을들"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "요새 입구는 이 통로 끝이다. 서둘러야 해."
     leftPortrait: {fileID: 0}
@@ -40,3 +46,6 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

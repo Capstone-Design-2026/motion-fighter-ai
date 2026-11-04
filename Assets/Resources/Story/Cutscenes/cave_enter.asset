@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 1
     evidenceTitle: "사부가 남긴 네 가지 기본기"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: ""
     text: "벽에는 잽, 스트레이트, 로우킥, 하이킥이 새겨져 있다. 아래 시범에서 내 손동작이 어떤 공격으로 이어지는지 확인하자."
     leftPortrait: {fileID: 0}
@@ -35,6 +38,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 1
     evidenceTitle: "벽화의 동작을 따라 해보기"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "손동작으로 공격을 정하고, 자세를 되돌려 다음 동작을 준비한다. 하나씩 정확하게 익히자."
     leftPortrait: {fileID: 0}
@@ -44,3 +50,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 1
     evidenceTitle: "자세를 되돌리고 다음 동작 준비"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

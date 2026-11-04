@@ -15,7 +15,8 @@ public class StoryVideo : MonoBehaviour
     readonly VideoPlayer[] players = new VideoPlayer[2];
     readonly RenderTexture[] textures = new RenderTexture[2];
     GameObject root;
-    RawImage image;
+    StorySpeakingImage image;
+    StoryVoice voice;
     AspectRatioFitter pictureFit;
     Text speaker, body, hint, loading;
     int active = -1;
@@ -30,7 +31,7 @@ public class StoryVideo : MonoBehaviour
     // Shared by keyboard input and runtime checks; loading input is deliberately discarded.
     public void RequestAdvance()
     {
-        if (IsWaitingForInput) advance = true;
+        if (IsWaitingForInput) { advance = true; if(voice!=null)voice.Stop(); }
     }
 
     public IEnumerator Present(StoryCutsceneDefinition data)
@@ -53,6 +54,7 @@ public class StoryVideo : MonoBehaviour
             for (CurrentLineIndex = 0; CurrentLineIndex < data.lines.Length; CurrentLineIndex++)
             {
                 var line = data.lines[CurrentLineIndex];
+                voice.Stop();
                 IsWaitingForInput = false;
                 IsHolding = false;
                 advance = false;
@@ -62,6 +64,7 @@ public class StoryVideo : MonoBehaviour
                 if (failure != null) yield break;
                 speaker.text = line.speaker;
                 body.text = line.text;
+                voice.Play(line);
                 hint.text = CurrentLineIndex == data.lines.Length - 1 ? "Space  ·  여정 시작" : "Space  ·  다음";
                 IsWaitingForInput = true;
                 float lastProgress = Time.realtimeSinceStartup;
@@ -78,6 +81,7 @@ public class StoryVideo : MonoBehaviour
                         lastFrame = -1;
                     }
                     p = players[active];
+                    image.Speech(line,p.time,IsHolding,voice.Level);
                     if (p.frame != lastFrame)
                     {
                         lastFrame = p.frame;
@@ -88,6 +92,7 @@ public class StoryVideo : MonoBehaviour
                 }
                 if (failure != null) yield break;
             }
+            voice.Stop();
             IsWaitingForInput = false;
             for (float t = 0; t < .18f; t += Time.unscaledDeltaTime)
             {
@@ -122,7 +127,8 @@ public class StoryVideo : MonoBehaviour
         fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
         fit.aspectRatio = 16f / 9f;
         pictureFit = fit;
-        image = rect.gameObject.AddComponent<RawImage>();
+        image = rect.gameObject.AddComponent<StorySpeakingImage>();
+        voice = root.AddComponent<StoryVoice>();
         image.raycastTarget = false;
         image.enabled = false;
         loading = UIFactory.CreateText("VideoLoading", root.transform, "불러오는 중…", 24, TextAnchor.MiddleCenter);
@@ -207,6 +213,7 @@ public class StoryVideo : MonoBehaviour
     void Release()
     {
         IsWaitingForInput = false;
+        if(voice!=null)voice.Stop();
         for (int i=0;i<2;i++)
         {
             if (players[i] != null)

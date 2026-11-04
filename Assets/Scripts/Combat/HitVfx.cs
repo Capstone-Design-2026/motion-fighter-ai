@@ -49,7 +49,7 @@ public class HitVfx : MonoBehaviour
     /// <summary>타격 이펙트 재생. 씬에 HitVfx 가 없으면 아무 일도 일어나지 않는다.</summary>
     /// <param name="point">맞은 지점(월드 좌표).</param>
     /// <param name="guarded">가드에 막힌 타격이면 true.</param>
-    public static void Play(Vector2 point, bool guarded)
+    public static void Play(Vector3 point, bool guarded)
     {
         if (instance != null) instance.Spawn(point, guarded);
     }
@@ -69,7 +69,7 @@ public class HitVfx : MonoBehaviour
         if (instance == this) instance = null;
     }
 
-    private void Spawn(Vector2 point, bool guarded)
+    private void Spawn(Vector3 point, bool guarded)
     {
         if (!enableVfx) return;
         if (guarded && !playOnGuard) return;
@@ -77,8 +77,8 @@ public class HitVfx : MonoBehaviour
         GameObject prefab = guarded && guardPrefab != null ? guardPrefab : hitPrefab;
         if (prefab == null) return;
 
-        // 2D 라 z 는 0 에 둔다. 앞뒤 관계는 sortingOrder 가 정한다.
-        var go = Instantiate(prefab, new Vector3(point.x, point.y, 0f), prefab.transform.rotation);
+        // Preserve the animated contact depth for rotating 3D cameras.
+        var go = Instantiate(prefab, point, prefab.transform.rotation);
 
         float s = scale;
         // 가드 전용 프리팹을 따로 꽂았다면 그 프리팹이 이미 약한 연출이므로 더 줄이지 않는다.

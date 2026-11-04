@@ -26,3 +26,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 3
     evidenceTitle: "초소 뒤로 이어지는 흔적"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

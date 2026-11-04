@@ -230,3 +230,46 @@ MonoBehaviour:
   nodeEnemyVisuals:
   - nodeId: scout
     visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
+  - nodeId: river
+    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
+  - nodeId: ridge
+    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
+  - nodeId: old_ferry
+    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
+  - nodeId: gate
+    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
+  - nodeId: quarry
+    visualPrefab: {fileID: 3335255923475279511, guid: a47025cae8816104fbe65800e28e66f6, type: 3}
+  - nodeId: east
+    visualPrefab: {fileID: 3395757179108215034, guid: cd07cca51fb99e944bd11f9c19446095, type: 3}
+  - nodeId: camp
+    visualPrefab: {fileID: 8100839402280424511, guid: e4acd35b79504b241a7df86272c7a117, type: 3}
+  - nodeId: rescue
+    visualPrefab: {fileID: 684305935062973858, guid: d592f881fcde4aa44ba41944b2525016, type: 3}
+  - nodeId: entrance
+    visualPrefab: {fileID: 3720097519169826311, guid: 7b049a25e5fe3b148b9cc8b8b8f80753, type: 3}
+  - nodeId: final
+    visualPrefab: {fileID: 6499032389633817172, guid: ab9fb5fa19171854c809beee349f297f, type: 3}
+  nodeBattleScenes:
+  - nodeId: scout
+    sceneName: ScoutPass
+  - nodeId: river
+    sceneName: RiverAmbush
+  - nodeId: ridge
+    sceneName: WindRidge
+  - nodeId: old_ferry
+    sceneName: OldFerry
+  - nodeId: gate
+    sceneName: SealedGate
+  - nodeId: quarry
+    sceneName: HiddenQuarry
+  - nodeId: east
+    sceneName: EasternRidge
+  - nodeId: camp
+    sceneName: SearchCamp
+  - nodeId: rescue
+    sceneName: PrisonStockade
+  - nodeId: entrance
+    sceneName: BlackCloudEntrance
+  - nodeId: final
+    sceneName: SluiceFortress

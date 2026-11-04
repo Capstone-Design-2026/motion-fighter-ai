@@ -23,6 +23,7 @@ public sealed class GroundedBoxingWalk
     Vector3 previousRoot;
     float speed, movingUntil, weight, progress, duration, direction, lastFacing;
     float pelvisHeight, legLength, stopTime, swingLift;
+    float stepDirection;
     float groundY;
     int swing = -1, nextFoot;
     bool calibrated, active, stopping;
@@ -35,7 +36,9 @@ public sealed class GroundedBoxingWalk
     public int PlantedFoot => active && swing >= 0 ? 1 - swing : -1;
     public float ContactError { get; private set; }
     public float ReachError { get; private set; }
-    public float StepLength => Mathf.Lerp(.18f, .56f, Mathf.InverseLerp(.15f, 2.7f, speed)) * legLength / .80f;
+    // Distance for one step-and-follow pair. The lead/rear stance never swaps.
+    public float StepLength => Mathf.Lerp(.24f, .38f, Mathf.InverseLerp(.25f, 1.4f, speed)) * legLength / .80f;
+    public float PlaybackSpeed => Mathf.Clamp(.66f * speed / Mathf.Max(.1f, StepLength), .35f, 3f);
     public Vector3 ContactPosition => PlantedFoot < 0 ? root.position : legs[PlantedFoot].foot.position;
 
     public GroundedBoxingWalk(Transform visual, Animator model)
@@ -91,8 +94,7 @@ public sealed class GroundedBoxingWalk
             // Slight toe-out keeps both feet in separate lanes instead of crossing them.
             Quaternion original = l.originalRotation = l.foot.rotation;
             Vector3 toe = l.toes ? l.toes.position - l.foot.position : root.forward * .15f - Vector3.up * .055f;
-            Vector3 desired = Quaternion.AngleAxis(i == 0 ? -8 : 12, Vector3.up) * root.forward;
-            desired = desired * .15f - Vector3.up * .055f;
+            Vector3 desired = root.rotation * new Vector3(i == 0 ? -.018f : .055f, -.035f, .17f);
             l.foot.rotation = Quaternion.FromToRotation(toe, desired) * original;
             l.soleRotation = Quaternion.Inverse(root.rotation) * l.foot.rotation;
             legs[i] = l;
@@ -139,23 +141,25 @@ public sealed class GroundedBoxingWalk
             l.anchor.y = groundY + l.soleHeight;
             l.shownRotation = l.foot.rotation;
         }
-        // The trailing foot steps through at travel speeds; the other foot supports
-        // the body. This prevents stretching a planted rear leg beyond its reach.
-        nextFoot = legs[0].anchor.x * direction < legs[1].anchor.x * direction ? 0 : 1;
+        // Forward: left/front first. Backward: right/rear first, then follow.
+        nextFoot = direction * lastFacing > 0 ? 0 : 1;
+        stepDirection = direction;
+
     }
     void StartStep(int i, bool settle)
     {
         swing = i; progress = 0;
         var l = legs[i]; l.from = l.shown; l.startRotation = l.shownRotation;
-        duration = settle ? .20f : Mathf.Clamp(StepLength / Mathf.Max(speed, .15f), .16f, .55f);
+        duration = settle ? .20f : Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
         l.target = settle ? Rest(i) : Landing(i, duration);
-        swingLift = settle ? .045f : Mathf.Lerp(.045f, .085f, Mathf.InverseLerp(.2f, 2.7f, speed)) * legLength / .8f;
+        swingLift = (settle ? .022f : .033f) * legLength / .8f;
     }
     Vector3 Landing(int i, float remaining)
     {
         Vector3 p = Rest(i);
-        // Keep the avatar's lateral foot lane, replace the old tiny shuffle stride.
-        p.x = root.position.x + direction * (speed * remaining + StepLength * .48f);
+        // Predict the root only while this foot is airborne. Keep the anatomical
+        // stance offset, so the rear foot follows instead of overtaking the lead.
+        p.x += direction * speed * remaining;
         return p;
     }
     static float Smooth(float v) { v = Mathf.Clamp01(v); return v * v * (3 - 2 * v); }
@@ -169,6 +173,11 @@ public sealed class GroundedBoxingWalk
             if (!locomotionAllowed || !Calibrate()) return;
         }
         bool move = locomotionAllowed && IsMoving;
+        if (move && active && direction != stepDirection)
+        {
+            // Finish a reversal from the current displayed contacts, not old anchors.
+            StartWalking();
+        }
         if (move && !active) StartWalking();
         if (!active) return;
 
@@ -196,10 +205,10 @@ public sealed class GroundedBoxingWalk
                     float a = Vector3.Distance(legs[0].shown, Rest(0));
                     float b = Vector3.Distance(legs[1].shown, Rest(1));
                     if (Mathf.Max(a, b) > .025f) StartStep(a > b ? 0 : 1, true);
-                    else if (Time.time - stopTime > .30f)
+                    else if (Time.time - stopTime > .18f)
                     {
                         // Fade the settled stance back to the authored idle rhythm.
-                        weight = Mathf.Max(0, 1 - (Time.time - stopTime - .30f) / .20f);
+                        weight = Mathf.Max(0, 1 - (Time.time - stopTime - .18f) / .18f);
                         if (weight <= 0) { active = false; return; }
                     }
                 }
@@ -207,14 +216,14 @@ public sealed class GroundedBoxingWalk
             if (swing >= 0)
             {
                 if (move && !stopping)
-                    duration = Mathf.Clamp(StepLength / Mathf.Max(speed, .15f), .16f, .55f);
+                    duration = Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
                 var l = legs[swing]; progress = Mathf.Min(1, progress + dt / duration);
                 // Retarget while airborne when input speed/direction changes, without
                 // moving the supporting contact. No accumulated phase drift at walls.
                 Vector3 destination = stopping ? Rest(swing) : Landing(swing, (1 - progress) * duration);
                 l.target = Vector3.Lerp(l.target, destination, Mathf.Min(1, dt * 24));
                 l.shown = Vector3.Lerp(l.from, l.target, Smooth(progress));
-                l.shown.y += Mathf.Sin(progress * Mathf.PI) * swingLift;
+                l.shown.y += Mathf.Pow(Mathf.Sin(progress * Mathf.PI), 2) * swingLift;
                 l.shownRotation = Quaternion.Slerp(l.startRotation, root.rotation * l.soleRotation, Smooth(progress));
                 if (progress >= 1)
                 { l.anchor = l.shown = l.target; nextFoot = 1 - swing; swing = -1; }

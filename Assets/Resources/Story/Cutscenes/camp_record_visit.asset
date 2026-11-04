@@ -26,6 +26,9 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "도주 명부와 보고서"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     text: "붙잡힌 뒤에도 사람들을 돕고 계셨군요. 별도 호송대는 채석장으로 향했어."
     leftPortrait: {fileID: 0}
@@ -35,3 +38,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 2
     evidenceTitle: "별도 호송대의 목적지"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

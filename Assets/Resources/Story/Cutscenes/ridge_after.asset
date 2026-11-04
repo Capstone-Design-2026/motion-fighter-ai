@@ -26,3 +26,6 @@ MonoBehaviour:
     rightActor: {fileID: 0}
     evidence: 3
     evidenceTitle: "수레 대신 말발굽 흔적"
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

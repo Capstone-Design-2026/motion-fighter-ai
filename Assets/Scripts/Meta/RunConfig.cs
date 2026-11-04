@@ -13,6 +13,15 @@ public class NodeEnemyVisual
     public GameObject visualPrefab;
 }
 
+/// <summary>지도 노드에 맞는 전용 전투 무대를 지정한다. 전투 규칙은 공통으로 유지한다.</summary>
+[Serializable]
+public class NodeBattleScene
+{
+    public string nodeId;
+    [Tooltip("Build Settings에 포함된 씬 이름. 비우면 공통 GameScene 사용.")]
+    public string sceneName;
+}
+
 /// <summary>전투 한 판의 설정. enemyPrefab이 없으면 씬의 기본 적을 사용한다.</summary>
 [Serializable]
 public class StageDefinition
@@ -95,6 +104,18 @@ public class RunConfig : ScriptableObject
 
     [Header("지도 노드별 적 외형")]
     public List<NodeEnemyVisual> nodeEnemyVisuals = new List<NodeEnemyVisual>();
+
+    [Header("지도 노드별 전투 무대")]
+    public List<NodeBattleScene> nodeBattleScenes = new List<NodeBattleScene>();
+
+    public string GetBattleScene(string nodeId)
+    {
+        if (!string.IsNullOrEmpty(nodeId) && nodeBattleScenes != null)
+            foreach (var entry in nodeBattleScenes)
+                if (entry != null && entry.nodeId == nodeId && !string.IsNullOrWhiteSpace(entry.sceneName))
+                    return entry.sceneName;
+        return SceneRoutes.Battle;
+    }
 
     public GameObject GetEnemyVisual(string nodeId)
     {

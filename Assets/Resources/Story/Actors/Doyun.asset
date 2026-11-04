@@ -15,6 +15,8 @@ MonoBehaviour:
   displayName: "도윤"
   artwork: {fileID: 2800000, guid: cebe4dcc0db5411ba52476cd26e256bf, type: 3}
   crop: {serializedVersion: 2, x: 0.5, y: 0, width: 0.5, height: 1}
-  mouth: {x: 0.37, y: 0.72}
+  mouth: {x: 0.39, y: 0.723}
   hand: {x: 0.72, y: 0.14}
   masked: 0
+  mouthWidth: 0.04
+  mouthAngle: 0

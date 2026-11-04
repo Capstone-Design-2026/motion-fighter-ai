@@ -26,6 +26,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/02.mp4
     holdVideoFileName: Cinematics/PrologueSteps/02_hold.mp4
@@ -35,6 +38,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "연화의 서신"
     videoFileName: Cinematics/PrologueSteps/03.mp4
     holdVideoFileName: Cinematics/PrologueSteps/03_hold.mp4
@@ -44,6 +50,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/04.mp4
     holdVideoFileName: Cinematics/PrologueSteps/04_hold.mp4
@@ -53,6 +62,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/05.mp4
     holdVideoFileName: Cinematics/PrologueSteps/05_hold.mp4
@@ -62,6 +74,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/06.mp4
     holdVideoFileName: Cinematics/PrologueSteps/06_hold.mp4
@@ -71,6 +86,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/07.mp4
     holdVideoFileName: Cinematics/PrologueSteps/07_hold.mp4
@@ -80,6 +98,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     videoFileName: Cinematics/PrologueSteps/08.mp4
     holdVideoFileName: Cinematics/PrologueSteps/08_hold.mp4
@@ -89,6 +110,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/09.mp4
     holdVideoFileName: Cinematics/PrologueSteps/09_hold.mp4
@@ -98,6 +122,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/10.mp4
     holdVideoFileName: Cinematics/PrologueSteps/10_hold.mp4
@@ -107,6 +134,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/11.mp4
     holdVideoFileName: Cinematics/PrologueSteps/11_hold.mp4
@@ -116,6 +146,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/12.mp4
     holdVideoFileName: Cinematics/PrologueSteps/12_hold.mp4
@@ -125,33 +158,45 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/13.mp4
     holdVideoFileName: Cinematics/PrologueSteps/13_hold.mp4
-    text: "그럼 주먹부터 풀어. 다시 움직이면 이 아이부터 벤다."
+    text: "주먹부터 풀어. 약속을 지키면 모두 무사할 것이다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/14.mp4
     holdVideoFileName: Cinematics/PrologueSteps/14_hold.mp4
-    text: "내가 가겠다. 아이를 살려 둬라. 그래야 너도 원하는 걸 얻는다."
+    text: "함께 가겠다. 대신 제자는 여기서 쉬게 해라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/15.mp4
     holdVideoFileName: Cinematics/PrologueSteps/15_hold.mp4
-    text: "손을 묶어라. 내가 문을 나설 때까지 아이에게서 칼을 떼지 마라."
+    text: "출발한다. 도윤을 모셔라. 남은 자들은 이곳을 지켜라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "서진"
     videoFileName: Cinematics/PrologueSteps/16.mp4
     holdVideoFileName: Cinematics/PrologueSteps/16_hold.mp4
@@ -161,6 +206,9 @@ MonoBehaviour:
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/17.mp4
     holdVideoFileName: Cinematics/PrologueSteps/17_hold.mp4
@@ -170,6 +218,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 2e2b56bb5a464ac7a1794a39c6f0aa86, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/18.mp4
     holdVideoFileName: Cinematics/PrologueSteps/18_hold.mp4
@@ -179,6 +230,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/19.mp4
     holdVideoFileName: Cinematics/PrologueSteps/19_hold.mp4
@@ -188,6 +242,9 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}
   - speaker: "도윤"
     videoFileName: Cinematics/PrologueSteps/20.mp4
     holdVideoFileName: Cinematics/PrologueSteps/20_hold.mp4
@@ -197,3 +254,6 @@ MonoBehaviour:
     speakerOnRight: 1
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 11400000, guid: 55858f90022548a98e0a6ac5c29d15f9, type: 2}
+    voice: {fileID: 0}
+    voiceEnvelope: []
+    videoSpeechTrack: {fileID: 0}

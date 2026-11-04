@@ -30689,8 +30689,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1177926583}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.09015335, y: 0, z: 0, w: 0.99592793}
-  m_LocalPosition: {x: 0, y: 2.2, z: -6.3}
+  m_LocalRotation: {x: 0.06104854, y: 0, z: 0, w: 0.99813485}
+  m_LocalPosition: {x: 0, y: 2.0204365, z: -6.437589}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -30781,10 +30781,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ecfed45ec6949ee8bac4ccdc0605284, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Battle3DCamera
-  player: {fileID: 0}
-  enemy: {fileID: 0}
-  minimumDistance: 6.3
+  player: {fileID: 1351601484}
+  enemy: {fileID: 1900000011}
+  minimumDistance: 5.35
   maximumDistance: 12
+  focusHeight: 1.2
+  horizontalSafeArea: 0.9
+  verticalSafeArea: 0.8
+  orbitArena: 0
+  allowMouseOrbit: 1
+  combatPitch: 7
+  orbitSensitivity: 2.4
+  arenaCenter: {x: 0, y: 0, z: 0}
+  cameraBoundaryRadius: 17
+  automaticCombatFraming: 1
+  maximumMovementYaw: 14
+  movementYawPerMetre: 3.2
+  movementDeadZone: 0.2
+  orbitSmoothTime: 0.38
+  maximumOrbitSpeed: 40
+  manualReturnDelay: 2.5
 --- !u!1 &1178315839
 GameObject:
   m_ObjectHideFlags: 0
@@ -47959,10 +47975,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CombatHUD
   playerHealth: {fileID: 1351601487}
   enemyHealth: {fileID: 1900000016}
-  barSize: {x: 620, y: 46}
-  barMargin: {x: 60, y: 40}
-  playerColor: {r: 0.25, g: 0.85, b: 0.35, a: 1}
-  enemyColor: {r: 0.95, g: 0.35, b: 0.3, a: 1}
+  barSize: {x: 788, y: 44}
+  barMargin: {x: 72, y: 62}
+  playerColor: {r: 0.94, g: 0.61, b: 0.16, a: 1}
+  enemyColor: {r: 0.68, g: 0.12, b: 0.1, a: 1}
   chipColor: {r: 1, g: 0.85, b: 0.25, a: 1}
   chipSpeed: 0.6
   allowRestart: 1
@@ -47972,11 +47988,9 @@ MonoBehaviour:
   keyGuideAutoHideTime: 0
   keyGuideWidth: 470
   keyGuideMargin: {x: 60, y: 40}
-  gaugeSize: {x: 360, y: 22}
-  gaugeTopOffset: 132
-  gaugeEmptyColor: {r: 1, g: 1, b: 1, a: 0.16}
-  gaugeFillColor: {r: 0.35, g: 0.7, b: 1, a: 1}
-  gaugeReadyColor: {r: 1, g: 0.85, b: 0.25, a: 1}
+  gaugeFillColor: {r: 0.17, g: 0.59, b: 0.77, a: 1}
+  gaugeReadyColor: {r: 0.32, g: 0.81, b: 1, a: 1}
+  damageTrailDelay: 0.25
 --- !u!114 &1900000023
 MonoBehaviour:
   m_ObjectHideFlags: 0
