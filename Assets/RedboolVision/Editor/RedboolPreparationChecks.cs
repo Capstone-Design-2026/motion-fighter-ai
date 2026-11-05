@@ -1,53 +1,49 @@
 using System;
-
-// The same policy checks can run in the Editor menu or a standalone C# runtime.
 public static class RedboolPreparationChecks
 {
     private static int count;
     private static void Check(bool value, string message) { count++; if (!value) throw new Exception(message); }
-    private static void Ready(RedboolPreparationState s, double start)
-    {
-        for (int i = 0; i <= 21; i++) s.Observe(start + i * .1, true, "VALID", "READY", false, "NEUTRAL");
-    }
     public static int Run()
     {
         count = 0;
         var s = new RedboolPreparationState();
-        s.Tick(0); Check(!s.Running && !s.Rehearsal, "New scene must hold combat");
-        for (int i = 0; i < 50; i++) s.Observe(i * .1, false, "VALID", "READY", false, "NEUTRAL");
-        Check(!s.Running, "Uncalibrated READY cannot unlock combat");
+        s.Tick(0); Check(!s.Running && !s.Rehearsal, "New scene waits for current stream");
+        s.Observe(0, false, "VALID", "READY", false, "NEUTRAL");
+        Check(!s.Running, "Pose READY alone cannot replace calibration");
+        s.Observe(.1, true, "VALID", "READY", false, "NEUTRAL");
+        Check(s.Running, "Completed calibration starts without extra countdown");
+        s.Observe(.2, true, "VALID", "ACTIVE", false, "LEFT");
+        Check(s.Running, "Normal actions retain calibration");
+        s.Observe(.3, true, "LOST", "UNAVAILABLE", false, "NEUTRAL");
+        Check(s.Running, "Brief loss must not flicker gate");
+        s.Observe(.8, true, "LOST", "UNAVAILABLE", false, "NEUTRAL");
+        Check(!s.Running, "Sustained loss holds combat");
+        s.Observe(.9, true, "VALID", "PREPARING", false, "NEUTRAL");
+        Check(s.Running, "Recovered tracking resumes using preserved calibration");
         s.Reset();
-        for (int i = 0; i < 10; i++) s.Observe(i * .1, true, "VALID", "READY", false, "NEUTRAL");
-        Check(s.CountingDown && !s.Running, "Do not start before two seconds");
-        s.Observe(1, true, "VALID", "READY", true, "NEUTRAL");
-        Check(!s.CountingDown, "Block during countdown must require return");
-        s.Observe(1.1, true, "VALID", "READY", false, "LEFT");
-        Check(!s.CountingDown, "Leaning must not arm countdown");
-        Ready(s, 1.2); Check(s.Running, "Stable calibrated neutral should start combat");
-        s.Observe(3.4, true, "VALID", "ACTIVE", false, "LEFT");
-        Check(s.Running, "Normal attacks/movement must not relock the battle");
-        s.Observe(3.5, true, "LOST", "UNAVAILABLE", false, "NEUTRAL");
-        Check(s.Running, "Brief tracking loss should not flicker the battle gate");
-        s.Observe(4, true, "LOST", "UNAVAILABLE", false, "NEUTRAL");
-        Check(!s.Running, "Continuous invalid tracking must hold combat");
-        Ready(s, 4.1); Check(s.Running, "Recovery must require a new countdown");
-        s.Observe(6.3, false, "VALID", "READY", false, "NEUTRAL");
-        Check(!s.Running && !s.Calibrated, "Recalibration must hold immediately");
-        Ready(s, 7); s.Tick(10);
-        Check(!s.Running && !s.Connected, "Disconnect must hold combat");
-        Ready(s, 11);
-        s.Observe(14, true, "VALID", "READY", false, "NEUTRAL");
-        Check(!s.Running, "First new packet cannot bridge a long silent gap");
-        s.Reset(); s.Observe(20, true, "SYNTHETIC", "READY", false, "NEUTRAL");
-        Check(s.Rehearsal && !s.Running, "Probe may enable only player; keep AI/timer held");
-        s.Observe(20.1, true, "SYNTHETIC", "READY", true, "NEUTRAL");
-        Check(s.Rehearsal && !s.Running, "Probe guard must retain rehearsal mode");
-        s.Observe(20.2, true, "VALID", "READY", false, "NEUTRAL");
-        Check(!s.Rehearsal && !s.Running, "Camera after probe must count down before combat");
-        Ready(s, 20.3); Check(s.Running, "Camera can start after rehearsal");
-        s.Observe(22.5, true, "STOPPED", "READY", false, "NEUTRAL");
-        Check(!s.Running && !s.Rehearsal, "STOPPED must hold immediately");
-        s.Reset(); Check(!s.Connected && !s.CountingDown, "New stream/scene must clear all readiness");
+        s.Observe(1, true, "VALID", "ACTIVE", false, "RIGHT");
+        Check(s.Running, "Next scene must not demand another guard hold");
+        s.Tick(2); Check(!s.Running && !s.Connected, "No packets means hold");
+        s.Observe(2.1, true, "VALID", "READY", false, "NEUTRAL");
+        Check(s.Running, "Fresh calibrated packet reconnects without C");
+        s.Observe(2.2, false, "VALID", "READY", false, "NEUTRAL");
+        Check(!s.Running && !s.Calibrated, "Manual C/X invalidates calibration immediately");
+        s.Reset(); s.Observe(3, false, "VALID", "READY", false, "NEUTRAL");
+        Check(!s.Running, "New uncalibrated Python cannot inherit a previous session");
+        s.Observe(3.1, true, "SYNTHETIC", "READY", false, "NEUTRAL");
+        Check(s.Rehearsal && !s.Running, "Probe keeps enemies held");
+        s.Observe(3.2, true, "VALID", "READY", false, "NEUTRAL");
+        Check(s.Running && !s.Rehearsal, "Calibrated camera can follow probe");
+        s.Observe(3.3, false, "STOPPED", "UNAVAILABLE", false, "NEUTRAL");
+        Check(!s.Running && !s.Rehearsal, "Stop holds immediately");
+        Check(RedboolGestureMap.Resolve("GESTURE","SPECIAL","BOTH")=="SPECIAL", "Bilateral cross maps to special");
+        Check(RedboolGestureMap.Resolve("GESTURE","SPECIAL","LEFT")==null, "Single arm cannot map to special");
+        Check(RedboolGestureMap.Resolve("ATTACK",null,"BOTH")==null, "Bilateral legacy attack is invalid");
+        Check(RedboolGestureMap.Resolve("GESTURE","LEFT_RAISE","RIGHT")==null, "Side mismatch rejected");
+        Check(RedboolGestureMap.Resolve("GESTURE","LEFT_RAISE","LEFT")=="HIGH_KICK", "Left raise remains high kick");
+        Check(RedboolGestureMap.Resolve("GESTURE","RIGHT_RAISE","RIGHT")=="LOW_KICK", "Right raise remains low kick");
+        Check(RedboolGestureMap.Resolve("ATTACK",null,"LEFT")=="JAB", "Legacy left punch retained");
+        Check(RedboolGestureMap.Resolve("GESTURE","RIGHT_PUNCH","RIGHT")=="STRAIGHT", "Right punch retained");
         return count;
     }
 }

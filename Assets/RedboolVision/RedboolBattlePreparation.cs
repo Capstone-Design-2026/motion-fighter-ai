@@ -96,8 +96,7 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
         string text = State.Rehearsal ? "CONNECTION TEST — enemy and round timer held"
             : !State.Connected ? "WAITING FOR CAMERA — start Python"
             : !State.Calibrated ? "CALIBRATE — focus camera window and press C"
-            : State.CountingDown ? "HOLD GUARD / CENTER — " + Mathf.CeilToInt((float)State.Countdown(Time.realtimeSinceStartupAsDouble))
-            : "RETURN TO GUARD — keep both arms and shoulders visible";
+            : "TRACKING PAUSED — keep both arms and shoulders visible";
         GUI.Box(new Rect(Screen.width / 2f - 300, 110, 600, 50), text);
     }
 
