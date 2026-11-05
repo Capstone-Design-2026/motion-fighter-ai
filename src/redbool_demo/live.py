@@ -82,14 +82,15 @@ def run(a):
                     ttl=max(1,min(150,int((stamp+150_000_000-now)//1_000_000))) if fresh else 150
                     log.write(sender.send('STATE',ttl_ms=ttl,block_active=bool(state.block and fresh),
                         movement=state.movement if fresh else 'NEUTRAL',movement_strength=float(state.movement_strength) if fresh else 0.,
-                        tracking=state.tracking,fsm_state=state.attack_state,capture_ns=stamp))
+                        tracking=state.tracking if fresh else "STALE",fsm_state=state.attack_state,capture_ns=stamp,
+                        calibration_version=1,calibrated=bool(armed)))
                 # Deliver a fresh BLOCK release before an attack from that frame.
                 for item in sender.service():log.write(item)
                 if log.error or log.dropped:raise RuntimeError('Diagnostic log failed or overflowed')
         except BaseException as exc:fail('publisher',exc)
         finally:
             if sender.clock:
-                log.write(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE'))
+                log.write(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE',calibration_version=1,calibrated=False))
             sender.close()
     workers=[threading.Thread(target=capture,name='demo-camera',daemon=True),threading.Thread(target=publisher,name='demo-publisher',daemon=True)]
     print(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)

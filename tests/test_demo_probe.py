@@ -95,6 +95,8 @@ class FakeGameSender:
     def send(self,kind,**fields):
         self.sequence+=1;p={'kind':kind,'sequence':self.sequence,'sent_ns':self.timer.monotonic_ns(),**fields};self.sent.append(p)
         if kind=='STATE':
+            assert fields.get('calibration_version')==1
+            assert fields.get('calibrated') is (fields.get('tracking')!='STOPPED')
             held=fields['block_active']
             if held and not self.held and self.ready():
                 self.guards+=1;self.guard_until=self.timer.t+1.5;self.busy_until=self.timer.t+2.

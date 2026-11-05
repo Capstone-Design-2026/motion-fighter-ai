@@ -74,7 +74,7 @@ def run(host,port,output,ready_timeout=8.):
         start=len(rows);until=time.monotonic()+seconds
         while time.monotonic()<until:
             if sender.clock:rows.append(sender.send('STATE',ttl_ms=150,block_active=block,movement=movement,
-                movement_strength=.4 if movement!='NEUTRAL' else 0.,tracking='SYNTHETIC',fsm_state='READY'))
+                movement_strength=.4 if movement!='NEUTRAL' else 0.,tracking='SYNTHETIC',fsm_state='READY',calibration_version=1,calibrated=True))
             rows.extend(sender.service());time.sleep(.02)
         return rows[start:]
 
@@ -117,7 +117,7 @@ def run(host,port,output,ready_timeout=8.):
     except RuntimeError as exc:
         failure=str(exc)
     finally:
-        if sender.clock:rows.append(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE'))
+        if sender.clock:rows.append(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE',calibration_version=1,calibrated=False))
         sender.close()
         if guard_start is not None:guard_result=guard_check(before,rows[guard_start:])
         (directory/'udp.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
