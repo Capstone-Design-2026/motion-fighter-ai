@@ -46,7 +46,7 @@ def run(a):
     out.mkdir(parents=True,exist_ok=False)
     sender=DemoSender(a.host,a.port,stream,a.actor)
     log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
-    counts={'captured':0,'processed':0,'events':0,'left':0,'right':0}
+    counts={'captured':0,'processed':0,'events':0,'left':0,'right':0,'both':0}
     guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False), focus=getattr(a,'guided_focus','all')) if getattr(a,'guided',False) else None
     display={'event':'NONE','event_ns':0};cap=None;pose=None;video=None;recorder=None
     def fail(where,exc):

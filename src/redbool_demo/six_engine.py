@@ -1,4 +1,4 @@
-"""Five gameplay gestures; left raise is high kick, right raise is low kick.
+"""Six gameplay gestures including a held chest-X special; left raise is high kick, right raise is low kick.
 
 An opt-in development controller, not a trained or independently validated model.
 Vertical actions require both arms visible and the other hand in calibrated guard.
@@ -10,6 +10,7 @@ from action_engine.experimental import ChannelSignals, joint_validity
 from action_engine.types import ActionEvent
 from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
+from .special import CrossSpecial, chest_cross
 
 
 class SixAttack(DemoAttack):
@@ -83,6 +84,8 @@ class SixGestureEngine(DemoEngine):
         super()._components()
         self.attack.units = {s: SixAttack(self.config) for s in ('LEFT', 'RIGHT')}
         self.movement = LateralMovement(self.config)
+        self.special = CrossSpecial()
+        self.special_inhibited = False
         self.vertical_signals = ChannelSignals(self.config)
         self.vertical_state = 'DISARMED'
         self.guard_held = False
@@ -91,12 +94,12 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-guard-height-20261104-v7')
+        self.config = replace(self.config, version='seated-chest-special-20261105-v8')
         self._components()
 
     @property
     def ready(self):
-        return (self.calibrated and self.guard_held and self.vertical_state == 'READY'
+        return (self.calibrated and not self.special.owned and self.guard_held and self.vertical_state == 'READY'
                 and all(u.state == 'READY' for u in self.attack.units.values()))
 
     def _publish_state(self, state):
@@ -117,12 +120,13 @@ class SixGestureEngine(DemoEngine):
 
     def _safe(self, now, reason):
         super()._safe(now, reason)
+        self.special.invalidate()
         self.vertical_signals.reset()
         self.guard_held = False
         self.vertical_state = 'DISARMED'
         self.vertical_candidate = self.vertical_since = self.return_since = None
 
-    def process(self, obs, evidence=None, now_ns=None):
+    def _process_actions(self, obs, evidence=None, now_ns=None):
         with self.lock:
             now = self.clock() if now_ns is None else now_ns
             ident = (obs.actor_id, obs.capture_epoch)
@@ -132,7 +136,7 @@ class SixGestureEngine(DemoEngine):
             ready_before = all(u.state == 'READY' for u in self.attack.units.values())
             calibrated_before = self.calibrated
             for unit in self.attack.units.values():
-                unit.inhibited = self.vertical_state in ('PENDING', 'LATCHED')
+                unit.inhibited = self.special_inhibited or self.vertical_state in ('PENDING', 'LATCHED')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
                 self.movement.calibrate(obs)
@@ -200,3 +204,35 @@ class SixGestureEngine(DemoEngine):
                 if 'gesture' not in event.reason:
                     self.outbox.pending[key] = replace(event, reason={**event.reason, 'gesture': event.side + '_PUNCH'})
             return self._publish_state(state)
+
+    def process(self, obs, evidence=None, now_ns=None):
+        with self.lock:
+            now = self.clock() if now_ns is None else now_ns
+            ident = (obs.actor_id, obs.capture_epoch)
+            if ident in self.retired or (ident == self.identity and self.last_capture is not None
+                    and (obs.capture_ns <= self.last_capture or obs.frame_id <= self.last_frame)):
+                return self._process_actions(obs, evidence, now)
+            fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
+            valid = fresh and not joint_validity(obs, self.config)['BLOCK']
+            approach, strict = chest_cross(obs, self.config) if valid else (False, False)
+            self.special_inhibited = self.special.owned or (self.special.armed and approach)
+            state = self._process_actions(obs, evidence, now)
+            fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
+                neutral=self.guard_held and not state.block, approach=approach, strict=strict)
+            if self.special.owned or self.special_inhibited:
+                # Reserve this bilateral gesture, including its return. Never
+                # publish a block/kick/punch from the same cross observation.
+                self.outbox.pending = {k:e for k,e in self.outbox.pending.items()
+                    if e.reason.get('gesture') == 'SPECIAL' or e.source_frame_id != obs.frame_id}
+                self.block.reset()
+                state = replace(state, block=False, movement='NEUTRAL', movement_strength=0.,
+                    attack_state='RETURNING' if self.special.latched else 'SPECIAL_CANDIDATE')
+            if fired:
+                self.sequence += 1
+                event = ActionEvent(f'{self.run_id}:{self.sequence}', *ident,
+                    obs.frame_id, obs.capture_ns, now, now + 150_000_000, 'ATTACK', 'BOTH',
+                    {'gesture':'SPECIAL','method':'chest_cross_dwell','hold_ms':700}, self.config.version)
+                self.outbox.offer(event)
+                self._log('event', now, event=asdict(event))
+            self.control = state
+            return state

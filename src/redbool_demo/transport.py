@@ -19,7 +19,7 @@ class DemoSender(Sender):
         for row in rows:
             if row['type']!='ack':continue
             ack=row['ack'];status=ack.get('status','').upper();eid=ack.get('event_id')
-            if eid in self.events and status in ('APPLIED','DUPLICATE_EVENT','GAME_BUSY','NO_PLAYER','INPUT_LOCKED','UNASSIGNED','TUTORIAL_APPLIED','BAD_GESTURE','BAD_KIND'):
+            if eid in self.events and status in ('APPLIED','DUPLICATE_EVENT','GAME_BUSY','NO_PLAYER','INPUT_LOCKED','UNASSIGNED','TUTORIAL_APPLIED','BAD_GESTURE','BAD_KIND','NOT_CHARGED','NO_SPECIAL'):
                 self.events.pop(eid)
                 self.delivery[status]+=1;self.last_status=status
         for eid,item in list(self.events.items()):
