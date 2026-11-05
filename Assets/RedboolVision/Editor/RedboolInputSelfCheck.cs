@@ -8,6 +8,7 @@ public static class RedboolInputSelfCheck
     [MenuItem("Tools/REDBOOL/Run Input Adapter Self Check")]
     public static void Run()
     {
+        int preparationChecks = RedboolPreparationChecks.Run();
         var guard=new RedboolGuardLatch();
         Check(!guard.WantsStart(true),"Idle must not start guard");
         guard.Observe(true);
@@ -19,6 +20,6 @@ public static class RedboolInputSelfCheck
         guard.Observe(true);Check(guard.WantsStart(true),"New pose must re-arm guard");
         guard.Observe(false);Check(!guard.WantsStart(true),"Busy wait survived release");
         guard.Observe(true);guard.Reset();Check(!guard.WantsStart(true),"Disconnect retained guard input");
-        Debug.Log("REDBOOL input adapter self check passed. Verify actual Fighter, movement and network expiry in Play Mode separately.");
+        Debug.Log("REDBOOL input adapter self check passed, including " + preparationChecks + " preparation checks. Verify actual Fighter, movement and network expiry in Play Mode separately.");
     }
 }

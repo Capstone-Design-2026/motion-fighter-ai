@@ -80,7 +80,7 @@ public class PlayerController : MonoBehaviour
     {
         // K.O. 연출 중. 진 쪽은 물론 이긴 쪽도 움직이지 못한다.
         // 물리는 그대로 돌아가므로 쓰러지는 모션과 넉백은 끝까지 재생된다.
-        if (fighter != null && fighter.InputLocked)
+        if (fighter != null && (fighter.InputLocked || fighter.VisionPreparationLocked))
         {
             rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
             isCrouching = false;

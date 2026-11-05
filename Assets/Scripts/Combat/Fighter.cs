@@ -137,10 +137,17 @@ public class Fighter : MonoBehaviour
     /// 이게 없으면 쓰러진 상대를 계속 때릴 수 있다. BattleSceneBridge 가 켜고 끈다.
     /// </summary>
     public bool InputLocked { get; set; }
+    public bool VisionPreparationLocked { get; private set; }
+    public void SetVisionPreparationLock(bool value)
+    {
+        if (VisionPreparationLocked == value) return;
+        VisionPreparationLocked = value;
+        if (value) { CancelAttack(); EndGuard(); }
+    }
 
     public Health Health { get; private set; }
     /// <summary>새 동작(이동·점프·공격·방어)을 시작할 수 있는지.</summary>
-    public bool CanAct => !Health.IsDead && !InputLocked && !Health.IsHitStunned && !IsAttacking
+    public bool CanAct => !Health.IsDead && !InputLocked && !VisionPreparationLocked && !Health.IsHitStunned && !IsAttacking
                           && !guarding && !IsGuardRecovering;
     public bool CanAttack => CanAct;
 
@@ -180,7 +187,7 @@ public class Fighter : MonoBehaviour
     public CombatBodyPose Contacts { get; private set; }
     public float AttackStarted { get; private set; }
     public int AttackSerial { get; private set; }
-    public bool PreciseAttackActive => preciseRoutine && IsAttacking && isActiveAndEnabled && !InputLocked && !Health.IsDead && !Health.IsHitStunned && Contacts.Ready;
+    public bool PreciseAttackActive => preciseRoutine && IsAttacking && isActiveAndEnabled && !InputLocked && !VisionPreparationLocked && !Health.IsDead && !Health.IsHitStunned && Contacts.Ready;
     public event Action<Fighter, Vector3, CombatBodyPart, bool> ContactResolved;
     public bool HasContacted(Health target) => alreadyHit.Contains(target);
     public bool IsGuardedBy(Fighter target)
@@ -203,7 +210,7 @@ public class Fighter : MonoBehaviour
     public void FinishPreciseAttack(float now)
     {
         if (!preciseRoutine || !IsAttacking) return;
-        if (InputLocked || Health.IsDead || Health.IsHitStunned) { CancelAttack(); return; }
+        if (InputLocked || VisionPreparationLocked || Health.IsDead || Health.IsHitStunned) { CancelAttack(); return; }
 
         if (!preciseResolved && now - AttackStarted > CombatContactWorld.Window(CurrentMove).y)
         {
@@ -483,7 +490,7 @@ public class Fighter : MonoBehaviour
 
         float punish = 0f;
         OpeningCause cause = OpeningCause.None;
-        if (!Health.IsDead && !InputLocked && !Health.IsHitStunned)
+        if (!Health.IsDead && !InputLocked && !VisionPreparationLocked && !Health.IsHitStunned)
         {
             AttackHitFrame?.Invoke(attack);
             punish = ResolveHit(attack.Height, out cause);

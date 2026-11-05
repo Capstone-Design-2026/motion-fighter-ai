@@ -19,6 +19,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     [Tooltip("Empty: pair on SYNC; reconnect to a new run only after 0.5 s silence.")]
     public string expectedStreamId = "";
     public PlayerController player;
+    public RedboolBattlePreparation Preparation { get; set; }
+    private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
     public bool showStatus = true;
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
@@ -46,10 +50,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private PlayerController configuredPlayer;
     private struct Received { public string json; public long time; public IPEndPoint peer; }
     [Serializable] private class Packet {
-        public int version, ttl_ms;
+        public int version, ttl_ms, calibration_version;
         public string kind, stream_id, actor_id, capture_epoch, sync_id, event_id, side, movement, gesture, fsm_state, tracking;
         public long sequence, sent_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
-        public bool block_active;
+        public bool block_active, calibrated;
         public float movement_strength;
     }
     [Serializable] private class Ack {
@@ -61,7 +65,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public string receiver_clock = "unity_stopwatch_ns";
         public long sequence, sender_ns, receiver_ns, applied_ns, ack_sent_ns;
         public bool game_attack_started;
-        public bool game_can_act, game_guard_active;
+        public bool game_can_act, game_guard_active, battle_preparing;
+        public int calibration_contract = 1;
         public int guards_started;
     }
     private static long NowNs() {
@@ -69,12 +74,17 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         return (t/f)*1000000000L + (long)((t%f)*(1000000000.0/f));
     }
     private void OnEnable() {
+        RedboolDemoReceiver owner;
+        if (listeners.TryGetValue(port, out owner) && owner != null && owner != this && owner.isActiveAndEnabled) {
+            Status="DUPLICATE RECEIVER :"+port;enabled=false;return;
+        }
         try {
             StreamId=expectedStreamId; sequence=deadline=lastLiveNs=0; pairedPeer=null;
             syncs.Clear();outcomes.Clear();
             guardInput.Reset();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
             udp.Client.ReceiveTimeout=100;
+            listeners[port]=this;
             running=true;worker=new Thread(Receive) { IsBackground=true };worker.Start();
             DisableLegacy();
             Status="WAITING FOR PYTHON :"+port;
@@ -131,7 +141,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(p.kind=="SYNC" && !String.IsNullOrEmpty(p.sync_id) && p.sync_id.Length<=100) {
             bool newRun=p.stream_id!=StreamId;
             if(newRun && (String.IsNullOrEmpty(expectedStreamId) && now-lastLiveNs>500000000L)) {
-                Safe();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
+                Safe();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
             }
             if(p.stream_id!=StreamId) return;
             if(pairedPeer==null) pairedPeer=item.peer;
@@ -165,6 +175,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                     TutorialAction.Invoke(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
                 }
                 else if(player==null || fighter==null) status="NO_PLAYER";
+                else if(Preparation!=null && !Preparation.AllowsPlayer) status="INPUT_LOCKED";
                 else if(!fighter.CanAttack || BlockActive) { status="GAME_BUSY";AttacksBusy++; }
                 else {
                     player.ExternalAction(action);
@@ -179,6 +190,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         else {
             sequence=p.sequence;lastLiveNs=now;
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
+            Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*p.movement_strength;
             guardInput.Observe(BlockActive);
             controlling=true;
@@ -205,6 +217,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         var ack=new Ack { stream_id=StreamId,status=status,event_id=p.event_id,sequence=p.sequence,
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
+            battle_preparing=Preparation!=null && Preparation.HoldRound,
             game_can_act=fighter!=null && fighter.CanAct,game_guard_active=fighter!=null && fighter.IsGuarding,
             guards_started=GuardsStarted };
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
@@ -222,7 +235,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
     }
     private void OnDisable() {
+        Preparation?.ResetPreparation();
         Safe();running=false;udp?.Close();
+        RedboolDemoReceiver owner;
+        if(listeners.TryGetValue(port,out owner) && owner==this) listeners.Remove(port);
         if(worker!=null) worker.Join(300);
         Received discarded;while(inbox.TryDequeue(out discarded)) { }
         if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;

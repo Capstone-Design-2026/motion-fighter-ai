@@ -1,3 +1,5 @@
+> 2026-11-05: 전투 씬 자동 연결 및 보정 대기를 추가했습니다. 최신 Python과 함께 사용하세요. [현재 설치·실행 안내](MotionPreparation_20261105.md). 아래 수동 설치 단계는 예전 방식입니다.
+
 # REDBOOL 모션 입력 연결 — Python v7 / Unity 수신기 v5
 
 이 브랜치에는 연결 코드가 `Assets/RedboolVision`에 들어 있습니다. ZIP을 따로 복사하지 않습니다.

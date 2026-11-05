@@ -96,7 +96,7 @@ public class Health : MonoBehaviour
     public bool TakeDamage(int amount, Vector2 knockback, bool guarded = false, bool ignoreInvulnerability = false)
     {
         // 막힌 타격은 대미지 0 이어도 맞은 것으로 친다. 가드 반응 연출·필살기 게이지·방어 성공 처리가 여기서 이어진다.
-        if (DamageLocked || IsDead || amount < 0 || (amount == 0 && !guarded))
+        if (DamageLocked || GetComponent<Fighter>()?.VisionPreparationLocked == true || IsDead || amount < 0 || (amount == 0 && !guarded))
             return false;
 
         if (IsInvulnerable && !ignoreInvulnerability)

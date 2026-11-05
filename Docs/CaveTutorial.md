@@ -11,10 +11,10 @@
 | 왼손 앞으로 지르기 | JAB (LEFT_PUNCH 별칭) | 잽 |
 | 오른손 앞으로 뻗기 | STRAIGHT (RIGHT_PUNCH 별칭) | 스트레이트 |
 | 왼손 위로 들기 | HIGH_KICK (LEFT_HAND_UP 별칭) | 하이킥 |
-| 왼손 아래로 내리기 | LOW_KICK (LEFT_HAND_DOWN 별칭) | 로우킥 |
+| 오른손 위로 들기 | LOW_KICK (RIGHT_RAISE 별칭) | 로우킥 |
 | 기존 가드 자세 | BLOCK | 막기 |
 
-기존 localhost UDP 5055, JSON action/confidence를 사용한다. 기본 자세는 IDLE 또는 NONE. confidence 0.7 이상, 각 동작 두 번 성공. 연속 동일 신호는 한 번만 세며 기본 자세 복귀 후 재시도한다. ATTACK은 잽/스트레이트를 구별할 수 없으므로 성공 처리하지 않는다.
+현재 새 수신기는 UDP 5065의 v2 STATE/GESTURE를 사용한다. 보정 후 준비 상태가 IDLE로 전달되며 휴식 NONE을 자동 가드로 취급하지 않는다. confidence 0.7 이상, 각 동작 두 번 성공. 연속 동일 신호는 한 번만 세며 기본 자세 복귀 후 재시도한다. ATTACK은 잽/스트레이트를 구별할 수 없으므로 성공 처리하지 않는다.
 
 Python 인식 모델, 제스처 분류 기준, 실제 전투 기술/애니메이션 분리는 이번 변경 대상이 아니다. 새 신호를 발행하도록 백엔드를 변경해야 카메라 튜토리얼 전체를 완료할 수 있다. 벽화 우측 캐릭터는 입력-기술 대응을 설명하는 도식이다.
 
@@ -28,7 +28,7 @@ Python 인식 모델, 제스처 분류 기준, 실제 전투 기술/애니메이
 
 - Assets/Scripts/Meta/CaveTutorial.cs: 수련 UI/인식/저장
 - Assets/Scripts/UI/TrainingPoseGraphic.cs: 벽화 동작 도식
-- Assets/Scripts/Server/UdpActionReceiver.cs: 튜토리얼 패킷 전달
+- Assets/RedboolVision/RedboolDemoReceiver.cs: 튜토리얼 패킷 전달
 - Assets/Resources/Story/Cutscenes/cave_prologue.asset: 납치/사부 지시
 - cave_enter.asset: 수련 안내 / cave_visit.asset: 출발
 - Assets/Resources/UI/Wuxia/TrainingCave.png: 생성형 동굴 배경

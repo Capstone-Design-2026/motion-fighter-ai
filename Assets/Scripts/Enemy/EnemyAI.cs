@@ -90,7 +90,7 @@ public class EnemyAI : MonoBehaviour
     void Update()
     {
         // K.O. 연출 중에는 이긴 쪽도 행동하지 않는다. (BattleSceneBridge 가 켠다)
-        if (fighter != null && fighter.InputLocked)
+        if (fighter != null && (fighter.InputLocked || fighter.VisionPreparationLocked))
         {
             CancelPendingAttack();
             rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
