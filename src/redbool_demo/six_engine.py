@@ -111,7 +111,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-cross-release-20261107-v10')
+        self.config = replace(self.config, version='seated-first-cross-20261108-v11')
         self._components()
 
     @property
@@ -242,7 +242,7 @@ class SixGestureEngine(DemoEngine):
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             valid = fresh and not joint_validity(obs, self.config)['BLOCK']
             approach, strict, separated = cross_geometry(obs, self.config) if valid else (False, False, False)
-            self.special_inhibited = self.special.owned or (self.special.armed and approach)
+            self.special_inhibited = self.special.owned or (not self.special.latched and approach)
             state = self._process_actions(obs, evidence, now)
             fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
                 neutral=separated, approach=approach, strict=strict)

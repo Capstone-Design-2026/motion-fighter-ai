@@ -49,8 +49,10 @@ class CrossLifecycleTests(unittest.TestCase):
         self.assertEqual(self.frames(30,cross=True),0)
         self.frames(10,neutral=True)
         self.assertEqual(self.frames(30,cross=True),1)
-    def test_uncalibrated_or_unarmed_cross_never_fires(self):
+    def test_calibrated_first_cross_needs_full_hold_but_not_extra_guard(self):
         self.assertEqual(self.frames(60,cross=True,calibrated=False),0)
+        self.assertEqual(self.frames(20,cross=True),0)
+        self.assertEqual(self.frames(10,cross=True),1)
         self.assertEqual(self.frames(60,cross=True),0)
     def test_tracking_gap_requires_a_whole_new_hold(self):
         self.frames(10,neutral=True);self.frames(10,cross=True)
@@ -69,7 +71,8 @@ class CrossLifecycleTests(unittest.TestCase):
     def test_recalibration_clears_candidate(self):
         self.frames(10,neutral=True);self.frames(10,cross=True)
         self.frames(1,calibrated=False)
-        self.assertEqual(self.frames(60,cross=True),0)
+        self.assertEqual(self.frames(20,cross=True),0)
+        self.assertEqual(self.frames(10,cross=True),1)
 
 
 class IntegratedCrossTests(unittest.TestCase):

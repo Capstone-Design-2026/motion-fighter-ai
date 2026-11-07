@@ -73,7 +73,10 @@ class CrossSpecial:
             if stamp-self.return_since>=self.return_ns:
                 self.armed=True;self.owned=self.latched=False;self.reset_dwell()
         else:self.return_since=None
-        if self.armed and approach and not self.owned:
+        # Calibration, not an extra uncross pose, authorizes the first X.
+        # Returning from a keyboard/brief tracking gap may start a fresh full
+        # dwell. An already-fired held X retains its latch across that gap.
+        if approach and not self.owned and not self.latched:
             self.owned=True;self.armed=False;self.latched=False
         if not self.owned or self.latched:return False
         if not strict:
