@@ -28,8 +28,8 @@ class CrossGeometryTests(unittest.TestCase):
         self.assertEqual(chest_cross(replace(o,landmarks=tuple(map(tuple,p)),source_mirrored=True),EngineConfig()),(True,True))
         vis=list(o.visibility);vis[15]=.1
         self.assertEqual(chest_cross(replace(o,visibility=tuple(vis)),EngineConfig()),(False,False))
-    def test_face_height_cross_does_not_trigger(self):
-        o=pose('cross');p=np.array(o.landmarks);p[[15,16],1]=.2
+    def test_above_eye_height_cross_does_not_trigger(self):
+        o=pose('cross');p=np.array(o.landmarks);p[[15,16],1]=.05
         self.assertEqual(chest_cross(replace(o,landmarks=tuple(map(tuple,p))),EngineConfig()),(False,False))
 
 
@@ -52,15 +52,19 @@ class CrossLifecycleTests(unittest.TestCase):
     def test_uncalibrated_or_unarmed_cross_never_fires(self):
         self.assertEqual(self.frames(60,cross=True,calibrated=False),0)
         self.assertEqual(self.frames(60,cross=True),0)
-    def test_tracking_gap_requires_return_and_new_hold(self):
+    def test_tracking_gap_requires_a_whole_new_hold(self):
         self.frames(10,neutral=True);self.frames(10,cross=True)
         self.t+=200_000_000
+        self.assertEqual(self.frames(20,cross=True),0)
+        self.assertEqual(self.frames(10,cross=True),1)
         self.assertEqual(self.frames(60,cross=True),0)
         self.frames(10,neutral=True)
         self.assertEqual(self.frames(30,cross=True),1)
     def test_occlusion_cannot_finish_a_pending_hold(self):
         self.frames(10,neutral=True);self.frames(10,cross=True)
-        self.frames(1,cross=True,valid=False)
+        self.assertEqual(self.frames(60,cross=True,valid=False),0)
+        self.assertEqual(self.frames(20,cross=True),0)
+        self.assertEqual(self.frames(10,cross=True),1)
         self.assertEqual(self.frames(60,cross=True),0)
     def test_recalibration_clears_candidate(self):
         self.frames(10,neutral=True);self.frames(10,cross=True)

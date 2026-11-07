@@ -147,13 +147,13 @@ def run(a):
             fps=1e9/(stamp-last_stamp) if last_stamp is not None else 0;last_stamp=stamp
             message=display['event'] if time.monotonic_ns()-display['event_ns']<1_000_000_000 else ''
             mode=('C: CALIBRATE GUARD' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
-                else 'BLOCK' if state.block else 'READY' if ready else 'RETURN TO GUARD')
+                else 'BLOCK' if state.block else 'READY' if ready else 'RELEASE LAST POSE / NEXT MOVE')
             prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else arms
             lines=[f"{mode}  {progress:.0%}   {message}",prompt,
                 f"LEFT {counts['left']}  RIGHT {counts['right']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                 f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
                 f"Pose {pose_ms:.1f}ms | {fps:.1f} FPS | capture skipped {slot.dropped}",
-                'C: hold guard 2 sec | SPACE: next prompt | M: move | X: pause | Q: finish']
+                'C: calibrate guard | M: move | X: pause | Q: finish']
             for i,line in enumerate(lines):
                 width=cv.getTextSize(line,0,.47,1)[0][0]
                 scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))

@@ -1,7 +1,7 @@
 """Six gameplay gestures including a held chest-X special; left raise is high kick, right raise is low kick.
 
 An opt-in development controller, not a trained or independently validated model.
-Vertical actions require both arms visible and the other hand in calibrated guard.
+Vertical actions require both arms visible; per-hand release permits natural chaining.
 Both-hand raising owns the block channel and cannot produce two kicks.
 """
 from dataclasses import asdict, replace
@@ -10,7 +10,7 @@ from action_engine.experimental import ChannelSignals, joint_validity
 from action_engine.types import ActionEvent
 from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
-from .special import CrossSpecial, chest_cross
+from .special import CrossSpecial, cross_geometry
 
 
 class SixAttack(DemoAttack):
@@ -42,7 +42,7 @@ class SixAttack(DemoAttack):
         commit, signals, reason = super().update(arms, now, allow_commit, block)
         return commit, signals, reason or ('uncommitted_raise_handoff' if handoff else '')
 
-    def neutral(self, arms):
+    def guard_neutral(self, arms):
         """One guard definition for punches, raises and the READY indicator.
 
         Returning fists need not occupy the exact calibration pixel: inward
@@ -69,6 +69,21 @@ class SixAttack(DemoAttack):
                 return False
         return True
 
+    def neutral(self, arms):
+        # Each punching hand can retract to a comfortable bent position below
+        # its original guard. The other hand does not have to return with it.
+        if self.state not in ('PREPARING','RETURNING','UNAVAILABLE'):
+            return self.guard_neutral(arms)
+        if not arms or self.baseline is None:return False
+        for side, arm in arms.items():
+            base=self.baseline[side];dx,dy=arm['position'][:2]-base['position'][:2]
+            if not (abs(dx)<=.45 and -.30<=dy<=.65 and arm['position'][1]<=.45
+                    and arm['speed_xy']<=1.2 and arm['angle']<=1.8
+                    and arm['angle3d'] is not None
+                    and arm['angle3d']<=min(2.6,base['angle3d']+.60)):
+                return False
+        return True
+
     def candidates(self, arms):
         result = super().candidates(arms)
         for side, arm in arms.items():
@@ -90,11 +105,13 @@ class SixGestureEngine(DemoEngine):
         self.vertical_state = 'DISARMED'
         self.guard_held = False
         self.vertical_candidate = None
+        self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
+        self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
         self.vertical_since = self.return_since = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-chest-special-20261105-v8')
+        self.config = replace(self.config, version='seated-flow-cross-20261107-v9')
         self._components()
 
     @property
@@ -121,6 +138,8 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.special.invalidate()
+        self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
+        self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
         self.vertical_signals.reset()
         self.guard_held = False
         self.vertical_state = 'DISARMED'
@@ -133,10 +152,10 @@ class SixGestureEngine(DemoEngine):
             if ident in self.retired or (ident == self.identity and self.last_capture is not None
                     and (obs.capture_ns <= self.last_capture or obs.frame_id <= self.last_frame)):
                 return super().process(obs, evidence, now)
-            ready_before = all(u.state == 'READY' for u in self.attack.units.values())
             calibrated_before = self.calibrated
-            for unit in self.attack.units.values():
-                unit.inhibited = self.special_inhibited or self.vertical_state in ('PENDING', 'LATCHED')
+            for side, unit in self.attack.units.items():
+                unit.inhibited = self.special_inhibited or not self.raise_armed[side] or (
+                    self.vertical_state == 'PENDING' and self.vertical_candidate == side + '_RAISE')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
                 self.movement.calibrate(obs)
@@ -150,38 +169,44 @@ class SixGestureEngine(DemoEngine):
                 state = replace(state, movement='NEUTRAL', movement_strength=0.)
             valid = fresh and not validity['BLOCK'] and set(arms) == {'LEFT', 'RIGHT'}
             if not self.calibrated or not valid:
+                self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
+                self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
                 self.guard_held = False
                 self.vertical_state = 'DISARMED'
                 self.vertical_candidate = self.vertical_since = self.return_since = None
                 return self._publish_state(state)
             anchors = self.attack.anchors()
             delta = {s: a['position'] - anchors[s]['position'] for s, a in arms.items()}
-            neutral = all(self.attack.units[s].neutral({s: a}) for s, a in arms.items())
+            neutral = all(self.attack.units[s].guard_neutral({s: a}) for s, a in arms.items())
             self.guard_held = neutral
-            # Re-arm only after a real return, including after invalid tracking.
-            if neutral:
-                if self.return_since is None:
-                    self.return_since = now
-                if now - self.return_since >= 180_000_000 or not calibrated_before:
-                    self.vertical_state = 'READY'
-                    self.vertical_candidate = self.vertical_since = None
-            else:
-                self.return_since = None
+            # A raise is released by lowering that arm, not by a bilateral guard.
+            # Keep separate latches so a held block cannot become a one-arm kick.
             bilateral = all(delta[s][1] <= -.32 for s in arms)
+            for side in arms:
+                if delta[side][1] > -.20 and not state.block and not bilateral:
+                    if self.raise_release[side] is None:self.raise_release[side] = now
+                    if now-self.raise_release[side] >= 120_000_000 or not calibrated_before:
+                        self.raise_armed[side] = True
+                else:self.raise_release[side] = None
             if state.block or bilateral:
+                self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
                 self.vertical_state = 'LATCHED'
                 self.vertical_candidate = self.vertical_since = None
+            elif self.vertical_state in ('DISARMED','LATCHED') and any(self.raise_armed.values()):
+                self.vertical_state = 'READY'
             candidate = None
             if not bilateral and not state.block:
                 for side, other in (('LEFT', 'RIGHT'), ('RIGHT', 'LEFT')):
                     dx, dy = delta[side][:2]
                     other_dx, other_dy = delta[other][:2]
-                    other_guard = SixAttack.guard_position(arms[other], anchors[other])
+                    other_guard = (other_dy > -.30 and arms[other]['position'][1] <= 1.0
+                                   and arms[other]['angle'] <= 2.7)
                     vertical = abs(dx) <= .35 and abs(dy) > abs(dx) * 1.2
                     if other_guard and vertical:
                         if dy <= -.40:
                             candidate = side + '_RAISE'
-            if self.vertical_state == 'READY' and candidate and ready_before:
+            if (self.vertical_state == 'READY' and candidate
+                    and self.raise_armed[candidate.split('_')[0]] and not self.special_inhibited):
                 self.vertical_state = 'PENDING'
                 self.vertical_candidate, self.vertical_since = candidate, now
             elif self.vertical_state == 'PENDING':
@@ -198,6 +223,8 @@ class SixGestureEngine(DemoEngine):
                         'game_mapping': 'LOW_KICK' if candidate == 'RIGHT_RAISE' else 'HIGH_KICK'}, self.config.version)
                     self.outbox.offer(event)
                     self._log('event', now, event=asdict(event))
+                    self.raise_armed[side] = False
+                    self.raise_release[side] = None
                     self.vertical_state = 'LATCHED'
             # Explicit gesture names travel independently of the anatomical side.
             for key, event in list(self.outbox.pending.items()):
@@ -214,11 +241,11 @@ class SixGestureEngine(DemoEngine):
                 return self._process_actions(obs, evidence, now)
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             valid = fresh and not joint_validity(obs, self.config)['BLOCK']
-            approach, strict = chest_cross(obs, self.config) if valid else (False, False)
+            approach, strict, separated = cross_geometry(obs, self.config) if valid else (False, False, False)
             self.special_inhibited = self.special.owned or (self.special.armed and approach)
             state = self._process_actions(obs, evidence, now)
             fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
-                neutral=self.guard_held and not state.block, approach=approach, strict=strict)
+                neutral=separated, approach=approach, strict=strict)
             if self.special.owned or self.special_inhibited:
                 # Reserve this bilateral gesture, including its return. Never
                 # publish a block/kick/punch from the same cross observation.
