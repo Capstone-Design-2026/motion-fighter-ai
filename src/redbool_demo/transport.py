@@ -8,6 +8,16 @@ class DemoSender(Sender):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.events={};self.delivery=Counter();self.last_status='WAITING FOR RECEIVER'
+        self.feedback={};self.feedback_sequence=-1
+
+    def game_hint(self, now_ns=None):
+        now=time.monotonic_ns() if now_ns is None else now_ns
+        f=self.feedback
+        if not f or not 0<=now-f['sent_ns']<=500_000_000:
+            return 'GAME UNKNOWN / SPECIAL UNKNOWN'
+        game='GAME READY' if f['game_can_act'] else 'GAME BUSY'
+        special='SPECIAL READY' if f['special_ready'] else 'SPECIAL NEEDS CHARGE'
+        return game+' / '+special
 
     def offer(self,event):
         if len(self.events)>=32:
@@ -19,6 +29,14 @@ class DemoSender(Sender):
         for row in rows:
             if row['type']!='ack':continue
             ack=row['ack'];status=ack.get('status','').upper();eid=ack.get('event_id')
+            seq=ack.get('sequence');sent=ack.get('sender_ns')
+            if (type(seq) is int and seq>self.feedback_sequence and type(sent) is int
+                    and 0<=now-sent<=150_000_000
+                    and type(ack.get('game_can_act')) is bool
+                    and type(ack.get('special_ready')) is bool):
+                self.feedback={'sent_ns':sent,'game_can_act':ack['game_can_act'],
+                               'special_ready':ack['special_ready']}
+                self.feedback_sequence=seq
             if eid in self.events and status in ('APPLIED','DUPLICATE_EVENT','GAME_BUSY','NO_PLAYER','INPUT_LOCKED','UNASSIGNED','TUTORIAL_APPLIED','BAD_GESTURE','BAD_KIND','NOT_CHARGED','NO_SPECIAL'):
                 self.events.pop(eid)
                 self.delivery[status]+=1;self.last_status=status

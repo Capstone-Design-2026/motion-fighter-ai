@@ -144,13 +144,18 @@ def run(a):
                 armed=engine.calibrated;progress=engine.calibration_progress
                 arms=' / '.join(k+':'+v.state for k,v in engine.attack.units.items())
                 ready=engine.ready
+                cross_owned=engine.special.owned;cross_sent=engine.special.latched
+                cross_progress=min(1.,engine.special.confirmed_ns/engine.special.hold_ns)
             fps=1e9/(stamp-last_stamp) if last_stamp is not None else 0;last_stamp=stamp
             message=display['event'] if time.monotonic_ns()-display['event_ns']<1_000_000_000 else ''
             mode=('C: CALIBRATE GUARD' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
+                else 'X SENT: OPEN ARMS OR RAISE ONE' if cross_owned and cross_sent
+                else f'X HOLD: {cross_progress:.0%}' if cross_owned
                 else 'BLOCK' if state.block else 'READY' if ready else 'RELEASE LAST POSE / NEXT MOVE')
-            prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else arms
+            hint=getattr(sender,'game_hint',lambda:'GAME UNKNOWN / SPECIAL UNKNOWN')()
+            prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else hint
             lines=[f"{mode}  {progress:.0%}   {message}",prompt,
-                f"LEFT {counts['left']}  RIGHT {counts['right']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
+                f"LEFT {counts['left']}  RIGHT {counts['right']}  X {counts['both']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                 f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
                 f"Pose {pose_ms:.1f}ms | {fps:.1f} FPS | capture skipped {slot.dropped}",
                 'C: calibrate guard | M: move | X: pause | Q: finish']

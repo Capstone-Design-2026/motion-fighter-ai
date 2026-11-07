@@ -111,7 +111,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-flow-cross-20261107-v9')
+        self.config = replace(self.config, version='seated-cross-release-20261107-v10')
         self._components()
 
     @property

@@ -29,7 +29,12 @@ def cross_geometry(obs, cfg):
               and rw[0]-lw[0]>-.15)
     strict=(approach and lw[0]<=.12 and rw[0]>=-.12
             and rw[0]-lw[0]>=.04 and abs(lw[1]-rw[1])<=.40)
-    separated=(lw[0]>.22 and rw[0]<-.22)
+    # A clear one-arm raise also breaks the cross, even if the other hand
+    # remains at the opposite shoulder. Do not require both hands in guard.
+    separated=((lw[0]>.22 and rw[0]<-.22)
+               or lw[1]<-.60
+               or rw[1]<-.60
+               or all(w[1]>.85 for w in (lw,rw)))
     return bool(approach),bool(strict),bool(separated)
 
 
