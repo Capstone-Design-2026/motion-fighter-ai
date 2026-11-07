@@ -166,13 +166,16 @@ class SyntheticLiveTests(unittest.TestCase):
         def key(*args):return ord('q') if shown[0]>=35 else ord('c') if shown[0]==1 else -1
         with tempfile.TemporaryDirectory() as folder:
             args=argparse.Namespace(pose=Path('pose_landmarker.task'),check=False,stream_id=None,output=Path(folder),
-                guided=True,movement=False,host='127.0.0.1',port=9,actor='DEV01',camera=0,backend='auto',seconds=5,mirror=False)
+                guided=True,movement=False,host='127.0.0.1',port=9,actor='DEV01',camera=0,backend='auto',seconds=6,mirror=False,preview_fps=15.)
             with patch('pose_capture.open_camera',return_value=FakeCamera()),patch.object(PoseLandmarker,'create_from_options',return_value=FakePose()),patch.object(cv2,'imshow',side_effect=imshow),patch.object(cv2,'waitKey',side_effect=key),patch.object(cv2,'destroyAllWindows'):
                 run(args)
             root=next(Path(folder).iterdir());r=json.loads((root/'summary.json').read_text())
             self.assertFalse(r['errors']);self.assertEqual(r['counts']['events'],0)
             self.assertTrue(r['guided_check']['interrupted'])
             self.assertGreaterEqual(r['counts']['processed'],35)
+            self.assertGreater(r['counts']['processed'],r['counts']['preview_frames']*1.4)
+            self.assertEqual(r['performance']['camera_requested_fps'],30)
+            self.assertGreater(r['performance']['processed_fps'],0)
             session=Path(r['session']);m=json.loads((session/'manifest.json').read_text())
             self.assertTrue(m['video']['lossless_verified'])
             annotations=[json.loads(x) for x in (session/'annotations.jsonl').read_text().splitlines()]
