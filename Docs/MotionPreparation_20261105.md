@@ -42,3 +42,13 @@ STATE의 calibration_version=1 / calibrated 필드가 있는 최신 Python과 �
 - Play 검사는 준비 제어기에 테스트 상태를 전달하고 실제 SpecialMove 루틴을 실행했다. 전체 카메라→UDP→화면 경로, 필살기 실촬영 인식률, 화면 품질·체감 지연까지 검증한 것은 아니다.
 - 개발 검증 메뉴: Tools > REDBOOL > Run Input Adapter Self Check / Check Battle Auto Connection (Play Mode).
 - 배치 Play 검사는 -executeMethod RedboolMotionPlayCheck.Run으로 실행하며 테스트 종료 시 Editor가 종료된다. 일반 작업 중 실행하지 않는다.
+
+## 2026-11-07 Mac 실제 UDP 추가 검증
+
+현재 로컬 패키지 상태에서 다시 컴파일하고 배치 Play 21개 검사를 통과했다. 실제 Python 송신기에서 Unity 수신 소켓으로 일반 기술 4종과 시간제 가드를 전송해 모두 적용된 것을 확인했다.
+
+합성 관절을 실제 SixGestureEngine에 넣어 보정 → X자 유지 → 가드 복귀를 실행했다. 생성된 SPECIAL/BOTH 이벤트가 실제 UDP로 전달되어 게이지 부족 시 NOT_CHARGED, 충전 후 APPLIED/SPECIAL로 응답됐다. 같은 이벤트를 두 번 보내도 Unity 적용 횟수는 1회였고 게이지가 소비됐다. 이 검사는 사람의 X자 인식률이나 화면 지연 검사가 아니다.
+
+재현: 기존 Python 저장소의 venv와 src:tests PYTHONPATH를 사용한다. 비어 있는 동일 출력 폴더를 Unity 환경 변수 REDBOOL_UDP_CHECK_DIR와 Tools/check_motion_udp.py의 위치 인수로 전달한다. Unity는 위 배치 Play 진입점으로 실행하고, Python 도구는 별도 프로세스로 병행 실행한다. 도구는 최대 240초 동안 Unity 준비를 기다리고 카메라는 열지 않는다. 일반 GUI Play나 진행 중인 게임에 사용하지 않는다. 기존 진행 저장은 배치 검사 종료 시 복원된다.
+
+사람 시험: GameScene의 Play를 켜고 Python 카메라를 실행한 뒤 카메라 창 C로 최초 보정한다. 게임 화면 I를 5번 눌러 테스트 게이지를 채우고 SPECIAL READY를 확인한다. 중앙 가드에서 가슴 앞 X자를 0.7초 이상 유지한 뒤 가드로 돌아온다. 다섯 번 반복하고 얼굴 앞 블락과도 번갈아 비교한다. 키보드 X는 필살기가 아니라 보정 해제/일시정지이므로 구분한다.

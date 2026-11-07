@@ -92,6 +92,32 @@ public static class RedboolMotionPlayCheck
         gate.Observe(true, "VALID", "ACTIVE", false, "LEFT");
         Check(gate.AllowsPlayer, "Next scene accepts preserved calibration without neutral pose or timer");
         Check(PlayerPrefs.GetString(SaveKey, "") == SessionState.GetString(Active + ".Save", ""), "Saved progress unchanged");
+        // Optional external Python sender exercises the actual UDP socket, clocks and ACKs.
+        // Only available in this isolated batch runner; never enabled in ordinary play.
+        string udpDirectory = Environment.GetEnvironmentVariable("REDBOOL_UDP_CHECK_DIR");
+        if (!String.IsNullOrEmpty(udpDirectory))
+        {
+            Directory.CreateDirectory(udpDirectory);
+            SceneManager.LoadScene("GameScene"); yield return null; yield return null;
+            player = Object.FindAnyObjectByType<PlayerController>();
+            special = player.GetComponent<SpecialMove>(); special.ResetCharge();
+            var receiver = Object.FindAnyObjectByType<RedboolDemoReceiver>();
+            int appliedBefore = receiver.AttacksApplied;
+            File.WriteAllText(Path.Combine(udpDirectory, "ready"), "UDP 5065 ready");
+            bool charged = false;
+            while (!File.Exists(Path.Combine(udpDirectory, "done")))
+            {
+                if (!charged && File.Exists(Path.Combine(udpDirectory, "charge.request")))
+                {
+                    special.AddCharge(special.HitsToCharge); charged = true;
+                    File.WriteAllText(Path.Combine(udpDirectory, "charged"), "ready");
+                }
+                yield return null;
+            }
+            Check(File.ReadAllText(Path.Combine(udpDirectory, "done")).Trim() == "PASS", "Python real UDP rehearsal passed");
+            Check(charged && !special.IsReady, "UDP special consumes charge");
+            Check(receiver.AttacksApplied - appliedBefore == 5, "Four attacks and exactly one UDP special applied");
+        }
     }
     static void Finish(string failure)
     {
