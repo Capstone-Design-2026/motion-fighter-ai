@@ -15,6 +15,7 @@ public class CaveTutorial : MonoBehaviour {
  public int SuccessfulAttempts=>hits;
  public bool IsDemonstrating=>Time.unscaledTime<demoUntil;
  public bool IsKeyboardMode=>keyboard;
+ bool DiscreteVisionStep=>!keyboard&&CurrentStep<4;
  public static IEnumerator Play(RunState state){
   if(state.Data.tutorialCompleted)yield break;
   if(state.Data.tutorialStep>=Actions.Length){state.CompleteTutorial();yield break;}
@@ -67,15 +68,26 @@ public class CaveTutorial : MonoBehaviour {
   successPulse=Mathf.MoveTowards(successPulse,0,Time.unscaledDeltaTime);if(flash!=null)flash.color=new Color(.84f,1,.66f,successPulse);
   if(advancing){if(Time.unscaledTime<nextStepAt)return;advancing=false;run.Data.tutorialStep++;run.Save();hits=0;armed=false;
    if(run.Data.tutorialStep>=Actions.Length){run.CompleteTutorial();exit=true;return;}RefreshStep();}
-  phaseLabel.text=advancing?"확인 완료":IsDemonstrating?"① 시범 보기":armed?"② 따라 해보세요":"③ 기본 자세로 돌아오기";
+  phaseLabel.text=advancing?"확인 완료":IsDemonstrating?"① 시범 보기":armed||DiscreteVisionStep?"② 따라 해보세요":"③ 팔을 내리거나 중앙으로 돌아오기";
   if(IsDemonstrating)return;
   if(keyboard){if(Input.GetKeyDown(KeyCode.Space))Accept("IDLE",1);for(int i=0;i<Actions.Length;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))Accept(Actions[i],1);}
   else if(Time.unscaledTime-lastPacket>3){armed=false;signal.text="카메라 신호 없음";if(Time.unscaledTime>feedbackUntil)status.text="비전 신호를 기다려요. 백엔드를 켜거나 우측 위에서 키보드 테스트를 선택하세요.";return;}
-  if(Time.unscaledTime>feedbackUntil&&!advancing)status.text=Time.unscaledTime-stepStarted>12||mistakes>=3?Tips[CurrentStep]:armed?Gestures[CurrentStep]:"손과 어깨를 기본 자세로 되돌리면 다음 동작을 받을게요.";
+  if(Time.unscaledTime>feedbackUntil&&!advancing)status.text=Time.unscaledTime-stepStarted>12||mistakes>=3?Tips[CurrentStep]:armed||DiscreteVisionStep?Gestures[CurrentStep]:"팔을 내리거나 몸을 중앙으로 돌리면 다음 동작을 받을게요.";
  }
  void OnVision(string action,float confidence,string movement,float strength){
-  if(keyboard||exit)return;lastPacket=Time.unscaledTime;if(action=="UNAVAILABLE"){armed=false;return;}
-  if(CurrentStep<5){Accept(action,confidence);return;}
+  if(keyboard||exit)return;lastPacket=Time.unscaledTime;
+  if(action=="UNAVAILABLE"){armed=false;signal.text="보정 또는 관절 확인 중";return;}
+  action=Normalize(action);
+  // Punches/raises arrive as receiver-deduplicated one-shot events. Python
+  // already checks their own-arm release; do not impose another guard gate.
+  bool oneShot=action=="JAB"||action=="STRAIGHT"||action=="HIGH_KICK"||action=="LOW_KICK";
+  if(oneShot){Accept(action,confidence,true);return;}
+  if(CurrentStep<4){
+   if(action=="BUSY"){signal.text="카메라 연결됨 · 동작 인식 중";return;}
+   Accept(action,confidence);return;
+  }
+  // Continuous block and movement still need a real release/center state.
+  if(CurrentStep==4){Accept(action=="BUSY"?"IDLE":action,confidence);return;}
   if(movement=="NEUTRAL")Accept("IDLE",1);
   else if(movement=="LEFT"||movement=="RIGHT"){
    if(float.IsNaN(strength)||float.IsInfinity(strength)||strength<.25f){Feedback("어깨를 조금 더 옆으로 옮겨보세요.");return;}
@@ -84,14 +96,14 @@ public class CaveTutorial : MonoBehaviour {
  }
  public void SubmitKeyboardAction(string action){if(keyboard)Accept(action,1);}
  public static string Normalize(string action){switch((action??"").Trim().ToUpperInvariant()){case "LEFT_PUNCH":return "JAB";case "RIGHT_PUNCH":case "CROSS":return "STRAIGHT";case "LEFT_RAISE":case "LEFT_HAND_UP":case "HIGHKICK":return "HIGH_KICK";case "RIGHT_RAISE":case "RIGHT_HAND_UP":case "LOWKICK":return "LOW_KICK";case "GUARD":return "BLOCK";default:return (action??"").Trim().ToUpperInvariant();}}
- void Accept(string raw,float confidence){
+ void Accept(string raw,float confidence,bool oneShot=false){
   if(run==null||exit||advancing||IsDemonstrating)return;string action=Normalize(raw);
   if(float.IsNaN(confidence)||float.IsInfinity(confidence)||confidence<.7f){Feedback("자세가 불분명해요. 양손이 카메라에 보이도록 다시 준비해보세요.");return;}
   if(action=="IDLE"||action=="NONE"){armed=true;if(Time.unscaledTime>feedbackUntil)Feedback("준비됐어요. "+Gestures[CurrentStep]);signal.text="기본 자세 확인";lastSignal=action;return;}
   int detected=System.Array.IndexOf(Actions,action);signal.text="받은 동작: "+(detected>=0?Names[detected]:action);
   if(action=="ATTACK"){Feedback("공격은 들어왔지만 잽/스트레이트 구분 신호가 없어요. 동작별 백엔드 또는 키보드 테스트를 사용하세요.");return;}
-  if(action==lastSignal&&!armed)return;lastSignal=action;
-  if(!armed){Feedback("좋아요. 다음 시도 전에 손과 어깨를 기본 자세로 되돌려주세요.");return;}
+  if(action==lastSignal&&!armed&&!oneShot)return;lastSignal=action;
+  if(!armed&&!oneShot){Feedback("좋아요. 다음 시도 전에 손과 어깨를 기본 자세로 되돌려주세요.");return;}
   if(action!=Actions[CurrentStep]){mistakes++;armed=false;Feedback("지금은 "+Names[CurrentStep]+" 차례예요. "+Tips[CurrentStep]);return;}
   armed=false;hits++;successPulse=1;progress.text="성공  "+hits+" / 2";Feedback(Names[CurrentStep]+" 확인! "+(hits==1?"같은 동작을 한 번 더 해볼까요?":"다음 동작으로 넘어갑니다."));
   Debug.Log("[Tutorial] "+(keyboard?"Keyboard":"Vision")+" "+Actions[CurrentStep]+" "+hits+"/2");

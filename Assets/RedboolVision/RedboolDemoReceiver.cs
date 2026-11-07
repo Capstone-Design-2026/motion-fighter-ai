@@ -44,7 +44,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private IPEndPoint pairedPeer;
     private long sequence, deadline, lastLiveNs;
     private float targetMove, currentMove;
-    private bool controlling;
+    private bool controlling, tutorialInputValid;
     private readonly RedboolGuardLatch guardInput = new RedboolGuardLatch();
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
@@ -172,6 +172,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 if(action==null) status="BAD_GESTURE";
                 else if(action=="UNASSIGNED") status="UNASSIGNED";
                 else if(TutorialAction!=null && action=="SPECIAL") status="UNASSIGNED";
+                else if(TutorialAction!=null && (!tutorialInputValid || now>=deadline)) status="INPUT_LOCKED";
                 else if(TutorialAction!=null) {
                     TutorialAction.Invoke(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
                 }
@@ -202,7 +203,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*p.movement_strength;
             guardInput.Observe(BlockActive);
             controlling=true;
-            string tutorialState=p.tracking=="VALID" ? (p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "UNAVAILABLE") : "UNAVAILABLE";
+            // An attack candidate/return phase is still live camera input. It must
+            // not clear tutorial readiness before the following one-shot event.
+            tutorialInputValid=p.calibration_version==1 && p.calibrated && p.tracking=="VALID";
+            string tutorialState=!tutorialInputValid ? "UNAVAILABLE"
+                : p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "BUSY";
             TutorialAction?.Invoke(tutorialState,1f,p.movement,p.movement_strength);
             status=player!=null?"APPLIED":TutorialAction!=null?"TUTORIAL_APPLIED":"NO_PLAYER";
         }
@@ -226,7 +231,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private void Safe() {
         if(controlling && player!=null) player.ClearExternalInput();
         if(controlling) TutorialAction?.Invoke("UNAVAILABLE",0f,"NEUTRAL",0f);
-        controlling=false;BlockActive=false;targetMove=currentMove=0;
+        controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
         guardInput.Reset();
     }
     private void OnGUI() {
