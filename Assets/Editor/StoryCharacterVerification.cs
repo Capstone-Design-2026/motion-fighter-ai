@@ -119,7 +119,7 @@ public static class StoryCharacterVerification
                 for(var w=Wait(Fighter3DView.Duration(move)-Fighter3DView.Impact(move)+.65f);w.MoveNext();)yield return null;
                 Check(view.CurrentState=="IDLE"&&!enemyF.IsAttacking&&!view.modelAnimator.IsInTransition(0),key+" "+move+" recovers to idle");
             }
-            // Timed guard: a cast guard holds for guardDuration, ends on a successful block, and fails (with a delay) when nothing is blocked.
+            // Held guard: stays up while the input is active, through a blocked hit, and ends with no delay on release.
             // In 3D the guard height is automatic: it goes low only when the opponent has telegraphed a low kick.
             foreach(bool low in new[]{false,true})
             {
@@ -128,14 +128,16 @@ public static class StoryCharacterVerification
                 Check(enemyF.TryGuard(low),key+" "+state+" cast");
                 for(var w=Wait(.5f);w.MoveNext();)yield return null;Check(view.CurrentState==state+"_HOLD",key+" "+state+" holds");Pose(state);
                 eh.TakeDamage(1,Vector2.zero,true);yield return null;Check(view.CurrentState==state+"_HIT",key+" "+state+" reacts");
+                Check(enemyF.IsGuarding,key+" "+state+" stays up after the block while held");enemyF.ReleaseGuard();
                 float guardUntil=Time.time+2.5f;while(Time.time<guardUntil&&view.CurrentState!="IDLE")yield return null;
-                Check(view.CurrentState=="IDLE"&&!enemyF.IsGuarding,key+" "+state+" ends after the block and returns to idle");
+                Check(view.CurrentState=="IDLE"&&!enemyF.IsGuarding,key+" "+state+" ends on release and returns to idle");
                 if(low)playerF.ClearIntent();
                 for(var w=Wait(.3f);w.MoveNext();)yield return null;
             }
-            Check(enemyF.TryGuard(false),key+" guard cast for timeout");
-            for(var w=Wait(enemyF.GuardDuration+.2f);w.MoveNext();)yield return null;Check(!enemyF.IsGuarding,key+" unblocked guard expires after "+enemyF.GuardDuration.ToString("F1")+"s");
-            float releaseUntil=Time.time+3f;while(Time.time<releaseUntil&&view.CurrentState!="IDLE")yield return null;Check(view.CurrentState=="IDLE",key+" expired guard releases to idle");
+            Check(enemyF.TryGuard(false),key+" guard cast for hold test");
+            for(var w=Wait(2f);w.MoveNext();)yield return null;Check(enemyF.IsGuarding,key+" held guard has no time limit");
+            enemyF.ReleaseGuard();Check(enemyF.CanAct,key+" released guard can act immediately");
+            float releaseUntil=Time.time+3f;while(Time.time<releaseUntil&&view.CurrentState!="IDLE")yield return null;Check(view.CurrentState=="IDLE",key+" released guard returns to idle");
             for(var w=Wait(.6f);w.MoveNext();)yield return null;
             eh.TakeDamage(2,Vector2.zero);for(var w=Wait(.25f);w.MoveNext();)yield return null;Check(view.CurrentState=="HURT",key+" hurt reaction");Pose("HURT");
             for(var w=Wait(.65f);w.MoveNext();)yield return null;Check(view.CurrentState=="IDLE",key+" hurt recovers");
@@ -159,6 +161,7 @@ public static class StoryCharacterVerification
             for(var w=Wait(.4f);w.MoveNext();)yield return null;hp=eh.CurrentHealth;playerF.TryAttack(CombatMove.Jab);
             for(var w=Wait(.8f);w.MoveNext();)yield return null;eh.OnDamaged-=onHit;int chip=hp-eh.CurrentHealth;
             Check(guardedHit&&chip==0,key+" live guard blocks the player's jab (blocked hits deal 0): guarded="+guardedHit+" damage="+chip);
+            enemyF.ReleaseGuard();
             for(var w=Wait(1.2f);w.MoveNext();)yield return null;
             // Retain actual stage AI for a brief autonomous approach check.
             Position(-2,2);ph.ResetHealth();eh.ResetHealth();float before=eb.position.x;enemy.enabled=true;

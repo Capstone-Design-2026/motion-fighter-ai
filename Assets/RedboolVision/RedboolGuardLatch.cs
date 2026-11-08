@@ -1,4 +1,4 @@
-// A held camera pose starts at most one timed guard in the current combat rules.
+// A held camera pose needs one guard start; PlayerController holds the guard until release.
 // Wait only while the input is still held; release/disconnect cancels that wait.
 public sealed class RedboolGuardLatch
 {

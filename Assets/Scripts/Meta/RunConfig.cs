@@ -38,6 +38,8 @@ public class StageDefinition
     [Header("전투 설정 (0 이면 GameScene 기본값 유지)")]
     [Tooltip("적의 최대 체력. 0 이면 씬에 설정된 값을 그대로 쓴다.")]
     public int enemyMaxHealth = 0;
+    [Tooltip("이 스테이지 적의 행동 타입.")]
+    public EnemyBehaviorType behaviorType = EnemyBehaviorType.Balanced;
 
     [Header("단계별 전투 조정 (켜면 아래 수치를 적용)")]
     public bool overrideCombatStats;

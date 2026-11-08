@@ -29,7 +29,7 @@ public class PlayerController : MonoBehaviour
     public KeyCode jumpKey      = KeyCode.W;
     public KeyCode crouchKey    = KeyCode.S;
     public KeyCode attackKey    = KeyCode.P;
-    [Tooltip("누르면 방어 시전. Fighter 의 방어 시간 동안 유지된다. 기본값 U.")]
+    [Tooltip("누르고 있는 동안만 방어한다. 기본값 U.")]
     public KeyCode blockKey     = KeyCode.U;
     public KeyCode jabKey = KeyCode.J;
     public KeyCode straightKey = KeyCode.K;
@@ -53,6 +53,9 @@ public class PlayerController : MonoBehaviour
     // (이동/점프/공격 키는 테스트용으로 계속 살아있다)
     public bool externalControl = false;
     private float externalMoveX;
+    private bool externalGuardHeld;   // 인식 결과가 지금 방어 자세인지
+    private bool guardWasHeld;        // 지난번 확인 때 방어를 원했는지
+    private bool guardCutByMotion;    // 이동·점프가 방어를 끊고 있는지
 
     public void SetOpponent(Transform value) { opponent = value; }
 
@@ -132,9 +135,9 @@ public class PlayerController : MonoBehaviour
 
         // ── 이동 ──
         // 이동으로 캐릭터를 회전시키지 않는다. 방향은 아래 FaceOpponent() 가 정한다.
-        // 공격·방어·방어 실패 딜레이 중에는 못 움직인다. 앉은 채로는 느리게 움직일 수 있다.
+        // 공격 중에는 못 움직인다. 방어 중에 움직이면 방어가 끊긴다. 앉은 채로는 느리게 움직일 수 있다.
         float moveX = 0f;
-        if (fighter.CanAct)
+        if (fighter.CanAct && !fighter.IsAttacking)
         {
             if (externalControl) moveX = externalMoveX;
             // A/D still work for testing when the vision detector reports neutral movement.
@@ -144,6 +147,9 @@ public class PlayerController : MonoBehaviour
                 else if (Input.GetKey(moveRightKey)) moveX =  1f;
             }
         }
+
+        guardCutByMotion = Mathf.Abs(moveX) > 0.01f || (!unifiedBoxing && !isGrounded);
+        ApplyGuardInput();
 
         // Rotating behind the fighters must not reverse screen-left/right keyboard or vision intent.
         if(battleCamera!=null)moveX=battleCamera.ScreenHorizontalToWorld(moveX);
@@ -165,36 +171,36 @@ public class PlayerController : MonoBehaviour
         if (!useKeyboard) return;
 
         // ── 동작 입력 ──
-        // 방어 중에 누른 동작은 바로 나가지 않고 기억된다. 방어에 성공하면 그 즉시 나간다. (Act 참고)
-        if (Input.GetKeyDown(blockKey))    Act(Guard);
         // 3D 복싱에는 점프가 없다(애니메이터에 JUMP 상태가 없다).
-        if (!unifiedBoxing && Input.GetKeyDown(jumpKey)) Act(TryJump);
-        if (Input.GetKeyDown(jabKey))      Act(() => AttackMove(CombatMove.Jab));
-        if (Input.GetKeyDown(straightKey)) Act(() => AttackMove(CombatMove.Straight));
-        if (Input.GetKeyDown(highKickKey)) Act(() => AttackMove(CombatMove.HighKick));
-        if (Input.GetKeyDown(lowKickKey))  Act(() => AttackMove(CombatMove.LowKick));
-        if (Input.GetKeyDown(attackKey))   Act(DoAttack);
+        if (!unifiedBoxing && Input.GetKeyDown(jumpKey)) TryJump();
+        if (Input.GetKeyDown(jabKey))      AttackMove(CombatMove.Jab);
+        if (Input.GetKeyDown(straightKey)) AttackMove(CombatMove.Straight);
+        if (Input.GetKeyDown(highKickKey)) AttackMove(CombatMove.HighKick);
+        if (Input.GetKeyDown(lowKickKey))  AttackMove(CombatMove.LowKick);
+        if (Input.GetKeyDown(attackKey))   DoAttack();
     }
 
     /// <summary>
-    /// 동작 입력 하나를 처리한다. 방어 중이면 실행하지 않고 Fighter 에 맡겨 둔다(마지막 하나만).
-    /// 맡긴 동작은 방어에 성공하면 그 순간 나가고, 방어가 실패하거나 뚫리면 버려진다.
+    /// 방어 입력(키 또는 인식 결과)이 활성인 동안만 방어한다.
+    /// 공격·이동이 방어를 끊어도 입력이 남아 있으면 그 동작이 끝나는 대로 다시 방어한다.
     /// </summary>
-    private void Act(Action action)
+    private void ApplyGuardInput()
     {
-        if (fighter.IsGuarding) fighter.BufferAction(action);
-        else action();
-    }
-
-    /// <summary>방어 시전. 지금 자세(서서/앉아)로 방어가 끝날 때까지 고정된다.</summary>
-    private void Guard()
-    {
-        fighter.TryGuard(isCrouching);
+        bool wanted = (externalGuardHeld || (useKeyboard && Input.GetKey(blockKey))) && !guardCutByMotion;
+        if (wanted)
+        {
+            if (!fighter.IsGuarding) fighter.TryGuard(isCrouching);
+        }
+        else if (guardWasHeld)
+        {
+            fighter.ReleaseGuard();
+        }
+        guardWasHeld = wanted;
     }
 
     private void TryJump()
     {
-        if (isGrounded && fighter.CanAct) DoJump();
+        if (isGrounded && fighter.CanAct && !fighter.IsAttacking) DoJump();
     }
 
     /// <summary>
@@ -286,6 +292,7 @@ public class PlayerController : MonoBehaviour
     {
         externalControl = false;
         externalMoveX = 0f;
+        externalGuardHeld = false;
         isCrouching = false;
         if (fighter != null) fighter.IsCrouching = false;
         if (animator != null) animator.SetBool("IsCrouching", false);
@@ -293,16 +300,19 @@ public class PlayerController : MonoBehaviour
 
     public void ExternalAction(string action)
     {
+        // 경직 중에 들어온 방어 시작·해제도 놓치지 않도록 먼저 기록한다. 공격 입력은 방어 상태를 바꾸지 않는다.
+        if (action == "BLOCK" || action == "CROUCH_BLOCK" || action == "LOW_BLOCK" || action == "GUARD_LOWKICK")
+            externalGuardHeld = true;
+        else if (action == "IDLE" || action == "NONE" || action == "CROUCH")
+            externalGuardHeld = false;
+
         if (health.IsDead || health.IsHitStunned || fighter.InputLocked) return;
 
         // Removed 3D actions cannot leave the fighter airborne or in an unmapped pose.
         if (unifiedBoxing && (action == "JUMP" || action == "CROUCH")) return;
-        if (fighter.IsAttacking && (action == "BLOCK" || action == "CROUCH_BLOCK"
-            || action == "LOW_BLOCK" || action == "GUARD_LOWKICK")) return;
         currentAction = action;
 
         // 자세(앉기·방어)는 여기서 정하고, 화면과 Fighter 반영은 매 프레임 HandleKeyInput 이 한다.
-        // 공격·점프는 방어 중이면 기억해 뒀다가 방어에 성공하면 나간다. (Act 참고)
         switch (action)
         {
             case "JAB":
@@ -317,27 +327,26 @@ public class PlayerController : MonoBehaviour
                                 : action.StartsWith("HIGH") ? CombatMove.HighKick
                                 : action.StartsWith("LOW") ? CombatMove.LowKick
                                 : CombatMove.Straight;
-                Act(() => AttackMove(move));
+                AttackMove(move);
                 break;
             }
 
             case "ATTACK":
-                Act(DoAttack);
+                DoAttack();
                 break;
 
             case "JUMP":
-                Act(TryJump);
+                TryJump();
                 break;
 
             case "CROUCH":
                 isCrouching = true;
                 break;
 
-            // 인식은 방어 자세를 패킷마다 보낸다. 그래서 방어 중에 들어온 것은 기억하지 않는다.
-            // 기억해 두면 미리 입력한 공격을 덮어쓴다. 방어가 끝난 뒤 다음 패킷이 오면 그때 다시 시전된다.
+            // 인식은 방어 자세를 계속 보낸다. IDLE/NONE 이 오거나 연결이 끊기면 방어가 풀린다.
             case "BLOCK":
                 isCrouching = false;
-                if (!fighter.IsGuarding) Guard();
+                ApplyGuardInput();
                 break;
 
             // 앉아막기. 스프라이트 전투에서는 하단 가드가 된다.
@@ -346,12 +355,13 @@ public class PlayerController : MonoBehaviour
             case "GUARD_LOWKICK":
             case "CROUCH_BLOCK":
                 isCrouching = true;
-                if (!fighter.IsGuarding) Guard();
+                ApplyGuardInput();
                 break;
 
             case "IDLE":
             case "NONE":
                 isCrouching = false;
+                ApplyGuardInput();
                 break;
 
             default:

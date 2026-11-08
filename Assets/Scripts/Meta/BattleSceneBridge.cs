@@ -175,6 +175,7 @@ public class BattleSceneBridge : MonoBehaviour
             health.Configure(stage.displayName, stage.enemyMaxHealth);
             if (stage.overrideTint) health.SetAppearance(stage.enemyTint);
         }
+        enemy.SetBehavior(stage.behaviorType);
         if (stage.overrideCombatStats)
         {
             enemy.ConfigureStage(stage);

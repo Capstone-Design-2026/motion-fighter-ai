@@ -114,8 +114,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             currentMove=Mathf.Lerp(currentMove,targetMove,alpha);
             if(Mathf.Abs(currentMove)<.01f && targetMove==0) currentMove=0;
             player.ExternalMovement(currentMove);
-            // Latest Fighter owns the timed guard. Do not re-cast it every
-            // frame after success/expiry, or buffer stale attacks through it.
+            // One BLOCK marks the pose as held; PlayerController keeps guarding
+            // until the pose ends and NONE releases it.
             Fighter fighter=player.GetComponent<Fighter>();
             if(guardInput.WantsStart(fighter!=null && fighter.CanAct)) {
                 player.ExternalAction("BLOCK");

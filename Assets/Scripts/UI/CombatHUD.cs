@@ -388,10 +388,8 @@ public class CombatHUD : MonoBehaviour
                 AddGuideRow(i++, Key(PlayerKey.Jump), "점프");
                 AddGuideRow(i++, Key(PlayerKey.Crouch), "앉기" + posture);
             }
-            // 막기는 시전형이라 웹캠 제어 중에도 키로 쓸 수 있다. 3D 에서는 높이(상단/하단)를 상대 공격에 맞춰 자동으로 고른다.
-            var guardFighter = player != null ? player.GetComponent<Fighter>() : null;
-            string guardTime = guardFighter != null ? guardFighter.GuardDuration.ToString("0.#") : "1.5";
-            AddGuideRow(i++, Key(PlayerKey.Block), "막기 · " + guardTime + "초 유지 / 막아내면 바로 다음 동작"
+            // 막기는 웹캠 제어 중에도 키로 쓸 수 있다. 3D 에서는 높이(상단/하단)를 상대 공격에 맞춰 자동으로 고른다.
+            AddGuideRow(i++, Key(PlayerKey.Block), "막기 · 누르는 동안 유지"
                 + (boxing ? " · 높이 자동" : ""));
             AddGuideRow(i++, Key(PlayerKey.Attack), boxing ? "스트레이트" : "기본 공격 · 앉아서 로우킥 / 공중 하이킥");
             if (player != null && player.GetComponent<Fighter3DView>() != null)

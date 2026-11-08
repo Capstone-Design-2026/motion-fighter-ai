@@ -1,7 +1,20 @@
 using UnityEngine;
 
+/// <summary>스테이지별로 고르는 적 AI 행동 타입.</summary>
+public enum EnemyBehaviorType
+{
+    [InspectorName("밸런스 (세 타입 혼합)")] Balanced,
+    [InspectorName("공격 위주")] Aggressive,
+    [InspectorName("반격 위주")] Counter,
+    [InspectorName("아웃 복싱")] OutBoxer
+}
+
 /// <summary>
-/// 상대 캐릭터 AI. 플레이어와의 거리에 따라 접근 / 공격 / 방어 / 백스텝을 반복한다.
+/// 상대 캐릭터 AI. 행동 타입에 따라 움직인다.
+///   공격 위주: 거리를 좁히고, 공격 거리에 들어오면 바로 공격한다.
+///   반격 위주: 공격 거리에서 기다리다가 상대 공격 신호가 오면 방어하고 반격한다.
+///   아웃 복싱: 공격 거리를 드나들며 헛치게 만들고, 상대 후딜에 파고들어 공격한다.
+///   밸런스  : 위 세 타입을 일정 시간마다 바꿔 가며 쓴다.
 /// 플레이어와 같은 Animator Controller(PlayerAnimator)를 사용한다.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
@@ -12,43 +25,94 @@ public class EnemyAI : MonoBehaviour
     [Header("타겟")]
     [SerializeField] private Transform target;              // 비워두면 Player 를 자동으로 찾음
 
+    [Header("행동 타입")]
+    [SerializeField] private EnemyBehaviorType behaviorType = EnemyBehaviorType.Balanced;
+
     [Header("이동")]
     [SerializeField] private float moveSpeed = 2.6f;
     [SerializeField] private float attackRange = 1.3f;      // 이 거리 안이면 공격 시도
-    [SerializeField] private float keepDistance = 0.8f;     // 너무 붙으면 백스텝
+    [SerializeField] private float keepDistance = 0.8f;     // 반격 타입이 기다릴 때 유지하는 최소 거리
 
     [Header("행동 주기")]
-    [SerializeField] private float decisionInterval = 0.8f; // 몇 초마다 행동을 고를지
+    [Tooltip("작을수록 활발하다. 이 값의 4배 동안 상대가 공격하지 않으면 반격·아웃 복싱 타입도 먼저 공격하고, 밸런스 타입은 그 정도 간격으로 타입을 바꾼다.")]
+    [SerializeField] private float decisionInterval = 0.8f;
 
-    [Header("행동 확률 (합이 1이 아니어도 됨)")]
+    [Header("밸런스 타입 혼합 비율 (합이 1이 아니어도 됨)")]
+    [Tooltip("공격 위주 타입을 쓸 비율.")]
     [SerializeField] private float attackWeight = 5f;
+    [Tooltip("반격 위주 타입을 쓸 비율.")]
     [SerializeField] private float blockWeight = 3f;
+    [Tooltip("아웃 복싱 타입을 쓸 비율.")]
     [SerializeField] private float backstepWeight = 1.5f;
-    [SerializeField] private float crouchWeight = 1f;
 
     [Header("공격 딜레이")]
     [Tooltip("공격하기로 정한 뒤 공격 모션이 나가기까지 기다리는 시간(초). "
-           + "그동안 제자리에 멈춰 있어 플레이어가 막거나 피할 틈이 생긴다. 0 이면 바로 공격한다.")]
+           + "그동안 제자리에 멈춰 있어 플레이어가 막거나 피할 틈이 생긴다. 0 이면 바로 공격한다. 반격과 후딜 공략에는 적용하지 않는다.")]
     [Min(0f)]
     [SerializeField] private float attackDelay = 0.3f;
+
+    [Header("반격 위주")]
+    [Tooltip("상대 공격 신호를 보고 방어를 시작하기까지의 평균 시간(초). 매번 이 값의 0.5~1.5배로 흔들린다.")]
+    [Min(0f)]
+    [SerializeField] private float reactionTime = 0.15f;
+
+    [Tooltip("AI 에는 입력 키가 없으므로, 방어를 시작하면 최대 이 시간(초) 동안 누르고 있는 것으로 친다. 공격을 막아내거나 상대 공격이 끝나면 바로 푼다.")]
+    [Min(0.05f)]
+    [SerializeField] private float guardHoldTime = 1.5f;
+
+    [Header("아웃 복싱")]
+    [Tooltip("공격 거리 바깥으로 얼마나 빠져나갈지.")]
+    [Min(0.1f)]
+    [SerializeField] private float outBoxMargin = 0.5f;
+    [Tooltip("드나들 때의 이동 속도 배율.")]
+    [Min(0.1f)]
+    [SerializeField] private float outBoxSpeedScale = 1.5f;
+
+    private const float OutBoxLegTimeout = 1.5f;   // 벽에 막혀도 계속 빠지려 하지 않도록
 
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
     private Health health;
     private Fighter fighter;
-    private AttackWarning warning;
+    private Fighter targetFighter;
 
     private bool isGrounded = true;
-    private float nextDecisionTime;
-    private float backstepUntil;
-    private float crouchUntil;
+    private bool aiGuarding;          // AI 가 시작한 방어를 유지하는 중인지
+    private float guardReleaseAt;
 
     // 딜레이 중인 공격. 기술은 공격을 정한 순간에 고정해 둔다.
     private bool attackPending;
     private float attackAt;
     private AttackHeight pendingHeight;
     private CombatMove pendingMove;
+
+    // 타입별 진행 상태
+    private EnemyBehaviorType balancedMode = EnemyBehaviorType.Aggressive;
+    private float balancedUntil;
+    private float patienceUntil;      // 이때까지 상대가 공격하지 않으면 먼저 공격한다
+    private bool counterReady;        // 방어가 끝나 반격할 차례인지
+    private float reactAt = -1f;      // 공격 신호에 반응해 방어를 시작할 시각
+    private bool outEntering = true;  // 공격 거리로 들어가는 중인지
+    private float outDwellUntil;
+    private float outLegUntil;
+
+    public EnemyBehaviorType BehaviorType => behaviorType;
+    private EnemyBehaviorType ActiveMode => behaviorType == EnemyBehaviorType.Balanced ? balancedMode : behaviorType;
+    private float ThinkPeriod => decisionInterval * 4f;
+    private bool Is3D => GetComponent<Fighter3DView>() != null;
+
+    // Pose-based jab reach is shorter than the former shared attack rectangle.
+    private float StrikeRange => Is3D ? Mathf.Min(attackRange, 1.0f) : attackRange;
+
+    private Fighter TargetFighter
+    {
+        get
+        {
+            if (targetFighter == null && target != null) targetFighter = target.GetComponent<Fighter>();
+            return targetFighter;
+        }
+    }
 
     void Awake()
     {
@@ -57,13 +121,16 @@ public class EnemyAI : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
+    }
 
-        // 공격 딜레이 동안 머리 위에 느낌표를 띄운다. 따로 붙여 두지 않았으면 기본 설정으로 만든다.
-        warning = GetComponent<AttackWarning>();
-        if (warning == null) warning = gameObject.AddComponent<AttackWarning>();
+    void OnEnable() { fighter.GuardBlocked += OnGuardBlocked; }
+    void OnDisable() { fighter.GuardBlocked -= OnGuardBlocked; }
 
-        // 딜레이로 무방비가 된 동안 머리 위에 "공격 기회!" 를 띄운다. 상태는 Fighter 를 보고 알아서 따라간다.
-        if (GetComponent<OpeningIndicator>() == null) gameObject.AddComponent<OpeningIndicator>();
+    private void OnGuardBlocked()
+    {
+        if (!aiGuarding) return;
+        guardReleaseAt = 0f;
+        if (ActiveMode == EnemyBehaviorType.Counter) counterReady = true;
     }
 
     public void ConfigureStage(StageDefinition stage)
@@ -73,7 +140,24 @@ public class EnemyAI : MonoBehaviour
         attackWeight = Mathf.Max(0.01f, stage.attackWeight);
         blockWeight = Mathf.Max(0f, stage.blockWeight);
         backstepWeight = Mathf.Max(0f, stage.backstepWeight);
-        crouchWeight = Mathf.Max(0f, stage.crouchWeight);
+        ResetModeState();
+    }
+
+    public void SetBehavior(EnemyBehaviorType type)
+    {
+        behaviorType = type;
+        balancedUntil = 0f;
+        ResetModeState();
+    }
+
+    private void ResetModeState()
+    {
+        patienceUntil = Time.time + ThinkPeriod;
+        counterReady = false;
+        reactAt = -1f;
+        outEntering = true;
+        outDwellUntil = 0f;
+        outLegUntil = 0f;
     }
 
     void Start()
@@ -85,6 +169,7 @@ public class EnemyAI : MonoBehaviour
         }
         if (target == null)
             Debug.LogWarning("[EnemyAI] 타겟(Player)을 찾지 못했습니다.");
+        ResetModeState();
     }
 
     void Update()
@@ -118,120 +203,211 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
+        // 정해 둔 시간이 지나거나 공격을 막아내면 방어 입력을 뗀다.
+        if (aiGuarding && (!fighter.IsGuarding || Time.time >= guardReleaseAt))
+        {
+            aiGuarding = false;
+            fighter.ReleaseGuard();
+        }
+
         if (target == null) return;
 
         FaceTarget();
 
-        // 방어는 시전형이다(Fighter.TryGuard). 방어 중에는 Fighter 가 시전한 자세(자동 높이)로 고정한다.
-        // 3D 복싱에는 앉기가 없다 — crouchUntil 은 스프라이트 전투에서만 쓴다.
-        fighter.IsCrouching = Time.time < crouchUntil && !fighter.IsAttacking;
-        bool isBlocking = fighter.IsBlocking;
-        bool isCrouching = fighter.IsCrouching;
-
         float distance = Mathf.Abs(target.position.x - transform.position.x);
 
-        // ── 이동 결정 ──
+        // 공격 중이거나 공격을 기다리는 동안에는 제자리에 멈추고 다른 행동을 고르지 않는다.
         float moveX = 0f;
-        if (fighter.CanAct && !isCrouching && !attackPending)
-        {
-            if (Time.time < backstepUntil)
-                moveX = -fighter.Facing;                    // 뒤로 물러남
-            else if (distance > EffectiveAttackRange)
-                moveX = fighter.Facing;                     // 접근
-            else if (distance < keepDistance)
-                moveX = -fighter.Facing;                    // 너무 붙었으면 조금 뒤로
-        }
+        if (fighter.CanAttack && !attackPending) moveX = Think(distance);
 
-        float travelSpeed = moveSpeed * (GetComponent<Fighter3DView>() != null ? Fighter3DView.BoxingTravelScale : 1f);
+        float travelSpeed = moveSpeed * (Is3D ? Fighter3DView.BoxingTravelScale : 1f);
         rb.linearVelocity = new Vector2(moveX * travelSpeed, rb.linearVelocity.y);
-        SetAnimatorFlags(moveX != 0f, isCrouching, isBlocking);
+        SetAnimatorFlags(moveX != 0f, false, fighter.IsBlocking);
 
-        // ── 딜레이 중인 공격 ──
-        // 기다리는 동안에는 제자리에 멈추고 다른 행동을 고르지 않는다.
-        if (attackPending)
+        if (attackPending && Time.time >= attackAt)
         {
-            if (Time.time >= attackAt)
-            {
-                CancelPendingAttack();
-                StartAttack();
-            }
-            return;
-        }
-
-        // ── 행동 결정 ──
-        // 공격·방어·방어 실패 딜레이 중에는 새 행동을 고르지 않는다.
-        if (Time.time >= nextDecisionTime && fighter.CanAct)
-        {
-            nextDecisionTime = Time.time + decisionInterval;
-            Decide(distance);
+            CancelPendingAttack();
+            StartAttack();
         }
     }
 
-    // Pose-based jab reach is shorter than the former shared attack rectangle.
-    private float EffectiveAttackRange => GetComponent<Fighter3DView>() != null ? Mathf.Min(attackRange, 1.0f) : attackRange;
-    private void Decide(float distance)
+    /// <summary>이번 프레임에 할 행동을 정하고, 이동 방향(속도 배율 포함)을 돌려준다.</summary>
+    private float Think(float distance)
     {
-        // 사거리 밖이면 그냥 접근만 한다.
-        if (distance > EffectiveAttackRange + (GetComponent<Fighter3DView>() != null ? .05f : .4f)) return;
+        if (behaviorType == EnemyBehaviorType.Balanced) UpdateBalancedMode();
 
-        float total = attackWeight + blockWeight + backstepWeight + crouchWeight;
+        switch (ActiveMode)
+        {
+            case EnemyBehaviorType.Counter:  return ThinkCounter(distance);
+            case EnemyBehaviorType.OutBoxer: return ThinkOutBoxer(distance);
+            default:                         return ThinkAggressive(distance);
+        }
+    }
+
+    private void UpdateBalancedMode()
+    {
+        if (Time.time < balancedUntil || aiGuarding) return;
+
+        float total = attackWeight + blockWeight + backstepWeight;
         float roll = Random.value * total;
+        if (total <= 0f || (roll -= attackWeight) < 0f) balancedMode = EnemyBehaviorType.Aggressive;
+        else if ((roll -= blockWeight) < 0f)            balancedMode = EnemyBehaviorType.Counter;
+        else                                            balancedMode = EnemyBehaviorType.OutBoxer;
 
-        if ((roll -= attackWeight) < 0f)
-        {
-            QueueAttack();
-        }
-        else if ((roll -= blockWeight) < 0f)
-        {
-            // 방어 높이는 Fighter 가 상대 공격 예고에 맞춰 자동으로 정한다.
-            fighter.TryGuard(Time.time < crouchUntil);
-        }
-        else if ((roll -= backstepWeight) < 0f)
-        {
-            backstepUntil = Time.time + 0.3f;
-        }
-        else
-        {
-            // 3D 복싱에는 앉기가 없으므로 앉기 대신 방어를 시전한다(높이는 자동).
-            if (GetComponent<Fighter3DView>() != null) fighter.TryGuard(false);
-            else crouchUntil = Time.time + 0.5f;
-        }
+        balancedUntil = Time.time + ThinkPeriod * Random.Range(0.75f, 1.25f);
+        ResetModeState();
     }
 
-    private void QueueAttack()
+    /// <summary>거리를 좁히고, 공격 거리에 들어오면 바로 공격한다.</summary>
+    private float ThinkAggressive(float distance)
     {
-        bool crouching = Time.time < crouchUntil;
-        pendingHeight = crouching ? AttackHeight.Low : AttackHeight.Mid;
-        pendingMove = (CombatMove)Random.Range(0, 4);
+        if (distance > StrikeRange) return fighter.Facing;
+        QueueAttack(false);
+        return 0f;
+    }
+
+    /// <summary>공격 거리에서 기다리다가 상대 공격 신호가 오면 방어하고, 끝나면 바로 반격한다.</summary>
+    private float ThinkCounter(float distance)
+    {
+        bool signal = fighter.IncomingMove.HasValue;
+        if (signal) patienceUntil = Time.time + ThinkPeriod;
+
+        if (counterReady)
+        {
+            counterReady = false;
+            if (distance <= StrikeRange)
+            {
+                QueueAttack(true);
+                return 0f;
+            }
+        }
+
+        if (aiGuarding)
+        {
+            // 막지 못하고 상대 공격이 끝났어도(빗나감) 후딜을 노려 반격한다.
+            if (!signal)
+            {
+                guardReleaseAt = 0f;
+                counterReady = true;
+            }
+            return 0f;
+        }
+
+        if (signal)
+        {
+            if (reactAt < 0f) reactAt = Time.time + reactionTime * Random.Range(0.5f, 1.5f);
+            if (Time.time >= reactAt) StartGuard();
+            return 0f;
+        }
+        reactAt = -1f;
+
+        if (distance > StrikeRange) return fighter.Facing;
+
+        // 상대가 끝까지 공격하지 않으면 교착되므로 먼저 한 번 건드린다.
+        if (Time.time >= patienceUntil)
+        {
+            patienceUntil = Time.time + ThinkPeriod;
+            QueueAttack(false);
+            return 0f;
+        }
+
+        return distance < keepDistance ? -fighter.Facing : 0f;
+    }
+
+    /// <summary>공격 거리를 드나들며 헛치게 만들고, 상대 후딜에 파고들어 공격한다.</summary>
+    private float ThinkOutBoxer(float distance)
+    {
+        float toward = fighter.Facing * outBoxSpeedScale;
+
+        // 상대가 헛쳐서 후딜에 묶여 있다. 파고들어 친다.
+        if (TargetFighter != null && TargetFighter.IsInRecovery)
+        {
+            if (distance > StrikeRange) return toward;
+            QueueAttack(true);
+            return 0f;
+        }
+
+        float far = StrikeRange + outBoxMargin;
+
+        // 상대가 공격을 시작했다. 사거리 밖으로 빠져나가 헛치게 만든다.
+        if (fighter.IncomingMove.HasValue)
+        {
+            patienceUntil = Time.time + ThinkPeriod;
+            outEntering = false;
+            outDwellUntil = 0f;
+            outLegUntil = Time.time + OutBoxLegTimeout;
+            return distance < far ? -toward : 0f;
+        }
+
+        if (Time.time < outDwellUntil) return 0f;
+
+        if (outEntering)
+        {
+            if (distance > StrikeRange - 0.05f) return toward;
+
+            // 들어왔다. 상대가 끝까지 공격하지 않으면 교착되므로 먼저 한 번 건드린다.
+            outEntering = false;
+            outDwellUntil = Time.time + 0.15f;
+            outLegUntil = outDwellUntil + OutBoxLegTimeout;
+            if (Time.time >= patienceUntil)
+            {
+                patienceUntil = Time.time + ThinkPeriod;
+                QueueAttack(false);
+            }
+            return 0f;
+        }
+
+        if (distance >= far || Time.time >= outLegUntil)
+        {
+            outEntering = true;
+            outDwellUntil = Time.time + Random.Range(0.15f, 0.4f);
+            return 0f;
+        }
+        return -toward;
+    }
+
+    private void StartGuard()
+    {
+        if (aiGuarding || !fighter.TryGuard(false)) return;
+        aiGuarding = true;
+        guardReleaseAt = Time.time + guardHoldTime;
+    }
+
+    /// <summary>공격을 정한다. punish 면 빠른 기술로 딜레이 없이 바로 나간다(반격, 후딜 공략).</summary>
+    private void QueueAttack(bool punish)
+    {
+        // 공격하기로 정했으면 방어 입력을 뗀다.
+        if (aiGuarding) guardReleaseAt = 0f;
+        reactAt = -1f;
+
+        pendingHeight = AttackHeight.Mid;
+        pendingMove = (CombatMove)(punish ? Random.Range(0, 2) : Random.Range(0, 4));
 
         // 공격을 정한 이 순간 상대에게 알린다. 상대 방어 자세·모션이 이 공격에 맞춰진다.
-        fighter.DeclareIntent(GetComponent<Fighter3DView>() != null ? pendingMove
-            : pendingHeight == AttackHeight.Low ? CombatMove.LowKick : CombatMove.Straight);
+        fighter.DeclareIntent(Is3D ? pendingMove : CombatMove.Straight);
 
-        if (attackDelay <= 0f)
+        float delay = punish ? 0f : attackDelay;
+        if (delay <= 0f)
         {
             StartAttack();
             return;
         }
 
         attackPending = true;
-        attackAt = Time.time + attackDelay;
-        warning.Show(attackDelay);
+        attackAt = Time.time + delay;
     }
 
-    /// <summary>딜레이 중인 공격을 접고 경고 표시를 내린다. 공격이 실제로 나갈 때도 이걸로 정리한다.</summary>
+    /// <summary>딜레이 중인 공격을 접는다. 공격이 실제로 나갈 때도 이걸로 정리한다.</summary>
     private void CancelPendingAttack()
     {
         // 기다리던 공격을 접으면 예고도 거둔다. 실제로 공격이 나가면 Fighter.TryAttack 이 다시 알린다.
         if (attackPending) fighter.ClearIntent();
         attackPending = false;
-        warning.Hide();
     }
 
     private void StartAttack()
     {
-        bool started = GetComponent<Fighter3DView>() != null
-            ? fighter.TryAttack(pendingMove) : fighter.TryAttack(pendingHeight);
+        bool started = Is3D ? fighter.TryAttack(pendingMove) : fighter.TryAttack(pendingHeight);
         if (started && animator != null)
             animator.SetTrigger("Attack");
     }
