@@ -96,6 +96,17 @@ public class Fighter : MonoBehaviour
         get => guarding;
         set { if (value) TryGuard(IsCrouching); }
     }
+    private bool visionGuardHeld;
+    public bool IsVisionGuardHeld => visionGuardHeld;
+    /// <summary>Camera-owned guard follows live pose; release adds no guard-failure delay.</summary>
+    public bool SetVisionGuard(bool held)
+    {
+        if (!held) { if (visionGuardHeld) EndGuard(); return false; }
+        if (visionGuardHeld && guarding) return true;
+        if (!TryGuard(false)) return false;
+        visionGuardHeld = true;
+        return true;
+    }
     public bool IsGuarding => guarding;
     public float GuardDuration => guardDuration;
 
@@ -329,7 +340,7 @@ public class Fighter : MonoBehaviour
         }
 
         // 실패: 방어하는 동안 상대 공격을 하나도 막지 못했다.
-        if (Time.time - guardStartedAt >= guardDuration)
+        if (!visionGuardHeld && Time.time - guardStartedAt >= guardDuration)
         {
             EndGuard();
             guardRecoverUntil = Time.time + guardFailDelay;
@@ -420,6 +431,7 @@ public class Fighter : MonoBehaviour
     /// <summary>방어 성공. 남은 시간과 상관없이 즉시 풀고, 기억해 둔 동작이 있으면 바로 시전한다.</summary>
     private void GuardSucceeded()
     {
+        if (visionGuardHeld) { bufferedAction = null; return; }
         Action next = bufferedAction;
         EndGuard();
         Debug.Log($"[Fighter] {name} 방어 성공 → 즉시 해제{(next != null ? " + 미리 입력한 동작 시전" : "")}");
@@ -428,6 +440,7 @@ public class Fighter : MonoBehaviour
 
     private void EndGuard()
     {
+        visionGuardHeld = false;
         guarding = false;
         bufferedAction = null;
     }

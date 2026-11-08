@@ -1,4 +1,4 @@
-// Target: feature/unity 55844cd (Unity 6000.4.5f1), timed combat guard.
+// Target: feature/unity 55844cd (Unity 6000.4.5f1), pose-held camera guard.
 // Calls the game's PlayerController, never bypasses Fighter/Health/animation.
 using System;
 using System.Collections.Generic;
@@ -45,7 +45,6 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private long sequence, deadline, lastLiveNs;
     private float targetMove, currentMove;
     private bool controlling, tutorialInputValid;
-    private readonly RedboolGuardLatch guardInput = new RedboolGuardLatch();
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
     private struct Received { public string json; public long time; public IPEndPoint peer; }
@@ -61,7 +60,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public string stream_id, status, event_id, sync_id, applied_action;
         public string gesture_mapping = "raised-kicks-v3";
         public string receiver_version = "unity-55844cd-v5";
-        public string guard_mode = "one_timed_guard_per_pose";
+        public string guard_mode = "held_pose_immediate_release";
         public string receiver_clock = "unity_stopwatch_ns";
         public long sequence, sender_ns, receiver_ns, applied_ns, ack_sent_ns;
         public bool game_attack_started;
@@ -81,7 +80,6 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         try {
             StreamId=expectedStreamId; sequence=deadline=lastLiveNs=0; pairedPeer=null;
             syncs.Clear();outcomes.Clear();
-            guardInput.Reset();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
             udp.Client.ReceiveTimeout=100;
             listeners[port]=this;
@@ -124,14 +122,16 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             currentMove=Mathf.Lerp(currentMove,targetMove,alpha);
             if(Mathf.Abs(currentMove)<.01f && targetMove==0) currentMove=0;
             player.ExternalMovement(currentMove);
-            // Latest Fighter owns the timed guard. Do not re-cast it every
-            // frame after success/expiry, or buffer stale attacks through it.
-            Fighter fighter=player.GetComponent<Fighter>();
-            if(guardInput.WantsStart(fighter!=null && fighter.CanAct)) {
-                player.ExternalAction("BLOCK");
-                if(fighter.IsGuarding) { guardInput.MarkStarted();GuardsStarted++; }
-            } else if(!BlockActive) player.ExternalAction("NONE");
+            ApplyVisionGuard();
         }
+    }
+    private void ApplyVisionGuard()
+    {
+        var fighter=player!=null ? player.GetComponent<Fighter>() : null;
+        if(fighter==null) return;
+        bool wasHeld=fighter.IsVisionGuardHeld;
+        bool held=controlling && BlockActive && (Preparation==null || Preparation.AllowsPlayer);
+        if(fighter.SetVisionGuard(held) && !wasHeld) GuardsStarted++;
     }
     private void Process(Packet p,Received item) {
         if(p==null || p.version!=2 || p.actor_id!=expectedActorId || String.IsNullOrEmpty(p.stream_id)
@@ -201,8 +201,9 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*p.movement_strength;
-            guardInput.Observe(BlockActive);
             controlling=true;
+            // Release before processing any following one-shot in the same inbox batch.
+            ApplyVisionGuard();
             // An attack candidate/return phase is still live camera input. It must
             // not clear tutorial readiness before the following one-shot event.
             tutorialInputValid=p.calibration_version==1 && p.calibrated && p.tracking=="VALID";
@@ -229,10 +230,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
     private void Safe() {
+        if(player!=null) player.GetComponent<Fighter>()?.SetVisionGuard(false);
         if(controlling && player!=null) player.ClearExternalInput();
         if(controlling) TutorialAction?.Invoke("UNAVAILABLE",0f,"NEUTRAL",0f);
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
-        guardInput.Reset();
     }
     private void OnGUI() {
         if(!showStatus) return;
