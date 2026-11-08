@@ -58,6 +58,8 @@ public class LegCheckBalance : MonoBehaviour
     Vector3 hipOffsetLocal;   // 몸 중심(bodyPosition) → 뒷다리 고관절 (평소 자세에서 잰 값)
     float legLen;
     bool calibrated;
+    Vector3 bodyPositionForCalibration;
+    int bodyPositionFrame = -1;
     public float Weight { get; private set; }
 
     void Awake()
@@ -98,6 +100,10 @@ public class LegCheckBalance : MonoBehaviour
     void OnAnimatorIK(int layerIndex)
     {
         if (layerIndex != 0) return;
+        // Animator.bodyPosition is an IK-pass API. Cache it here for the
+        // final bone positions sampled in LateUpdate, without querying it there.
+        bodyPositionForCalibration = anim.bodyPosition;
+        bodyPositionFrame = Time.frameCount;
         Weight = Envelope();
         float w = Weight;
         if (w <= 0f) return;
@@ -150,9 +156,9 @@ public class LegCheckBalance : MonoBehaviour
     void LateUpdate()
     {
         // 평소 자세일 때 고관절 위치와 다리 길이를 재 둠 (OnAnimatorIK 안에서는 뼈 위치가 이전 프레임 값이라 직접 못 씀)
-        if (Weight <= 0.001f && rUpper && rLower && rFoot)
+        if (Weight <= 0.001f && bodyPositionFrame == Time.frameCount && rUpper && rLower && rFoot)
         {
-            hipOffsetLocal = transform.InverseTransformVector(rUpper.position - anim.bodyPosition);
+            hipOffsetLocal = transform.InverseTransformVector(rUpper.position - bodyPositionForCalibration);
             legLen = Vector3.Distance(rUpper.position, rLower.position) + Vector3.Distance(rLower.position, rFoot.position);
             calibrated = true;
         }
