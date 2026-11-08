@@ -56,7 +56,7 @@ public class BattleSceneBridge : MonoBehaviour
         defaultFixedDelta = Time.fixedDeltaTime;
         RemainingSeconds = Mathf.Max(1f, roundDuration);
 
-        runMode = Run != null && Run.HasPendingBattle;
+        runMode = !RedboolDuelTest.Active && Run != null && Run.HasPendingBattle;
         if (runMode) ApplyStage();
     }
 

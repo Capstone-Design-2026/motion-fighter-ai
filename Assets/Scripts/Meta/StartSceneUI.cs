@@ -68,6 +68,7 @@ public class StartSceneUI : MonoBehaviour
         float y=5;
         MakeButton("NewGameButton","새 게임",ref y,OnNewGame);
         continueButton=MakeButton("ContinueButton","이어하기",ref y,OnContinue);
+        MakeButton("DuelTestButton","바로 결투 · 테스트",ref y,RedboolDuelTest.Begin);
         MakeButton("QuitButton","게임 종료",ref y,OnQuit);
 
         messageText=WuxiaTheme.Text("Message",canvas.transform,"",24,TextAnchor.MiddleLeft,WuxiaTheme.Paper);
