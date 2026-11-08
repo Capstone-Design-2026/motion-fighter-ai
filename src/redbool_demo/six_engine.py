@@ -19,7 +19,10 @@ class SixBlock(RelativeBlock):
         if self.forward_sides:
             self.reset()
             return False
-        return super().update_relative(arms, anchors, now)
+        candidate = super().update_relative(arms, anchors, now)
+        # A valid released pose must reach Unity without the old 120ms tail.
+        if not candidate: self.reset()
+        return candidate
 
 
 class SixAttack(DemoAttack):
@@ -135,6 +138,7 @@ class SixGestureEngine(DemoEngine):
         self.special = CrossSpecial()
         self.route_signals = ChannelSignals(self.config)
         self.forward_sides = set()
+        self.forward_proof = {}
         self.occluded_guard_sides = set()
         self.block = SixBlock(self.config)
         self.special_inhibited = False
@@ -148,7 +152,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-dual-plane-punch-20261108-v13')
+        self.config = replace(self.config, version='seated-held-guard-20261109-v14')
         self._components()
 
     @property
@@ -175,7 +179,7 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.special.invalidate()
-        self.route_signals.reset();self.forward_sides=set();self.occluded_guard_sides=set()
+        self.route_signals.reset();self.forward_sides=set();self.forward_proof={};self.occluded_guard_sides=set()
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
         self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
         self.vertical_signals.reset()
@@ -301,10 +305,29 @@ class SixGestureEngine(DemoEngine):
                     if (arm['angle']<.6 and routing[other]['angle']>=1.8
                         and routing[other]['angle3d'] is not None and routing[other]['angle3d']>=2.5):
                         self.occluded_guard_sides.add(side)
+                    strong_extension = (arm['angle3d'] is not None and arm['angle3d']>=2.6
+                        and arm['angle3d']-base['angle3d']>=.5 and arm['angle']>=.75)
+                    # A high camera-directed fist projects upward like a raise.
+                    # Extend only the strong straight-elbow/depth route, not the
+                    # general raise threshold or weak folded-elbow evidence.
                     if (arm['angle3d'] is not None and arm['angle3d']>=2.5 and arm['angle3d']-base['angle3d']>=.25
-                        and d[2]<=-.45 and d[1]<=.12 and arm['position'][1]>=-.95
+                        and d[2]<=(-.4 if strong_extension else -.45) and d[1]<=.12
+                        and arm['position'][1]>=(-1.3 if strong_extension else -.95)
                         and arm['angle']>=.6 and other_d[1]>-.55 and routing[other]['angle']<=.9):
                         self.forward_sides.add(side)
+                        if strong_extension: self.forward_proof[side]=obs.capture_ns
+                    # Keep a proven extended punch route through <=100ms of
+                    # depth jitter, only while current valid joints still extend.
+                    # This is routing continuity, never an attack/guard queue.
+                    proof=self.forward_proof.get(side)
+                    if (proof is not None and 0<=obs.capture_ns-proof<=100_000_000
+                        and arm['angle3d'] is not None and arm['angle3d']>=2.4
+                        and arm['angle']>=.6 and d[1]<=.12 and arm['position'][1]>=-1.3
+                        and other_d[1]>-.55 and routing[other]['angle']<=.9):
+                        self.forward_sides.add(side)
+                    elif side not in self.forward_sides:
+                        self.forward_proof.pop(side,None)
+            else: self.forward_proof.clear()
             self.special_inhibited = self.special.owned or (not self.special.latched and approach)
             state = self._process_actions(obs, evidence, now)
             fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,

@@ -12,13 +12,21 @@ from .transport import DemoSender
 RECEIVER_VERSION='unity-55844cd-v5'
 
 
-def guard_check(before, packets):
+def guard_check(before, packets, held_packets=None):
     acks=[r['ack'] for r in packets if r['type']=='ack' and 'guards_started' in r['ack']]
     count=max((a['guards_started'] for a in acks),default=before if before is not None else 0)
     starts=count-before if before is not None else None
     released=bool(acks) and acks[-1].get('game_guard_active') is False
+    held_ok = True
+    if held_packets is not None:
+        states = {r['packet']['sequence'] for r in held_packets if r['type']=='send'
+            and r['packet'].get('kind')=='STATE' and r['packet'].get('block_active') is True}
+        samples = [r['ack'] for r in held_packets if r['type']=='ack' and r['ack'].get('sequence') in states]
+        held_ok = bool(samples) and all(a.get('game_guard_active') is True
+            and a.get('guard_mode')=='held_pose_immediate_release' for a in samples)
     return {'starts_while_held':starts,'finished_after_release_window':released,
-            'passed':starts==1 and released}
+            'maintained_while_pose_held':held_ok if held_packets is not None else None,
+            'passed':starts==1 and released and held_ok}
 
 
 class ReadyGate:
@@ -68,7 +76,7 @@ def run(host,port,output,ready_timeout=8.):
     if not math.isfinite(ready_timeout) or ready_timeout<=0:raise ValueError('Positive finite ready timeout required')
     stream=uuid.uuid4().hex;sender=DemoSender(host,port,stream,'DEV01')
     directory=output/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+stream[:8]);directory.mkdir(parents=True,exist_ok=False)
-    rows=[];expected={};guard_result={'passed':False,'reason':'not_run'};readiness=[];failure=None;completed=False;guard_start=None;before=None
+    rows=[];expected={};guard_result={'passed':False,'reason':'not_run'};readiness=[];failure=None;completed=False;guard_start=None;before=None;held_packets=[]
 
     def pump(seconds,block=False,movement='NEUTRAL'):
         start=len(rows);until=time.monotonic()+seconds
@@ -108,10 +116,10 @@ def run(host,port,output,ready_timeout=8.):
                 statuses=[a.get('status') for a in ack]
                 raise RuntimeError(f'{gesture} was not applied ({statuses or ["NO_ACK"]}). No replacement attack will be sent.')
         before=wait_ready('BLOCK').get('guards_started');guard_start=len(rows)
-        print('BLOCK: one timed guard, then release input',flush=True);pump(3,True);pump(.1)
+        print('BLOCK: hold for 3 seconds, release without guard recovery',flush=True);held_packets=pump(3,True);pump(.1)
         wait_ready('MOVE')
-        guard_result=guard_check(before,rows[guard_start:])
-        if not guard_result['passed']:raise RuntimeError('Timed guard did not start exactly once and finish; movement test not run.')
+        guard_result=guard_check(before,rows[guard_start:],held_packets)
+        if not guard_result['passed']:raise RuntimeError('Pose guard did not remain held or release; movement test not run.')
         print('MOVE left / right / neutral',flush=True);pump(1,movement='LEFT');pump(1,movement='RIGHT');pump(.5)
         completed=True
     except RuntimeError as exc:
@@ -119,7 +127,7 @@ def run(host,port,output,ready_timeout=8.):
     finally:
         if sender.clock:rows.append(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE',calibration_version=1,calibrated=False))
         sender.close()
-        if guard_start is not None:guard_result=guard_check(before,rows[guard_start:])
+        if guard_start is not None:guard_result=guard_check(before,rows[guard_start:],held_packets)
         (directory/'udp.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
         checks=[]
         for eid,info in expected.items():
@@ -131,7 +139,7 @@ def run(host,port,output,ready_timeout=8.):
         report={'probe_version':'ready-aware-v1','checks':checks,'readiness_checks':readiness,'failure':failure,
             'guard_check':guard_result,'receiver_compatible':compatible,
             'passed':completed and failure is None and len(checks)==4 and all(c['passed'] for c in checks) and guard_result['passed'] and compatible,
-            'scope':'synthetic attack/timed-guard command rehearsal; movement screen behavior, camera recognition and screen latency require separate verification',
+            'scope':'synthetic attack/pose-held-guard command rehearsal; movement screen behavior, camera recognition and screen latency require separate verification',
             'delivery':dict(sender.delivery),'receiver_clocks':sorted({r['ack'].get('receiver_clock','unknown') for r in rows if r['type']=='ack'}),
             'receiver_versions':versions,'guard_modes':sorted({r['ack'].get('guard_mode','unknown') for r in rows if r['type']=='ack'})}
         (directory/'summary.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2));print(directory)

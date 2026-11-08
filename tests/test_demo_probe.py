@@ -90,7 +90,7 @@ class FakeGameSender:
         return {'type':'ack','ack_receive_ns':self.timer.monotonic_ns(),'ack':{
             'version':2,'sequence':p['sequence'],'sender_ns':p['sent_ns'],'status':'APPLIED',
             'receiver_version':RECEIVER_VERSION,'receiver_clock':'unity_stopwatch_ns',
-            'guard_mode':'one_timed_guard_per_pose','guards_started':self.guards,
+            'guard_mode':'held_pose_immediate_release','guards_started':self.guards,
             'game_can_act':self.ready(),'game_guard_active':self.timer.t<self.guard_until,**fields}}
     def send(self,kind,**fields):
         self.sequence+=1;p={'kind':kind,'sequence':self.sequence,'sent_ns':self.timer.monotonic_ns(),**fields};self.sent.append(p)
@@ -99,7 +99,9 @@ class FakeGameSender:
             assert fields.get('calibrated') is (fields.get('tracking')!='STOPPED')
             held=fields['block_active']
             if held and not self.held and self.ready():
-                self.guards+=1;self.guard_until=self.timer.t+1.5;self.busy_until=self.timer.t+2.
+                self.guards+=1
+            self.guard_until=float("inf") if held else 0.
+            if not held and self.held:self.busy_until=self.timer.t
             self.held=held
         self.rows.append(self.ack(p))
         return {'type':'send','packet':p}
