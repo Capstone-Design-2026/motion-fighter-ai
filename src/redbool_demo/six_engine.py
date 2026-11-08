@@ -99,6 +99,19 @@ class SixAttack(DemoAttack):
         for side, arm in arms.items():
             delta = arm['position'] - self.baseline[side]['position'] if self.baseline else np.zeros(3)
             vertical = abs(delta[1]) >= .18 and abs(delta[1]) > abs(delta[0]) * 1.1
+            row = result[side]
+            # A side/diagonal punch can have a clearly extended image elbow
+            # while monocular depth folds the reconstructed elbow backwards.
+            # Accept independent 2D extension only with substantial horizontal
+            # travel, calibrated opening, outward motion and a non-lowering fist.
+            planar = bool(self.baseline and arm['angle'] >= 2.2
+                and arm['angle'] - self.baseline[side]['angle'] >= .7
+                and row['xy_displacement'] >= .50 and row['vertical_fraction'] <= .65
+                and row['outward'] and row['not_lowering'])
+            row['planar_extension'] = planar
+            if planar:
+                row['onset_rule'] = bool(row['onset_rule'] or row['speed_signal'])
+                row['commit_rule'] = True
             if self.forward_hint:
                 # Camera-directed extension can project mostly vertically. Keep
                 # displacement, speed, calibrated extension and outward motion.
@@ -135,7 +148,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-directed-punch-20261108-v12')
+        self.config = replace(self.config, version='seated-dual-plane-punch-20261108-v13')
         self._components()
 
     @property
