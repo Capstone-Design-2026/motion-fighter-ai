@@ -6,14 +6,24 @@ Both-hand raising owns the block channel and cannot produce two kicks.
 """
 from dataclasses import asdict, replace
 import numpy as np
-from action_engine.experimental import ChannelSignals, joint_validity
+from action_engine.experimental import ChannelSignals, joint_validity, RelativeBlock
 from action_engine.types import ActionEvent
 from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
-from .special import CrossSpecial, cross_geometry
+from .special import CrossSpecial, cross_geometry, extended_cross_arm
+
+
+class SixBlock(RelativeBlock):
+    forward_sides = frozenset()
+    def update_relative(self, arms, anchors, now):
+        if self.forward_sides:
+            self.reset()
+            return False
+        return super().update_relative(arms, anchors, now)
 
 
 class SixAttack(DemoAttack):
+    forward_hint = False
     inhibited = False
     learned_guard_required = False
     guard_probability = 0.
@@ -30,7 +40,7 @@ class SixAttack(DemoAttack):
         # Hand it to the raise channel only while the punch is uncommitted.
         # ACTIVE/EXTENDED/RETURNING still require the normal physical return.
         handoff = False
-        if self.state == 'CANDIDATE' and self.baseline:
+        if self.state == 'CANDIDATE' and self.baseline and not self.forward_hint:
             for side, arm in arms.items():
                 dx, dy = arm['position'][:2] - self.baseline[side]['position'][:2]
                 if dy <= -.18 and -dy > abs(dx) * 1.1:
@@ -89,7 +99,17 @@ class SixAttack(DemoAttack):
         for side, arm in arms.items():
             delta = arm['position'] - self.baseline[side]['position'] if self.baseline else np.zeros(3)
             vertical = abs(delta[1]) >= .18 and abs(delta[1]) > abs(delta[0]) * 1.1
-            if vertical or self.inhibited:
+            if self.forward_hint:
+                # Camera-directed extension can project mostly vertically. Keep
+                # displacement, speed, calibrated extension and outward motion.
+                row=result[side]
+                row['forward_extension']=True
+                row['onset_rule']=bool(row['baseline_valid'] and row['displacement_signal']
+                    and row['speed_signal'] and row['outward'] and row['extension_signal'] and row['not_lowering'])
+                row['commit_rule']=bool(row['baseline_valid'] and row['xy_displacement']>=self.cfg.commit_displacement
+                    and row['outward'] and row['extension_signal'] and row['not_lowering']
+                    and arm['angle3d']>=self.cfg.commit_angle_rad)
+            if (vertical and not self.forward_hint) or self.inhibited:
                 result[side]['onset_rule'] = result[side]['commit_rule'] = False
         return result
 
@@ -100,6 +120,10 @@ class SixGestureEngine(DemoEngine):
         self.attack.units = {s: SixAttack(self.config) for s in ('LEFT', 'RIGHT')}
         self.movement = LateralMovement(self.config)
         self.special = CrossSpecial()
+        self.route_signals = ChannelSignals(self.config)
+        self.forward_sides = set()
+        self.occluded_guard_sides = set()
+        self.block = SixBlock(self.config)
         self.special_inhibited = False
         self.vertical_signals = ChannelSignals(self.config)
         self.vertical_state = 'DISARMED'
@@ -111,7 +135,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-first-cross-20261108-v11')
+        self.config = replace(self.config, version='seated-directed-punch-20261108-v12')
         self._components()
 
     @property
@@ -138,6 +162,7 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.special.invalidate()
+        self.route_signals.reset();self.forward_sides=set();self.occluded_guard_sides=set()
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
         self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
         self.vertical_signals.reset()
@@ -153,8 +178,12 @@ class SixGestureEngine(DemoEngine):
                     and (obs.capture_ns <= self.last_capture or obs.frame_id <= self.last_frame)):
                 return super().process(obs, evidence, now)
             calibrated_before = self.calibrated
+            if self.vertical_state=='PENDING' and self.vertical_candidate and self.vertical_candidate.split('_')[0] in self.forward_sides:
+                self.vertical_state='READY';self.vertical_candidate=self.vertical_since=None
+            self.block.forward_sides=self.forward_sides
             for side, unit in self.attack.units.items():
-                unit.inhibited = self.special_inhibited or not self.raise_armed[side] or (
+                unit.forward_hint = side in self.forward_sides
+                unit.inhibited = self.special_inhibited or side in self.occluded_guard_sides or not self.raise_armed[side] or (
                     self.vertical_state == 'PENDING' and self.vertical_candidate == side + '_RAISE')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
@@ -181,7 +210,7 @@ class SixGestureEngine(DemoEngine):
             self.guard_held = neutral
             # A raise is released by lowering that arm, not by a bilateral guard.
             # Keep separate latches so a held block cannot become a one-arm kick.
-            bilateral = all(delta[s][1] <= -.32 for s in arms)
+            bilateral = not self.forward_sides and all(delta[s][1] <= -.32 for s in arms)
             for side in arms:
                 if delta[side][1] > -.20 and not state.block and not bilateral:
                     if self.raise_release[side] is None:self.raise_release[side] = now
@@ -202,7 +231,7 @@ class SixGestureEngine(DemoEngine):
                     other_guard = (other_dy > -.30 and arms[other]['position'][1] <= 1.0
                                    and arms[other]['angle'] <= 2.7)
                     vertical = abs(dx) <= .35 and abs(dy) > abs(dx) * 1.2
-                    if other_guard and vertical:
+                    if other_guard and vertical and side not in self.forward_sides:
                         if dy <= -.40:
                             candidate = side + '_RAISE'
             if (self.vertical_state == 'READY' and candidate
@@ -242,6 +271,27 @@ class SixGestureEngine(DemoEngine):
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             valid = fresh and not joint_validity(obs, self.config)['BLOCK']
             approach, strict, separated = cross_geometry(obs, self.config) if valid else (False, False, False)
+            # Reject a transient X candidate once an arm clearly extends. A
+            # fired X keeps its normal release latch; tracking loss is not release.
+            if valid and extended_cross_arm(obs,self.config) and self.special.owned and not self.special.latched:
+                self.special.owned=False;self.special.reset_dwell();self.special.return_since=None
+            routing=self.route_signals.update(obs)
+            anchors=self.attack.anchors();self.forward_sides=set();self.occluded_guard_sides=set()
+            if self.calibrated and valid and set(routing)=={'LEFT','RIGHT'}:
+                for side,other in (('LEFT','RIGHT'),('RIGHT','LEFT')):
+                    arm=routing[side];base=anchors[side];d=arm['position']-base['position']
+                    other_d=routing[other]['position']-anchors[other]['position']
+                    # When a cross-body fist occludes the guarding hand, depth
+                    # estimates can make both elbows appear to extend. A tightly
+                    # folded image elbow is not a second punch alongside the
+                    # visibly extending opposite arm.
+                    if (arm['angle']<.6 and routing[other]['angle']>=1.8
+                        and routing[other]['angle3d'] is not None and routing[other]['angle3d']>=2.5):
+                        self.occluded_guard_sides.add(side)
+                    if (arm['angle3d'] is not None and arm['angle3d']>=2.5 and arm['angle3d']-base['angle3d']>=.25
+                        and d[2]<=-.45 and d[1]<=.12 and arm['position'][1]>=-.95
+                        and arm['angle']>=.6 and other_d[1]>-.55 and routing[other]['angle']<=.9):
+                        self.forward_sides.add(side)
             self.special_inhibited = self.special.owned or (not self.special.latched and approach)
             state = self._process_actions(obs, evidence, now)
             fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,

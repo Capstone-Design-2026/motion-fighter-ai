@@ -1,6 +1,22 @@
 """Bilateral cross geometry and dwell; development rules, not a trained classifier."""
 import numpy as np
-from action_engine.experimental import joint_validity
+from action_engine.experimental import joint_validity, elbow_angle
+
+
+def extended_cross_arm(obs, cfg):
+    """An extending forearm is incompatible with the compact X pose.
+
+    Check actual elbow geometry rather than anatomical left/right wrist travel:
+    a single cross-body punch can pass through the two-dimensional X region.
+    """
+    if joint_validity(obs,cfg)['BLOCK']:return False
+    p=np.array(obs.as_frame()['image_landmarks'],dtype=float);p[:,1]*=obs.height/obs.width
+    flat=p.copy();flat[:,2]=0
+    for ids in ((11,13,15),(12,14,16)):
+        a3,a2=elbow_angle(p,ids),elbow_angle(flat,ids)
+        if a3 is not None and (a3>=2.65 or (a3>=2.5 and a2 is not None and a2>=1.8)):
+            return True
+    return False
 
 
 def cross_geometry(obs, cfg):
@@ -22,10 +38,11 @@ def cross_geometry(obs, cfg):
         d=(p[i,:2]-center)/width
         return np.array([d@axis,d@down])
     le,re,lw,rw=map(pos,(13,14,15,16))
+    extended=extended_cross_arm(obs,cfg)
     bent=(le[0]>.10 and re[0]<-.10 and le[1]>lw[1]+.12 and re[1]>rw[1]+.12)
     height=all(-.45<=w[1]<=.70 for w in (lw,rw))
     # Reserve a bilateral inward movement before either ordinary punch commits.
-    approach=(bent and height and -.65<lw[0]<.22 and -.22<rw[0]<.65
+    approach=(not extended and bent and height and -.65<lw[0]<.22 and -.22<rw[0]<.65
               and rw[0]-lw[0]>-.15)
     strict=(approach and lw[0]<=.12 and rw[0]>=-.12
             and rw[0]-lw[0]>=.04 and abs(lw[1]-rw[1])<=.40)
@@ -34,7 +51,7 @@ def cross_geometry(obs, cfg):
     separated=((lw[0]>.22 and rw[0]<-.22)
                or lw[1]<-.60
                or rw[1]<-.60
-               or all(w[1]>.85 for w in (lw,rw)))
+               or all(w[1]>.85 for w in (lw,rw)) or extended)
     return bool(approach),bool(strict),bool(separated)
 
 
