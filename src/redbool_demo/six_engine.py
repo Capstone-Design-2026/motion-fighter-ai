@@ -148,11 +148,12 @@ class SixGestureEngine(DemoEngine):
         self.vertical_candidate = None
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
         self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
+        self.raise_peak = dict.fromkeys(('LEFT','RIGHT'), None)
         self.vertical_since = self.return_since = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-held-guard-20261109-v14')
+        self.config = replace(self.config, version='seated-compact-return-20261109-v15')
         self._components()
 
     @property
@@ -182,6 +183,7 @@ class SixGestureEngine(DemoEngine):
         self.route_signals.reset();self.forward_sides=set();self.forward_proof={};self.occluded_guard_sides=set()
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
         self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
+        self.raise_peak = dict.fromkeys(('LEFT','RIGHT'), None)
         self.vertical_signals.reset()
         self.guard_held = False
         self.vertical_state = 'DISARMED'
@@ -217,6 +219,7 @@ class SixGestureEngine(DemoEngine):
             if not self.calibrated or not valid:
                 self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
                 self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
+                self.raise_peak = dict.fromkeys(('LEFT','RIGHT'), None)
                 self.guard_held = False
                 self.vertical_state = 'DISARMED'
                 self.vertical_candidate = self.vertical_since = self.return_since = None
@@ -229,9 +232,18 @@ class SixGestureEngine(DemoEngine):
             # Keep separate latches so a held block cannot become a one-arm kick.
             bilateral = not self.forward_sides and all(delta[s][1] <= -.32 for s in arms)
             for side in arms:
-                if delta[side][1] > -.20 and not state.block and not bilateral:
+                dy=float(delta[side][1])
+                peak=self.raise_peak[side]
+                self.raise_peak[side]=dy if self.raise_armed[side] or peak is None else min(peak,dy)
+                # A visibly folded arm returned >=.30 shoulder-width from its
+                # own raised peak can rearm quickly at a comfortable high guard.
+                # Keeping one hand raised after block is still not a new kick.
+                compact_return=(dy>-.35 and self.raise_peak[side]<=dy-.30
+                    and arms[side]['angle']<=.6)
+                if (dy > -.20 or compact_return) and not state.block and not bilateral:
                     if self.raise_release[side] is None:self.raise_release[side] = now
-                    if now-self.raise_release[side] >= 120_000_000 or not calibrated_before:
+                    dwell=30_000_000 if compact_return else 120_000_000
+                    if now-self.raise_release[side] >= dwell or not calibrated_before:
                         self.raise_armed[side] = True
                 else:self.raise_release[side] = None
             if state.block or bilateral:
