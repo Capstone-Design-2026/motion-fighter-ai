@@ -26,6 +26,8 @@ class SixBlock(RelativeBlock):
 
 
 class SixAttack(DemoAttack):
+    early_candidate = False
+    unreturned_punch = False
     block_return = False
     forward_hint = False
     inhibited = False
@@ -56,6 +58,14 @@ class SixAttack(DemoAttack):
         # A physically retracted hand can recover during a held block.
         # Only the return/preparation branch bypasses the block gate; READY
         # and CANDIDATE still cannot start or commit a blocked attack.
+        # A weak onset gets one bounded observation phase. If full onset
+        # arrives, start the existing confirmation deadline once, rather than
+        # timing out precisely when a slower punch becomes well evidenced.
+        if self.state == 'CANDIDATE' and self.early_candidate:
+            if any(r['strict_onset_rule'] for r in self.candidates(arms).values()):
+                self.entered = now
+                self.early_candidate = False
+        previous_state = self.state
         recovering = self.state in ('PREPARING', 'RETURNING', 'UNAVAILABLE')
         self.block_return = block and recovering
         try:
@@ -63,6 +73,11 @@ class SixAttack(DemoAttack):
                 block and not recovering)
         finally:
             self.block_return = False
+        if previous_state == 'READY' and self.state == 'CANDIDATE':
+            self.early_candidate = not signals[self.side]['strict_onset_rule']
+        elif self.state != 'CANDIDATE':self.early_candidate = False
+        if commit is not None:self.unreturned_punch = True
+        elif self.state == 'READY':self.unreturned_punch = False
         return commit, signals, reason or ('uncommitted_raise_handoff' if handoff else '')
 
     def guard_neutral(self, arms):
@@ -102,10 +117,10 @@ class SixAttack(DemoAttack):
             base=self.baseline[side];dx,dy=arm['position'][:2]-base['position'][:2]
             # Bilateral block can be higher than the ordinary return envelope.
             # Require a compact, stable, bent hand; never accept a straight hold.
-            if self.block_return and (abs(dx)<=.45 and -1.0<=dy<=0
-                    and arm['angle']<=.6 and arm['speed_xy']<=1.2
+            if self.block_return and (abs(dx)<=.45 and -1.3<=dy<=0
+                    and arm['angle']<=1.2 and arm['speed_xy']<=1.2
                     and arm['angle3d'] is not None
-                    and arm['angle3d']<=min(2.4,base['angle3d']+.60)):
+                    and arm['angle3d']<=min(2.55,base['angle3d']+.60)):
                 continue
             if not (abs(dx)<=.45 and (-.30<=dy<=.65 or (-.65<=dy<-.30 and arm['angle']<=.6 and arm['angle3d'] is not None and arm['angle3d']<=min(2.2,base['angle3d']+.25))) and arm['position'][1]<=.45
                     and arm['speed_xy']<=1.2 and arm['angle']<=1.8
@@ -132,11 +147,18 @@ class SixAttack(DemoAttack):
             # horizontal travel, bounded depth and independently bent-to-open
             # elbow evidence, with the fist still above the lower torso.
             low_forward = bool(self.baseline and .12 < delta[1] <= .30
-                and abs(delta[0]) >= .45 and delta[2] <= .10
+                and abs(delta[0]) >= .45 and (delta[2] <= .10 or (arm['angle']>=1.2 and arm['angle']-self.baseline[side]['angle']>=.7))
                 and arm['position'][1] <= .45 and arm['angle'] >= .6
                 and arm['angle3d'] is not None and arm['angle3d'] >= self.cfg.commit_angle_rad
                 and row['extension_signal'] and row['vertical_fraction'] <= .65
                 and row['outward'])
+            compact_low = bool(self.baseline and .12 < delta[1] <= .30
+                and abs(delta[0]) >= .30 and delta[2] <= -.10
+                and arm['position'][1] <= .45 and arm['angle'] >= .30
+                and arm['angle3d'] is not None and arm['angle3d'] >= 2.4
+                and arm['angle3d']-self.baseline[side]['angle3d'] >= .20
+                and row['vertical_fraction'] <= .50 and row['outward'])
+            low_forward = low_forward or compact_low
             row['low_forward_extension'] = low_forward
             if low_forward:
                 row['not_lowering'] = True
@@ -156,8 +178,21 @@ class SixAttack(DemoAttack):
                 row['commit_rule']=bool(row['baseline_valid'] and row['xy_displacement']>=self.cfg.commit_displacement
                     and row['outward'] and row['extension_signal'] and row['not_lowering']
                     and arm['angle3d']>=self.cfg.commit_angle_rad)
+            # Begin observing an extension before its brief peak. Committing
+            # still needs the full existing geometry on a later frame; this
+            # avoids requiring two peak frames from a short 30fps punch.
+            early_extension = bool(self.baseline and arm['angle3d'] is not None
+                and arm['angle3d'] >= 2.2
+                and arm['angle3d']-self.baseline[side]['angle3d'] >= .05
+                and arm['angle'] >= .15 and row['displacement_signal']
+                and row['speed_signal'] and row['outward']
+                and row['vertical_fraction'] <= .65
+                and (row['not_lowering'] or (.12<delta[1]<=.30 and abs(delta[0])>=.25)))
+            row['strict_onset_rule'] = row['onset_rule']
+            row['early_extension_onset'] = early_extension
+            row['onset_rule'] = bool(row['onset_rule'] or early_extension)
             if (vertical and not self.forward_hint) or self.inhibited:
-                result[side]['onset_rule'] = result[side]['commit_rule'] = False
+                result[side]['onset_rule'] = result[side]['commit_rule'] = result[side]['strict_onset_rule'] = False
         return result
 
 
@@ -170,7 +205,9 @@ class SixGestureEngine(DemoEngine):
         self.route_signals = ChannelSignals(self.config)
         self.forward_sides = set()
         self.forward_proof = {}
+        self.compact_forward_proof = {}
         self.occluded_guard_sides = set()
+        self.occlusion_until = {}
         self.block = SixBlock(self.config)
         self.special_inhibited = False
         self.vertical_signals = ChannelSignals(self.config)
@@ -184,7 +221,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-block-return-20261110-v17')
+        self.config = replace(self.config, version='seated-sweep-guard-20261110-v18')
         self._components()
 
     @property
@@ -211,7 +248,7 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.special.invalidate()
-        self.route_signals.reset();self.forward_sides=set();self.forward_proof={};self.occluded_guard_sides=set()
+        self.route_signals.reset();self.forward_sides=set();self.forward_proof={};self.compact_forward_proof={};self.occluded_guard_sides=set();self.occlusion_until={}
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
         self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
         self.raise_peak = dict.fromkeys(('LEFT','RIGHT'), None)
@@ -342,9 +379,20 @@ class SixGestureEngine(DemoEngine):
             routing=self.route_signals.update(obs)
             anchors=self.attack.anchors();self.forward_sides=set();self.occluded_guard_sides=set()
             if self.calibrated and valid and set(routing)=={'LEFT','RIGHT'}:
+                points=np.asarray(obs.landmarks,float).copy();points[:,1]*=obs.height/obs.width
+                span=np.linalg.norm(points[11,:2]-points[12,:2])
+                hands_overlap=np.linalg.norm(points[15,:2]-points[16,:2]) < .35*span
                 for side,other in (('LEFT','RIGHT'),('RIGHT','LEFT')):
                     arm=routing[side];base=anchors[side];d=arm['position']-base['position']
                     other_d=routing[other]['position']-anchors[other]['position']
+                    # A held punch crossing the guarding fist can swap wrist
+                    # estimates. Temporarily suppress only the uncommitted hand,
+                    # retaining the ongoing punch's physical-return lifecycle.
+                    if (hands_overlap and self.attack.units[other].state in ('ACTIVE','EXTENDED','RETURNING')
+                        and self.attack.units[side].state in ('READY','CANDIDATE','PREPARING')):
+                        self.occlusion_until[side]=obs.capture_ns+200_000_000
+                    if obs.capture_ns < self.occlusion_until.get(side,0):
+                        self.occluded_guard_sides.add(side)
                     # When a cross-body fist occludes the guarding hand, depth
                     # estimates can make both elbows appear to extend. A tightly
                     # folded image elbow is not a second punch alongside the
@@ -372,6 +420,19 @@ class SixGestureEngine(DemoEngine):
                         and arm['angle']>=.6 and other_d[1]>-.55 and routing[other]['angle']<=.9):
                         self.forward_sides.add(side)
                         if strong_extension: self.forward_proof[side]=obs.capture_ns
+                    # A compact camera-directed punch can retain a folded image
+                    # elbow. Require depth, calibrated 3D opening, lateral travel
+                    # and the other hand's compact guard before overriding raise.
+                    compact_route_allowed = (self.attack.units[side].state in ('READY','CANDIDATE')
+                        or self.attack.units[side].unreturned_punch)
+                    compact_forward = (compact_route_allowed and arm['angle3d'] is not None and arm['angle3d']>=2.4
+                        and arm['angle3d']-base['angle3d']>=.30 and arm['angle']>=.4
+                        and abs(d[0])>=.10 and -.8<d[1]<=.12 and d[2]<=-.4
+                        and arm['velocity'][1]>=-.25
+                        and self.attack.units[other].guard_position(routing[other],anchors[other])
+                        and routing[other]['angle']<=.6)
+                    if compact_forward:
+                        self.forward_sides.add(side);self.compact_forward_proof[side]=obs.capture_ns
                     projected_extension = (arm['angle3d'] is not None and arm['angle3d']>=2.5
                         and arm['angle3d']-base['angle3d']>=.25 and arm['angle']>=1.0
                         and abs(d[0])>=.30 and d[2]<=-.35 and d[1]<=.12
@@ -390,7 +451,17 @@ class SixGestureEngine(DemoEngine):
                         self.forward_sides.add(side)
                     elif side not in self.forward_sides:
                         self.forward_proof.pop(side,None)
-            else: self.forward_proof.clear()
+                    compact_proof=self.compact_forward_proof.get(side)
+                    if (compact_route_allowed and compact_proof is not None and 0<=obs.capture_ns-compact_proof<=100_000_000
+                        and arm['angle3d'] is not None and arm['angle3d']>=2.4
+                        and arm['angle']>=.4 and abs(d[0])>=.10 and -.8<d[1]<=.12 and d[2]<=-.2
+                        and self.attack.units[other].guard_position(routing[other],anchors[other])
+                        and routing[other]['angle']<=.6):
+                        self.forward_sides.add(side)
+                    elif not compact_forward:
+                        self.compact_forward_proof.pop(side,None)
+            else:
+                self.forward_proof.clear();self.compact_forward_proof.clear()
             self.special_inhibited = self.special.owned or (not self.special.latched and approach)
             state = self._process_actions(obs, evidence, now)
             fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
@@ -404,6 +475,8 @@ class SixGestureEngine(DemoEngine):
                 state = replace(state, block=False, movement='NEUTRAL', movement_strength=0.,
                     attack_state='RETURNING' if self.special.latched else 'SPECIAL_CANDIDATE')
             if fired:
+                # A confirmed bilateral X takes ownership from prior punches.
+                for unit in self.attack.units.values():unit.unreturned_punch=False
                 self.sequence += 1
                 event = ActionEvent(f'{self.run_id}:{self.sequence}', *ident,
                     obs.frame_id, obs.capture_ns, now, now + 150_000_000, 'ATTACK', 'BOTH',
