@@ -42,6 +42,23 @@ class SixAttack(DemoAttack):
         # The absolute shoulder-relative height prevents drift into hands-down rest.
         return abs(dx) <= .35 and -.30 <= dy <= .45 and arm['position'][1] <= .20
 
+    @classmethod
+    def supporting_guard(cls, arm, base):
+        """The other hand may keep a folded high block during a body punch.
+
+        This is context for extension evidence, not a READY/rearm condition.
+        High holds must remain compact, bent and slow; extended raises do not
+        qualify. Ordinary guard keeps its existing bounds.
+        """
+        ordinary = (cls.guard_position(arm, base)
+            and arm['angle'] <= .6 and arm['speed_xy'] <= 2.0)
+        dx, dy = arm['position'][:2] - base['position'][:2]
+        high = (abs(dx) <= .45 and -1.3 <= dy < -.30
+            and arm['angle'] <= 1.2 and arm['speed_xy'] <= 1.2
+            and arm['angle3d'] is not None
+            and arm['angle3d'] <= min(2.55, base['angle3d'] + .60))
+        return bool(ordinary or high)
+
     def update(self, arms, now, allow_commit=True, block=False):
         # An upward gesture may first look diagonal in its first two frames.
         # Hand it to the raise channel only while the punch is uncommitted.
@@ -246,7 +263,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-body-punch-20261110-v19')
+        self.config = replace(self.config, version='seated-high-block-punch-20261110-v20')
         self._components()
 
     @property
@@ -412,8 +429,7 @@ class SixGestureEngine(DemoEngine):
                     arm=routing[side];base=anchors[side];d=arm['position']-base['position']
                     other_d=routing[other]['position']-anchors[other]['position']
                     self.attack.units[side].opposite_guard=(
-                        self.attack.units[other].guard_position(routing[other],anchors[other])
-                        and routing[other]['angle']<=.6 and routing[other]['speed_xy']<=2.0)
+                        self.attack.units[other].supporting_guard(routing[other],anchors[other]))
                     # A held punch crossing the guarding fist can swap wrist
                     # estimates. Temporarily suppress only the uncommitted hand,
                     # retaining the ongoing punch's physical-return lifecycle.
