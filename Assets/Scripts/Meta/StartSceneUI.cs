@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
@@ -120,7 +120,13 @@ public class StartSceneUI : MonoBehaviour
     private void OnContinue()
     {
         if (RunState.Instance == null) return;
-        if (RunState.Instance.LoadRun()) SceneRoutes.LoadMap();
+        if (RunState.Instance.LoadRun())
+        {
+            // A saved in-progress battle must resume that scene. Returning to
+            // the map with pendingNodeId still set prevents selecting any node.
+            if (RunState.Instance.HasPendingBattle) SceneRoutes.LoadBattle();
+            else SceneRoutes.LoadMap();
+        }
         else RefreshContinue();
     }
 
