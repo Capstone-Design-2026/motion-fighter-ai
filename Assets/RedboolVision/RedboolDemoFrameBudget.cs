@@ -9,6 +9,9 @@ public static class RedboolDemoFrameBudget
     {
         if (Application.isEditor) return;
         Application.targetFrameRate = 60;
+        // Routine combat/performance logs do not need expensive full call stacks.
+        // Preserve warning/error/exception stacks for debugging.
+        Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
         Debug.Log("[REDBOOL] Standalone render limit: 60 fps");
         var metrics = new GameObject("REDBOOL Frame Metrics");
         Object.DontDestroyOnLoad(metrics);

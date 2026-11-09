@@ -65,6 +65,12 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public long sequence, sender_ns, receiver_ns, applied_ns, ack_sent_ns;
         public bool game_attack_started;
         public bool game_can_act, game_guard_active, battle_preparing, special_ready;
+        // Additive diagnostics only: never bypass or queue a busy action.
+        public int diagnostics_version = 1;
+        public bool game_attacking, game_hit_stunned, game_input_locked, game_preparation_locked,
+            game_guard_recovering, game_dead, application_focused;
+        public int game_health;
+        public float game_frame_ms, game_time_scale;
         public int calibration_contract = 1;
         public int guards_started;
     }
@@ -202,6 +208,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*p.movement_strength;
             controlling=true;
+            if(p.calibration_version==1 && p.calibrated && (p.tracking=="VALID" || p.tracking=="SYNTHETIC"))
+                RedboolFrameMetrics.NoteLiveInput();
             // Release before processing any following one-shot in the same inbox batch.
             ApplyVisionGuard();
             // An attack candidate/return phase is still live camera input. It must
@@ -226,7 +234,16 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             battle_preparing=Preparation!=null && Preparation.HoldRound,
             special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
             game_can_act=fighter!=null && fighter.CanAct,game_guard_active=fighter!=null && fighter.IsGuarding,
-            guards_started=GuardsStarted };
+            guards_started=GuardsStarted,
+            game_attacking=fighter!=null && fighter.IsAttacking,
+            game_hit_stunned=fighter!=null && fighter.Health!=null && fighter.Health.IsHitStunned,
+            game_input_locked=fighter!=null && fighter.InputLocked,
+            game_preparation_locked=fighter!=null && fighter.VisionPreparationLocked,
+            game_guard_recovering=fighter!=null && fighter.IsGuardRecovering,
+            game_dead=fighter!=null && fighter.Health!=null && fighter.Health.IsDead,
+            game_health=fighter!=null && fighter.Health!=null ? fighter.Health.CurrentHealth : -1,
+            application_focused=Application.isFocused, game_frame_ms=Time.unscaledDeltaTime*1000f,
+            game_time_scale=Time.timeScale };
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
     private void Safe() {
