@@ -26,6 +26,7 @@ class SixBlock(RelativeBlock):
 
 
 class SixAttack(DemoAttack):
+    block_return = False
     forward_hint = False
     inhibited = False
     learned_guard_required = False
@@ -52,7 +53,16 @@ class SixAttack(DemoAttack):
                     self.neutral_since = None
                     self.entered = now
                     handoff = True
-        commit, signals, reason = super().update(arms, now, allow_commit, block)
+        # A physically retracted hand can recover during a held block.
+        # Only the return/preparation branch bypasses the block gate; READY
+        # and CANDIDATE still cannot start or commit a blocked attack.
+        recovering = self.state in ('PREPARING', 'RETURNING', 'UNAVAILABLE')
+        self.block_return = block and recovering
+        try:
+            commit, signals, reason = super().update(arms, now, allow_commit,
+                block and not recovering)
+        finally:
+            self.block_return = False
         return commit, signals, reason or ('uncommitted_raise_handoff' if handoff else '')
 
     def guard_neutral(self, arms):
@@ -90,6 +100,13 @@ class SixAttack(DemoAttack):
         if not arms or self.baseline is None:return False
         for side, arm in arms.items():
             base=self.baseline[side];dx,dy=arm['position'][:2]-base['position'][:2]
+            # Bilateral block can be higher than the ordinary return envelope.
+            # Require a compact, stable, bent hand; never accept a straight hold.
+            if self.block_return and (abs(dx)<=.45 and -1.0<=dy<=0
+                    and arm['angle']<=.6 and arm['speed_xy']<=1.2
+                    and arm['angle3d'] is not None
+                    and arm['angle3d']<=min(2.4,base['angle3d']+.60)):
+                continue
             if not (abs(dx)<=.45 and (-.30<=dy<=.65 or (-.65<=dy<-.30 and arm['angle']<=.6 and arm['angle3d'] is not None and arm['angle3d']<=min(2.2,base['angle3d']+.25))) and arm['position'][1]<=.45
                     and arm['speed_xy']<=1.2 and arm['angle']<=1.8
                     and arm['angle3d'] is not None
@@ -111,6 +128,20 @@ class SixAttack(DemoAttack):
                 and arm['angle'] - self.baseline[side]['angle'] >= .7
                 and row['xy_displacement'] >= .50 and row['vertical_fraction'] <= .65
                 and row['outward'] and row['not_lowering'])
+            # A modestly lower punch is not a relaxed arm drop: require
+            # horizontal travel, bounded depth and independently bent-to-open
+            # elbow evidence, with the fist still above the lower torso.
+            low_forward = bool(self.baseline and .12 < delta[1] <= .30
+                and abs(delta[0]) >= .45 and delta[2] <= .10
+                and arm['position'][1] <= .45 and arm['angle'] >= .6
+                and arm['angle3d'] is not None and arm['angle3d'] >= self.cfg.commit_angle_rad
+                and row['extension_signal'] and row['vertical_fraction'] <= .65
+                and row['outward'])
+            row['low_forward_extension'] = low_forward
+            if low_forward:
+                row['not_lowering'] = True
+                row['onset_rule'] = bool(row['displacement_signal'] and row['speed_signal'])
+                row['commit_rule'] = row['xy_displacement'] >= self.cfg.commit_displacement
             row['planar_extension'] = planar
             if planar:
                 row['onset_rule'] = bool(row['onset_rule'] or row['speed_signal'])
@@ -153,7 +184,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-high-guard-punch-20261110-v16')
+        self.config = replace(self.config, version='seated-block-return-20261110-v17')
         self._components()
 
     @property
