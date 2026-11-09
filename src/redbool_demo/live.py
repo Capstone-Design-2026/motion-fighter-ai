@@ -15,6 +15,8 @@ import uuid
 from .six_engine import SixGestureEngine as DemoEngine
 from .transport import DemoSender
 from .guided import GuidedCheck
+from .framing import framing_status
+from collections import Counter
 
 
 def run(a):
@@ -103,7 +105,7 @@ def run(a):
     workers=[threading.Thread(target=capture,name='demo-camera',daemon=True),threading.Thread(target=publisher,name='demo-publisher',daemon=True)]
     print(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)
     started=time.monotonic();last_stamp=None;origin=None;last_ms=-1;pose_ms=0.
-    next_preview_ns=0;pose_samples=[];age_samples=[]
+    next_preview_ns=0;pose_samples=[];age_samples=[];framing_counts=Counter()
     prior_cv_threads=cv.getNumThreads()
     try:
         # OpenCV shares this process with MediaPipe, capture, recording and UDP.
@@ -149,10 +151,11 @@ def run(a):
             obs=PoseObservation.from_record(frame,{'subject_id':a.actor,'session_id':stream,
                 'actual_resolution':[bgr.shape[1],bgr.shape[0]],'recording_config':{'source_mirrored':False}})
             state=engine.process(obs);video.write(bgr,rgb,frame,trial_state='DEMO')
+            framing=framing_status(obs,engine.config.visibility);framing_counts[framing['code']]+=1
             counts['processed']+=1;pose_ms=(end-start)/1e6
             engine_end=time.monotonic_ns();pose_samples.append(pose_ms);age_samples.append((engine_end-stamp)/1e6)
             log.write({'type':'frame','frame_id':frame['frame_id'],'camera_frame_id':fid,'capture_ns':stamp,
-                'pose_end_ns':end,'engine_end_ns':engine_end,'state':asdict(state)})
+                'pose_end_ns':end,'engine_end_ns':engine_end,'state':asdict(state),'framing':framing})
             with engine.lock:
                 armed=engine.calibrated;progress=engine.calibration_progress
                 arms=' / '.join(k+':'+v.state for k,v in engine.attack.units.items())
@@ -173,6 +176,7 @@ def run(a):
                     else 'X SENT: OPEN ARMS OR RAISE ONE' if cross_owned and cross_sent
                     else f'X HOLD: {cross_progress:.0%}' if cross_owned
                     else 'BLOCK' if state.block else 'READY' if ready else 'RELEASE LAST POSE / NEXT MOVE')
+                if framing['code']!='OK':mode=framing['message']
                 hint=getattr(sender,'game_hint',lambda:'GAME UNKNOWN / SPECIAL UNKNOWN')()
                 prompt=guided_prompt if guide else hint
                 lines=[f"{mode}  {progress:.0%}   {message}",prompt,
@@ -184,6 +188,7 @@ def run(a):
                     width=cv.getTextSize(line,0,.47,1)[0][0]
                     scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))
                     color=(80,230,160) if armed else (50,200,255)
+                    if i==0 and framing['code']!='OK':color=(50,170,255)
                     if guide and i==1:
                         color=(40,190,255) if guide.preparing else (80,255,80) if 'GO: ' in line else (220,220,220)
                     cv.putText(panel,line,(6,22+i*24),0,scale,color,1)
@@ -223,7 +228,7 @@ def run(a):
             'pose_ms_p50_p95':np.percentile(pose_samples,[50,95]).tolist() if pose_samples else [],
             'capture_to_engine_ms_p50_p95':np.percentile(age_samples,[50,95]).tolist() if age_samples else [],
             'opencv_threads':1,'frame_policy':'latest camera sample; preview throttling never skips recognition or recording'}
-        report={'performance':performance,'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
+        report={'performance':performance,'framing':dict(framing_counts),'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
             'camera_slot_drops':slot.dropped,'duration_seconds':time.monotonic()-started,
             'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
             'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
