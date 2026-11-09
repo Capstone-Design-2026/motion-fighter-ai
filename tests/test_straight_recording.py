@@ -42,7 +42,7 @@ class StraightRecordingTests(unittest.TestCase):
     def test_jabs_raises_and_one_cross_preserved(self):
         from collections import Counter
         self.assertEqual(Counter(g for _,g in self.results[0][0]),
-            dict(LEFT_PUNCH=9,RIGHT_PUNCH=27,LEFT_RAISE=5,RIGHT_RAISE=7,SPECIAL=1))
+            dict(LEFT_PUNCH=9,RIGHT_PUNCH=28,LEFT_RAISE=5,RIGHT_RAISE=7,SPECIAL=1))
         self.assertEqual(self.gestures(247.4,249),['SPECIAL'])
     def test_reviewed_foreshortened_punches_and_false_raise(self):
         # Re-reviewed video: these are extended forward punches, not raises.
@@ -53,8 +53,8 @@ class StraightRecordingTests(unittest.TestCase):
         # as a punch, but it must not emit a low kick.
         self.assertNotIn('RIGHT_RAISE',self.gestures(170.8,171.6))
     def test_additional_video_reviewed_forward_punches(self):
-        # Re-reviewed original video: both attempts visibly extend the elbow.
-        for a,b in [(138.8,139.6),(192.5,193.3)]:
+        # Re-reviewed original video: these attempts visibly extend the elbow.
+        for a,b in [(138.8,139.6),(174.2,175.2),(192.5,193.3)]:
             self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
             self.assertEqual(self.gestures(a,b,True),['LEFT_PUNCH'])
     def test_rest_and_lean_do_not_generate_attacks(self):

@@ -26,6 +26,7 @@ class SixBlock(RelativeBlock):
 
 
 class SixAttack(DemoAttack):
+    opposite_guard = False
     early_candidate = False
     unreturned_punch = False
     block_return = False
@@ -158,14 +159,30 @@ class SixAttack(DemoAttack):
                 and arm['angle3d'] is not None and arm['angle3d'] >= 2.4
                 and arm['angle3d']-self.baseline[side]['angle3d'] >= .20
                 and row['vertical_fraction'] <= .50 and row['outward'])
-            low_forward = low_forward or compact_low
+            # A lower body punch needs a visible extension plus the opposite
+            # hand's stable guard. Relaxing either arm or lowering both hands
+            # cannot use this route. Keep lateral travel mandatory.
+            body_extension = bool(self.baseline and self.opposite_guard
+                and .12<delta[1]<=.55 and abs(delta[0])>=.45
+                and arm['position'][1]<=.8 and arm['angle']>=.8
+                and arm['angle']-self.baseline[side]['angle']>=.5
+                and arm['angle3d'] is not None and arm['angle3d']>=2.3
+                and row['extension_signal'] and row['vertical_fraction']<=.65 and row['outward'])
+            body_planar = bool(self.baseline and self.opposite_guard
+                and .12<delta[1]<=.9 and abs(delta[0])>=.45
+                and arm['position'][1]<=1.0 and arm['angle']>=2.2
+                and arm['angle']-self.baseline[side]['angle']>=.7
+                and row['vertical_fraction']<=.8 and row['outward'])
+            row['body_extension'] = body_extension
+            row['body_planar_extension'] = body_planar
+            low_forward = low_forward or compact_low or body_extension or body_planar
             row['low_forward_extension'] = low_forward
             if low_forward:
                 row['not_lowering'] = True
                 row['onset_rule'] = bool(row['displacement_signal'] and row['speed_signal'])
                 row['commit_rule'] = row['xy_displacement'] >= self.cfg.commit_displacement
             row['planar_extension'] = planar
-            if planar:
+            if planar or body_planar:
                 row['onset_rule'] = bool(row['onset_rule'] or row['speed_signal'])
                 row['commit_rule'] = True
             if self.forward_hint:
@@ -187,11 +204,19 @@ class SixAttack(DemoAttack):
                 and arm['angle'] >= .15 and row['displacement_signal']
                 and row['speed_signal'] and row['outward']
                 and row['vertical_fraction'] <= .65
-                and (row['not_lowering'] or (.12<delta[1]<=.30 and abs(delta[0])>=.25)))
+                and (row['not_lowering'] or (.12<delta[1]<=.30 and abs(delta[0])>=.25)
+                    or (self.opposite_guard and .30<delta[1]<=.55 and abs(delta[0])>=.30)))
+            body_windup = bool(self.baseline and self.opposite_guard
+                and .12<delta[1]<=.9 and abs(delta[0])>=.30
+                and arm['position'][1]<=1.0 and arm['angle']>=.25
+                and arm['angle']-self.baseline[side]['angle']>=.15
+                and row['vertical_fraction']<=.8 and row['speed_signal'] and row['outward'])
+            early_extension = early_extension or body_windup
+            row['body_windup'] = body_windup
             row['strict_onset_rule'] = row['onset_rule']
             row['early_extension_onset'] = early_extension
             row['onset_rule'] = bool(row['onset_rule'] or early_extension)
-            if (vertical and not self.forward_hint) or self.inhibited:
+            if (vertical and not self.forward_hint and not (body_windup or body_planar or body_extension)) or self.inhibited:
                 result[side]['onset_rule'] = result[side]['commit_rule'] = result[side]['strict_onset_rule'] = False
         return result
 
@@ -221,7 +246,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-sweep-guard-20261110-v18')
+        self.config = replace(self.config, version='seated-body-punch-20261110-v19')
         self._components()
 
     @property
@@ -378,6 +403,7 @@ class SixGestureEngine(DemoEngine):
                 self.special.owned=False;self.special.reset_dwell();self.special.return_since=None
             routing=self.route_signals.update(obs)
             anchors=self.attack.anchors();self.forward_sides=set();self.occluded_guard_sides=set()
+            for unit in self.attack.units.values():unit.opposite_guard=False
             if self.calibrated and valid and set(routing)=={'LEFT','RIGHT'}:
                 points=np.asarray(obs.landmarks,float).copy();points[:,1]*=obs.height/obs.width
                 span=np.linalg.norm(points[11,:2]-points[12,:2])
@@ -385,6 +411,9 @@ class SixGestureEngine(DemoEngine):
                 for side,other in (('LEFT','RIGHT'),('RIGHT','LEFT')):
                     arm=routing[side];base=anchors[side];d=arm['position']-base['position']
                     other_d=routing[other]['position']-anchors[other]['position']
+                    self.attack.units[side].opposite_guard=(
+                        self.attack.units[other].guard_position(routing[other],anchors[other])
+                        and routing[other]['angle']<=.6 and routing[other]['speed_xy']<=2.0)
                     # A held punch crossing the guarding fist can swap wrist
                     # estimates. Temporarily suppress only the uncommitted hand,
                     # retaining the ongoing punch's physical-return lifecycle.
