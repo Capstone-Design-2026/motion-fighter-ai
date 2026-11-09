@@ -90,7 +90,7 @@ class SixAttack(DemoAttack):
         if not arms or self.baseline is None:return False
         for side, arm in arms.items():
             base=self.baseline[side];dx,dy=arm['position'][:2]-base['position'][:2]
-            if not (abs(dx)<=.45 and -.30<=dy<=.65 and arm['position'][1]<=.45
+            if not (abs(dx)<=.45 and (-.30<=dy<=.65 or (-.65<=dy<-.30 and arm['angle']<=.6 and arm['angle3d'] is not None and arm['angle3d']<=min(2.2,base['angle3d']+.25))) and arm['position'][1]<=.45
                     and arm['speed_xy']<=1.2 and arm['angle']<=1.8
                     and arm['angle3d'] is not None
                     and arm['angle3d']<=min(2.6,base['angle3d']+.60)):
@@ -153,7 +153,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-compact-return-20261109-v15')
+        self.config = replace(self.config, version='seated-high-guard-punch-20261110-v16')
         self._components()
 
     @property
@@ -202,7 +202,7 @@ class SixGestureEngine(DemoEngine):
             self.block.forward_sides=self.forward_sides
             for side, unit in self.attack.units.items():
                 unit.forward_hint = side in self.forward_sides
-                unit.inhibited = self.special_inhibited or side in self.occluded_guard_sides or not self.raise_armed[side] or (
+                unit.inhibited = self.special_inhibited or side in self.occluded_guard_sides or (not self.raise_armed[side] and side not in self.forward_sides) or (
                     self.vertical_state == 'PENDING' and self.vertical_candidate == side + '_RAISE')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
@@ -260,7 +260,11 @@ class SixGestureEngine(DemoEngine):
                     other_guard = (other_dy > -.30 and arms[other]['position'][1] <= 1.0
                                    and arms[other]['angle'] <= 2.7)
                     vertical = abs(dx) <= .35 and abs(dy) > abs(dx) * 1.2
-                    if other_guard and vertical and side not in self.forward_sides:
+                    # A still-extended punch sweeping back toward the camera is
+                    # not a new raise just because its projected wrist is high.
+                    punch_return = self.attack.units[side].state in ('ACTIVE','EXTENDED','RETURNING')
+                    new_raise_motion = not punch_return or arms[side]['velocity'][1] < -.25
+                    if other_guard and vertical and new_raise_motion and side not in self.forward_sides:
                         if dy <= -.40:
                             candidate = side + '_RAISE'
             if (self.vertical_state == 'READY' and candidate
@@ -317,6 +321,15 @@ class SixGestureEngine(DemoEngine):
                     if (arm['angle']<.6 and routing[other]['angle']>=1.8
                         and routing[other]['angle3d'] is not None and routing[other]['angle3d']>=2.5):
                         self.occluded_guard_sides.add(side)
+                    # A high-guard punch can travel sideways in the image while
+                    # monocular depth points either way. Require independent elbow
+                    # opening and lateral travel, with the opposite arm folded.
+                    lateral_extension = (arm['angle3d'] is not None and arm['angle3d']>=2.3
+                        and arm['angle3d']-base['angle3d']>=.15 and arm['angle']>=.9
+                        and abs(d[0])>=.45 and d[1]<=.12
+                        and abs(d[1])<=abs(d[0])*1.8 and other_d[1]>-.55
+                        and routing[other]['angle']<=.9)
+                    if lateral_extension:self.forward_sides.add(side)
                     strong_extension = (arm['angle3d'] is not None and arm['angle3d']>=2.6
                         and arm['angle3d']-base['angle3d']>=.5 and arm['angle']>=.75)
                     # A high camera-directed fist projects upward like a raise.
@@ -328,6 +341,13 @@ class SixGestureEngine(DemoEngine):
                         and arm['angle']>=.6 and other_d[1]>-.55 and routing[other]['angle']<=.9):
                         self.forward_sides.add(side)
                         if strong_extension: self.forward_proof[side]=obs.capture_ns
+                    projected_extension = (arm['angle3d'] is not None and arm['angle3d']>=2.5
+                        and arm['angle3d']-base['angle3d']>=.25 and arm['angle']>=1.0
+                        and abs(d[0])>=.30 and d[2]<=-.35 and d[1]<=.12
+                        and arm['position'][1]>=-1.3 and other_d[1]>-.55
+                        and routing[other]['angle']<=.9)
+                    if projected_extension:
+                        self.forward_sides.add(side);self.forward_proof[side]=obs.capture_ns
                     # Keep a proven extended punch route through <=100ms of
                     # depth jitter, only while current valid joints still extend.
                     # This is routing continuity, never an attack/guard queue.
