@@ -5067,7 +5067,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5853433306591679420}
-  - component: {fileID: 1278871032163060960}
+  - component: {fileID: 8849651216482339563}
   m_Layer: 0
   m_Name: Spiral
   m_TagString: Untagged
@@ -5092,7 +5092,7 @@ Transform:
   - {fileID: 3797490883580744208}
   m_Father: {fileID: 251438417075061774}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1278871032163060960
+--- !u!114 &8849651216482339563
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -5101,7 +5101,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 4816781185194955961}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: a90f4081ee5ae154aa2ccf2ef4a28693, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QiOrbit
   axis: {x: 0, y: 0, z: 1}

@@ -9924,7 +9924,7 @@ GameObject:
   - component: {fileID: 5069102860453837592}
   - component: {fileID: 6746134557551417302}
   - component: {fileID: 4292075336269607702}
-  - component: {fileID: 6415272588258017303}
+  - component: {fileID: 3384552688373329301}
   m_Layer: 0
   m_Name: Ring
   m_TagString: Untagged
@@ -10004,7 +10004,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &6415272588258017303
+--- !u!114 &3384552688373329301
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10013,7 +10013,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 3240858984812419118}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: a90f4081ee5ae154aa2ccf2ef4a28693, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QiOrbit
   axis: {x: 0, y: 0, z: 1}
@@ -10275,7 +10275,7 @@ GameObject:
   - component: {fileID: 2453371254375725725}
   - component: {fileID: 1486481389544411340}
   - component: {fileID: 8523180099042954146}
-  - component: {fileID: 3084539211313525895}
+  - component: {fileID: 508244616828487208}
   m_Layer: 0
   m_Name: RingInner
   m_TagString: Untagged
@@ -10355,7 +10355,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &3084539211313525895
+--- !u!114 &508244616828487208
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10364,7 +10364,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 4493927200444624420}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: a90f4081ee5ae154aa2ccf2ef4a28693, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QiOrbit
   axis: {x: 0, y: 0, z: 1}
@@ -15311,7 +15311,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6225620217360951551}
-  - component: {fileID: 7464625218226300959}
+  - component: {fileID: 8030006915980400125}
   m_Layer: 0
   m_Name: Swirl
   m_TagString: Untagged
@@ -15336,7 +15336,7 @@ Transform:
   - {fileID: 633955083084683726}
   m_Father: {fileID: 7059206128305086846}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7464625218226300959
+--- !u!114 &8030006915980400125
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -15345,7 +15345,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6824212918139050878}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: a90f4081ee5ae154aa2ccf2ef4a28693, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QiOrbit
   axis: {x: 0, y: 1, z: 0}
