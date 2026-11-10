@@ -117,6 +117,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
             configuredPlayer=player;oldKeyboard=player.useKeyboard;player.useKeyboard=false;
         }
+        // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
+        if(player!=null && player==configuredPlayer) player.useKeyboard=RedboolBattlePreparation.KeyboardTest;
         if(NowNs()>=deadline) Safe();
         Received item;
         for(int i=0;i<32 && inbox.TryDequeue(out item);i++) {
