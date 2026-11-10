@@ -90,6 +90,17 @@ public class Fighter : MonoBehaviour
         get => guarding;
         set { if (value) TryGuard(IsCrouching); else ReleaseGuard(); }
     }
+    private bool visionGuardHeld;
+    public bool IsVisionGuardHeld => visionGuardHeld;
+    /// <summary>Camera-owned guard follows live pose; release adds no guard-failure delay.</summary>
+    public bool SetVisionGuard(bool held)
+    {
+        if (!held) { if (visionGuardHeld) EndGuard(); return false; }
+        if (visionGuardHeld && guarding) return true;
+        if (!TryGuard(false)) return false;
+        visionGuardHeld = true;
+        return true;
+    }
     public bool IsGuarding => guarding;
 
     /// <summary>
@@ -115,10 +126,17 @@ public class Fighter : MonoBehaviour
     /// 이게 없으면 쓰러진 상대를 계속 때릴 수 있다. BattleSceneBridge 가 켜고 끈다.
     /// </summary>
     public bool InputLocked { get; set; }
+    public bool VisionPreparationLocked { get; private set; }
+    public void SetVisionPreparationLock(bool value)
+    {
+        if (VisionPreparationLocked == value) return;
+        VisionPreparationLocked = value;
+        if (value) { CancelAttack(); EndGuard(); }
+    }
 
     public Health Health { get; private set; }
-    /// <summary>사망·경직·연출로 막혀 있지 않은지. 공격 중인지는 따로 본다(IsAttacking, CanAttack).</summary>
-    public bool CanAct => !Health.IsDead && !InputLocked && !Health.IsHitStunned;
+    /// <summary>사망·경직·연출·카메라 준비로 막혀 있지 않은지. 공격 중인지는 따로 본다(IsAttacking, CanAttack).</summary>
+    public bool CanAct => !Health.IsDead && !InputLocked && !VisionPreparationLocked && !Health.IsHitStunned;
     /// <summary>공격이나 방어를 새로 시작할 수 있는지. 진행 중인 공격은 다른 동작으로 끊을 수 없다.</summary>
     public bool CanAttack => CanAct && !IsAttacking;
 
@@ -157,7 +175,7 @@ public class Fighter : MonoBehaviour
     public CombatBodyPose Contacts { get; private set; }
     public float AttackStarted { get; private set; }
     public int AttackSerial { get; private set; }
-    public bool PreciseAttackActive => preciseRoutine && IsAttacking && isActiveAndEnabled && !InputLocked && !Health.IsDead && !Health.IsHitStunned && Contacts.Ready;
+    public bool PreciseAttackActive => preciseRoutine && IsAttacking && isActiveAndEnabled && !InputLocked && !VisionPreparationLocked && !Health.IsDead && !Health.IsHitStunned && Contacts.Ready;
     public event Action<Fighter, Vector3, CombatBodyPart, bool> ContactResolved;
     public bool HasContacted(Health target) => alreadyHit.Contains(target);
     public bool IsGuardedBy(Fighter target)
@@ -181,7 +199,7 @@ public class Fighter : MonoBehaviour
     public void FinishPreciseAttack(float now)
     {
         if (!preciseRoutine || !IsAttacking) return;
-        if (InputLocked || Health.IsDead || Health.IsHitStunned) { CancelAttack(); return; }
+        if (InputLocked || VisionPreparationLocked || Health.IsDead || Health.IsHitStunned) { CancelAttack(); return; }
 
         if (!preciseResolved && now - AttackStarted > CombatContactWorld.Window(CurrentMove).y)
         {
@@ -360,6 +378,7 @@ public class Fighter : MonoBehaviour
 
     private void EndGuard()
     {
+        visionGuardHeld = false;
         guarding = false;
     }
 
@@ -424,7 +443,7 @@ public class Fighter : MonoBehaviour
         yield return new WaitForSeconds(startup);
 
         float punish = 0f;
-        if (!Health.IsDead && !InputLocked && !Health.IsHitStunned)
+        if (!Health.IsDead && !InputLocked && !VisionPreparationLocked && !Health.IsHitStunned)
         {
             AttackHitFrame?.Invoke(attack);
             punish = ResolveHit(attack.Height);

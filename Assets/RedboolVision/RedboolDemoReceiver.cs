@@ -1,4 +1,4 @@
-// Target: feature/unity 55844cd (Unity 6000.4.5f1), timed combat guard.
+// Target: feature/unity 55844cd (Unity 6000.4.5f1), pose-held camera guard.
 // Calls the game's PlayerController, never bypasses Fighter/Health/animation.
 using System;
 using System.Collections.Generic;
@@ -19,6 +19,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     [Tooltip("Empty: pair on SYNC; reconnect to a new run only after 0.5 s silence.")]
     public string expectedStreamId = "";
     public PlayerController player;
+    public RedboolBattlePreparation Preparation { get; set; }
+    private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
     public bool showStatus = true;
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
@@ -40,16 +44,15 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private IPEndPoint pairedPeer;
     private long sequence, deadline, lastLiveNs;
     private float targetMove, currentMove;
-    private bool controlling;
-    private readonly RedboolGuardLatch guardInput = new RedboolGuardLatch();
+    private bool controlling, tutorialInputValid;
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
     private struct Received { public string json; public long time; public IPEndPoint peer; }
     [Serializable] private class Packet {
-        public int version, ttl_ms;
+        public int version, ttl_ms, calibration_version;
         public string kind, stream_id, actor_id, capture_epoch, sync_id, event_id, side, movement, gesture, fsm_state, tracking;
         public long sequence, sent_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
-        public bool block_active;
+        public bool block_active, calibrated;
         public float movement_strength;
     }
     [Serializable] private class Ack {
@@ -57,11 +60,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public string stream_id, status, event_id, sync_id, applied_action;
         public string gesture_mapping = "raised-kicks-v3";
         public string receiver_version = "unity-55844cd-v5";
-        public string guard_mode = "one_timed_guard_per_pose";
+        public string guard_mode = "held_pose_immediate_release";
         public string receiver_clock = "unity_stopwatch_ns";
         public long sequence, sender_ns, receiver_ns, applied_ns, ack_sent_ns;
         public bool game_attack_started;
-        public bool game_can_act, game_guard_active;
+        public bool game_can_act, game_guard_active, battle_preparing, special_ready;
+        // Additive diagnostics only: never bypass or queue a busy action.
+        public int diagnostics_version = 1;
+        public bool game_attacking, game_hit_stunned, game_input_locked, game_preparation_locked,
+            game_guard_recovering, game_dead, application_focused;
+        public int game_health;
+        public float game_frame_ms, game_time_scale;
+        public int calibration_contract = 1;
         public int guards_started;
     }
     private static long NowNs() {
@@ -69,12 +79,16 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         return (t/f)*1000000000L + (long)((t%f)*(1000000000.0/f));
     }
     private void OnEnable() {
+        RedboolDemoReceiver owner;
+        if (listeners.TryGetValue(port, out owner) && owner != null && owner != this && owner.isActiveAndEnabled) {
+            Status="DUPLICATE RECEIVER :"+port;enabled=false;return;
+        }
         try {
             StreamId=expectedStreamId; sequence=deadline=lastLiveNs=0; pairedPeer=null;
             syncs.Clear();outcomes.Clear();
-            guardInput.Reset();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
             udp.Client.ReceiveTimeout=100;
+            listeners[port]=this;
             running=true;worker=new Thread(Receive) { IsBackground=true };worker.Start();
             DisableLegacy();
             Status="WAITING FOR PYTHON :"+port;
@@ -114,14 +128,16 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             currentMove=Mathf.Lerp(currentMove,targetMove,alpha);
             if(Mathf.Abs(currentMove)<.01f && targetMove==0) currentMove=0;
             player.ExternalMovement(currentMove);
-            // One BLOCK marks the pose as held; PlayerController keeps guarding
-            // until the pose ends and NONE releases it.
-            Fighter fighter=player.GetComponent<Fighter>();
-            if(guardInput.WantsStart(fighter!=null && fighter.CanAct)) {
-                player.ExternalAction("BLOCK");
-                if(fighter.IsGuarding) { guardInput.MarkStarted();GuardsStarted++; }
-            } else if(!BlockActive) player.ExternalAction("NONE");
+            ApplyVisionGuard();
         }
+    }
+    private void ApplyVisionGuard()
+    {
+        var fighter=player!=null ? player.GetComponent<Fighter>() : null;
+        if(fighter==null) return;
+        bool wasHeld=fighter.IsVisionGuardHeld;
+        bool held=controlling && BlockActive && (Preparation==null || Preparation.AllowsPlayer);
+        if(fighter.SetVisionGuard(held) && !wasHeld) GuardsStarted++;
     }
     private void Process(Packet p,Received item) {
         if(p==null || p.version!=2 || p.actor_id!=expectedActorId || String.IsNullOrEmpty(p.stream_id)
@@ -131,7 +147,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(p.kind=="SYNC" && !String.IsNullOrEmpty(p.sync_id) && p.sync_id.Length<=100) {
             bool newRun=p.stream_id!=StreamId;
             if(newRun && (String.IsNullOrEmpty(expectedStreamId) && now-lastLiveNs>500000000L)) {
-                Safe();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
+                Safe();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
             }
             if(p.stream_id!=StreamId) return;
             if(pairedPeer==null) pairedPeer=item.peer;
@@ -152,7 +168,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         else if(oneShot && p.event_id!=null && outcomes.ContainsKey(p.event_id)) status=outcomes[p.event_id];
         else if(p.sequence<=sequence) status="OLD_SEQUENCE";
         else if(oneShot) {
-            if(String.IsNullOrEmpty(p.event_id) || p.event_id.Length>200 || (p.side!="LEFT" && p.side!="RIGHT")) status="BAD_EVENT";
+            if(String.IsNullOrEmpty(p.event_id) || p.event_id.Length>200 || (p.side!="LEFT" && p.side!="RIGHT" && !(p.kind=="GESTURE" && p.gesture=="SPECIAL" && p.side=="BOTH"))) status="BAD_EVENT";
             else if(outcomes.Count>=10000) status="RESTART_REQUIRED";
             else {
                 sequence=p.sequence;lastLiveNs=now;
@@ -161,11 +177,21 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 Fighter fighter=player!=null ? player.GetComponent<Fighter>() : null;
                 if(action==null) status="BAD_GESTURE";
                 else if(action=="UNASSIGNED") status="UNASSIGNED";
+                else if(TutorialAction!=null && action=="SPECIAL") status="UNASSIGNED";
+                else if(TutorialAction!=null && (!tutorialInputValid || now>=deadline)) status="INPUT_LOCKED";
                 else if(TutorialAction!=null) {
                     TutorialAction.Invoke(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
                 }
                 else if(player==null || fighter==null) status="NO_PLAYER";
+                else if(Preparation!=null && !Preparation.AllowsPlayer) status="INPUT_LOCKED";
                 else if(!fighter.CanAttack || BlockActive) { status="GAME_BUSY";AttacksBusy++; }
+                else if(action=="SPECIAL") {
+                    var special=player.GetComponent<SpecialMove>();
+                    status=special==null ? "NO_SPECIAL" : !special.IsReady ? "NOT_CHARGED"
+                        : special.Activate() ? "APPLIED" : "GAME_BUSY";
+                    if(status=="APPLIED") AttacksApplied++;
+                    else if(status=="GAME_BUSY") AttacksBusy++;
+                }
                 else {
                     player.ExternalAction(action);
                     status=fighter.IsAttacking ? "APPLIED" : "GAME_BUSY";
@@ -179,10 +205,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         else {
             sequence=p.sequence;lastLiveNs=now;
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
+            Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*p.movement_strength;
-            guardInput.Observe(BlockActive);
             controlling=true;
-            string tutorialState=p.tracking=="VALID" ? (p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "UNAVAILABLE") : "UNAVAILABLE";
+            if(p.calibration_version==1 && p.calibrated && (p.tracking=="VALID" || p.tracking=="SYNTHETIC"))
+                RedboolFrameMetrics.NoteLiveInput();
+            // Release before processing any following one-shot in the same inbox batch.
+            ApplyVisionGuard();
+            // An attack candidate/return phase is still live camera input. It must
+            // not clear tutorial readiness before the following one-shot event.
+            tutorialInputValid=p.calibration_version==1 && p.calibrated && p.tracking=="VALID";
+            string tutorialState=!tutorialInputValid ? "UNAVAILABLE"
+                : p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "BUSY";
             TutorialAction?.Invoke(tutorialState,1f,p.movement,p.movement_strength);
             status=player!=null?"APPLIED":TutorialAction!=null?"TUTORIAL_APPLIED":"NO_PLAYER";
         }
@@ -190,39 +224,47 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         Reply(p,item,status,oneShot && status=="APPLIED");
     }
     private string ResolveAction(Packet p) {
-        if(p.kind=="ATTACK") return p.side=="LEFT" ? "JAB" : "STRAIGHT";
-        if(String.IsNullOrEmpty(p.gesture) || !p.gesture.StartsWith(p.side+"_", StringComparison.Ordinal)) return null;
-        switch(p.gesture) {
-            case "LEFT_PUNCH": return "JAB";
-            case "RIGHT_PUNCH": return "STRAIGHT";
-            case "LEFT_RAISE": return "HIGH_KICK";
-            case "RIGHT_RAISE": return "LOW_KICK";
-            default: return null;
-        }
+        return RedboolGestureMap.Resolve(p.kind,p.gesture,p.side);
     }
     private void Reply(Packet p,Received item,string status,bool attack) {
         Fighter fighter=player!=null ? player.GetComponent<Fighter>() : null;
         var ack=new Ack { stream_id=StreamId,status=status,event_id=p.event_id,sequence=p.sequence,
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
+            battle_preparing=Preparation!=null && Preparation.HoldRound,
+            special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
             game_can_act=fighter!=null && fighter.CanAct,game_guard_active=fighter!=null && fighter.IsGuarding,
-            guards_started=GuardsStarted };
+            guards_started=GuardsStarted,
+            game_attacking=fighter!=null && fighter.IsAttacking,
+            game_hit_stunned=fighter!=null && fighter.Health!=null && fighter.Health.IsHitStunned,
+            game_input_locked=fighter!=null && fighter.InputLocked,
+            game_preparation_locked=fighter!=null && fighter.VisionPreparationLocked,
+            game_guard_recovering=false, // hold-based guard has no failure delay
+            game_dead=fighter!=null && fighter.Health!=null && fighter.Health.IsDead,
+            game_health=fighter!=null && fighter.Health!=null ? fighter.Health.CurrentHealth : -1,
+            application_focused=Application.isFocused, game_frame_ms=Time.unscaledDeltaTime*1000f,
+            game_time_scale=Time.timeScale };
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
     private void Safe() {
+        if(player!=null) player.GetComponent<Fighter>()?.SetVisionGuard(false);
         if(controlling && player!=null) player.ClearExternalInput();
         if(controlling) TutorialAction?.Invoke("UNAVAILABLE",0f,"NEUTRAL",0f);
-        controlling=false;BlockActive=false;targetMove=currentMove=0;
-        guardInput.Reset();
+        controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
     }
     private void OnGUI() {
         if(!showStatus) return;
-        GUI.Box(new Rect(12,12,470,85),"REDBOOL VISION :"+port);
+        GUI.Box(new Rect(12,12,470,105),"REDBOOL VISION :"+port);
         GUI.Label(new Rect(22,35,450,25),Status+" | "+LastGesture+" | attacks "+AttacksApplied+" | busy "+AttacksBusy);
         GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
+        var special=player!=null ? player.GetComponent<SpecialMove>() : null;
+        if(special!=null) GUI.Label(new Rect(22,85,450,25),special.IsReady ? "SPECIAL READY: cross arms at chest for 0.7s" : "SPECIAL: charging");
     }
     private void OnDisable() {
+        Preparation?.ResetPreparation();
         Safe();running=false;udp?.Close();
+        RedboolDemoReceiver owner;
+        if(listeners.TryGetValue(port,out owner) && owner==this) listeners.Remove(port);
         if(worker!=null) worker.Join(300);
         Received discarded;while(inbox.TryDequeue(out discarded)) { }
         if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;

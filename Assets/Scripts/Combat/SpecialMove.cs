@@ -179,7 +179,7 @@ public class SpecialMove : MonoBehaviour
     {
         if (!IsReady || IsPlaying) return false;
         if (health.IsDead || health.IsHitStunned) return false;
-        if (fighter != null && fighter.InputLocked) return false;
+        if (fighter != null && (fighter.InputLocked || fighter.VisionPreparationLocked)) return false;
 
         charge = 0;
         OnChargeChanged?.Invoke(charge, hitsToCharge);

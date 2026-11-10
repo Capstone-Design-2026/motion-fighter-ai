@@ -44,6 +44,7 @@ public class BattleSceneBridge : MonoBehaviour
     private Fighter[] fighters;
     private Text bannerText;
 
+    private RedboolBattlePreparation visionPreparation;
     private bool resolved;
     private bool runMode;                 // 지도를 거쳐 들어온 전투인가
     private float defaultFixedDelta;
@@ -55,12 +56,14 @@ public class BattleSceneBridge : MonoBehaviour
         defaultFixedDelta = Time.fixedDeltaTime;
         RemainingSeconds = Mathf.Max(1f, roundDuration);
 
-        runMode = Run != null && Run.HasPendingBattle;
+        runMode = !RedboolDuelTest.Active && Run != null && Run.HasPendingBattle;
         if (runMode) ApplyStage();
     }
 
     void Start()
     {
+        foreach (var gate in FindObjectsByType<RedboolBattlePreparation>(FindObjectsSortMode.None))
+            if (gate.gameObject.scene == gameObject.scene) { visionPreparation = gate; break; }
         var player = FindAnyObjectByType<PlayerController>();
         if (player != null) playerHealth = player.GetComponent<Health>();
 
@@ -94,6 +97,7 @@ public class BattleSceneBridge : MonoBehaviour
     void Update()
     {
         if (resolved || playerHealth == null || enemyHealth == null) return;
+        if (visionPreparation != null && visionPreparation.HoldRound) return;
         if (playerHealth.IsDead || enemyHealth.IsDead) return;
 
         // 게임 시간 기준: 일시정지/필살기 정지 중에는 제한 시간도 멈춘다.

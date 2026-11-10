@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
@@ -68,6 +68,7 @@ public class StartSceneUI : MonoBehaviour
         float y=5;
         MakeButton("NewGameButton","새 게임",ref y,OnNewGame);
         continueButton=MakeButton("ContinueButton","이어하기",ref y,OnContinue);
+        MakeButton("DuelTestButton","바로 결투 · 테스트",ref y,RedboolDuelTest.Begin);
         MakeButton("QuitButton","게임 종료",ref y,OnQuit);
 
         messageText=WuxiaTheme.Text("Message",canvas.transform,"",24,TextAnchor.MiddleLeft,WuxiaTheme.Paper);
@@ -119,7 +120,13 @@ public class StartSceneUI : MonoBehaviour
     private void OnContinue()
     {
         if (RunState.Instance == null) return;
-        if (RunState.Instance.LoadRun()) SceneRoutes.LoadMap();
+        if (RunState.Instance.LoadRun())
+        {
+            // A saved in-progress battle must resume that scene. Returning to
+            // the map with pendingNodeId still set prevents selecting any node.
+            if (RunState.Instance.HasPendingBattle) SceneRoutes.LoadBattle();
+            else SceneRoutes.LoadMap();
+        }
         else RefreshContinue();
     }
 
