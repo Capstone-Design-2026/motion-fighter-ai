@@ -43,7 +43,7 @@ public static class RedboolTutorialPlayCheck
  static void Subscribe(){EditorApplication.update-=Tick;EditorApplication.update+=Tick;}
  static void Tick(){
   if(EditorApplication.timeSinceStartup-SessionState.GetFloat(Active+".Start",0)>150){Finish("Timeout");return;}
-  if(!Application.isPlaying||EditorApplication.isCompiling)return;
+  if(!Application.isPlaying||EditorApplication.isCompiling)return; EditorApplication.isPaused = false; // batch: ignore Error Pause from unrelated editor errors
   EditorApplication.QueuePlayerLoopUpdate();if(lastFrame==Time.frameCount)return;lastFrame=Time.frameCount;
   try{if(flow==null)flow=Tests();if(!flow.MoveNext())Finish(null);}catch(Exception e){Finish(e.ToString());}
  }

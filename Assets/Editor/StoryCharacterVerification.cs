@@ -127,7 +127,7 @@ public static class StoryCharacterVerification
                 if(low)playerF.DeclareIntent(CombatMove.LowKick);
                 Check(enemyF.TryGuard(low),key+" "+state+" cast");
                 for(var w=Wait(.5f);w.MoveNext();)yield return null;Check(view.CurrentState==state+"_HOLD",key+" "+state+" holds");Pose(state);
-                eh.TakeDamage(1,Vector2.zero,true);yield return null;Check(view.CurrentState==state+"_HIT",key+" "+state+" reacts");
+                eh.TakeDamage(1,Vector2.zero,true);eh.ClearStun();yield return null;Check(view.CurrentState==state+"_HIT",key+" "+state+" reacts"); // 실제 방어 경로(Fighter.ResolveHit/ResolveContact)처럼 막힌 쪽 경직을 바로 지운다
                 Check(enemyF.IsGuarding,key+" "+state+" stays up after the block while held");enemyF.ReleaseGuard();
                 float guardUntil=Time.time+2.5f;while(Time.time<guardUntil&&view.CurrentState!="IDLE")yield return null;
                 Check(view.CurrentState=="IDLE"&&!enemyF.IsGuarding,key+" "+state+" ends on release and returns to idle");

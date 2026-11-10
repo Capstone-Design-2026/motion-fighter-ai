@@ -34,6 +34,8 @@ public static class RedboolHeldGuardPlayCheck
     {
         if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Active + ".Start", 0) > 120) { Finish("Timeout"); return; }
         if (!Application.isPlaying || EditorApplication.isCompiling) return;
+        // An unrelated editor error (e.g. a plugin login failure) can trigger Error Pause in batch mode.
+        EditorApplication.isPaused = false;
         EditorApplication.QueuePlayerLoopUpdate();
         if (lastFrame == Time.frameCount) return;
         lastFrame = Time.frameCount;

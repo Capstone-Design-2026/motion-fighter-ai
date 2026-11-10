@@ -33,7 +33,7 @@ public static class RedboolMotionPlayCheck
     static void Tick()
     {
         if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Active + ".Start", 0) > 120) { Finish("Timeout"); return; }
-        if (!Application.isPlaying || EditorApplication.isCompiling) return;
+        if (!Application.isPlaying || EditorApplication.isCompiling) return; EditorApplication.isPaused = false; // batch: ignore Error Pause from unrelated editor errors
         EditorApplication.QueuePlayerLoopUpdate();
         if (lastFrame == Time.frameCount) return;
         lastFrame = Time.frameCount;

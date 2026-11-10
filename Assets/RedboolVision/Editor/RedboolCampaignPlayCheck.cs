@@ -37,6 +37,7 @@ public static class RedboolCampaignPlayCheck
     {
         if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Active + ".Start", 0) > 360) { Finish("Timeout"); return; }
         if (!Application.isPlaying) return;
+        EditorApplication.isPaused = false; // batch: ignore Error Pause from unrelated editor errors
         EditorApplication.QueuePlayerLoopUpdate();
         if (lastFrame == Time.frameCount) return;
         lastFrame = Time.frameCount;
