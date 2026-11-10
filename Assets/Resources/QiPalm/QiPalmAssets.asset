@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf537947bf4317643abe021e149bf82a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::QiPalmAssets
+  charge: {fileID: 3377315202651165862, guid: 2e79391a9e7395c498d0a0c826af33ba, type: 3}
+  wave: {fileID: 4897352538129881993, guid: 8274b03eb9a60014daf539fdc981ed68, type: 3}
+  impact: {fileID: 8059238130203484890, guid: cefef631bde6f224fa58a28865d4f0aa, type: 3}
+  muzzle: {fileID: 50506407561730338, guid: cf5021f414a12604cbe41448e6152294, type: 3}
+  ready: {fileID: 3886202087563183725, guid: f79de34b7dd04c645b71598a9142419e, type: 3}
+  brush: {fileID: 2800000, guid: bea53077570018c41be0793ad5f4e720, type: 3}
+  glow: {fileID: 2800000, guid: 0cd902a75feb19547acca8ba6727f4b6, type: 3}
+  chargeStart: {fileID: 8300000, guid: b3fd35965cfd03046aa4a90253cef626, type: 3}
+  chargeLoop: {fileID: 8300000, guid: faf22d968f0f99b4ba83a6928bd675d6, type: 3}
+  release: {fileID: 8300000, guid: 9f1919b3e29204d41a1f2f44550a1f3c, type: 3}
+  impactClip: {fileID: 8300000, guid: f74d27808f0e37944bef772b92de839a, type: 3}
+  readyClip: {fileID: 8300000, guid: 5d36ecd1a0be7b646be4ed607c02b901, type: 3}
+  fizzle: {fileID: 8300000, guid: 239b9ff5c24313748af889492debdff7, type: 3}

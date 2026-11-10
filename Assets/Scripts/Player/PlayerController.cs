@@ -358,6 +358,22 @@ public class PlayerController : MonoBehaviour
                 ApplyGuardInput();
                 break;
 
+            // 파운장. 인식은 기 모으는 자세를 패킷마다 SPECIAL_CHARGE 로, 양손 밀기를 SPECIAL_RELEASE 로 보낸다.
+            // SPECIAL 은 한 번짜리 입력(최소 시간만 모으고 바로 발사).
+            case "SPECIAL_CHARGE":
+            {
+                var special = GetComponent<SpecialMove>();
+                // 방어 중이면 BeginCharge 가 방어를 풀고 시작한다(공격과 같은 규칙).
+                if (special != null && !special.IsPlaying) special.BeginCharge();
+                break;
+            }
+            case "SPECIAL_RELEASE":
+                GetComponent<SpecialMove>()?.Release();
+                break;
+            case "SPECIAL":
+                GetComponent<SpecialMove>()?.Activate();
+                break;
+
             case "IDLE":
             case "NONE":
                 isCrouching = false;

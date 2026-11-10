@@ -50,6 +50,11 @@ public class EnemyAI : MonoBehaviour
            + "그동안 제자리에 멈춰 있어 플레이어가 막거나 피할 틈이 생긴다. 0 이면 바로 공격한다. 반격과 후딜 공략에는 적용하지 않는다.")]
     [Min(0f)]
     [SerializeField] private float attackDelay = 0.3f;
+    [Tooltip("플레이어가 파운장 기를 모으는 것을 보고 방어를 시도할 확률. 방어는 시간제라 너무 오래 모으면 풀린다.")]
+    [Range(0f, 1f)] [SerializeField] private float specialGuardChance = 0.5f;
+    private SpecialMove targetSpecial;
+    private bool specialSeen;
+    private float specialGuardAt = -1f;
 
     [Header("반격 위주")]
     [Tooltip("상대 공격 신호를 보고 방어를 시작하기까지의 평균 시간(초). 매번 이 값의 0.5~1.5배로 흔들린다.")]
@@ -213,6 +218,7 @@ public class EnemyAI : MonoBehaviour
         if (target == null) return;
 
         FaceTarget();
+        ReactToSpecial();
 
         float distance = Mathf.Abs(target.position.x - transform.position.x);
 
@@ -228,6 +234,27 @@ public class EnemyAI : MonoBehaviour
         {
             CancelPendingAttack();
             StartAttack();
+        }
+    }
+
+    /// <summary>
+    /// 플레이어가 파운장 기를 모으기 시작하면 한 번 판단한다. 확률에 걸리면 반응 시간 뒤 방어를 시작한다.
+    /// AI 방어는 guardHoldTime 뒤에 스스로 풀리므로, 플레이어가 오래 모으면 방어가 먼저 풀릴 수 있다(심리전).
+    /// </summary>
+    private void ReactToSpecial()
+    {
+        if (targetSpecial == null && target != null) targetSpecial = target.GetComponent<SpecialMove>();
+        if (targetSpecial == null || !targetSpecial.IsCharging) { specialSeen = false; specialGuardAt = -1f; return; }
+        if (!specialSeen)
+        {
+            specialSeen = true;
+            specialGuardAt = Random.value < specialGuardChance ? Time.time + Random.Range(0.25f, 0.6f) : -1f;
+            if (specialGuardAt > 0f) CancelPendingAttack();
+        }
+        if (specialGuardAt > 0f && Time.time >= specialGuardAt && fighter.CanAttack)
+        {
+            StartGuard();
+            specialGuardAt = -1f;
         }
     }
 

@@ -301,8 +301,8 @@ public class CombatHUD : MonoBehaviour
         bar.gauge.fillColor = ready ? gaugeReadyColor : gaugeFillColor;
         bar.gauge.SetValues(max > 0 ? (float)current/max : 0, 0, ready);
         bar.gaugeLabel.text = ready
-            ? "필살기 준비  [" + bar.resource.ActivateKey + "]"
-            : "필살기  " + current + " / " + max;
+            ? "파운장 준비  [" + bar.resource.ActivateKey + " 길게]"
+            : "파운장  " + current + " / " + max;
         bar.gaugeLabel.color = ready ? new Color(.66f,.93f,1f) : new Color(.83f,.88f,.88f);
     }
 
@@ -398,8 +398,8 @@ public class CombatHUD : MonoBehaviour
                 AddGuideRow(i++, player.highKickKey + " / " + player.lowKickKey, "하이킥 / 로우킥");
             }
             if (special != null)
-                AddGuideRow(i++, special.ActivateKey.ToString(),
-                            "필살기 · " + special.HitsToCharge + "번 맞으면 사용 가능 · " + special.Damage + " 피해");
+                AddGuideRow(i++, special.ActivateKey + " 누르고 떼기",
+                            "파운장 · 기를 모았다가 발사 · " + special.HitsToCharge + "번 맞으면 충전 · " + special.Damage + " 피해");
         }
         else
         {
@@ -408,7 +408,7 @@ public class CombatHUD : MonoBehaviour
 
         // 게이지 채우기는 useKeyboard 와 무관하게 먹으므로 키보드 분기 밖에 둔다.
         if (special != null && special.ChargeKey != KeyCode.None)
-            AddGuideRow(i++, special.ChargeKey.ToString(), "필살기 게이지 채우기 (테스트용)");
+            AddGuideRow(i++, special.ChargeKey.ToString(), "파운장 게이지 채우기 (테스트용)");
 
         if (allowRestart)
             AddGuideRow(i++, restartKey.ToString(), "전투 종료 후 다시 시작");

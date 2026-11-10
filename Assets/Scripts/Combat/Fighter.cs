@@ -135,10 +135,26 @@ public class Fighter : MonoBehaviour
     }
 
     public Health Health { get; private set; }
-    /// <summary>사망·경직·연출·카메라 준비로 막혀 있지 않은지. 공격 중인지는 따로 본다(IsAttacking, CanAttack).</summary>
-    public bool CanAct => !Health.IsDead && !InputLocked && !VisionPreparationLocked && !Health.IsHitStunned;
+    /// <summary>사망·경직·연출·카메라 준비·필살기로 막혀 있지 않은지. 공격 중인지는 따로 본다(IsAttacking, CanAttack).</summary>
+    public bool CanAct => !Health.IsDead && !InputLocked && !VisionPreparationLocked && !Health.IsHitStunned && !IsSpecialActive;
     /// <summary>공격이나 방어를 새로 시작할 수 있는지. 진행 중인 공격은 다른 동작으로 끊을 수 없다.</summary>
     public bool CanAttack => CanAct && !IsAttacking;
+
+    /// <summary>필살기(SpecialMove)가 진행 중인지. 그동안은 이동·공격·방어가 나가지 않는다.</summary>
+    public bool IsSpecialActive { get; private set; }
+
+    /// <summary>필살기 시작. 공격처럼 진행 중인 공격은 끊지 못하고, 방어는 풀고 시작한다.</summary>
+    public bool BeginSpecial()
+    {
+        if (!CanAttack) return false;
+        if (guarding) EndGuard();
+        IsSpecialActive = true;
+        ClearIntent();
+        return true;
+    }
+
+    /// <summary>필살기 끝. 잠금을 푼다.</summary>
+    public void EndSpecial() { IsSpecialActive = false; }
 
     public float Windup => windup;
     public float Recovery => recovery;
