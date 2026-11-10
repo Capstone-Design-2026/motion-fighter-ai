@@ -85,6 +85,12 @@ public sealed class Fighter3DView : MonoBehaviour
         reactionUntil = 0f;
         Play(Attacks[(int)move], true);
     }
+    /// <summary>필살기 상태(SPECIAL_CHARGE / SPECIAL_RELEASE). SpecialMove 가 진행 단계에 맞춰 부른다.</summary>
+    public void PlaySpecial(string state)
+    {
+        reactionUntil = 0f;
+        Play(state, true);
+    }
     // The defender's selected posture determines the guard; there are only two guards.
     public void GuardAgainst(CombatMove move) { }
     void OnDamaged(bool guarded)
@@ -109,7 +115,8 @@ public sealed class Fighter3DView : MonoBehaviour
     {
         if (!restart && state == currentState) return;
         float blend = state == "HURT" || state.EndsWith("_HIT") ? .035f
-            : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .16f : .06f;
+            : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .16f
+            : state == QiPalmTiming.ChargeState ? .1f : .06f;
         currentState = state; stateStarted = Time.time;
         // Never freeze the animator: held guards have dedicated looping pose clips,
         // so fades can finish and a subsequent action cannot stick in a T-pose.
@@ -142,6 +149,7 @@ public sealed class Fighter3DView : MonoBehaviour
         }
         if (health.IsDead) Play("KO");
         else if (Time.time < reactionUntil || health.IsHitStunned) { }
+        else if (fighter.IsSpecialActive) { }   // SpecialMove drives SPECIAL_* states through PlaySpecial
         else if (!fighter.IsAttacking)
         {
             if (fighter.IsBlocking && !fighter.InputLocked) Guard(fighter.IsCrouching);

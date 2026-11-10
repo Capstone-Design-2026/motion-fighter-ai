@@ -3,170 +3,176 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 필살기. 맞을 때마다 게이지가 차고, 다 차면 한 번 쓸 수 있다.
+/// 필살기 파운장(破雲掌). 맞을 때마다 게이지가 차고, 다 차면 기를 모았다가 양 손바닥으로 기파를 밀어낸다.
 ///
-/// 연출은 두 가지가 같이 간다.
-///   시간  : 화면 전체를 늦춘다. duration(실제 시간) 동안 지속되고 마지막 구간에서 정속으로 돌아온다.
-///   컷인  : 캐릭터의 idle 스프라이트를 크게 키워 자기 진영 화면 끝에서 반대편 끝으로 흘려보낸다.
-///           왼쪽 진영이면 왼쪽 끝에서 나타나 오른쪽으로, 오른쪽 진영이면 그 반대로 빠진다.
+/// 흐름
+///   발동  : 짧은 슬로우와 컷인(破雲掌), 화면 줌·블룸.
+///   모으기: 활성 키를 누르고 있는 동안(최소 minCharge, 최대 maxCharge). 오래 모으면 피해가 조금 늘어난다.
+///           이때 맞으면 끊기고 게이지 일부를 돌려받는다. 적 AI 는 이 자세를 보고 방어를 시도할 수 있다.
+///   발사  : SPECIAL_RELEASE 의 ReleaseImpact 시점에 기파(QiWave)가 손을 떠난다.
+///   적중  : 정타는 큰 피해·넉백, 방어는 "기 관통"으로 일부 피해만 들어가고 방어가 풀린다. 빗나가면 짧은 무방비.
 ///
-/// 전용 스프라이트가 없으므로 시작 프레임의 idle 스프라이트를 그대로 재활용한다.
-/// 따로 쓰고 싶은 그림이 생기면 cutInSprite 에 넣으면 그쪽이 우선한다.
+/// 입력: 키보드 activateKey(누르고 있다가 떼기), 웹캠 SPECIAL_CHARGE / SPECIAL_RELEASE / SPECIAL(즉시 발사).
 ///
-/// timeScale 소유권:
-/// 타격 히트스톱(HitImpact)과 K.O. 슬로우모션(BattleSceneBridge)도 같은 값을 건드린다.
-/// 발동할 때 HitImpact 의 시간 연출을 먼저 정리하고, 도중에 K.O. 가 나서 조작이 잠기면
-/// (BattleSceneBridge 가 timeScale 을 가져간 것이므로) 여기서는 손을 뗀다.
+/// timeScale 소유권: 발동 슬로우 동안만 timeScale 을 쥔다. 도중에 K.O. 가 나서 조작이 잠기면
+/// BattleSceneBridge 가 timeScale 주인이므로 여기서는 손을 뗀다. 타격 히트스톱(HitImpact)은 발동 시 먼저 정리한다.
 /// </summary>
 [RequireComponent(typeof(Health))]
 [RequireComponent(typeof(Fighter))]
 [DisallowMultipleComponent]
 public class SpecialMove : MonoBehaviour
 {
+    public enum Phase { Idle, CutIn, Charging, Releasing, Recovering }
+    public enum Result { None, Hit, Blocked, Whiffed, Broken }
+
     [Header("게이지")]
-    [Tooltip("이만큼 맞으면 1회 사용할 수 있다. 가드로 막고 입은 대미지도 똑같이 한 번으로 친다.")]
+    [Tooltip("이만큼 맞으면 1회 사용할 수 있다. 가드로 막은 타격도 한 번으로 친다.")]
     [SerializeField] private int hitsToCharge = 5;
 
     [Header("피해량")]
-    [Tooltip("발동하면 상대 체력이 이만큼 깎인다. 판정도 모션도 없이 그냥 들어간다.")]
+    [Tooltip("기파 정타 피해. 끝까지 모으면 fullChargeBonus 만큼 늘어난다.")]
     [SerializeField] private int damage = 30;
+    [Tooltip("방어로 막았을 때 들어가는 비율(기 관통).")]
+    [Range(0f, 1f)] [SerializeField] private float guardDamageRatio = .25f;
+    [Range(0f, 1f)] [SerializeField] private float fullChargeBonus = .2f;
+
+    [Header("기 모으기 (초)")]
+    [SerializeField] private float minCharge = .35f;
+    [SerializeField] private float maxCharge = 2f;
+    [SerializeField] private float fullChargeTime = 1.5f;
+    [Tooltip("모으는 중에 맞아 끊기면 돌려받는 게이지 비율.")]
+    [Range(0f, 1f)] [SerializeField] private float refundRatio = .5f;
+
+    [Header("기파")]
+    [SerializeField] private float waveSpeed = 12f;
+    [SerializeField] private float waveRange = 6.5f;
+    [SerializeField] private Vector2 knockback = new Vector2(6.5f, 1.4f);
+    [Tooltip("정타 시 맞은 쪽 경직에 더하는 시간.")]
+    [SerializeField] private float hitExtraStun = .35f;
+    [Tooltip("빗나갔을 때 쓴 쪽 무방비 시간.")]
+    [SerializeField] private float whiffOpen = .4f;
+
+    [Header("발동 연출")]
+    [Range(0f, 1f)] [SerializeField] private float cutInSlowScale = .06f;
+    [SerializeField] private float cutInDuration = .32f;
+    [Range(.5f, 1f)] [SerializeField] private float chargeZoom = .86f;
 
     [Header("게이지 채우기 (테스트용)")]
-    [Tooltip("맞지 않고도 게이지를 채우는 키. 필살기 연출만 확인하고 싶을 때 쓴다. None 이면 꺼진다.")]
+    [Tooltip("맞지 않고도 게이지를 채우는 키. None 이면 꺼진다.")]
     [SerializeField] private KeyCode chargeKey = KeyCode.I;
-    [Tooltip("한 번 누를 때 차는 칸 수. hitsToCharge 이상으로 두면 한 번에 만충된다.")]
     [SerializeField] private int chargeKeyAmount = 1;
 
     [Header("발동 키")]
-    [Tooltip("공격(P) 옆에 두는 편이 손이 편하다. PlayerController 의 useKeyboard 가 꺼져 있으면 무시된다.")]
+    [Tooltip("누르고 있으면 기를 모으고, 떼면 발사한다. PlayerController 의 useKeyboard 가 꺼져 있으면 무시된다.")]
     [SerializeField] private KeyCode activateKey = KeyCode.O;
-
-    [Header("컷인 (자기 진영 끝에서 나타나 반대편 끝으로 흘러간다)")]
-    [Tooltip("비워두면 시작할 때 서 있는 스프라이트를 그대로 쓴다.")]
-    [SerializeField] private Sprite cutInSprite;
-    [SerializeField] private float cutInScale = 2.8f;
-    [Tooltip("캐릭터 발밑 기준 높이.")]
-    [SerializeField] private float cutInHeight = 1.8f;
-    [Tooltip("가로 이동 속도 배분. 가로축이 연출 진행도(0~1), 세로축이 이동 진행도(0~1)다. "
-           + "기본값은 앞 60% 시간 동안 화면의 25%만 가고, 남은 40% 시간에 나머지를 지나간다.")]
-    [SerializeField] private AnimationCurve sweepCurve = new AnimationCurve(
-        new Keyframe(0f,   0f,   SlowSlope, SlowSlope),
-        new Keyframe(0.6f, 0.25f, SlowSlope, FastSlope),
-        new Keyframe(1f,   1f,   FastSlope, FastSlope));
-    [SerializeField] private float fadeInTime = 0.15f;
-    [SerializeField] private float fadeOutTime = 0.3f;
-
-    [Header("시간 정지 (실제 시간 기준, 초)")]
-    [Tooltip("연출 동안의 게임 속도. 0 이면 완전히 멈춘다. 컷인은 실제 시간으로 움직이므로 멈춰도 흘러간다.")]
-    [Range(0f, 1f)]
-    [SerializeField] private float slowScale = 0f;
-    [Tooltip("연출 전체 길이. 이 안에 복귀 구간이 포함된다.")]
-    [SerializeField] private float duration = 1f;
-    [Tooltip("정속으로 돌아오는 마지막 구간. 0 이면 뚝 끊긴다.")]
-    [SerializeField] private float recoverTime = 0.3f;
-
-    [Header("카메라 확대")]
-    [Tooltip("마무리 일격(HitImpact 의 zoomRatio)보다 1 에 가깝게 두어야 덜 확대된다. 현재 씬 기준 마무리는 0.5.")]
-    [Range(0.5f, 1f)]
-    [SerializeField] private float zoomRatio = 0.75f;
-    [SerializeField] private float zoomInTime = 0.2f;
-    [SerializeField] private float zoomOutTime = 0.35f;
 
     /// <summary>(현재 게이지, 만충 수치)</summary>
     public event Action<int, int> OnChargeChanged;
 
-    public int Charge { get { return charge; } }
-    public int HitsToCharge { get { return hitsToCharge; } }
-    public bool IsReady { get { return charge >= hitsToCharge; } }
-    public bool IsPlaying { get { return routine != null; } }
-    public KeyCode ActivateKey { get { return activateKey; } }
-    public KeyCode ChargeKey { get { return chargeKey; } }
-    public int Damage { get { return damage; } }
+    public int Charge => charge;
+    public int HitsToCharge => hitsToCharge;
+    public bool IsReady => charge >= hitsToCharge;
+    public bool IsPlaying => phase != Phase.Idle;
+    /// <summary>발동 컷인 또는 기를 모으는 중(아직 기파가 나가지 않았고, 맞으면 끊긴다).</summary>
+    public bool IsCharging => phase == Phase.CutIn || phase == Phase.Charging;
+    public Phase CurrentPhase => phase;
+    public Result LastResult { get; private set; }
+    public int LastDamage { get; private set; }
+    public QiWave LastWave { get; private set; }
+    public KeyCode ActivateKey => activateKey;
+    public KeyCode ChargeKey => chargeKey;
+    public int Damage => damage;
+    public float MinCharge => minCharge;
+    public float MaxCharge => maxCharge;
 
     private Health health;
     private Fighter fighter;
     private PlayerController controller;
-    private SpriteRenderer spriteRenderer;
+    private Fighter3DView view;
+    private QiPalmAssets assets;
+    private AudioSource voice, loop;
 
-    private int charge;
-    private Sprite capturedIdle;
-    private bool idleCaptured;
+    private int charge, spent;
+    private Phase phase;
     private Coroutine routine;
-    private float defaultFixedDelta = 0.02f;
-
-    // sweepCurve 기본값의 두 구간 기울기(= 이동 속도).
-    // 접선을 구간 기울기와 같게 두면 각 구간이 정확히 등속이 되고, 0.6 지점에서 딱 빨라진다.
-    private const float SlowSlope = 0.25f / 0.6f;   // 앞 구간: 시간 60% 에 거리 25%
-    private const float FastSlope = 0.75f / 0.4f;   // 뒷 구간: 시간 40% 에 거리 75%
-
-    /// <summary>fixedDeltaTime 에 넣을 수 있는 하한. 이보다 작으면 Unity 가 받아주지 않는다.</summary>
-    private const float MinFixedDelta = 0.001f;
+    private bool releaseRequested, interrupted, waveLaunched, ownsTime;
+    private float level;
+    private QiChargeFx chargeFx;
+    private GameObject readyLeft, readyRight;
+    private float defaultFixedDelta = .02f;
+    private const float MinFixedDelta = .001f;
 
     void Awake()
     {
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
         controller = GetComponent<PlayerController>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        view = GetComponent<Fighter3DView>();
+        assets = QiPalmAssets.Load();
         defaultFixedDelta = Time.fixedDeltaTime;
+        voice = gameObject.AddComponent<AudioSource>(); voice.playOnAwake = false; voice.spatialBlend = 0f;
+        loop = gameObject.AddComponent<AudioSource>(); loop.playOnAwake = false; loop.spatialBlend = 0f; loop.loop = true;
     }
 
     void OnEnable()
     {
         health.OnDamaged += OnDamaged;
-        // HUD 가 늦게 구독해도 현재 값을 받도록 한 번 알린다.
         OnChargeChanged?.Invoke(charge, hitsToCharge);
     }
 
     void OnDisable()
     {
         health.OnDamaged -= OnDamaged;
+        if (routine != null) { StopCoroutine(routine); routine = null; Cleanup(!fighter.InputLocked); }
+        ClearReadyFx();
+    }
 
-        // 연출 도중에 씬이 넘어가면 시간이 느려진 채로 남는다. 반드시 원복.
-        if (routine != null)
+    void Update()
+    {
+        // 게이지 채우기는 연출 확인용 단축키. 웹캠 테스트 중에도 쓰므로 useKeyboard 와 상관없이 받는다.
+        if (chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
+
+        if (controller == null || controller.useKeyboard)
         {
-            StopCoroutine(routine);
-            routine = null;
-            RestoreTime();
+            if (Input.GetKeyDown(activateKey))
+            {
+                // 방어 중에는 바로 나가지 않는다. 방어에 성공하면 그때 기를 모으기 시작한다.
+                if (fighter.IsGuarding) fighter.BufferAction(() => BeginCharge());
+                else BeginCharge();
+            }
+            if (Input.GetKeyUp(activateKey)) Release();
         }
     }
 
     void LateUpdate()
     {
-        // 애니메이터가 스프라이트를 넣어준 뒤에야 읽을 수 있다.
-        // 첫 프레임의 캐릭터는 서 있는 상태이므로 이때 잡으면 idle 이 잡힌다.
-        if (!idleCaptured && spriteRenderer != null && spriteRenderer.sprite != null)
+        bool wantReady = IsReady && !IsPlaying && !health.IsDead && view != null && view.modelAnimator != null && view.modelAnimator.isHuman && assets != null && assets.ready != null;
+        if (wantReady && readyLeft == null)
         {
-            capturedIdle = spriteRenderer.sprite;
-            idleCaptured = true;
+            readyLeft = Instantiate(assets.ready, view.modelAnimator.GetBoneTransform(HumanBodyBones.LeftHand), false);
+            readyRight = Instantiate(assets.ready, view.modelAnimator.GetBoneTransform(HumanBodyBones.RightHand), false);
         }
+        else if (!wantReady) ClearReadyFx();
     }
 
-    void Update()
+    void ClearReadyFx()
     {
-        // 게이지 채우기는 연출 확인용 단축키다.
-        // 웹캠 인식으로 테스트하는 중에도 눌러야 하므로 useKeyboard 와 상관없이 항상 받는다.
-        if (chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey))
-            AddCharge(chargeKeyAmount);
-
-        if (controller != null && !controller.useKeyboard) return;
-        if (Input.GetKeyDown(activateKey))
-        {
-            // 방어 중에는 바로 나가지 않는다. 방어에 성공하면 그때 나간다.
-            if (fighter != null && fighter.IsGuarding) fighter.BufferAction(() => Activate());
-            else Activate();
-        }
+        if (readyLeft) Destroy(readyLeft);
+        if (readyRight) Destroy(readyRight);
+        readyLeft = readyRight = null;
     }
 
-    /// <summary>게이지를 한 칸 채운다.</summary>
+    /// <summary>게이지를 채운다. 가득 차는 순간 알림음이 난다.</summary>
     public void AddCharge(int amount = 1)
     {
         if (amount <= 0 || charge >= hitsToCharge) return;
-
         charge = Mathf.Min(hitsToCharge, charge + amount);
         OnChargeChanged?.Invoke(charge, hitsToCharge);
-
-        if (IsReady) Debug.Log($"[SpecialMove] {name} 필살기 준비 완료 ({activateKey} 키)");
+        if (IsReady)
+        {
+            PlayVoice(assets ? assets.readyClip : null, .7f);
+            Debug.Log($"[SpecialMove] {name} 파운장 준비 완료 ({activateKey} 키를 누르고 있다가 떼기)");
+        }
     }
 
     /// <summary>라운드가 다시 시작될 때 게이지를 비운다.</summary>
@@ -176,220 +182,216 @@ public class SpecialMove : MonoBehaviour
         OnChargeChanged?.Invoke(charge, hitsToCharge);
     }
 
-    /// <summary>
-    /// 필살기 발동. 게이지가 안 찼거나 이미 연출 중이면 아무 일도 일어나지 않는다.
-    /// 웹캠 인식에서 부를 수 있도록 public 으로 열어 둔다.
-    /// </summary>
-    public bool Activate()
+    /// <summary>기 모으기 시작. 게이지가 차 있고 지금 다른 동작을 하고 있지 않을 때만.</summary>
+    public bool BeginCharge()
     {
         if (!IsReady || IsPlaying) return false;
-        if (health.IsDead || health.IsHitStunned) return false;
-        if (fighter != null && fighter.InputLocked) return false;
-        if (fighter != null && (fighter.IsGuarding || fighter.IsGuardRecovering)) return false;
+        if (health.IsDead || health.IsHitStunned || fighter.InputLocked) return false;
+        if (fighter.IsGuarding || fighter.IsGuardRecovering) return false;
+        if (!fighter.BeginSpecial()) return false;
 
+        spent = charge;
         charge = 0;
         OnChargeChanged?.Invoke(charge, hitsToCharge);
-
+        releaseRequested = interrupted = waveLaunched = false;
+        level = 0f;
+        LastResult = Result.None; LastWave = null; LastDamage = 0;
         routine = StartCoroutine(Routine());
         return true;
     }
 
-    private void OnDamaged(bool guarded)
+    /// <summary>모은 기를 발사한다. 최소 시간 전이면 그 시간이 되는 순간 나간다.</summary>
+    public bool Release()
     {
-        AddCharge();
+        if (!IsCharging) return false;
+        releaseRequested = true;
+        return true;
     }
 
-    /// <summary>
-    /// 발동 즉시 상대 체력을 깎는다. 판정 박스도 모션도 없이 확정으로 들어간다.
-    ///
-    /// 무적시간을 무시하는 이유:
-    /// 직전에 한 대 맞았다는 이유로 필살기가 씹히면 게이지를 쓴 보람이 없다.
-    /// 가드도 보지 않는다 — 막아도 그대로 들어간다.
-    /// </summary>
-    private void ApplyDamage()
+    /// <summary>즉시 발사(최소 시간만 모은다). 웹캠의 한 번짜리 SPECIAL 입력과 예전 호출부가 쓴다.</summary>
+    public bool Activate()
     {
-        if (damage <= 0) return;
-
-        var target = FindOpponent();
-        if (target == null)
-        {
-            Debug.LogWarning($"[SpecialMove] {name} 때릴 상대를 찾지 못했습니다.");
-            return;
-        }
-
-        bool damaged = target.TakeDamage(damage, Vector2.zero, false, true);
-        Debug.Log($"[SpecialMove] {name} 필살기 → {target.DisplayName} 에게 {damage}");
-
-        // 필살기 한 방에 쓰러졌으면 일반 공격의 마무리 일격과 같은 소리를 낸다.
-        // 쓰러뜨리지 못한 필살기에는 타격음을 넣지 않는다.
-        if (damaged && target.IsDead)
-            CombatSfx.PlayHit(false, true);
+        if (!BeginCharge()) return false;
+        releaseRequested = true;
+        return true;
     }
 
-    /// <summary>
-    /// 씬에서 자기 말고 살아 있는 Health 하나.
-    /// 스테이지마다 적 프리팹이 교체되므로(BattleSceneBridge.ApplyStage) 미리 캐싱하지 않는다.
-    /// </summary>
-    private Health FindOpponent()
+    void OnDamaged(bool guarded)
     {
-        foreach (var h in FindObjectsByType<Health>(FindObjectsInactive.Exclude))
-            if (h != health && !h.IsDead) return h;
-
-        return null;
+        if (IsCharging || (phase == Phase.Releasing && !waveLaunched)) interrupted = true;
+        else if (!IsPlaying) AddCharge();
     }
 
-    private IEnumerator Routine()
+    // ─────────────────────── 진행 ───────────────────────
+
+    IEnumerator Routine()
     {
-        // 타격 히트스톱이 돌고 있으면 정리한다. 둘이 겹치면 서로를 덮어써서 연출이 끊긴다.
+        phase = Phase.CutIn;
         HitImpact.ReleaseTimeControl();
-
-        ApplyDamage();
-
-        var cutIn = SpawnCutIn();
-
-        float total = Mathf.Max(0.05f, duration);
-        float recover = Mathf.Clamp(recoverTime, 0f, total);
-        float hold = total - recover;
-
-        // 카메라 확대는 HitImpact 에 맡긴다. timeScale 과 달리 확대는 주인이 하나뿐이라
-        // 마무리 일격 연출과 같은 코드를 배율만 바꿔서 그대로 쓸 수 있다.
-        float zIn = Mathf.Min(zoomInTime, total);
-        float zOut = Mathf.Min(zoomOutTime, total - zIn);
-        HitImpact.PlayZoom(transform.position, zoomRatio, zIn, total - zIn - zOut, zOut);
-
-        // 필살기 한 방에 상대가 쓰러지면 그 순간 BattleSceneBridge 가 timeScale 주인이 된다.
-        // 여기서 또 멈추면 K.O. 슬로우모션을 덮어쓰는데, 아래 루프는 InputLocked 를 보고
-        // 곧바로 빠져나가므로 복귀도 못 하고 시간이 멈춘 채로 남는다.
-        bool koTookOver = fighter != null && fighter.InputLocked;
-        if (!koTookOver) SetTimeScale(slowScale);
-
-        float t = 0f;
-        bool aborted = false;
-
-        while (t < total)
+        QiPostFx.Set(1f);
+        QiCameraFx.Zoom(chargeZoom);
+        PlayVoice(assets ? assets.chargeStart : null, .9f);
+        if (view != null) view.PlaySpecial(QiPalmTiming.ChargeState);
+        if (assets != null && assets.charge != null)
         {
-            // K.O. 가 나면 timeScale 주인이 BattleSceneBridge 로 넘어간다. 여기서는 손을 뗀다.
-            if (fighter != null && fighter.InputLocked)
-            {
-                aborted = true;
-                break;
-            }
+            chargeFx = Instantiate(assets.charge).GetComponent<QiChargeFx>();
+            FollowFx(0f);
+        }
+        if (assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1);
 
+        ownsTime = !fighter.InputLocked;
+        if (ownsTime) SetTimeScale(cutInSlowScale);
+        float t = 0f;
+        while (t < cutInDuration)
+        {
+            if (KoTookOver()) { Cleanup(false); yield break; }
+            if (interrupted) { Break(); yield break; }
             t += Time.unscaledDeltaTime;
-
-            if (recover > 0f && t > hold)
-                SetTimeScale(Mathf.Lerp(slowScale, 1f, (t - hold) / recover));
-
-            UpdateCutIn(cutIn, t, total);
+            FollowFx(0f);
             yield return null;
         }
+        if (ownsTime) { RestoreTime(); ownsTime = false; }
 
-        if (cutIn != null) Destroy(cutIn.gameObject);
+        phase = Phase.Charging;
+        if (assets != null && assets.chargeLoop != null) { loop.clip = assets.chargeLoop; loop.volume = .55f; loop.pitch = 1f; loop.Play(); }
+        float held = 0f;
+        while (true)
+        {
+            if (KoTookOver()) { Cleanup(false); yield break; }
+            if (interrupted) { Break(); yield break; }
+            held += Time.deltaTime;
+            level = Mathf.Clamp01(held / Mathf.Max(.01f, fullChargeTime));
+            FollowFx(level);
+            loop.pitch = 1f + .3f * level; loop.volume = .55f + .3f * level;
+            if (held >= maxCharge || (releaseRequested && held >= minCharge)) break;
+            yield return null;
+        }
+        loop.Stop();
 
-        // 중단된 경우에는 K.O. 연출이 정한 시간을 덮어쓰지 않는다.
-        if (!aborted) RestoreTime();
+        phase = Phase.Releasing;
+        if (view != null) view.PlaySpecial(QiPalmTiming.ReleaseState);
+        QiCameraFx.Zoom(1f);
+        float r = 0f;
+        while (r < QiPalmTiming.ReleaseImpact)
+        {
+            if (KoTookOver()) { Cleanup(false); yield break; }
+            if (interrupted) { Break(); yield break; }
+            r += Time.deltaTime;
+            FollowFx(level);
+            yield return null;
+        }
+        LaunchWave();
 
+        phase = Phase.Recovering;
+        float rec = 0f, recover = QiPalmTiming.ReleaseLength - QiPalmTiming.ReleaseImpact - .1f;
+        while ((rec < recover || (LastWave != null && !LastWave.Finished && rec < 1.5f)) && !KoTookOver()) { rec += Time.deltaTime; yield return null; }
+        if (LastResult == Result.Whiffed && !KoTookOver())
+        {
+            fighter.OpenFor(whiffOpen);
+            float w = 0f;
+            while (w < whiffOpen && !KoTookOver()) { w += Time.deltaTime; yield return null; }
+        }
+        fighter.EndSpecial();
+        QiPostFx.Set(0f);
+        phase = Phase.Idle;
         routine = null;
     }
 
-    // ─────────────────────── 컷인 ───────────────────────
+    bool KoTookOver() => fighter.InputLocked || health.IsDead;
 
-    private SpriteRenderer SpawnCutIn()
+    void LaunchWave()
     {
-        Sprite sprite = cutInSprite != null ? cutInSprite : capturedIdle;
-        if (sprite == null)
+        int dir = fighter.Facing >= 0 ? 1 : -1;
+        Vector3 hands = HandsPoint();
+        if (chargeFx != null) { chargeFx.End(); chargeFx = null; }
+        var rot = Quaternion.LookRotation(dir > 0 ? Vector3.right : Vector3.left, Vector3.up);
+        if (assets != null) QiFxLife.Spawn(assets.muzzle, hands, rot);
+        PlayVoice(assets ? assets.release : null, 1f);
+        QiCameraFx.Shake(.05f, 7f);
+
+        int dmg = Mathf.RoundToInt(damage * (1f + fullChargeBonus * level));
+        int chip = Mathf.Max(1, Mathf.RoundToInt(dmg * guardDamageRatio));
+        LastDamage = dmg;
+        var go = assets != null && assets.wave != null ? Instantiate(assets.wave, hands + Vector3.right * (dir * .12f), rot) : new GameObject("QiWave");
+        go.transform.position = hands + Vector3.right * (dir * .12f);
+        var wave = go.GetComponent<QiWave>();
+        if (wave == null) wave = go.AddComponent<QiWave>();
+        wave.speed = waveSpeed; wave.range = waveRange;
+        wave.Launch(health, dir, dmg, chip, knockback, hitExtraStun, OnWaveHit, OnWaveExpire);
+        LastWave = wave;
+        waveLaunched = true;
+        Debug.Log($"[SpecialMove] {name} 파운장 발사 (모은 정도 {level:0.00}, 피해 {dmg} / 방어 시 {chip})");
+    }
+
+    void OnWaveHit(QiWave wave, Health target, bool guarded, Vector3 point)
+    {
+        LastResult = guarded ? Result.Blocked : Result.Hit;
+        bool finisher = target.IsDead;
+        if (assets != null) QiFxLife.Spawn(assets.impact, point, Quaternion.identity, guarded ? .65f : 1.1f, guarded ? .5f : 1f);
+        PlayVoice(assets ? assets.impactClip : null, guarded ? .65f : 1f);
+        QiCameraFx.Shake(guarded ? .05f : .13f, 5f);
+        if (finisher) CombatSfx.PlayHit(false, true);
+        HitImpact.Play(point, guarded, finisher, !finisher);
+        Debug.Log($"[SpecialMove] 파운장 {(guarded ? "방어됨(기 관통)" : "적중")} → {target.DisplayName}");
+    }
+
+    void OnWaveExpire(QiWave wave, Vector3 point)
+    {
+        LastResult = Result.Whiffed;
+        if (assets != null) QiFxLife.Spawn(assets.impact, point, Quaternion.identity, .4f, 0f);
+    }
+
+    /// <summary>모으는 중에 맞아 끊겼다. 게이지 일부를 돌려받는다.</summary>
+    void Break()
+    {
+        loop.Stop();
+        PlayVoice(assets ? assets.fizzle : null, .8f);
+        if (assets != null) QiFxLife.Spawn(assets.impact, HandsPoint(), Quaternion.identity, .35f, 0f);
+        int refund = Mathf.FloorToInt(spent * refundRatio);
+        LastResult = Result.Broken;
+        Cleanup(ownsTime && !fighter.InputLocked);
+        if (refund > 0) { charge = Mathf.Min(hitsToCharge, charge + refund); OnChargeChanged?.Invoke(charge, hitsToCharge); }
+        Debug.Log($"[SpecialMove] {name} 파운장 끊김 → 게이지 {refund} 반환");
+    }
+
+    void Cleanup(bool restoreTime)
+    {
+        if (loop) loop.Stop();
+        if (chargeFx != null) { chargeFx.End(); chargeFx = null; }
+        QiPostFx.Set(0f);
+        QiCameraFx.Zoom(1f);
+        if (restoreTime) RestoreTime();
+        ownsTime = false;
+        fighter.EndSpecial();
+        phase = Phase.Idle;
+        routine = null;
+    }
+
+    // ─────────────────────── 보조 ───────────────────────
+
+    Vector3 HandsPoint()
+    {
+        var anim = view != null ? view.modelAnimator : null;
+        if (anim != null && anim.isHuman)
         {
-            Debug.LogWarning($"[SpecialMove] {name} 컷인에 쓸 스프라이트가 없습니다.");
-            return null;
+            var l = anim.GetBoneTransform(HumanBodyBones.LeftHand); var r = anim.GetBoneTransform(HumanBodyBones.RightHand);
+            if (l && r) return (l.position + r.position) * .5f;
         }
-
-        var go = new GameObject(name + " SpecialCutIn");
-        var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = sprite;
-        sr.color = new Color(1f, 1f, 1f, 0f);
-
-        if (spriteRenderer != null)
-        {
-            sr.sortingLayerID = spriteRenderer.sortingLayerID;
-            sr.sortingOrder = spriteRenderer.sortingOrder + 20;   // 캐릭터보다 앞에
-            sr.flipX = spriteRenderer.flipX;                      // 캐릭터와 같은 방향을 본다
-        }
-
-        // 캐릭터의 자식으로 붙이지 않는다. 뒤집힘이나 크기를 따라가면 컷인이 같이 일그러진다.
-        go.transform.localScale = Vector3.one * cutInScale;
-        go.transform.position = CutInPosition(sr, 0f);
-        return sr;
+        return transform.position + Vector3.up * 1.15f + Vector3.right * (fighter.Facing * .4f);
     }
+    Vector3 FeetPoint() => view != null && view.visualRoot != null ? view.visualRoot.position : transform.position;
+    void FollowFx(float lv) { if (chargeFx == null) return; chargeFx.Follow(HandsPoint(), FeetPoint()); chargeFx.SetLevel(lv); }
+    void PlayVoice(AudioClip clip, float volume) { if (clip != null && voice != null) voice.PlayOneShot(clip, volume); }
 
-    private void UpdateCutIn(SpriteRenderer cutIn, float t, float total)
-    {
-        if (cutIn == null) return;
-
-        float alpha;
-        if (t < fadeInTime)               alpha = fadeInTime > 0f ? t / fadeInTime : 1f;
-        else if (t > total - fadeOutTime) alpha = fadeOutTime > 0f ? (total - t) / fadeOutTime : 0f;
-        else                              alpha = 1f;
-
-        var c = cutIn.color;
-        c.a = Mathf.Clamp01(alpha);
-        cutIn.color = c;
-
-        cutIn.transform.position = CutInPosition(cutIn, total > 0f ? t / total : 1f);
-    }
-
-    /// <summary>
-    /// 컷인이 지나가는 위치.
-    /// 캐릭터는 항상 상대를 바라보므로 Facing 이 곧 진행 방향이고, 그 반대쪽이 자기 진영이다.
-    /// (왼쪽 진영 = 오른쪽을 봄 = Facing 1 → 왼쪽 끝에서 나타나 오른쪽으로 빠진다)
-    ///
-    /// 시작은 자기 진영 화면 끝에 딱 붙어 전부 보이는 자리, 끝은 반대편 화면 끝을 완전히 빠져나간 자리다.
-    /// 이동 거리는 화면 폭과 같으므로 해상도나 카메라 크기가 달라져도 연출이 그대로 유지된다.
-    /// </summary>
-    private Vector3 CutInPosition(SpriteRenderer cutIn, float progress)
-    {
-        float y = transform.position.y + cutInHeight;
-
-        var cam = Camera.main;
-        if (cam == null || !cam.orthographic || cutIn == null)
-            return new Vector3(transform.position.x, y, 0f);
-
-        Vector3 half = cutIn.bounds.extents;
-        float camHalfH = cam.orthographicSize;
-        float camHalfW = camHalfH * cam.aspect;
-        Vector3 c = cam.transform.position;
-
-        int dir = (fighter != null && fighter.Facing < 0) ? -1 : 1;
-
-        float startX = c.x - dir * (camHalfW - half.x);
-        float endX   = c.x + dir * (camHalfW + half.x);
-
-        float eased = (sweepCurve != null && sweepCurve.length > 0)
-            ? sweepCurve.Evaluate(Mathf.Clamp01(progress))
-            : Mathf.Clamp01(progress);
-
-        // 세로는 화면 밖으로 나가지 않게 눌러 둔다. 컷인이 화면보다 크면 그냥 가운데 맞춤.
-        float py = camHalfH > half.y
-            ? Mathf.Clamp(y, c.y - camHalfH + half.y, c.y + camHalfH - half.y)
-            : c.y;
-
-        return new Vector3(Mathf.LerpUnclamped(startX, endX, eased), py, 0f);
-    }
-
-    // ─────────────────────── 시간 ───────────────────────
-
-    private void SetTimeScale(float scale)
+    void SetTimeScale(float scale)
     {
         Time.timeScale = scale;
-
-        // 물리 간격도 같이 줄여야 느려지는 동안 움직임이 뚝뚝 끊기지 않는다.
-        // 다만 0 은 넣으면 안 된다. timeScale 이 0 이면 FixedUpdate 가 아예 돌지 않는데,
-        // fixedDeltaTime 에 0 을 대입하는 것 자체를 Unity 가 오류로 막는다.
+        // 물리 간격도 같이 줄여야 느려지는 동안 움직임이 끊기지 않는다(0 은 Unity 가 받지 않는다).
         Time.fixedDeltaTime = Mathf.Max(defaultFixedDelta * scale, MinFixedDelta);
     }
-
-    private void RestoreTime()
+    void RestoreTime()
     {
         Time.timeScale = 1f;
-        Time.fixedDeltaTime = defaultFixedDelta > 0f ? defaultFixedDelta : 0.02f;
+        Time.fixedDeltaTime = defaultFixedDelta > 0f ? defaultFixedDelta : .02f;
     }
 }

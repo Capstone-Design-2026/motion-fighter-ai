@@ -153,7 +153,8 @@ public class UdpActionReceiver : MonoBehaviour
 
         // Backend can resend the same attack when movement changes. Treat attack/jump as edges.
         bool oneShot = action == "ATTACK" || action == "JUMP" || action == "JAB" || action == "STRAIGHT" || action == "CROSS"
-            || action == "HIGH_KICK" || action == "HIGHKICK" || action == "LOW_KICK" || action == "LOWKICK";
+            || action == "HIGH_KICK" || action == "HIGHKICK" || action == "LOW_KICK" || action == "LOWKICK"
+            || action == "SPECIAL_RELEASE" || action == "SPECIAL";
         if (oneShot && action == lastAction) return;
         if (action != lastAction)
             Debug.Log("[Vision] Action: " + action + " confidence " + message.confidence.ToString("F2"));

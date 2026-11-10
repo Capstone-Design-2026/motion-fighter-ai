@@ -141,7 +141,25 @@ public class Fighter : MonoBehaviour
     public Health Health { get; private set; }
     /// <summary>새 동작(이동·점프·공격·방어)을 시작할 수 있는지.</summary>
     public bool CanAct => !Health.IsDead && !InputLocked && !Health.IsHitStunned && !IsAttacking
-                          && !guarding && !IsGuardRecovering;
+                          && !guarding && !IsGuardRecovering && !IsSpecialActive;
+
+    /// <summary>필살기(SpecialMove)가 진행 중인지. 그동안은 이동·공격·방어가 나가지 않는다.</summary>
+    public bool IsSpecialActive { get; private set; }
+
+    /// <summary>필살기 시작. 지금 다른 동작을 할 수 있을 때만 잠근다.</summary>
+    public bool BeginSpecial()
+    {
+        if (!CanAct) return false;
+        IsSpecialActive = true;
+        ClearIntent();
+        return true;
+    }
+
+    /// <summary>필살기 끝. 잠금을 푼다.</summary>
+    public void EndSpecial() { IsSpecialActive = false; }
+
+    /// <summary>필살기가 빗나간 뒤처럼, 외부 동작이 만든 무방비 시간을 표시한다.</summary>
+    public void OpenFor(float seconds) { MarkOpen(seconds, OpeningCause.Whiffed); }
     public bool CanAttack => CanAct;
 
     public float Windup => windup;
