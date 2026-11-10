@@ -97,6 +97,10 @@ PrefabInstance:
       value: "\uC218\uC0C9\uB300 \uCD94\uC801\uC790 Model"
       objectReference: {fileID: 0}
     - target: {fileID: 2428290553278721264, guid: 9c929676c387f114499bc6abf82e6098, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: 0cd435ed3cf4f944fbd777f224ad90bf, type: 2}
+    - target: {fileID: 2428290553278721264, guid: 9c929676c387f114499bc6abf82e6098, type: 3}
       propertyPath: m_UpdateWhenOffscreen
       value: 1
       objectReference: {fileID: 0}

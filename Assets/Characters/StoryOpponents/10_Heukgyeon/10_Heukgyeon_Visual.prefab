@@ -93,6 +93,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -2650471350667785574, guid: 38c851310e4420848926d6500c5b408b, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: f9917c96b6adf244892fcc5773a6c458, type: 2}
+    - target: {fileID: -2650471350667785574, guid: 38c851310e4420848926d6500c5b408b, type: 3}
       propertyPath: m_UpdateWhenOffscreen
       value: 1
       objectReference: {fileID: 0}
