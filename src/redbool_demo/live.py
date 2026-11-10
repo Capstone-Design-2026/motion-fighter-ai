@@ -15,9 +15,12 @@ import uuid
 from .six_engine import SixGestureEngine as DemoEngine
 from .transport import DemoSender
 from .guided import GuidedCheck
+from .framing import framing_status
+from collections import Counter
 
 
 def run(a):
+    import numpy as np
     import cv2 as cv
     import mediapipe as mp
     from mediapipe.tasks.python import BaseOptions
@@ -29,6 +32,9 @@ def run(a):
     from collect_gesture_pilot import PilotVideo,AsyncPilotVideo
     from pose_capture import open_camera
     from realtime_vision.live import Latest,AsyncLog
+    preview_fps=getattr(a,'preview_fps',15.)
+    if not 1<=preview_fps<=60:raise ValueError('preview_fps must be between 1 and 60')
+    preview_interval_ns=int(1e9/preview_fps)
     variant=getattr(a,'pose_variant','Lite')
     verify_pose_asset(a.pose,variant)
     if getattr(a,'guard_model',None):
@@ -46,7 +52,7 @@ def run(a):
     out.mkdir(parents=True,exist_ok=False)
     sender=DemoSender(a.host,a.port,stream,a.actor)
     log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
-    counts={'captured':0,'processed':0,'events':0,'left':0,'right':0}
+    counts={'captured':0,'processed':0,'events':0,'left':0,'right':0,'both':0,'preview_frames':0}
     guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False), focus=getattr(a,'guided_focus','all')) if getattr(a,'guided',False) else None
     display={'event':'NONE','event_ns':0};cap=None;pose=None;video=None;recorder=None
     def fail(where,exc):
@@ -56,6 +62,10 @@ def run(a):
         try:
             cap=open_camera(cv,a.camera,a.backend)
             cap.set(cv.CAP_PROP_FRAME_WIDTH,640);cap.set(cv.CAP_PROP_FRAME_HEIGHT,480)
+            # Keep acquisition/inference at 30 fps; only the preview is throttled.
+            # Backend acceptance does not guarantee delivery: capture timestamps
+            # and skipped-sample counts remain the source of truth.
+            cap.set(cv.CAP_PROP_FPS,30)
             while not stop.is_set():
                 ok,bgr=cap.read();stamp=time.monotonic_ns()
                 if not ok:raise RuntimeError('Camera read failed')
@@ -82,19 +92,25 @@ def run(a):
                     ttl=max(1,min(150,int((stamp+150_000_000-now)//1_000_000))) if fresh else 150
                     log.write(sender.send('STATE',ttl_ms=ttl,block_active=bool(state.block and fresh),
                         movement=state.movement if fresh else 'NEUTRAL',movement_strength=float(state.movement_strength) if fresh else 0.,
-                        tracking=state.tracking,fsm_state=state.attack_state,capture_ns=stamp))
+                        tracking=state.tracking if fresh else "STALE",fsm_state=state.attack_state,capture_ns=stamp,
+                        calibration_version=1,calibrated=bool(armed)))
                 # Deliver a fresh BLOCK release before an attack from that frame.
                 for item in sender.service():log.write(item)
                 if log.error or log.dropped:raise RuntimeError('Diagnostic log failed or overflowed')
         except BaseException as exc:fail('publisher',exc)
         finally:
             if sender.clock:
-                log.write(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE'))
+                log.write(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE',calibration_version=1,calibrated=False))
             sender.close()
     workers=[threading.Thread(target=capture,name='demo-camera',daemon=True),threading.Thread(target=publisher,name='demo-publisher',daemon=True)]
     print(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)
     started=time.monotonic();last_stamp=None;origin=None;last_ms=-1;pose_ms=0.
+    next_preview_ns=0;pose_samples=[];age_samples=[];framing_counts=Counter()
+    prior_cv_threads=cv.getNumThreads()
     try:
+        # OpenCV shares this process with MediaPipe, capture, recording and UDP.
+        # Prevent small color/overlay operations from oversubscribing CPU cores.
+        cv.setNumThreads(1)
         # Load inference before starting camera to avoid an initialization backlog.
         pose=PoseLandmarker.create_from_options(PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(a.pose),delegate=BaseOptions.Delegate.CPU),
@@ -117,6 +133,7 @@ def run(a):
                     pose_model_variant=variant,pose_running_mode='VIDEO',mirror_display=a.mirror,
                     gesture_set_version='raised-kicks-v3',recording_config={'source_mirrored':False,
                         'engine_version':engine.config.version,
+                        'camera_requested_fps':30,'preview_target_fps':preview_fps,'opencv_threads':1,
                         'guard_model':engine.posture_model.meta if getattr(a,'guard_model',None) else None,
                         'stream_id':stream,'scope':'processed RGB + Pose + FSM; not human ground truth',
                         'all_successful_captures_saved':False,'frame_policy':'latest camera slot; all processed frames saved'})
@@ -134,33 +151,50 @@ def run(a):
             obs=PoseObservation.from_record(frame,{'subject_id':a.actor,'session_id':stream,
                 'actual_resolution':[bgr.shape[1],bgr.shape[0]],'recording_config':{'source_mirrored':False}})
             state=engine.process(obs);video.write(bgr,rgb,frame,trial_state='DEMO')
+            framing=framing_status(obs,engine.config.visibility);framing_counts[framing['code']]+=1
             counts['processed']+=1;pose_ms=(end-start)/1e6
+            engine_end=time.monotonic_ns();pose_samples.append(pose_ms);age_samples.append((engine_end-stamp)/1e6)
             log.write({'type':'frame','frame_id':frame['frame_id'],'camera_frame_id':fid,'capture_ns':stamp,
-                'pose_end_ns':end,'engine_end_ns':time.monotonic_ns(),'state':asdict(state)})
-            view=overlay(bgr,frame,name=f'REDBOOL {variant} VIDEO',mirror=a.mirror)
-            panel=view[bgr.shape[0]:];panel[:]=0
+                'pose_end_ns':end,'engine_end_ns':engine_end,'state':asdict(state),'framing':framing})
             with engine.lock:
                 armed=engine.calibrated;progress=engine.calibration_progress
                 arms=' / '.join(k+':'+v.state for k,v in engine.attack.units.items())
                 ready=engine.ready
+                cross_owned=engine.special.owned;cross_sent=engine.special.latched
+                cross_progress=min(1.,engine.special.confirmed_ns/engine.special.hold_ns)
             fps=1e9/(stamp-last_stamp) if last_stamp is not None else 0;last_stamp=stamp
-            message=display['event'] if time.monotonic_ns()-display['event_ns']<1_000_000_000 else ''
-            mode=('C: CALIBRATE GUARD' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
-                else 'BLOCK' if state.block else 'READY' if ready else 'RETURN TO GUARD')
-            prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else arms
-            lines=[f"{mode}  {progress:.0%}   {message}",prompt,
-                f"LEFT {counts['left']}  RIGHT {counts['right']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
-                f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
-                f"Pose {pose_ms:.1f}ms | {fps:.1f} FPS | capture skipped {slot.dropped}",
-                'C: hold guard 2 sec | SPACE: next prompt | M: move | X: pause | Q: finish']
-            for i,line in enumerate(lines):
-                width=cv.getTextSize(line,0,.47,1)[0][0]
-                scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))
-                color=(80,230,160) if armed else (50,200,255)
-                if guide and i==1:
-                    color=(40,190,255) if guide.preparing else (80,255,80) if 'GO: ' in line else (220,220,220)
-                cv.putText(panel,line,(6,22+i*24),0,scale,color,1)
-            cv.imshow('REDBOOL DEMO',view);key=cv.waitKey(1)&255
+            # Prompts, keys, recording, recognition and UDP keep their full rate.
+            guided_prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else None
+            preview_now=time.monotonic_ns()
+            if preview_now>=next_preview_ns:
+                next_preview_ns=(preview_now+preview_interval_ns if preview_now-next_preview_ns>preview_interval_ns
+                    else next_preview_ns+preview_interval_ns)
+                view=overlay(bgr,frame,name=f'REDBOOL {variant} VIDEO',mirror=a.mirror)
+                panel=view[bgr.shape[0]:];panel[:]=0
+                message=display['event'] if time.monotonic_ns()-display['event_ns']<1_000_000_000 else ''
+                mode=('C: CALIBRATE GUARD' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
+                    else 'X SENT: OPEN ARMS OR RAISE ONE' if cross_owned and cross_sent
+                    else f'X HOLD: {cross_progress:.0%}' if cross_owned
+                    else 'BLOCK' if state.block else 'READY' if ready else 'RELEASE LAST POSE / NEXT MOVE')
+                if framing['code']!='OK':mode=framing['message']
+                hint=getattr(sender,'game_hint',lambda:'GAME UNKNOWN / SPECIAL UNKNOWN')()
+                prompt=guided_prompt if guide else hint
+                lines=[f"{mode}  {progress:.0%}   {message}",prompt,
+                    f"LEFT {counts['left']}  RIGHT {counts['right']}  X {counts['both']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
+                    f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
+                    f"Pose {pose_ms:.1f}ms | {fps:.1f} FPS | capture skipped {slot.dropped} | preview {preview_fps:g}",
+                    'C: calibrate guard | M: move | X: pause | Q: finish']
+                for i,line in enumerate(lines):
+                    width=cv.getTextSize(line,0,.47,1)[0][0]
+                    scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))
+                    color=(80,230,160) if armed else (50,200,255)
+                    if i==0 and framing['code']!='OK':color=(50,170,255)
+                    if guide and i==1:
+                        color=(40,190,255) if guide.preparing else (80,255,80) if 'GO: ' in line else (220,220,220)
+                    cv.putText(panel,line,(6,22+i*24),0,scale,color,1)
+                cv.imshow('REDBOOL DEMO',view)
+                counts['preview_frames']+=1
+            key=cv.waitKey(1)&255
             if key==ord('q') or (guide and guide.completed):break
             if key in (ord('c'),ord('x')):
                 engine.request_calibration()
@@ -178,7 +212,7 @@ def run(a):
         if any(w.is_alive() for w in workers):errors.append({'where':'shutdown','error':'worker did not stop'})
         if workers[1].ident is None:sender.close()
         if pose is not None:pose.close()
-        cv.destroyAllWindows()
+        cv.destroyAllWindows();cv.setNumThreads(prior_cv_threads)
         for item in engine.take_logs():log.write({'type':'engine','log':item})
         log.close()
         if log.error or log.dropped:errors.append({'where':'log','error':log.error,'dropped':log.dropped})
@@ -189,7 +223,12 @@ def run(a):
             if guide:guide.finish(recorder)
             recorder.finalize(completed=not errors,metadata={'errors':errors,'camera_slot_drops':slot.dropped,
                 'video_diagnostics':video.diagnostics() if video else None})
-        report={'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
+        performance={'camera_requested_fps':30,'preview_target_fps':preview_fps,
+            'processed_fps':(counts['processed']-1)*1e9/(last_stamp-origin) if last_stamp is not None and last_stamp>origin else 0.,
+            'pose_ms_p50_p95':np.percentile(pose_samples,[50,95]).tolist() if pose_samples else [],
+            'capture_to_engine_ms_p50_p95':np.percentile(age_samples,[50,95]).tolist() if age_samples else [],
+            'opencv_threads':1,'frame_policy':'latest camera sample; preview throttling never skips recognition or recording'}
+        report={'performance':performance,'framing':dict(framing_counts),'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
             'camera_slot_drops':slot.dropped,'duration_seconds':time.monotonic()-started,
             'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
             'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
@@ -210,6 +249,7 @@ def main():
     p.add_argument('--guided-focus',choices=['all','left-return'],default='all',help='Short five-repeat left raise and return check')
     p.add_argument('--guided-timed',action='store_true',help='Use legacy fixed-duration prompts instead of SPACE')
     p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action='store_true')
+    p.add_argument('--preview-fps',type=float,default=15.,help='Camera window refresh only; recognition remains full rate (1-60)')
     p.add_argument('--check',action='store_true');a=p.parse_args()
     if a.pose is None:
         a.pose=Path('pose_landmarker.task' if a.pose_variant=='Lite' else 'local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task')
