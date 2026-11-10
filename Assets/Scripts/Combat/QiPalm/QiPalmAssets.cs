@@ -16,6 +16,8 @@ public sealed class QiPalmAssets : ScriptableObject
     [Header("컷인")]
     public Texture2D brush;
     public Texture2D glow;
+    [Tooltip("컷인 일러스트(서진 상반신, 먹 붓 모양 알파). 없으면 붓자국과 글씨만 나온다.")]
+    public Texture2D cutInArt;
 
     [Header("사운드")]
     public AudioClip chargeStart;

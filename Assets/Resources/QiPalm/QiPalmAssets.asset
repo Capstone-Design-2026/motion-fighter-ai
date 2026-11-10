@@ -19,6 +19,7 @@ MonoBehaviour:
   ready: {fileID: 3886202087563183725, guid: f79de34b7dd04c645b71598a9142419e, type: 3}
   brush: {fileID: 2800000, guid: bea53077570018c41be0793ad5f4e720, type: 3}
   glow: {fileID: 2800000, guid: 0cd902a75feb19547acca8ba6727f4b6, type: 3}
+  cutInArt: {fileID: 2800000, guid: 2b92328f37d4f114ba8eb4779fffb7aa, type: 3}
   chargeStart: {fileID: 8300000, guid: b3fd35965cfd03046aa4a90253cef626, type: 3}
   chargeLoop: {fileID: 8300000, guid: faf22d968f0f99b4ba83a6928bd675d6, type: 3}
   release: {fileID: 8300000, guid: 9f1919b3e29204d41a1f2f44550a1f3c, type: 3}

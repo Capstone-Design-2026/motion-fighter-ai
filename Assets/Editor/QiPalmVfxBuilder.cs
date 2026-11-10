@@ -38,6 +38,7 @@ public static class QiPalmVfxBuilder
             assets.ready = Save(BuildReady(), "QiReady");
             assets.brush = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "/qi_brush.png");
             assets.glow = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "/qi_glow.png");
+            assets.cutInArt = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "/qi_cutin_art.png");
             string a = "Assets/Resources/QiPalm/Audio/";
             assets.chargeStart = AssetDatabase.LoadAssetAtPath<AudioClip>(a + "qi_charge_start.wav");
             assets.chargeLoop = AssetDatabase.LoadAssetAtPath<AudioClip>(a + "qi_charge_loop.wav");
@@ -68,9 +69,10 @@ public static class QiPalmVfxBuilder
             UnityEditor.SceneManagement.EditorSceneManager.NewScene(UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Single);
             var cam = new GameObject("Cam").AddComponent<Camera>(); cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(.55f, .52f, .45f);
             var rt = new RenderTexture(1280, 720, 24); cam.targetTexture = rt; var img = new Texture2D(1280, 720, TextureFormat.RGB24, false);
-            var cut = QiCutIn.Play(AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "/qi_brush.png"), -1);
+            var cut = QiCutIn.Play(AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "/qi_brush.png"), -1,
+                                   AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "/qi_cutin_art.png"));
             var canvas = cut.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = cam; canvas.planeDistance = 1f;
-            foreach (float t in new[] { .06f, .14f, .3f, .6f })
+            foreach (float t in new[] { .06f, .14f, .3f, .6f, .85f })
             {
                 cut.Seek(t); Canvas.ForceUpdateCanvases();
                 RenderPipeline.SubmitRenderRequest(cam, new RenderPipeline.StandardRequest { destination = rt });
@@ -95,6 +97,8 @@ public static class QiPalmVfxBuilder
             ti.textureType = TextureImporterType.Default; ti.alphaSource = TextureImporterAlphaSource.FromInput; ti.alphaIsTransparency = true;
             ti.wrapMode = p.Contains("noise") ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
             ti.mipmapEnabled = true; ti.sRGBTexture = !p.Contains("noise"); ti.textureCompression = TextureImporterCompression.CompressedHQ;
+            // 컷인 일러스트는 UI에 원본 비율 그대로 쓴다(2의 거듭제곱으로 늘리면 납작해진다).
+            if (p.Contains("cutin_art")) { ti.npotScale = TextureImporterNPOTScale.None; ti.mipmapEnabled = false; ti.maxTextureSize = 2048; }
             ti.SaveAndReimport();
         }
     }

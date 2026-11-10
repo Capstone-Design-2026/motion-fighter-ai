@@ -232,7 +232,7 @@ public class SpecialMove : MonoBehaviour
             chargeFx = Instantiate(assets.charge).GetComponent<QiChargeFx>();
             FollowFx(0f);
         }
-        if (assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1);
+        if (assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
 
         ownsTime = !fighter.InputLocked;
         if (ownsTime) SetTimeScale(cutInSlowScale);

@@ -59,6 +59,13 @@
 
 시연 영상·정지 화면: `C:\Users\sbpar\Documents\VisionStriker_QiPalm_20261104\` (`QiPalm_showcase.mp4`, `stills/`).
 
+## 일러스트 (2026-11-11)
+
+- 컷인: 서진 상반신 일러스트(`Assets/Effects/QiPalm/Textures/qi_cutin_art.png`, 1536×672, 먹 붓 모양 알파)가 붓자국 바로 뒤따라 쓸려 들어오고 1.06 → 1.0으로 당겨진다. 破雲掌 / 파운장 글씨는 그림 아래 반대편에 찍힌다. 오른쪽 진영에서 쓰면 좌우를 뒤집는다. `QiPalmAssets.cutInArt`가 비어 있으면 예전처럼 붓자국과 글씨만 나온다.
+- 키비주얼(보고서·포스터용)과 원본: `Documents/VisionStriker_QiPalm_Illustration_20261111/` (`파운장_키비주얼.jpg`, `파운장_컷인원본.jpg`).
+- Figma AI(gpt-image-2.5-flare)로 생성했다. 프롬프트 요지: 상반신을 드러낸 젊은 무인, 흰 머리띠, 검은 손목 붕대, 양 손바닥 사이 청백색 기운 구슬, 검은 먹 붓질 배경, 채색 무협풍.
+- 게임 모델은 복싱 장갑을 끼고 있지만 일러스트는 손바닥이 보이도록 손목 붕대로 그렸다.
+
 ## 2026-11-10 통합
 
 - 도현의 전투 규칙 개편(입력 유지형 방어, 실패 딜레이·경고 표시 제거), 웅빈의 전투 자동 연결·X자 필살기와 함께 `feature/unity`에 합쳤다.
