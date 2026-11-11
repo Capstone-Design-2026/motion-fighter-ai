@@ -11,6 +11,7 @@ from action_engine.types import ActionEvent
 from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
 from .special import CrossSpecial, cross_geometry, extended_cross_arm
+from .high_guard_raise import HighGuardRaise
 
 
 class SixBlock(RelativeBlock):
@@ -251,6 +252,8 @@ class SixGestureEngine(DemoEngine):
         self.occluded_guard_sides = set()
         self.occlusion_until = {}
         self.block = SixBlock(self.config)
+        self.high_raise = HighGuardRaise()
+        self.high_raise_sides = set()
         self.special_inhibited = False
         self.vertical_signals = ChannelSignals(self.config)
         self.vertical_state = 'DISARMED'
@@ -263,7 +266,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-high-block-punch-20261110-v20')
+        self.config = replace(self.config, version='seated-high-guard-raise-20261111-v21')
         self._components()
 
     @property
@@ -290,6 +293,7 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.special.invalidate()
+        self.high_raise = HighGuardRaise(); self.high_raise_sides = set()
         self.route_signals.reset();self.forward_sides=set();self.forward_proof={};self.compact_forward_proof={};self.occluded_guard_sides=set();self.occlusion_until={}
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
         self.raise_release = dict.fromkeys(('LEFT','RIGHT'), None)
@@ -309,10 +313,10 @@ class SixGestureEngine(DemoEngine):
             calibrated_before = self.calibrated
             if self.vertical_state=='PENDING' and self.vertical_candidate and self.vertical_candidate.split('_')[0] in self.forward_sides:
                 self.vertical_state='READY';self.vertical_candidate=self.vertical_since=None
-            self.block.forward_sides=self.forward_sides
+            self.block.forward_sides=self.forward_sides | self.high_raise_sides
             for side, unit in self.attack.units.items():
                 unit.forward_hint = side in self.forward_sides
-                unit.inhibited = self.special_inhibited or side in self.occluded_guard_sides or (not self.raise_armed[side] and side not in self.forward_sides) or (
+                unit.inhibited = self.special_inhibited or side in self.high_raise_sides or side in self.occluded_guard_sides or (not self.raise_armed[side] and side not in self.forward_sides) or (
                     self.vertical_state == 'PENDING' and self.vertical_candidate == side + '_RAISE')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
@@ -340,7 +344,7 @@ class SixGestureEngine(DemoEngine):
             self.guard_held = neutral
             # A raise is released by lowering that arm, not by a bilateral guard.
             # Keep separate latches so a held block cannot become a one-arm kick.
-            bilateral = not self.forward_sides and all(delta[s][1] <= -.32 for s in arms)
+            bilateral = not (self.forward_sides or self.high_raise_sides) and all(delta[s][1] <= -.32 for s in arms)
             for side in arms:
                 dy=float(delta[side][1])
                 peak=self.raise_peak[side]
@@ -367,9 +371,9 @@ class SixGestureEngine(DemoEngine):
                 for side, other in (('LEFT', 'RIGHT'), ('RIGHT', 'LEFT')):
                     dx, dy = delta[side][:2]
                     other_dx, other_dy = delta[other][:2]
-                    other_guard = (other_dy > -.30 and arms[other]['position'][1] <= 1.0
+                    other_guard = (side in self.high_raise_sides or other_dy > -.30 and arms[other]['position'][1] <= 1.0
                                    and arms[other]['angle'] <= 2.7)
-                    vertical = abs(dx) <= .35 and abs(dy) > abs(dx) * 1.2
+                    vertical = abs(dx) <= (.60 if side in self.high_raise_sides else .35) and abs(dy) > abs(dx) * 1.2
                     # A still-extended punch sweeping back toward the camera is
                     # not a new raise just because its projected wrist is high.
                     punch_return = self.attack.units[side].state in ('ACTIVE','EXTENDED','RETURNING')
@@ -508,6 +512,12 @@ class SixGestureEngine(DemoEngine):
             else:
                 self.forward_proof.clear();self.compact_forward_proof.clear()
             self.special_inhibited = self.special.owned or (not self.special.latched and approach)
+            self.high_raise_sides, high_started = self.high_raise.step(routing, anchors, obs.capture_ns,
+                valid=valid and self.calibrated, blocked=self.control.block,
+                excluded=self.forward_sides | {s for s,u in self.attack.units.items() if u.unreturned_punch})
+            if high_started:
+                for side in high_started:self.raise_armed[side] = True
+                if self.vertical_state in ('DISARMED','LATCHED'):self.vertical_state = 'READY'
             state = self._process_actions(obs, evidence, now)
             fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
                 neutral=separated, approach=approach, strict=strict)
