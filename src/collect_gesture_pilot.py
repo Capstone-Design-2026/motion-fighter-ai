@@ -257,6 +257,9 @@ class PilotVideo:
             if not decoder.isOpened():
                 raise RuntimeError("Recorded video cannot be decoded; session is incomplete")
             count = 0
+            progress = getattr(self, "verification_progress", None)
+            interval = max(1, self.count // 20)
+            if progress: progress(0, self.count)
             with (self.recorder.directory / "video_frames.jsonl").open(encoding="utf-8") as stream:
                 for line in stream:
                     mapping = json.loads(line)
@@ -267,6 +270,8 @@ class PilotVideo:
                     if hashlib.sha256(rgb.tobytes()).hexdigest() != mapping["source_rgb_sha256"]:
                         raise RuntimeError("Video RGB round-trip mismatch; select another --codec/config")
                     count += 1
+                    if progress and (count % interval == 0 or count == self.count):
+                        progress(count, self.count)
             if decoder.read()[0] or count != self.count:
                 raise RuntimeError("Video frame count does not match mapping")
             container_fps = decoder.get(self.cv.CAP_PROP_FPS)

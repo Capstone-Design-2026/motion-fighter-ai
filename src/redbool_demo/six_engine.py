@@ -62,6 +62,7 @@ class SixAttack(DemoAttack):
         return bool(ordinary or high)
 
     def update(self, arms, now, allow_commit=True, block=False):
+        if block: self.folded_low_block_until = now + 1_200_000_000
         # An upward gesture may first look diagonal in its first two frames.
         # Hand it to the raise channel only while the punch is uncommitted.
         # ACTIVE/EXTENDED/RETURNING still require the normal physical return.
@@ -204,6 +205,21 @@ class SixAttack(DemoAttack):
             if planar or body_planar:
                 row['onset_rule'] = bool(row['onset_rule'] or row['speed_signal'])
                 row['commit_rule'] = True
+            # A camera-directed short punch can retain a folded 2D elbow and
+            # reverse its projected wrist before monocular depth settles. Only
+            # complete an already observed onset, with the other fist guarding;
+            # never start an attack or rearm an extended hold from this route.
+            foreshortened_low = bool(self.baseline and self.state == 'CANDIDATE'
+                and self.now >= getattr(self, 'folded_low_block_until', 0)
+                and self.now - self.entered >= 80_000_000
+                and self.opposite_guard and getattr(self, "independent_elbow_opening", False) and .12 < delta[1] <= .45
+                and abs(delta[0]) >= .30 and abs(delta[2]) <= .75
+                and arm['position'][1] <= .50 and arm['angle'] <= .65
+                and arm['angle3d'] is not None and arm['angle3d'] >= 2.2
+                and arm['angle3d'] - self.baseline[side]['angle3d'] >= .15
+                and row['xy_displacement'] >= .38 and row['vertical_fraction'] <= .78)
+            row['foreshortened_low_commit'] = foreshortened_low
+            if foreshortened_low: row['commit_rule'] = True
             if self.forward_hint:
                 # Camera-directed extension can project mostly vertically. Keep
                 # displacement, speed, calibrated extension and outward motion.
@@ -455,6 +471,13 @@ class SixGestureEngine(DemoEngine):
                     other_d=routing[other]['position']-anchors[other]['position']
                     self.attack.units[side].opposite_guard=(
                         self.attack.units[other].supporting_guard(routing[other],anchors[other]))
+                    other_arm = routing[other]
+                    # Shared depth changes while leaning are not a short punch.
+                    # This extra completion route needs asymmetric elbow opening.
+                    self.attack.units[side].independent_elbow_opening = bool(
+                        arm['angle3d'] is not None and other_arm['angle3d'] is not None
+                        and arm['angle3d'] - base['angle3d']
+                        >= other_arm['angle3d'] - anchors[other]['angle3d'] + .10)
                     # A held punch crossing the guarding fist can swap wrist
                     # estimates. Temporarily suppress only the uncommitted hand,
                     # retaining the ongoing punch's physical-return lifecycle.

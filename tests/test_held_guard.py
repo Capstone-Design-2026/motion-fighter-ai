@@ -42,7 +42,10 @@ class HeldGuardRecordingTests(unittest.TestCase):
             (180,180.7,'RIGHT_RAISE'),(206.6,207.2,'LEFT_RAISE'),(209.5,210.3,'LEFT_RAISE')]:
             self.assertEqual(self.gestures(a,b),[expected])
     def test_three_specials_and_reviewed_rest_preserved(self):
-        self.assertEqual([round(t,3) for t,g in self.results[0][0] if g=='SPECIAL'],[74.94,215.702,270.025])
+        times=[t for t,g in self.results[0][0] if g=='SPECIAL']
+        self.assertEqual(len(times),3)
+        for actual,expected in zip(times,[74.94,215.702,270.025]):
+            self.assertLess(abs(actual-expected),.15) # Same reviewed holds, up to 150ms earlier confirmation.
         self.assertEqual(self.gestures(80,150),[])
 
 class PoseGuardReleaseTests(unittest.TestCase):

@@ -151,6 +151,8 @@ def run(a):
                 recorder.update_manifest(actual_resolution=[bgr.shape[1],bgr.shape[0]],camera_backend=cap.getBackendName())
                 raw=PilotVideo(cv,recorder,(bgr.shape[1],bgr.shape[0]),30,'ffv1',override_fps=30)
                 raw.metadata.update(recording_scope=['DEMO'],timebase='processed frames; use original capture timestamps')
+                raw.verification_progress=lambda done,total: print(
+                    f"영상 저장 확인: {done}/{total} 프레임 ({100*done/max(1,total):.0f}%)",flush=True)
                 video=AsyncPilotVideo(raw,32)
                 recorder.update_manifest(video=raw.metadata)
             start=time.monotonic_ns();result=pose.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb),ms);end=time.monotonic_ns()
@@ -237,10 +239,11 @@ def run(a):
         if workers[1].ident is None:sender.close()
         if pose is not None:pose.close()
         if cross_pose is not None:cross_pose.close()
-        cv.destroyAllWindows();cv.setNumThreads(prior_cv_threads)
+        cv.destroyAllWindows()
         for item in engine.take_logs():log.write({'type':'engine','log':item})
         log.close()
         if log.error or log.dropped:errors.append({'where':'log','error':log.error,'dropped':log.dropped})
+        print("촬영 종료. 저장된 영상의 무결성을 검사합니다. 영상 길이에 따라 잠시 걸릴 수 있습니다.",flush=True)
         if video is not None:
             try:video.close()
             except BaseException as exc:errors.append({'where':'video','error':repr(exc)})
@@ -248,6 +251,7 @@ def run(a):
             if guide:guide.finish(recorder)
             recorder.finalize(completed=not errors,metadata={'errors':errors,'camera_slot_drops':slot.dropped,
                 'video_diagnostics':video.diagnostics() if video else None})
+        cv.setNumThreads(prior_cv_threads)
         performance={'camera_requested_fps':30,'preview_target_fps':preview_fps,
             'processed_fps':(counts['processed']-1)*1e9/(last_stamp-origin) if last_stamp is not None and last_stamp>origin else 0.,
             'cross_pose_ms_p50_p95':np.percentile(cross_samples,[50,95]).tolist() if cross_samples else [],
