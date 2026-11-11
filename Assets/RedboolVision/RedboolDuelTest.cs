@@ -7,6 +7,8 @@ using UnityEngine.UI;
 public sealed class RedboolDuelTest : MonoBehaviour
 {
     public static bool Active { get; private set; }
+    // Use the first authored campaign arena, not the empty combat sandbox.
+    public const string ArenaScene = "ScoutPass";
     static RedboolDuelTest instance;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -35,7 +37,9 @@ public sealed class RedboolDuelTest : MonoBehaviour
         if (!Active) return;
         HitImpact.ReleaseTimeControl();
         Time.timeScale = 1f; Time.fixedDeltaTime = .02f;
-        SceneManager.LoadScene(SceneRoutes.Battle);
+        if (!Application.CanStreamedLevelBeLoaded(ArenaScene))
+            throw new InvalidOperationException("Direct duel arena missing from build: " + ArenaScene);
+        SceneManager.LoadScene(ArenaScene);
         Debug.Log("[REDBOOL DUEL TEST] Direct combat; campaign save is protected.");
     }
 

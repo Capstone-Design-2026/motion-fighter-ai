@@ -12,6 +12,7 @@ import uuid
 
 from redbool_demo.probe import run as run_probe, ReadyGate
 from redbool_demo.transport import DemoSender
+from action_engine.types import ActionEvent
 from redbool_demo.six_engine import SixGestureEngine
 from test_chest_special import pose
 
@@ -30,7 +31,7 @@ def run(directory):
                 raise TimeoutError('Unity did not become ready')
             time.sleep(.1)
         report = run_probe('127.0.0.1', 5065, directory / 'probe')
-        checks.append({'check': 'four_attacks_and_timed_guard', 'passed': report['passed']})
+        checks.append({'check': 'four_attacks_and_held_guard', 'passed': report['passed']})
         time.sleep(.65)  # The receiver permits a new stream after the old stream stops.
         sender = DemoSender('127.0.0.1', 5065, uuid.uuid4().hex, 'DEV01')
 
@@ -118,6 +119,20 @@ def run(directory):
         if not engine.ready:
             raise AssertionError('X did not return to ready')
         checks.append({'check': 'engine_guard_return', 'passed': True})
+        ready()  # Wait for the new QiPalm animation and recovery to finish.
+        eid = uuid.uuid4().hex; now = time.monotonic_ns()
+        sender.offer(ActionEvent(eid, 'DEV01', sender.stream_id, 0, now, now,
+            now + 150_000_000, 'ATTACK', 'RIGHT', {'synthetic': True, 'gesture': 'RIGHT_PUNCH'}, 'post-qipalm-check'))
+        pump(.2)
+        follow = [r['ack'] for r in rows if r['type'] == 'ack' and r['ack'].get('event_id') == eid]
+        assert follow and all(a['status'] == 'APPLIED' and a['applied_action'] == 'STRAIGHT' for a in follow), follow
+        checks.append({'check': 'post_qipalm_straight', 'passed': True})
+        samples = [r['ack'] for r in rows if r['type'] == 'ack']
+        busy = [a for a in samples if a.get('game_attacking') or a.get('game_special_active')]
+        assert busy and all(a.get('game_can_act') is False for a in busy), 'Busy combat must not advertise ready'
+        checks.append({'check': 'busy_ack_not_ready', 'passed': True, 'samples': len(busy)})
+        assert any(a.get('game_special_active') for a in samples), 'QiPalm activity missing from ACK'
+        checks.append({'check': 'qipalm_activity_diagnostics', 'passed': True})
         passed = True
     finally:
         if sender:

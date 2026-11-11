@@ -16,11 +16,12 @@ public static class RedboolMotionPlayCheck
     static IEnumerator flow;
     static int lastFrame = -1;
     static readonly List<string> checks = new List<string>();
-    static string Output => Path.GetFullPath(Path.Combine(Application.dataPath, "../../persistent_calibration_20261105/native_play"));
+    static string Output => Environment.GetEnvironmentVariable("REDBOOL_MOTION_CHECK_OUTPUT") ?? Path.GetFullPath(Path.Combine(Application.dataPath, "../../persistent_calibration_20261105/native_play"));
     static RedboolMotionPlayCheck() { if (SessionState.GetBool(Active, false)) Subscribe(); }
     public static void Run()
     {
         if (!Application.isBatchMode) throw new Exception("Run this isolated smoke check with Unity -batchmode.");
+        AssetDatabase.DisallowAutoRefresh(); EditorApplication.LockReloadAssemblies();
         Directory.CreateDirectory(Output);
         SessionState.SetBool(Active + ".HadSave", PlayerPrefs.HasKey(SaveKey));
         SessionState.SetString(Active + ".Save", PlayerPrefs.GetString(SaveKey, ""));
@@ -33,7 +34,7 @@ public static class RedboolMotionPlayCheck
     static void Tick()
     {
         if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Active + ".Start", 0) > 120) { Finish("Timeout"); return; }
-        if (!Application.isPlaying || EditorApplication.isCompiling) return; EditorApplication.isPaused = false; // batch: ignore Error Pause from unrelated editor errors
+        if (!Application.isPlaying) return; EditorApplication.isPaused = false; // batch: ignore Error Pause from unrelated editor errors
         EditorApplication.QueuePlayerLoopUpdate();
         if (lastFrame == Time.frameCount) return;
         lastFrame = Time.frameCount;
@@ -98,7 +99,8 @@ public static class RedboolMotionPlayCheck
         if (!String.IsNullOrEmpty(udpDirectory))
         {
             Directory.CreateDirectory(udpDirectory);
-            SceneManager.LoadScene("GameScene"); yield return null; yield return null;
+            RedboolDuelTest.Begin(); yield return null; yield return null;
+            Check(SceneManager.GetActiveScene().name == RedboolDuelTest.ArenaScene, "Real UDP check runs in authored duel arena");
             player = Object.FindAnyObjectByType<PlayerController>();
             special = player.GetComponent<SpecialMove>(); special.ResetCharge();
             var receiver = Object.FindAnyObjectByType<RedboolDemoReceiver>();
@@ -116,12 +118,15 @@ public static class RedboolMotionPlayCheck
             }
             Check(File.ReadAllText(Path.Combine(udpDirectory, "done")).Trim() == "PASS", "Python real UDP rehearsal passed");
             Check(charged && !special.IsReady, "UDP special consumes charge");
-            Check(receiver.AttacksApplied - appliedBefore == 5, "Four attacks and exactly one UDP special applied");
+            Check(!special.IsPlaying && !player.GetComponent<Fighter>().IsSpecialActive, "QiPalm completes and releases combat lock");
+            Check(Mathf.Abs(Time.timeScale - 1f) < .001f, "QiPalm restores normal game clock");
+            Check(receiver.AttacksApplied - appliedBefore == 6, "Four attacks, exactly one UDP special, and a follow-up punch applied");
         }
     }
     static void Finish(string failure)
     {
         SessionState.SetBool(Active, false); EditorApplication.update -= Tick;
+        EditorApplication.UnlockReloadAssemblies(); AssetDatabase.AllowAutoRefresh();
         if (SessionState.GetBool(Active + ".HadSave", false)) PlayerPrefs.SetString(SaveKey, SessionState.GetString(Active + ".Save", ""));
         else PlayerPrefs.DeleteKey(SaveKey);
         PlayerPrefs.Save();

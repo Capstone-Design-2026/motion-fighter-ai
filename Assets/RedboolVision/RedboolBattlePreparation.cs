@@ -103,6 +103,10 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
 
     private void OnGUI()
     {
+        // The result screen already explains the stopped round; do not cover it
+        // with a misleading camera prompt after the recording is closed.
+        foreach (var fighter in fighters)
+            if (fighter != null && fighter.Health != null && fighter.Health.IsDead) return;
         if (KeyboardTest)
         {
             GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 26), "KEYBOARD TEST MODE — F8: camera mode");
