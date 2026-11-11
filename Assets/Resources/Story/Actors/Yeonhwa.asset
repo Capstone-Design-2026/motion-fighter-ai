@@ -15,8 +15,8 @@ MonoBehaviour:
   displayName: "연화"
   artwork: {fileID: 2800000, guid: 2a7a19138b8e4738b23bcc21db292a6d, type: 3}
   crop: {serializedVersion: 2, x: 0, y: 0, width: 0.3333333333333333, height: 1}
-  mouth: {x: 0.558, y: 0.718}
-  hand: {x: 0.65, y: 0.18}
+  mouth: {x: 0.401, y: 0.738}
+  hand: {x: 0.5, y: 0.2}
   masked: 0
-  mouthWidth: 0.055
+  mouthWidth: 0.038
   mouthAngle: 0
