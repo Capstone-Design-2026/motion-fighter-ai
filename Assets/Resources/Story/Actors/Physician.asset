@@ -15,8 +15,8 @@ MonoBehaviour:
   displayName: "의원"
   artwork: {fileID: 2800000, guid: 2a7a19138b8e4738b23bcc21db292a6d, type: 3}
   crop: {serializedVersion: 2, x: 0.6666666666666666, y: 0, width: 0.3333333333333333, height: 1}
-  mouth: {x: 0.57, y: 0.7}
-  hand: {x: 0.7, y: 0.16}
+  mouth: {x: 0.41, y: 0.714}
+  hand: {x: 0.5, y: 0.17}
   masked: 0
-  mouthWidth: 0.06
+  mouthWidth: 0.038
   mouthAngle: 0

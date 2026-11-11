@@ -15,6 +15,6 @@ MonoBehaviour:
   displayName: "계곡 잠복병"
   artwork: {fileID: 2800000, guid: 0846d75e719d47bb826b302f154229d5, type: 3}
   crop: {serializedVersion: 2, x: 0, y: 0, width: 1, height: 1}
-  mouth: {x: 0.5, y: 0.76}
-  hand: {x: 0.72, y: 0.22}
+  mouth: {x: 0.454, y: 0.788}
+  hand: {x: 0.85, y: 0.1}
   masked: 1

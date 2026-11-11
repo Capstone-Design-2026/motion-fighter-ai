@@ -15,6 +15,6 @@ MonoBehaviour:
   displayName: "포로 감시관"
   artwork: {fileID: 2800000, guid: 4346cc9adbde45d8a5dd5331c09d46ca, type: 3}
   crop: {serializedVersion: 2, x: 0, y: 0, width: 1, height: 1}
-  mouth: {x: 0.5, y: 0.76}
-  hand: {x: 0.72, y: 0.22}
+  mouth: {x: 0.454, y: 0.783}
+  hand: {x: 0.85, y: 0.1}
   masked: 1
