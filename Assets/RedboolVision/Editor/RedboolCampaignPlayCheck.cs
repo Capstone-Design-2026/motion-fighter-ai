@@ -128,7 +128,7 @@ public static class RedboolCampaignPlayCheck
         Check(SceneManager.GetActiveScene().name==SceneRoutes.Start && !run.HasSave() && !run.HasRun,"Loss returns to start and clears defeated run");
         run.StartNewRun(20261110);run.CompleteTutorial();run.Save();string save=PlayerPrefs.GetString(SaveKey,"");
         RedboolDuelTest.Begin();yield return null;yield return null;yield return null;
-        Check(RedboolDuelTest.Active && SceneManager.GetActiveScene().name==SceneRoutes.Battle,"Direct final rehearsal skips story and tutorial");
+        Check(RedboolDuelTest.Active && SceneManager.GetActiveScene().name==RedboolDuelTest.ArenaScene,"Direct final rehearsal uses authored ScoutPass arena and skips story/tutorial");
         run.Save();run.ClearSave();
         Check(PlayerPrefs.GetString(SaveKey,"")==save,"Direct rehearsal cannot overwrite campaign save");
         RedboolDuelTest.Restart();yield return null;yield return null;

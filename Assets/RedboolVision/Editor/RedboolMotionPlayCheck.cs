@@ -99,7 +99,8 @@ public static class RedboolMotionPlayCheck
         if (!String.IsNullOrEmpty(udpDirectory))
         {
             Directory.CreateDirectory(udpDirectory);
-            SceneManager.LoadScene("GameScene"); yield return null; yield return null;
+            RedboolDuelTest.Begin(); yield return null; yield return null;
+            Check(SceneManager.GetActiveScene().name == RedboolDuelTest.ArenaScene, "Real UDP check runs in authored duel arena");
             player = Object.FindAnyObjectByType<PlayerController>();
             special = player.GetComponent<SpecialMove>(); special.ResetCharge();
             var receiver = Object.FindAnyObjectByType<RedboolDemoReceiver>();

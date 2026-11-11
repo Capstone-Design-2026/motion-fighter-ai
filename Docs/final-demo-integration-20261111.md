@@ -21,3 +21,9 @@ The isolated Mac project uses Unity 6000.4.5f1. Editor-generated package/NuGet/m
 ## Reproduce the motion check
 
 Use an isolated project, a free UDP port 5065, and a fresh shared output folder. Run `RedboolMotionPlayCheck.Run` in Unity batch mode with `REDBOOL_MOTION_CHECK_OUTPUT` and `REDBOOL_UDP_CHECK_DIR`. At the same time, run `Tools/check_motion_udp.py <REDBOOL_UDP_CHECK_DIR>` with the paired Python environment and `PYTHONPATH` pointing to Python `src` and `tests`. The batch runner restores the original campaign save.
+
+## Real-play follow-up
+
+The old direct-duel shortcut always loaded the empty `GameScene` sandbox. It now loads the authored `ScoutPass` arena, still without touching campaign saves or replaying story/tutorial; F5 restarts that arena. The preparation overlay is hidden on KO/result screens so closing the camera does not cover the result with a misleading waiting prompt.
+
+The revised campaign checker passes 155 checks. The actual engine/UDP check now runs in the authored duel arena: 24 Unity checks and 7 sender checks pass, including minimum-charge QiPalm followed by a straight. The updated standalone app builds 16 scenes with 0 errors (52 warnings) and passes held-guard/disconnect/attack checks. The previously recorded real play confirms block-to-punch input, but both applied X events were followed by round lock and no immediate attack request; post-special chaining is established by the controlled test, not claimed from that live clip. Python V21 high-guard raise routing is supplied separately.
