@@ -143,8 +143,18 @@ class SixAttack(DemoAttack):
                     and arm['angle3d'] is not None
                     and arm['angle3d']<=min(2.55,base['angle3d']+.60)):
                 continue
+            # A compact, personally calibrated folded guard may still settle
+            # after block release. Keep the full dwell and spatial/elbow proof;
+            # avoid resetting that dwell on modest projected wrist jitter.
+            compact_return = (self.state == 'PREPARING' and not self.unreturned_punch
+                and self.now < getattr(self, 'folded_low_block_until', 0)
+                and abs(dx)<=.30 and -.20<=dy<=.40
+                and arm['position'][1]<=.45 and arm['angle']<=.50
+                and arm['angle3d'] is not None
+                and arm['angle3d']<=min(2.3,base['angle3d']+.15))
+            return_speed = 2.0 if compact_return else 1.2
             if not (abs(dx)<=.45 and (-.30<=dy<=.65 or (-.65<=dy<-.30 and arm['angle']<=.6 and arm['angle3d'] is not None and arm['angle3d']<=min(2.2,base['angle3d']+.25))) and arm['position'][1]<=.45
-                    and arm['speed_xy']<=1.2 and arm['angle']<=1.8
+                    and arm['speed_xy']<=return_speed and arm['angle']<=1.8
                     and arm['angle3d'] is not None
                     and arm['angle3d']<=min(2.6,base['angle3d']+.60)):
                 return False
@@ -283,7 +293,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-cross-assist-20261111-v23')
+        self.config = replace(self.config, version='seated-block-preparation-20261111-v25')
         self._components()
 
     @property
