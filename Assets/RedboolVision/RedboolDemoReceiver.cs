@@ -27,6 +27,12 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
     [Range(0f, .15f)] public float movementSmoothingSeconds = .06f;
+    // Map a recognised light lean to a useful walking pace before smoothing.
+    // Zero still means stop; timeout, preparation and collision rules are unchanged.
+    public static float WalkStrength(float strength) {
+        if (float.IsNaN(strength) || float.IsInfinity(strength) || strength <= 0) return 0;
+        return Mathf.Lerp(.65f, 1f, Mathf.InverseLerp(.35f, 1f, strength));
+    }
     public string Status { get; private set; } = "WAITING";
     public int AttacksApplied { get; private set; }
     public int AttacksBusy { get; private set; }
@@ -208,7 +214,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             sequence=p.sequence;lastLiveNs=now;
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
-            BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*p.movement_strength;
+            BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*WalkStrength(p.movement_strength);
             controlling=true;
             if(p.calibration_version==1 && p.calibrated && (p.tracking=="VALID" || p.tracking=="SYNTHETIC"))
                 RedboolFrameMetrics.NoteLiveInput();

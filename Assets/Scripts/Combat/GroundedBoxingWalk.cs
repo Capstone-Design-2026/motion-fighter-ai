@@ -17,6 +17,7 @@ public sealed class GroundedBoxingWalk
     readonly Transform root;
     readonly Animator animator;
     readonly Rigidbody2D body;
+    readonly float strideScale;
     readonly RaycastHit2D[] groundHits = new RaycastHit2D[12];
     readonly Leg[] legs = new Leg[2];
     Transform pelvis;
@@ -37,13 +38,14 @@ public sealed class GroundedBoxingWalk
     public float ContactError { get; private set; }
     public float ReachError { get; private set; }
     // Distance for one step-and-follow pair. The lead/rear stance never swaps.
-    public float StepLength => Mathf.Lerp(.24f, .38f, Mathf.InverseLerp(.25f, 1.4f, speed)) * legLength / .80f;
+    public float StepLength => Mathf.Lerp(.24f, .38f, Mathf.InverseLerp(.25f, 1.4f, speed)) * legLength / .80f * strideScale;
     public float PlaybackSpeed => Mathf.Clamp(.66f * speed / Mathf.Max(.1f, StepLength), .35f, 3f);
     public Vector3 ContactPosition => PlantedFoot < 0 ? root.position : legs[PlantedFoot].foot.position;
 
     public GroundedBoxingWalk(Transform visual, Animator model)
     {
         root = visual; animator = model; previousRoot = root.position;
+        strideScale = visual.GetComponentInParent<PlayerController>() != null ? 1.35f : 1f;
         body = visual.GetComponentInParent<Rigidbody2D>(); groundY = root.position.y;
     }
     public void Reset()
@@ -152,7 +154,7 @@ public sealed class GroundedBoxingWalk
         var l = legs[i]; l.from = l.shown; l.startRotation = l.shownRotation;
         duration = settle ? .20f : Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
         l.target = settle ? Rest(i) : Landing(i, duration);
-        swingLift = (settle ? .022f : .033f) * legLength / .8f;
+        swingLift = (settle ? .022f : .033f * strideScale) * legLength / .8f;
     }
     Vector3 Landing(int i, float remaining)
     {

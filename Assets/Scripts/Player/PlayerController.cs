@@ -81,6 +81,9 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        // Keep the waiting pose aimed at the opponent while camera calibration holds combat.
+        if (fighter != null && fighter.VisionPreparationLocked && !fighter.InputLocked && !health.IsDead)
+            FaceOpponent(0f);
         // K.O. 연출 중. 진 쪽은 물론 이긴 쪽도 움직이지 못한다.
         // 물리는 그대로 돌아가므로 쓰러지는 모션과 넉백은 끝까지 재생된다.
         if (fighter != null && (fighter.InputLocked || fighter.VisionPreparationLocked))
@@ -160,7 +163,8 @@ public class PlayerController : MonoBehaviour
         // 바라보는 방향과 이동 방향이 반대면 후진.
         bool movingBack = Mathf.Abs(moveX) > 0.01f && moveX * fighter.Facing < 0f;
 
-        float speed = moveSpeed * (unifiedBoxing ? Fighter3DView.BoxingTravelScale : 1f);
+        // Camera walking uses a longer travel scale; AI and keyboard tuning stay independent.
+        float speed = moveSpeed * (unifiedBoxing ? (externalControl ? .55f : Fighter3DView.BoxingTravelScale) : 1f);
         if (movingBack)  speed *= backwardSpeedMultiplier;
         if (isCrouching) speed *= crouchSpeedMultiplier;
 

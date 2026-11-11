@@ -15,6 +15,7 @@ public static class RedboolMotionPlayCheck
     const string Active = "RedboolMotionPlayCheck.Active", SaveKey = "VisionStriker.Run";
     static IEnumerator flow;
     static int lastFrame = -1;
+    static RedboolBattlePreparation walkingGate;
     static readonly List<string> checks = new List<string>();
     static string Output => Environment.GetEnvironmentVariable("REDBOOL_MOTION_CHECK_OUTPUT") ?? Path.GetFullPath(Path.Combine(Application.dataPath, "../../persistent_calibration_20261105/native_play"));
     static RedboolMotionPlayCheck() { if (SessionState.GetBool(Active, false)) Subscribe(); }
@@ -50,7 +51,10 @@ public static class RedboolMotionPlayCheck
     static IEnumerator Wait(float seconds)
     {
         double until = Time.realtimeSinceStartupAsDouble + seconds;
-        while (Time.realtimeSinceStartupAsDouble < until) yield return null;
+        while (Time.realtimeSinceStartupAsDouble < until) {
+            if(walkingGate!=null) walkingGate.Observe(true,"SYNTHETIC","READY",false,"NEUTRAL");
+            yield return null;
+        }
     }
     static IEnumerator Tests()
     {
@@ -72,6 +76,8 @@ public static class RedboolMotionPlayCheck
         Check(Camera.main == null || Camera.main.targetTexture == null, "Warmup restores camera target");
         Check(GameObject.Find("Effect warmup sample") == null && specialCharge(player) == 0, "Warmup leaves no effect samples or charge");
         Check(!gate.AllowsPlayer && fighter.VisionPreparationLocked, "No camera holds player");
+        Check(fighter.Facing == (enemy.transform.position.x > player.transform.position.x ? 1 : -1)
+            && enemy.GetComponent<Fighter>().Facing == -fighter.Facing, "Both fighters face each other before calibration");
         Check(enemy.GetComponent<Fighter>().VisionPreparationLocked && !enemy.GetComponent<Fighter>().IsAttacking, "No camera holds enemy");
         Check(Mathf.Abs(round.RemainingSeconds - seconds) < .001f, "Preparation holds round clock");
         Check(fighter.Health.CurrentHealth == hp, "Preparation preserves HP");
@@ -102,6 +108,47 @@ public static class RedboolMotionPlayCheck
         gate.Observe(true, "VALID", "ACTIVE", false, "LEFT");
         Check(gate.AllowsPlayer, "Next scene accepts preserved calibration without neutral pose or timer");
         Check(PlayerPrefs.GetString(SaveKey, "") == SessionState.GetString(Active + ".Save", ""), "Saved progress unchanged");
+        gate.Observe(true, "SYNTHETIC", "READY", false, "NEUTRAL");
+        player = Object.FindAnyObjectByType<PlayerController>();
+        fighter = player.GetComponent<Fighter>();
+        player.useKeyboard = false;
+        var body = player.GetComponent<Rigidbody2D>();
+        var view = player.GetComponent<Fighter3DView>();
+        Check(RedboolDemoReceiver.WalkStrength(0) == 0 && RedboolDemoReceiver.WalkStrength(float.NaN) == 0,
+            "Neutral and invalid strengths cannot start walking");
+        Check(Mathf.Abs(RedboolDemoReceiver.WalkStrength(.35f)-.65f)<.001f && RedboolDemoReceiver.WalkStrength(1)==1,
+            "Light lean walks at 65 percent, full lean remains bounded");
+        // Keep each rehearsal away from the opponent/walls; preserve real physics and animation.
+        walkingGate=gate;
+        var walkingReceiver=Object.FindAnyObjectByType<RedboolDemoReceiver>();
+        typeof(RedboolDemoReceiver).GetField("deadline",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(walkingReceiver,long.MaxValue);
+        Vector2 origin = new Vector2(0, body.position.y);
+        var walkingEnemy=Object.FindAnyObjectByType<EnemyAI>();
+        walkingEnemy.GetComponent<Rigidbody2D>().position = new Vector2(15,body.position.y);
+        body.position=origin;Physics2D.SyncTransforms();
+        foreach (int sign in new[]{-1,1})
+        {
+            body.position = origin; Physics2D.SyncTransforms();
+            player.ExternalMovement(sign * RedboolDemoReceiver.WalkStrength(.35f));
+            for (var w=Wait(.25f);w.MoveNext();) yield return null;
+            Check(Mathf.Abs(body.linearVelocity.x)>.65f, "Light lean travels at useful speed " + sign + " velocity=" + body.linearVelocity.x + " locked=" + fighter.VisionPreparationLocked);
+            Check(view.Walk.StepLength>.34f, "Player stride length grows with actual travel " + sign);
+            foreach(string action in new[]{"JAB","STRAIGHT","HIGH_KICK","LOW_KICK"})
+            {
+                player.ExternalAction(action);
+                Check(fighter.IsAttacking, "Held movement accepts " + action + " direction " + sign + " vx=" + body.linearVelocity.x + " attack=" + fighter.IsAttacking);
+                for(var w=Wait(1.8f);w.MoveNext();)yield return null;
+                Check(!fighter.IsAttacking && Mathf.Abs(body.linearVelocity.x)>.65f,
+                    "Held direction resumes after " + action + " direction " + sign + " vx=" + body.linearVelocity.x + " attack=" + fighter.IsAttacking);
+                body.position=origin;Physics2D.SyncTransforms();
+            }
+            player.ExternalMovement(0);
+            for(var w=Wait(.2f);w.MoveNext();)yield return null;
+            Check(Mathf.Abs(body.linearVelocity.x)<.01f,"Neutral stops travel " + sign);
+        }
+
+        walkingGate=null;
+        typeof(RedboolDemoReceiver).GetField("deadline",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(walkingReceiver,0L);
         // Optional external Python sender exercises the actual UDP socket, clocks and ACKs.
         // Only available in this isolated batch runner; never enabled in ordinary play.
         string udpDirectory = Environment.GetEnvironmentVariable("REDBOOL_UDP_CHECK_DIR");
