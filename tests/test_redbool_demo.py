@@ -160,6 +160,7 @@ class SyntheticLiveTests(unittest.TestCase):
             def release(self):pass
         class FakePose:
             def detect_for_video(self,*args):return types.SimpleNamespace(pose_landmarks=[points],pose_world_landmarks=[])
+            def detect(self,*args):return self.detect_for_video(*args)
             def close(self):pass
         shown=[0]
         def imshow(*args):shown[0]+=1
@@ -167,7 +168,7 @@ class SyntheticLiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             args=argparse.Namespace(pose=Path('pose_landmarker.task'),check=False,stream_id=None,output=Path(folder),
                 guided=True,movement=False,host='127.0.0.1',port=9,actor='DEV01',camera=0,backend='auto',seconds=6,mirror=True,preview_fps=15.)
-            with patch('pose_capture.open_camera',return_value=FakeCamera()),patch.object(PoseLandmarker,'create_from_options',return_value=FakePose()),patch.object(cv2,'imshow',side_effect=imshow),patch.object(cv2,'waitKey',side_effect=key),patch.object(cv2,'destroyAllWindows'):
+            with patch('pose_capture.open_camera',return_value=FakeCamera()),patch.object(PoseLandmarker,'create_from_options',return_value=FakePose()) as factory,patch.object(cv2,'imshow',side_effect=imshow),patch.object(cv2,'waitKey',side_effect=key),patch.object(cv2,'destroyAllWindows'):
                 run(args)
             root=next(Path(folder).iterdir());r=json.loads((root/'summary.json').read_text())
             self.assertFalse(r['errors']);self.assertEqual(r['counts']['events'],0)
@@ -185,5 +186,12 @@ class SyntheticLiveTests(unittest.TestCase):
             self.assertTrue(any(a['source']=='prompt' and a['notes']['ground_truth_status']=='NOT_REVIEWED' for a in annotations))
             self.assertEqual(m['video']['encoded_frame_count'],r['counts']['processed'])
             self.assertEqual(json.loads((session/'summary.json').read_text())['status'],'completed')
+            if getattr(args,'cross_pose',None) and getattr(args,'cross_redetect',True):
+                self.assertEqual([c.args[0].running_mode.name for c in factory.call_args_list],['VIDEO','VIDEO','IMAGE'])
+                self.assertEqual(m['recording_config']['cross_redetect']['mode'],'IMAGE')
+                rows=[json.loads(x) for x in (session/'frames.jsonl').read_text().splitlines()]
+                self.assertTrue(all(row['processing_metadata']['cross_recovery']['mode']=='IMAGE' for row in rows))
+                self.assertTrue(r['performance']['cross_redetect_ms_p50_p95'])
+
 
 if __name__=='__main__':unittest.main()

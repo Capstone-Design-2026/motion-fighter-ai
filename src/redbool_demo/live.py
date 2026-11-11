@@ -18,6 +18,7 @@ from .transport import DemoSender
 from .guided import GuidedCheck
 from .framing import framing_status
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 
 
 def run(a):
@@ -59,7 +60,7 @@ def run(a):
     log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
     counts={'captured':0,'processed':0,'events':0,'left':0,'right':0,'both':0,'preview_frames':0}
     guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False), focus=getattr(a,'guided_focus','all')) if getattr(a,'guided',False) else None
-    display={'event':'NONE','event_ns':0};cap=None;pose=None;cross_pose=None;video=None;recorder=None
+    display={'event':'NONE','event_ns':0};cap=None;pose=None;cross_pose=None;recovery_pose=None;recovery_pool=None;video=None;recorder=None
     def fail(where,exc):
         errors.append({'where':where,'error':repr(exc)});stop.set()
     def capture():
@@ -110,7 +111,7 @@ def run(a):
     workers=[threading.Thread(target=capture,name='demo-camera',daemon=True),threading.Thread(target=publisher,name='demo-publisher',daemon=True)]
     print(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)
     started=time.monotonic();last_stamp=None;origin=None;last_ms=-1;pose_ms=0.
-    next_preview_ns=0;cross_samples=[];pose_samples=[];age_samples=[];framing_counts=Counter()
+    next_preview_ns=0;cross_samples=[];recovery_samples=[];pose_samples=[];age_samples=[];framing_counts=Counter()
     prior_cv_threads=cv.getNumThreads()
     try:
         # OpenCV shares this process with MediaPipe, capture, recording and UDP.
@@ -126,6 +127,15 @@ def run(a):
                 base_options=BaseOptions(model_asset_path=str(cross_path),delegate=BaseOptions.Delegate.CPU),
                 running_mode=RunningMode.VIDEO,num_poses=1,min_pose_detection_confidence=.5,
                 min_pose_presence_confidence=.5,min_tracking_confidence=.5))
+        if cross_path and getattr(a,'cross_redetect',True):
+            recovery_pose=PoseLandmarker.create_from_options(PoseLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=str(cross_path),delegate=BaseOptions.Delegate.CPU),
+                running_mode=RunningMode.IMAGE,num_poses=1,min_pose_detection_confidence=.5,
+                min_pose_presence_confidence=.5,min_tracking_confidence=.5))
+            recovery_pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='cross-redetect')
+        def redetect(image):
+            begin=time.monotonic_ns();result=recovery_pose.detect(image)
+            return result,begin,time.monotonic_ns()
         for worker in workers:worker.start()
         while not stop.is_set() and time.monotonic()-started<a.seconds:
             item=slot.take()
@@ -144,6 +154,7 @@ def run(a):
                     gesture_set_version='raised-kicks-v3',recording_config={'source_mirrored':False,
                         'engine_version':engine.config.version,
                         'cross_pose':{'variant':'Full','sha256':hashlib.sha256(cross_path.read_bytes()).hexdigest(),'scope':'same-frame auxiliary X only'} if cross_path else None,
+                        'cross_redetect':{'mode':'IMAGE','variant':'Full','scope':'same-frame X recovery only'} if recovery_pose else None,
                         'camera_requested_fps':30,'preview_target_fps':preview_fps,'opencv_threads':1,
                         'guard_model':engine.posture_model.meta if getattr(a,'guard_model',None) else None,
                         'stream_id':stream,'scope':'processed RGB + Pose + FSM; not human ground truth',
@@ -155,26 +166,41 @@ def run(a):
                     f"영상 저장 확인: {done}/{total} 프레임 ({100*done/max(1,total):.0f}%)",flush=True)
                 video=AsyncPilotVideo(raw,32)
                 recorder.update_manifest(video=raw.metadata)
-            start=time.monotonic_ns();result=pose.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb),ms);end=time.monotonic_ns()
+            # One immutable RGB sample goes to independent model instances.
+            # Await this frame before publishing; no auxiliary backlog or stale reuse.
+            image=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
+            recovery_future=recovery_pool.submit(redetect,image) if recovery_pool else None
+            start=time.monotonic_ns();result=pose.detect_for_video(image,ms);end=time.monotonic_ns()
             cross=None;cross_data=None
             if cross_pose is not None:
                 cross_start=time.monotonic_ns()
-                cross=cross_pose.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb),ms)
+                cross=cross_pose.detect_for_video(image,ms)
                 cross_end=time.monotonic_ns();cross_samples.append((cross_end-cross_start)/1e6)
                 pts=cross.pose_landmarks[0] if cross.pose_landmarks else []
                 cross_data={'variant':'Full','start_ns':cross_start,'end_ns':cross_end,
+                    'landmarks':[[p.x,p.y,p.z] for p in pts], 'visibility':[p.visibility for p in pts]}
+            recovery_data=None
+            if recovery_future is not None:
+                recovery,begin,finish=recovery_future.result()
+                recovery_samples.append((finish-begin)/1e6)
+                pts=recovery.pose_landmarks[0] if recovery.pose_landmarks else []
+                recovery_data={'variant':'Full','mode':'IMAGE','start_ns':begin,'end_ns':finish,
                     'landmarks':[[p.x,p.y,p.z] for p in pts], 'visibility':[p.visibility for p in pts]}
             frame=recorder.record_frame(capture_return_monotonic_ns=stamp,pose_success=True,
                 pose_start_monotonic_ns=start,pose_end_monotonic_ns=end,
                 image_landmarks=result.pose_landmarks[0] if result.pose_landmarks else None,
                 world_landmarks=result.pose_world_landmarks[0] if result.pose_world_landmarks else None,
-                processing_metadata={'camera_frame_id':fid,'stream_id':stream,'cross_pose':cross_data})
+                processing_metadata={'camera_frame_id':fid,'stream_id':stream,'cross_pose':cross_data,'cross_recovery':recovery_data})
             obs=PoseObservation.from_record(frame,{'subject_id':a.actor,'session_id':stream,
                 'actual_resolution':[bgr.shape[1],bgr.shape[0]],'recording_config':{'source_mirrored':False}})
             aux=None
             if cross_data is not None:
                 aux=replace(obs,landmarks=tuple(map(tuple,cross_data['landmarks'])) or None,
                     visibility=tuple(cross_data['visibility']) or None,pose_present=bool(cross_data['landmarks']))
+            if recovery_data is not None:
+                recovery=replace(obs,landmarks=tuple(map(tuple,recovery_data['landmarks'])) or None,
+                    visibility=tuple(recovery_data['visibility']) or None,pose_present=bool(recovery_data['landmarks']))
+                aux=(aux,recovery)
             state=engine.process(obs,special_observation=aux) if cross_data is not None else engine.process(obs)
             video.write(bgr,rgb,frame,trial_state='DEMO')
             framing=framing_status(obs,engine.config.visibility);framing_counts[framing['code']]+=1
@@ -237,6 +263,8 @@ def run(a):
             if worker.ident is not None:worker.join(timeout=3)
         if any(w.is_alive() for w in workers):errors.append({'where':'shutdown','error':'worker did not stop'})
         if workers[1].ident is None:sender.close()
+        if recovery_pool is not None:recovery_pool.shutdown(wait=True)
+        if recovery_pose is not None:recovery_pose.close()
         if pose is not None:pose.close()
         if cross_pose is not None:cross_pose.close()
         cv.destroyAllWindows()
@@ -254,6 +282,7 @@ def run(a):
         cv.setNumThreads(prior_cv_threads)
         performance={'camera_requested_fps':30,'preview_target_fps':preview_fps,
             'processed_fps':(counts['processed']-1)*1e9/(last_stamp-origin) if last_stamp is not None and last_stamp>origin else 0.,
+            'cross_redetect_ms_p50_p95':np.percentile(recovery_samples,[50,95]).tolist() if recovery_samples else [],
             'cross_pose_ms_p50_p95':np.percentile(cross_samples,[50,95]).tolist() if cross_samples else [],
             'pose_ms_p50_p95':np.percentile(pose_samples,[50,95]).tolist() if pose_samples else [],
             'capture_to_engine_ms_p50_p95':np.percentile(age_samples,[50,95]).tolist() if age_samples else [],
@@ -272,6 +301,7 @@ def main():
     p.add_argument('--pose',type=Path)
     p.add_argument('--pose-variant',choices=['Lite','Full'],default='Lite')
     p.add_argument('--cross-pose',type=Path,help='Optional Full asset for same-frame crossed-arm geometry only')
+    p.add_argument('--cross-redetect',action=argparse.BooleanOptionalAction,default=True,help='Same-frame independent Full detection for X recovery; requires --cross-pose')
     p.add_argument('--guard-model',type=Path,help='Optional learned confirmation for relaxed guard; match Pose variant')
     p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=5065)
     p.add_argument('--actor',default='DEV01');p.add_argument('--stream-id');p.add_argument('--camera',type=int,default=0)

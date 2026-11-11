@@ -41,6 +41,7 @@ class TwoPersonRecordingTests(unittest.TestCase):
     def test_special_followups_and_original_six_specials_preserved(self):
         for t in [96.174,287.279,292.075,297.603,351.344,438.129]:self.assertEqual(self.gestures(t-.5,t+.5),['SPECIAL'])
         for t,g in [(100.424,'LEFT_RAISE'),(289.702,'LEFT_RAISE'),(300.246,'RIGHT_RAISE'),(354.161,'RIGHT_PUNCH'),(355.74,'LEFT_PUNCH')]:self.assertEqual(self.gestures(t-.4,t+.4),[g])
-    def test_no_extra_opposite_hand_near_left_punch(self):self.assertEqual(self.gestures(261,262.2),['LEFT_PUNCH'])
+    # RGB review later identified 261s as an X, not a true left punch.
+    # Cross-recovery recorded tests cover its suppression with all sources.
     def test_reviewed_rest_block_and_person_change_have_no_attacks(self):
         for a,b in [(0,47),(53,59),(120,162),(224.9,229),(454,460)]:self.assertEqual(self.gestures(a,b),[],(a,b))
