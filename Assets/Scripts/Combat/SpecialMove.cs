@@ -114,6 +114,18 @@ public class SpecialMove : MonoBehaviour
         loop = gameObject.AddComponent<AudioSource>(); loop.playOnAwake = false; loop.spatialBlend = 0f; loop.loop = true;
     }
 
+    void Start()
+    {
+        if (RedboolEffectPreparation.Enabled)
+        {
+            RedboolEffectPreparation.Measure("special-font", QiCutIn.Prewarm);
+            RedboolEffectPreparation.Measure("special-volume", QiPostFx.Prewarm);
+            if (assets != null)
+                foreach (var clip in new[] { assets.chargeStart, assets.chargeLoop, assets.release, assets.impactClip, assets.readyClip, assets.fizzle })
+                    if (clip != null && clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
+        }
+    }
+
     void OnEnable()
     {
         health.OnDamaged += OnDamaged;

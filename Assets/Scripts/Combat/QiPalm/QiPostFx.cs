@@ -19,6 +19,9 @@ public static class QiPostFx
         driver.target = Mathf.Clamp01(weight);
     }
 
+    public static void Prewarm() { Ensure(); }
+    public static void PrepareRenderWeight(float value) { Ensure(); volume.weight = value; driver.target = value; }
+
     static void Ensure()
     {
         if (volume) return;

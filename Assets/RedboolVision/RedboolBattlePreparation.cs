@@ -11,8 +11,9 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     public readonly RedboolPreparationState State = new RedboolPreparationState();
     private readonly List<Fighter> fighters = new List<Fighter>();
     private double nextRefresh;
-    public bool HoldRound => !KeyboardTest && (!isActiveAndEnabled || !State.Running);
-    public bool AllowsPlayer => isActiveAndEnabled && (KeyboardTest || State.Running || State.Rehearsal);
+    public bool HoldRound => EffectsPreparing || !KeyboardTest && (!isActiveAndEnabled || !State.Running);
+    public bool EffectsPreparing { get; internal set; }
+    public bool AllowsPlayer => !EffectsPreparing && isActiveAndEnabled && (KeyboardTest || State.Running || State.Rehearsal);
 
     /// <summary>
     /// 키보드 테스트 모드. 카메라(Python) 없이 키보드로 전투를 시험할 때 쓴다. 기본은 꺼져 있어 카메라 대기가 유지된다.
@@ -61,6 +62,11 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
         receiver.player = player;
         receiver.Preparation = preparation;
         preparation.ResetPreparation();
+        if (RedboolEffectPreparation.Enabled)
+        {
+            preparation.EffectsPreparing = true;
+            receiver.gameObject.AddComponent<RedboolRenderWarmup>().preparation = preparation;
+        }
     }
 
     public void Observe(bool calibrated, string tracking, string phase, bool block, string movement)
@@ -98,7 +104,7 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     {
         var playerFighter = player != null ? player.GetComponent<Fighter>() : null;
         foreach (var fighter in fighters)
-            if (fighter != null) fighter.SetVisionPreparationLock(!KeyboardTest && !State.Running && !(State.Rehearsal && fighter == playerFighter));
+            if (fighter != null) fighter.SetVisionPreparationLock(EffectsPreparing || !KeyboardTest && !State.Running && !(State.Rehearsal && fighter == playerFighter));
     }
 
     private void OnGUI()
@@ -112,6 +118,7 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
             GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 26), "KEYBOARD TEST MODE — F8: camera mode");
             return;
         }
+        if (EffectsPreparing) { GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 30), "PREPARING COMBAT EFFECTS"); return; }
         if (State.Running) return;
         string text = State.Rehearsal ? "CONNECTION TEST — enemy and round timer held"
             : !State.Connected ? "WAITING FOR CAMERA — start Python  (F8: keyboard test)"

@@ -44,6 +44,8 @@ public class HitVfx : MonoBehaviour
 
     private static HitVfx instance;
 
+    private GameObject preparedHit, preparedGuard;
+
     private bool warnedMissingMaterial;   // 경고는 한 번만 띄운다
 
     /// <summary>타격 이펙트 재생. 씬에 HitVfx 가 없으면 아무 일도 일어나지 않는다.</summary>
@@ -64,30 +66,54 @@ public class HitVfx : MonoBehaviour
         instance = this;
     }
 
+    void Start()
+    {
+        if (!RedboolEffectPreparation.Enabled || !enableVfx) return;
+        RedboolEffectPreparation.Measure("hit-prefabs", () => {
+            preparedHit = PrepareTemplate(hitPrefab);
+            preparedGuard = guardPrefab == hitPrefab ? preparedHit : PrepareTemplate(guardPrefab);
+        });
+    }
+
+    GameObject PrepareTemplate(GameObject prefab)
+    {
+        if (prefab == null) return null;
+        // Inactive parent prevents play-on-awake particles/audio during preparation.
+        var holder = new GameObject("Prepared hit VFX"); holder.SetActive(false);
+        holder.transform.SetParent(transform, false);
+        var copy = Instantiate(prefab, holder.transform, false);
+        PrepareRenderers(copy);
+        return copy;
+    }
+
     void OnDestroy()
     {
         if (instance == this) instance = null;
     }
 
-    private void Spawn(Vector3 point, bool guarded)
+    public static GameObject WarmVisual(Vector3 point, bool guarded) => instance != null ? instance.Spawn(point, guarded) : null;
+
+    private GameObject Spawn(Vector3 point, bool guarded)
     {
-        if (!enableVfx) return;
-        if (guarded && !playOnGuard) return;
+        if (!enableVfx) return null;
+        if (guarded && !playOnGuard) return null;
 
         GameObject prefab = guarded && guardPrefab != null ? guardPrefab : hitPrefab;
-        if (prefab == null) return;
+        if (prefab == null) return null;
 
         // Preserve the animated contact depth for rotating 3D cameras.
-        var go = Instantiate(prefab, point, prefab.transform.rotation);
+        var template = guarded && guardPrefab != null ? preparedGuard : preparedHit;
+        var go = Instantiate(template != null ? template : prefab, point, prefab.transform.rotation);
 
         float s = scale;
         // 가드 전용 프리팹을 따로 꽂았다면 그 프리팹이 이미 약한 연출이므로 더 줄이지 않는다.
         if (guarded && guardPrefab == null) s *= guardScaleMultiplier;
         go.transform.localScale = prefab.transform.localScale * s;
 
-        PrepareRenderers(go);
+        if (template == null) PrepareRenderers(go);
 
         if (lifetime > 0f) Destroy(go, lifetime);
+        return go;
     }
 
     /// <summary>

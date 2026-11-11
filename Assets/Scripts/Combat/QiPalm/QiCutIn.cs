@@ -27,6 +27,15 @@ public sealed class QiCutIn : MonoBehaviour
         return cut;
     }
 
+    public static void Prewarm()
+    {
+        var font = WuxiaTheme.MenuFont;
+        if (font == null) return;
+        // First dynamic CJK font creation/glyph rasterization belongs to scene preparation.
+        foreach (int size in new[] { 128, 168 }) font.RequestCharactersInTexture("破雲掌", size, FontStyle.Normal);
+        foreach (int size in new[] { 40, 46 }) font.RequestCharactersInTexture("파 운 장", size, FontStyle.Normal);
+    }
+
     void Build(Texture2D brush, Texture2D art)
     {
         bool hasArt = art != null;

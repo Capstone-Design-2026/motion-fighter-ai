@@ -62,7 +62,15 @@ public static class RedboolMotionPlayCheck
         var round = Object.FindAnyObjectByType<BattleSceneBridge>();
         var fighter = player.GetComponent<Fighter>();
         int hp = fighter.Health.CurrentHealth; float seconds = round.RemainingSeconds;
+        if (gate.EffectsPreparing) {
+            gate.Observe(true, "SYNTHETIC", "READY", false, "NEUTRAL");
+            Check(!gate.AllowsPlayer && fighter.VisionPreparationLocked, "Effect preparation holds even calibrated input");
+            gate.ResetPreparation();
+        }
         for (var wait = Wait(.6f); wait.MoveNext();) yield return null;
+        while (gate.EffectsPreparing) yield return null;
+        Check(Camera.main == null || Camera.main.targetTexture == null, "Warmup restores camera target");
+        Check(GameObject.Find("Effect warmup sample") == null && specialCharge(player) == 0, "Warmup leaves no effect samples or charge");
         Check(!gate.AllowsPlayer && fighter.VisionPreparationLocked, "No camera holds player");
         Check(enemy.GetComponent<Fighter>().VisionPreparationLocked && !enemy.GetComponent<Fighter>().IsAttacking, "No camera holds enemy");
         Check(Mathf.Abs(round.RemainingSeconds - seconds) < .001f, "Preparation holds round clock");
@@ -89,6 +97,7 @@ public static class RedboolMotionPlayCheck
         SceneManager.LoadScene("ScoutPass"); yield return null; yield return null;
         RedboolBattleInstallationCheck.Run(); Check(true, "ScoutPass auto reconnects with one receiver");
         gate = Object.FindAnyObjectByType<RedboolBattlePreparation>();
+        while (gate.EffectsPreparing) yield return null;
         Check(!gate.AllowsPlayer, "New scene waits for a fresh packet");
         gate.Observe(true, "VALID", "ACTIVE", false, "LEFT");
         Check(gate.AllowsPlayer, "Next scene accepts preserved calibration without neutral pose or timer");
@@ -123,6 +132,7 @@ public static class RedboolMotionPlayCheck
             Check(receiver.AttacksApplied - appliedBefore == 6, "Four attacks, exactly one UDP special, and a follow-up punch applied");
         }
     }
+    static int specialCharge(PlayerController player) => player.GetComponent<SpecialMove>().Charge;
     static void Finish(string failure)
     {
         SessionState.SetBool(Active, false); EditorApplication.update -= Tick;
