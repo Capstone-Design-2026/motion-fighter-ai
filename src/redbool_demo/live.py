@@ -183,7 +183,7 @@ def run(a):
                     f"LEFT {counts['left']}  RIGHT {counts['right']}  X {counts['both']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                     f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
                     f"Pose {pose_ms:.1f}ms | {fps:.1f} FPS | capture skipped {slot.dropped} | preview {preview_fps:g}",
-                    'C: calibrate guard | M: move | X: pause | Q: finish']
+                    ('MIRROR VIEW' if a.mirror else 'CAMERA VIEW')+' | C: calibrate | M: move | X: pause | Q: finish']
                 for i,line in enumerate(lines):
                     width=cv.getTextSize(line,0,.47,1)[0][0]
                     scale=.47*min(1.,(panel.shape[1]-12)/max(1,width))
@@ -248,7 +248,8 @@ def main():
     p.add_argument('--guided',action='store_true',help='Self-paced prompts: SPACE advances after each action/guard; saves instructions, not ground truth')
     p.add_argument('--guided-focus',choices=['all','left-return'],default='all',help='Short five-repeat left raise and return check')
     p.add_argument('--guided-timed',action='store_true',help='Use legacy fixed-duration prompts instead of SPACE')
-    p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action='store_true')
+    p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action=argparse.BooleanOptionalAction,default=True,
+        help='Mirror only the preview (default); --no-mirror shows the original camera view. Recognition and recording stay unmirrored.')
     p.add_argument('--preview-fps',type=float,default=15.,help='Camera window refresh only; recognition remains full rate (1-60)')
     p.add_argument('--check',action='store_true');a=p.parse_args()
     if a.pose is None:
