@@ -16,12 +16,14 @@ public static class RedboolMotionPlayCheck
     static IEnumerator flow;
     static int lastFrame = -1;
     static RedboolBattlePreparation walkingGate;
+    static string walkingTracking = "SYNTHETIC";
     static readonly List<string> checks = new List<string>();
     static string Output => Environment.GetEnvironmentVariable("REDBOOL_MOTION_CHECK_OUTPUT") ?? Path.GetFullPath(Path.Combine(Application.dataPath, "../../persistent_calibration_20261105/native_play"));
     static RedboolMotionPlayCheck() { if (SessionState.GetBool(Active, false)) Subscribe(); }
     public static void Run()
     {
         if (!Application.isBatchMode) throw new Exception("Run this isolated smoke check with Unity -batchmode.");
+        RedboolHeroAssetsCheck.Run();
         AssetDatabase.DisallowAutoRefresh(); EditorApplication.LockReloadAssemblies();
         Directory.CreateDirectory(Output);
         SessionState.SetBool(Active + ".HadSave", PlayerPrefs.HasKey(SaveKey));
@@ -52,9 +54,20 @@ public static class RedboolMotionPlayCheck
     {
         double until = Time.realtimeSinceStartupAsDouble + seconds;
         while (Time.realtimeSinceStartupAsDouble < until) {
-            if(walkingGate!=null) walkingGate.Observe(true,"SYNTHETIC","READY",false,"NEUTRAL");
+            if(walkingGate!=null) walkingGate.Observe(true,walkingTracking,"READY",false,"NEUTRAL");
             yield return null;
         }
+    }
+    static void Shot(string name)
+    {
+        var cam=Camera.main; if(cam==null)return;
+        var rt=new RenderTexture(1280,720,24);
+        UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(cam,new UnityEngine.Rendering.RenderPipeline.StandardRequest{destination=rt});
+        var old=RenderTexture.active; RenderTexture.active=rt;
+        var image=new Texture2D(1280,720,TextureFormat.RGB24,false);
+        image.ReadPixels(new Rect(0,0,1280,720),0,0);image.Apply();
+        File.WriteAllBytes(Path.Combine(Output,name+".png"),image.EncodeToPNG());
+        RenderTexture.active=old;Object.Destroy(image);rt.Release();Object.Destroy(rt);
     }
     static IEnumerator Tests()
     {
@@ -65,6 +78,10 @@ public static class RedboolMotionPlayCheck
         var gate = Object.FindAnyObjectByType<RedboolBattlePreparation>();
         var round = Object.FindAnyObjectByType<BattleSceneBridge>();
         var fighter = player.GetComponent<Fighter>();
+        var heroView=player.GetComponent<Fighter3DView>();
+        Check(heroView.visualRoot.name.StartsWith("Hero02") && heroView.modelAnimator.isHuman,
+            "Upstream Hero02 is the playable humanoid");
+        Check(fighter.Contacts.Ready,"Hero02 attack and hurt-volume bones resolve");
         int hp = fighter.Health.CurrentHealth; float seconds = round.RemainingSeconds;
         if (gate.EffectsPreparing) {
             gate.Observe(true, "SYNTHETIC", "READY", false, "NEUTRAL");
@@ -75,6 +92,7 @@ public static class RedboolMotionPlayCheck
         while (gate.EffectsPreparing) yield return null;
         Check(Camera.main == null || Camera.main.targetTexture == null, "Warmup restores camera target");
         Check(GameObject.Find("Effect warmup sample") == null && specialCharge(player) == 0, "Warmup leaves no effect samples or charge");
+        Shot("hero_waiting");
         Check(!gate.AllowsPlayer && fighter.VisionPreparationLocked, "No camera holds player");
         Check(fighter.Facing == (enemy.transform.position.x > player.transform.position.x ? 1 : -1)
             && enemy.GetComponent<Fighter>().Facing == -fighter.Facing, "Both fighters face each other before calibration");
@@ -137,7 +155,11 @@ public static class RedboolMotionPlayCheck
             {
                 player.ExternalAction(action);
                 Check(fighter.IsAttacking, "Held movement accepts " + action + " direction " + sign + " vx=" + body.linearVelocity.x + " attack=" + fighter.IsAttacking);
-                for(var w=Wait(1.8f);w.MoveNext();)yield return null;
+                for(var w=Wait(.15f);w.MoveNext();)yield return null;
+                Check(view.CurrentState== (action=="STRAIGHT"?"CROSS":action=="HIGH_KICK"?"HIGHKICK":action=="LOW_KICK"?"LOWKICK":action),
+                    "Hero02 animation follows " + action);
+                if(sign==1)Shot("hero_"+action);
+                for(var w=Wait(1.65f);w.MoveNext();)yield return null;
                 Check(!fighter.IsAttacking && Mathf.Abs(body.linearVelocity.x)>.65f,
                     "Held direction resumes after " + action + " direction " + sign + " vx=" + body.linearVelocity.x + " attack=" + fighter.IsAttacking);
                 body.position=origin;Physics2D.SyncTransforms();
@@ -145,6 +167,27 @@ public static class RedboolMotionPlayCheck
             player.ExternalMovement(0);
             for(var w=Wait(.2f);w.MoveNext();)yield return null;
             Check(Mathf.Abs(body.linearVelocity.x)<.01f,"Neutral stops travel " + sign);
+        }
+
+        // A new visual rig must cause actual contact damage, not only ACK an action.
+        walkingEnemy.enabled=false;
+        walkingTracking="VALID"; // SYNTHETIC deliberately leaves the opponent preparation-locked and immune.
+        walkingEnemy.GetComponent<Health>().Configure("Hero contact verification",10000);
+        player.GetComponent<Health>().Configure("Hero contact verification",10000);
+        var enemyBody=walkingEnemy.GetComponent<Rigidbody2D>();
+        foreach(string action in new[]{"JAB","STRAIGHT","HIGH_KICK","LOW_KICK"})
+        {
+            body.position=new Vector2(-.45f,body.position.y);
+            enemyBody.position=new Vector2(.45f,enemyBody.position.y);
+            body.linearVelocity=enemyBody.linearVelocity=Vector2.zero; Physics2D.SyncTransforms();
+            for(var w=Wait(.3f);w.MoveNext();)yield return null;
+            int before=walkingEnemy.GetComponent<Health>().CurrentHealth;
+            player.ExternalAction(action);
+            for(var w=Wait(.3f);w.MoveNext();)yield return null;
+            Shot("hero_contact_"+action);
+            for(var w=Wait(1.5f);w.MoveNext();)yield return null;
+            Check(walkingEnemy.GetComponent<Health>().CurrentHealth<before,
+                "Hero02 causes actual contact damage with "+action);
         }
 
         walkingGate=null;
