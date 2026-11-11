@@ -68,7 +68,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         // Additive diagnostics only: never bypass or queue a busy action.
         public int diagnostics_version = 1;
         public bool game_attacking, game_hit_stunned, game_input_locked, game_preparation_locked,
-            game_guard_recovering, game_dead, application_focused;
+            game_guard_recovering, game_dead, application_focused, game_special_active;
         public int game_health;
         public float game_frame_ms, game_time_scale;
         public int calibration_contract = 1;
@@ -235,9 +235,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
             battle_preparing=Preparation!=null && Preparation.HoldRound,
             special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
-            game_can_act=fighter!=null && fighter.CanAct,game_guard_active=fighter!=null && fighter.IsGuarding,
+            // Wire contract: ready to start another attack, not merely free to move.
+            game_can_act=fighter!=null && fighter.CanAttack,game_guard_active=fighter!=null && fighter.IsGuarding,
             guards_started=GuardsStarted,
             game_attacking=fighter!=null && fighter.IsAttacking,
+            game_special_active=fighter!=null && fighter.IsSpecialActive,
             game_hit_stunned=fighter!=null && fighter.Health!=null && fighter.Health.IsHitStunned,
             game_input_locked=fighter!=null && fighter.InputLocked,
             game_preparation_locked=fighter!=null && fighter.VisionPreparationLocked,
