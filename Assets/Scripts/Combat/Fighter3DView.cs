@@ -25,6 +25,8 @@ public sealed class Fighter3DView : MonoBehaviour
     float stateStarted, reactionUntil, flashUntil;
     bool guardFlash;
     GroundedBoxingWalk walk;
+    HeroAuthoredMovement heroMovement;
+    int movementRevision = -1;
     public GroundedBoxingWalk Walk => walk;
     public string CurrentState => currentState;
 
@@ -36,6 +38,7 @@ public sealed class Fighter3DView : MonoBehaviour
         modelAnimator.applyRootMotion = false;
         modelAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
         walk = new GroundedBoxingWalk(visualRoot, modelAnimator);
+        heroMovement = GetComponent<HeroAuthoredMovement>();
     }
     void Awake()
     {
@@ -106,6 +109,7 @@ public sealed class Fighter3DView : MonoBehaviour
         reactionUntil = flashUntil = 0f; guardFlash = false; currentState = "IDLE";
         stateStarted = Time.time;
         walk?.Reset();
+        heroMovement?.Cancel(); movementRevision = -1;
         if (modelAnimator == null) return;
         modelAnimator.speed = 1f;
         modelAnimator.Play("IDLE", 0, 0f);
@@ -159,13 +163,19 @@ public sealed class Fighter3DView : MonoBehaviour
                     Play(currentState.StartsWith("GUARD_LOWKICK") ? "GUARD_LOWKICK_RELEASE" : "GUARD_RELEASE", false, .648f);
                 else if (Time.time - stateStarted >= GuardRelease) Play("IDLE");
             }
+            else if (heroMovement != null && heroMovement.isActiveAndEnabled)
+            {
+                Play(heroMovement.StateName, movementRevision != heroMovement.Revision, heroMovement.AnimationTime);
+                movementRevision = heroMovement.Revision;
+            }
             else if (!fighter.InputLocked && walk != null && walk.IsMoving)
                 Play(walk.Direction * fighter.Facing < 0 ? "WALK_BACK" : "WALK_FORWARD");
             else Play("IDLE");
         }
         bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
         modelAnimator.speed = walkingState ? walk.PlaybackSpeed : 1f;
-        walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
+        if (heroMovement == null || !heroMovement.isActiveAndEnabled)
+            walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;
         else if (Time.time < flashUntil) tint = guardFlash ? new Color(.5f, .8f, 1f) : new Color(1f, .45f, .4f);
