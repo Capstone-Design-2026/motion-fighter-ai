@@ -53,6 +53,9 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private bool controlling, tutorialInputValid;
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
+    private EnemyAI diagnosticsEnemy;
+    private string inputFeedback = "", feedbackEvent;
+    private float feedbackUntil;
     private struct Received { public string json; public long time; public IPEndPoint peer; }
     [Serializable] private class Packet {
         public int version, ttl_ms, calibration_version;
@@ -76,6 +79,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public bool game_attacking, game_hit_stunned, game_input_locked, game_preparation_locked,
             game_guard_recovering, game_dead, application_focused, game_special_active;
         public int game_health;
+        public int movement_diagnostics_version = 1;
+        public int game_player_facing, game_opponent_facing;
+        public float game_player_x, game_opponent_x, game_velocity_x, game_move_input, game_walk_stride;
+        public string game_walk_state;
         public float game_frame_ms, game_time_scale;
         public int calibration_contract = 1;
         public int guards_started;
@@ -122,6 +129,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(player!=null && configuredPlayer!=player) {
             if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
             configuredPlayer=player;oldKeyboard=player.useKeyboard;player.useKeyboard=false;
+            diagnosticsEnemy=FindAnyObjectByType<EnemyAI>();
         }
         // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
         if(player!=null && player==configuredPlayer) player.useKeyboard=RedboolBattlePreparation.KeyboardTest;
@@ -236,6 +244,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     }
     private void Reply(Packet p,Received item,string status,bool attack) {
         Fighter fighter=player!=null ? player.GetComponent<Fighter>() : null;
+        var body=player!=null ? player.GetComponent<Rigidbody2D>() : null;
+        var view=player!=null ? player.GetComponent<Fighter3DView>() : null;
+        var opponent=diagnosticsEnemy!=null ? diagnosticsEnemy.GetComponent<Fighter>() : null;
+        if(!String.IsNullOrEmpty(p.event_id) && p.event_id!=feedbackEvent) {
+            feedbackEvent=p.event_id;feedbackUntil=Time.unscaledTime+1.5f;
+            inputFeedback=status=="APPLIED" ? "동작 인식 · 기술 실행"
+                : status=="NOT_CHARGED" ? "동작 인식 · 필살기 충전 필요"
+                : status=="GAME_BUSY" && fighter!=null && fighter.Health.IsDead ? "동작 인식 · 전투 종료"
+                : status=="GAME_BUSY" && fighter!=null && fighter.Health.IsHitStunned ? "동작 인식 · 피격 중에는 공격 불가"
+                : status=="GAME_BUSY" ? "동작 인식 · 현재 기술 또는 전투 잠금 중"
+                : "입력 처리: "+status;
+        }
         var ack=new Ack { stream_id=StreamId,status=status,event_id=p.event_id,sequence=p.sequence,
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
@@ -253,7 +273,15 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             game_dead=fighter!=null && fighter.Health!=null && fighter.Health.IsDead,
             game_health=fighter!=null && fighter.Health!=null ? fighter.Health.CurrentHealth : -1,
             application_focused=Application.isFocused, game_frame_ms=Time.unscaledDeltaTime*1000f,
-            game_time_scale=Time.timeScale };
+            game_time_scale=Time.timeScale,
+            game_player_facing=fighter!=null ? fighter.Facing : 0,
+            game_opponent_facing=opponent!=null ? opponent.Facing : 0,
+            game_player_x=player!=null ? player.transform.position.x : 0,
+            game_opponent_x=diagnosticsEnemy!=null ? diagnosticsEnemy.transform.position.x : 0,
+            game_velocity_x=body!=null ? body.linearVelocity.x : 0,
+            game_move_input=currentMove,
+            game_walk_stride=view!=null && view.Walk!=null ? view.Walk.StepLength : 0,
+            game_walk_state=view!=null ? view.CurrentState : "" };
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
     private void Safe() {
@@ -264,11 +292,12 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     }
     private void OnGUI() {
         if(!showStatus) return;
-        GUI.Box(new Rect(12,12,470,105),"REDBOOL VISION :"+port);
+        GUI.Box(new Rect(12,12,470,130),"REDBOOL VISION :"+port);
         GUI.Label(new Rect(22,35,450,25),Status+" | "+LastGesture+" | attacks "+AttacksApplied+" | busy "+AttacksBusy);
         GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
         var special=player!=null ? player.GetComponent<SpecialMove>() : null;
         if(special!=null) GUI.Label(new Rect(22,85,450,25),special.IsReady ? "SPECIAL READY: cross arms at chest for 0.7s" : "SPECIAL: charging");
+        if(Time.unscaledTime<feedbackUntil) GUI.Label(new Rect(22,110,450,25),inputFeedback);
     }
     private void OnDisable() {
         Preparation?.ResetPreparation();
