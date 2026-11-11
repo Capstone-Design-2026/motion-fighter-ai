@@ -52,7 +52,7 @@ class SixAttack(DemoAttack):
         qualify. Ordinary guard keeps its existing bounds.
         """
         ordinary = (cls.guard_position(arm, base)
-            and arm['angle'] <= .6 and arm['speed_xy'] <= 2.0)
+            and arm['angle'] <= min(1.2, max(.6, base['angle'] + .15)) and arm['speed_xy'] <= 2.0)
         dx, dy = arm['position'][:2] - base['position'][:2]
         high = (abs(dx) <= .45 and -1.3 <= dy < -.30
             and arm['angle'] <= 1.2 and arm['speed_xy'] <= 1.2
@@ -266,7 +266,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-high-guard-raise-20261111-v21')
+        self.config = replace(self.config, version='seated-personal-guard-20261111-v22')
         self._components()
 
     @property
@@ -320,7 +320,7 @@ class SixGestureEngine(DemoEngine):
                     self.vertical_state == 'PENDING' and self.vertical_candidate == side + '_RAISE')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
-                self.movement.calibrate(obs)
+                self.movement.calibrate_samples(self.calibration_observations)
             arms = self.vertical_signals.update(obs)
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             validity = joint_validity(obs, self.config)

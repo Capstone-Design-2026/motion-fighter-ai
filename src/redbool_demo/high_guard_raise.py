@@ -28,7 +28,7 @@ class HighGuardRaise:
                 self.owned.add(side);started.add(side);self.peak[side]=float(p[1]);self.refs.pop(side,None)
             # A fresh stable folded return is required before another upward stroke.
             returned=side not in self.peak or p[1]-self.peak[side] >= .30
-            if (side not in self.owned and returned and a['angle'] <= .60
+            if (side not in self.owned and returned and a['angle'] <= min(1.2, max(.60, anchors[side].get('angle', .45) + .15))
                     and a['speed_xy'] <= 1.2 and -.95 <= p[1] <= .20):
                 self.refs[side]=(stamp,p.copy())
         return self.owned.copy(),started
