@@ -12,6 +12,7 @@ from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
 from .special import CrossSpecial, cross_geometry, extended_cross_arm
 from .high_guard_raise import HighGuardRaise
+from .auxiliary_pose import same_body
 
 
 class SixBlock(RelativeBlock):
@@ -266,7 +267,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-personal-guard-20261111-v22')
+        self.config = replace(self.config, version='seated-cross-assist-20261111-v23')
         self._components()
 
     @property
@@ -408,7 +409,7 @@ class SixGestureEngine(DemoEngine):
                     self.outbox.pending[key] = replace(event, reason={**event.reason, 'gesture': event.side + '_PUNCH'})
             return self._publish_state(state)
 
-    def process(self, obs, evidence=None, now_ns=None):
+    def process(self, obs, evidence=None, now_ns=None, special_observation=None):
         with self.lock:
             now = self.clock() if now_ns is None else now_ns
             ident = (obs.actor_id, obs.capture_epoch)
@@ -418,9 +419,29 @@ class SixGestureEngine(DemoEngine):
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             valid = fresh and not joint_validity(obs, self.config)['BLOCK']
             approach, strict, separated = cross_geometry(obs, self.config) if valid else (False, False, False)
+            special_valid = valid
+            extended = extended_cross_arm(obs, self.config) if valid else False
+            # Auxiliary Full landmarks may resolve crossed-arm occlusion which
+            # Lite confidently reconstructs as uncrossed. Never use a stale or
+            # different frame/person for this channel, and never alter punch,
+            # raise or movement coordinates with the auxiliary skeleton.
+            aux = special_observation
+            if (self.calibrated and aux is not None
+                    and (aux.actor_id, aux.capture_epoch, aux.frame_id, aux.capture_ns)
+                    == (obs.actor_id, obs.capture_epoch, obs.frame_id, obs.capture_ns)
+                    and (aux.width, aux.height, aux.source_mirrored) == (obs.width, obs.height, obs.source_mirrored)
+                    and fresh and same_body(obs, aux, self.config) and not joint_validity(aux, self.config)['BLOCK']):
+                ap, st, sep = cross_geometry(aux, self.config)
+                approach = approach or ap
+                strict = strict or st
+                # Release a cross when either valid model sees a definite open
+                # pose and neither model still supplies actual cross geometry.
+                separated = (separated or sep) and not approach
+                extended = extended and extended_cross_arm(aux, self.config)
+                special_valid = True
             # Reject a transient X candidate once an arm clearly extends. A
             # fired X keeps its normal release latch; tracking loss is not release.
-            if valid and extended_cross_arm(obs,self.config) and self.special.owned and not self.special.latched:
+            if special_valid and extended and self.special.owned and not self.special.latched:
                 self.special.owned=False;self.special.reset_dwell();self.special.return_since=None
             routing=self.route_signals.update(obs)
             anchors=self.attack.anchors();self.forward_sides=set();self.occluded_guard_sides=set()
@@ -519,7 +540,7 @@ class SixGestureEngine(DemoEngine):
                 for side in high_started:self.raise_armed[side] = True
                 if self.vertical_state in ('DISARMED','LATCHED'):self.vertical_state = 'READY'
             state = self._process_actions(obs, evidence, now)
-            fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
+            fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=special_valid,
                 neutral=separated, approach=approach, strict=strict)
             if self.special.owned or self.special_inhibited:
                 # Reserve this bilateral gesture, including its return. Never
