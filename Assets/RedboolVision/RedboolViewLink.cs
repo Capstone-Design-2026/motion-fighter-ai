@@ -96,6 +96,16 @@ public sealed class RedboolViewLink : MonoBehaviour
             IPEndPoint from=new IPEndPoint(IPAddress.Any,0);byte[] data;
             try {data=socket.Receive(ref from);}
             catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset) {break;}
+            // A camera-free LAN check must never pair a player, reset practice,
+            // or steal the display peer. Echo only a small bounded nonce.
+            if(!client && data.Length==48 && Encoding.ASCII.GetString(data,0,16)=="REDBOOL_PING_V1:") {
+                string token=Encoding.ASCII.GetString(data,16,32);
+                if(Guid.TryParseExact(token,"N",out _)) {
+                    byte[] reply=Encoding.ASCII.GetBytes("REDBOOL_PONG_V1:"+token);
+                    socket.Send(reply,reply.Length,from);
+                }
+                continue;
+            }
             if(!client && Encoding.ASCII.GetString(data)=="REDBOOL_DISCOVER_V1") {
                 byte[] reply=Encoding.UTF8.GetBytes("{\"service\":\"REDBOOL\",\"view_version\":"+RedboolViewProtocol.Version+",\"view_port\":5067,\"p2_port\":5066}");
                 socket.Send(reply,reply.Length,from);continue;

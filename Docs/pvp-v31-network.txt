@@ -1,0 +1,40 @@
+REDBOOL v31 — PvP transport jitter repair
+
+Both tutorials completed in the 2026-11-12 22:04 field run. Short P2 input
+expiry repeatedly cancelled the whole match (81 RESUME logs including start).
+Windows ACK RTT p95 grew32→172ms, camera processing28.55→20.95fps.
+Host receive-to-main-thread processing stayed near16ms p95. This is evidence
+of a degraded network/client scheduling path, not proof of a particular AP fault.
+
+Pvp PresenceReady is separate from LiveReady. Only match continuity receives
+100ms beyond the original input deadline; held guard/movement and new attacks
+still require the original fresh lease. Known tracking loss, calibration reset,
+stream replacement and STOP revoke continuity immediately. Resume requires
+both inputs to be fresh. Story mode retains its original input rules.
+
+The Python companion branch codex/tutorial-personal-pvp-20261112 must also
+be updated: bounded fast clock recovery, best recent sample selection, one
+precise Windows timebase and camera acquisition diagnostics.
+View protocol remains29. Rebuild both games with Tools/Developer/build_local.py.
+Tools/Developer/build_stamp.py identifies this release as v31.
+
+Camera-free network measurement (Python checkout):
+  python scripts/check_pvp_network.py --host HOST_IPV4
+Requires the updated host game running. Uses the existing UDP5067 socket;
+small nonce echo never pairs a player or steals the view peer. Output goes to
+local_data/network_checks. It measures network+host scheduling, not recognition.
+
+Recommended demo topology: two laptops on the same wired LAN; otherwise compare
+nearby5GHz Wi-Fi and hotspot using the same check. An Internet relay is not needed
+for same-LAN play and cannot fix slow camera acquisition or the local wireless hop.
+
+Validation evidence is in review_pvp_20261112_2211 on the development Mac.
+Synthetic dual-game43s comparison with command AND display jitter/loss plus4s
+outage: interruptions39→2; sampled assembled view states 48/48identical.
+No physical Windows/Wi-Fi post-fix performance claim. Existing unrelated Unity
+asset/package dirty files were preserved; clean-clone native build remains a
+separate team verification. Development PRs remain unmerged.
+
+Final checks:83 Unity play-flow assertions passed with a real second game;
+98 Python regression tests passed, plus final8 focused precise-clock/camera
+diagnostic tests. Mac universal andWindows x64Mono builds succeeded.

@@ -28,6 +28,7 @@ public static class RedboolPvpPlayCheck
  static readonly long[] sequences=new long[2];static readonly double[] nextSync=new double[2];
  static readonly bool[] calibrated={true,true},block={false,false},send={true,true};
  static readonly string[] phases={"READY","READY"};
+ static readonly string[] tracking={"VALID","VALID"};
  static readonly string[] movement={"NEUTRAL","NEUTRAL"};static readonly int[] generation={1,1};
  static readonly Dictionary<string,Ack> replies=new Dictionary<string,Ack>();
  static readonly List<string> checks=new List<string>();
@@ -61,7 +62,7 @@ public static class RedboolPvpPlayCheck
  static void Drain(){for(int i=0;i<2;i++)while(clients[i]!=null&&clients[i].Available>0){var peer=new IPEndPoint(IPAddress.Any,0);var a=JsonUtility.FromJson<Ack>(Encoding.UTF8.GetString(clients[i].Receive(ref peer)));if(!String.IsNullOrEmpty(a.event_id))replies[a.event_id]=a;}}
  static IEnumerator Pump(float seconds){double end=Time.realtimeSinceStartupAsDouble+seconds;do{
   for(int i=0;i<2;i++)if(send[i]){if(Time.realtimeSinceStartupAsDouble>=nextSync[i]){Send(i,new Packet{kind="SYNC"});nextSync[i]=Time.realtimeSinceStartupAsDouble+1;}
-   Send(i,new Packet{kind="STATE",fsm_state=phases[i],calibrated=calibrated[i],block_active=block[i],movement=movement[i],movement_strength=movement[i]=="NEUTRAL"?0:.8f});}
+   Send(i,new Packet{kind="STATE",fsm_state=phases[i],tracking=tracking[i],calibrated=calibrated[i],block_active=block[i],movement=movement[i],movement_strength=movement[i]=="NEUTRAL"?0:.8f});}
   Drain();yield return null;
  }while(Time.realtimeSinceStartupAsDouble<end);Drain();}
  static void Gesture(int slot,string gesture,string id,bool expired=false,string actor=null){Send(slot,new Packet{kind="GESTURE",gesture=gesture,event_id=id,side=gesture=="SPECIAL"?"BOTH":gesture.StartsWith("LEFT")?"LEFT":"RIGHT",event_expires_ns=Now+(expired?-1:150000000L),actor_id=actor});}
@@ -153,11 +154,39 @@ public static class RedboolPvpPlayCheck
   block[0]=false;for(var w=Pump(.08f);w.MoveNext();)yield return null;Gesture(0,"RIGHT_PUNCH","block-followup");
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(replies["block-followup"].status=="APPLIED","Held guard releases into attack");
-  // Field v29: one short camera gap imposed another whole second of countdown.
-  send[1]=false;for(var w=Pump(.23f);w.MoveNext();)yield return null;
-  Check(!Game.CanFight,"Short input expiry still pauses immediately");
-  send[1]=true;for(var w=Pump(.30f);w.MoveNext();)yield return null;
-  Check(Game.CanFight,"Short interruption resumes automatically within 300ms, without R or another full countdown");
+  // Field v30: an expired held input was cancelling the entire round about once
+  // per second. Presence grace must never extend that actor's actual input lease.
+  for(var w=Pump(1.2f);w.MoveNext();)yield return null;
+  block[1]=true;movement[1]="RIGHT";for(var w=Pump(.10f);w.MoveNext();)yield return null;
+  Check(Game.Players[1].GetComponent<Fighter>().IsVisionGuardHeld,"P2 guard is held before transport expiry");
+  send[1]=false;double expiryWait=Time.realtimeSinceStartupAsDouble+.4;
+  while(Game.Receivers[1].LiveReady&&Time.realtimeSinceStartupAsDouble<expiryWait)
+   {for(var w=Pump(.01f);w.MoveNext();)yield return null;}
+  Check(!Game.Receivers[1].LiveReady&&Game.Receivers[1].PresenceReady&&Game.CanFight,"Expired controls retain only bounded match presence during a short transport gap");
+  // EditorApplication.update may observe the stopwatch crossing the deadline
+  // before this frame's MonoBehaviour.Update. Allow that update to release controls.
+  for(var w=Pump(.02f);w.MoveNext();)yield return null;
+  float staleMove=(float)typeof(PlayerController).GetField("externalMoveX",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance).GetValue(Game.Players[1]);
+  Check(!Game.Players[1].GetComponent<Fighter>().IsVisionGuardHeld&&!Game.Receivers[1].BlockActive&&staleMove==0&&Game.Receivers[1].PresenceReady&&Game.CanFight,"Expired camera releases guard and movement on the next game update within transport grace: held="+Game.Players[1].GetComponent<Fighter>().IsVisionGuardHeld+" block="+Game.Receivers[1].BlockActive+" move="+staleMove+" present="+Game.Receivers[1].PresenceReady);
+  Gesture(1,"LEFT_PUNCH","expired-presence-attack");for(var w=Pump(.02f);w.MoveNext();)yield return null;
+  Check(replies["expired-presence-attack"].status=="INPUT_LOCKED"&&Game.CanFight,"Presence grace cannot authorize a new attack from an expired actor");
+  send[1]=true;block[1]=false;movement[1]="NEUTRAL";for(var w=Pump(.2f);w.MoveNext();)yield return null;
+  Check(Game.CanFight&&Game.BothLive,"Fresh state restores controls without pausing or another countdown");
+  Gesture(1,"RIGHT_RAISE","gap-active-kick");for(var w=Pump(.04f);w.MoveNext();)yield return null;
+  Check(replies["gap-active-kick"].status=="APPLIED"&&Game.Players[1].GetComponent<Fighter>().IsAttacking,"Kick begins before short transport gap");
+  send[1]=false;expiryWait=Time.realtimeSinceStartupAsDouble+.4;
+  while(Game.Receivers[1].LiveReady&&Time.realtimeSinceStartupAsDouble<expiryWait)
+   {for(var w=Pump(.01f);w.MoveNext();)yield return null;}
+  for(var w=Pump(.02f);w.MoveNext();)yield return null;
+  Check(Game.CanFight&&!Game.Receivers[1].LiveReady&&Game.Players[1].GetComponent<Fighter>().IsAttacking&&!Game.Players[1].GetComponent<Fighter>().VisionPreparationLocked,"Short transport expiry does not cancel an already committed attack");
+  send[1]=true;for(var w=Pump(1.2f);w.MoveNext();)yield return null;
+  tracking[1]="LOST";for(var w=Pump(.05f);w.MoveNext();)yield return null;
+  Check(!Game.Receivers[1].PresenceReady&&!Game.CanFight,"Known tracking loss revokes presence immediately rather than using transport grace");
+  tracking[1]="VALID";for(var w=Pump(.3f);w.MoveNext();)yield return null;
+  Check(Game.CanFight,"Fresh tracking recovers after a brief explicit loss");
+  tracking[1]="STOPPED";for(var w=Pump(.05f);w.MoveNext();)yield return null;
+  Check(!Game.Receivers[1].PresenceReady&&!Game.CanFight,"Explicit camera stop revokes presence immediately");
+  tracking[1]="VALID";for(var w=Pump(.3f);w.MoveNext();)yield return null;
   send[1]=false;for(var w=Pump(.3f);w.MoveNext();)yield return null;
   Check(!Game.CanFight&&Game.Players[0].GetComponent<Fighter>().VisionPreparationLocked&&Game.Players[1].GetComponent<Fighter>().VisionPreparationLocked,"One missing camera pauses both fighters");
   float time=Game.Remaining;Gesture(0,"LEFT_PUNCH","paused-attack");for(var w=Pump(.2f);w.MoveNext();)yield return null;

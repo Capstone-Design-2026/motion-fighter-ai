@@ -27,11 +27,20 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public event Action<bool,int> CalibrationObserved;
     public Fighter Opponent;
     public bool LiveReady => controlling && tutorialInputValid && NowNs()<deadline;
+    // Match presence is separate from the input lease: a late camera packet must
+    // release held controls immediately without cancelling an already-started attack.
+    // Only PvP gets 100 ms beyond the original source deadline (at most 250 ms old).
+    public bool PresenceReady => LiveReady || PvpOwned && NowNs()<presenceDeadline;
     public bool NeutralReady => LiveReady && !BlockActive && targetMove==0 && lastPhase=="READY";
     public int CalibrationGeneration { get; private set; }
     public string PersonalStatus { get; private set; } = "BASELINE V26";
     public string InputPhase => lastPhase??"NONE";
     public double InputAgeMs => lastLiveNs==0?-1:(NowNs()-lastLiveNs)/1000000.0;
+    public double SourceAgeMs => sourceCaptureNs<=0?-1:(NowNs()-sourceCaptureNs)/1000000.0;
+    public double LeaseRemainingMs => !hasState?-1:Math.Max(0,(deadline-NowNs())/1000000.0);
+    public double ClockUncertaintyMs => !hasState?-1:lastUncertaintyNs/1000000.0;
+    public string InputFreshnessReason => LiveReady ? "VALID" : !hasState ? "NO_STATE"
+        : !lastCalibrated ? "CALIBRATION" : lastTracking!="VALID" ? "TRACKING" : "LEASE_EXPIRED";
     private string lastPhase;
     bool AllowsInput => (Preparation==null || Preparation.AllowsPlayer) && (ExternalGate==null || ExternalGate());
     bool Practicing => PracticeAction!=null || TutorialAction!=null;
@@ -67,9 +76,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private readonly Dictionary<string,string> outcomes = new Dictionary<string,string>();
     private readonly List<UdpActionReceiver> oldReceivers = new List<UdpActionReceiver>();
     private IPEndPoint pairedPeer;
-    private long sequence, deadline, lastLiveNs;
+    private long sequence, deadline, presenceDeadline, lastLiveNs;
     private float targetMove, currentMove;
-    private bool controlling, tutorialInputValid;
+    private bool controlling, tutorialInputValid, hasState, lastCalibrated;
+    private string lastTracking;
+    private long sourceCaptureNs, lastUncertaintyNs;
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
     private EnemyAI diagnosticsEnemy;
@@ -80,7 +91,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public int version, ttl_ms, calibration_version, calibration_generation;
         public string personal_status;
         public string kind, stream_id, actor_id, capture_epoch, sync_id, event_id, side, movement, gesture, fsm_state, tracking;
-        public long sequence, sent_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
+        public long sequence, sent_ns, capture_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
         public bool block_active, calibrated;
         public float movement_strength;
     }
@@ -120,7 +131,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             Status="DUPLICATE RECEIVER :"+port;enabled=false;return;
         }
         try {
-            StreamId=expectedStreamId; sequence=deadline=lastLiveNs=0; pairedPeer=null;
+            StreamId=expectedStreamId; sequence=deadline=presenceDeadline=lastLiveNs=0; pairedPeer=null;
+            hasState=false;sourceCaptureNs=lastUncertaintyNs=0;
             syncs.Clear();outcomes.Clear();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
             udp.Client.ReceiveTimeout=100;
@@ -156,7 +168,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         }
         // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
         if(player!=null && player==configuredPlayer) player.useKeyboard=!PvpOwned && RedboolBattlePreparation.KeyboardTest;
-        if(NowNs()>=deadline) Safe();
+        if(NowNs()>=deadline) Safe(preservePresence:true);
         Received item;
         for(int i=0;i<32 && inbox.TryDequeue(out item);i++) {
             try { Process(JsonUtility.FromJson<Packet>(item.json),item); }
@@ -166,7 +178,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             float alpha=movementSmoothingSeconds<=0 ? 1 : 1-Mathf.Exp(-Time.unscaledDeltaTime/movementSmoothingSeconds);
             currentMove=Mathf.Lerp(currentMove,targetMove,alpha);
             if(Mathf.Abs(currentMove)<.01f && targetMove==0) currentMove=0;
-            player.ExternalMovement(AllowsInput && !Practicing ? currentMove : 0);
+            player.ExternalMovement(AllowsInput && !Practicing && (!PvpOwned || LiveReady) ? currentMove : 0);
             ApplyVisionGuard();
         }
     }
@@ -175,7 +187,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         var fighter=player!=null ? player.GetComponent<Fighter>() : null;
         if(fighter==null) return;
         bool wasHeld=fighter.IsVisionGuardHeld;
-        bool held=controlling && BlockActive && AllowsInput && !Practicing;
+        bool held=controlling && BlockActive && AllowsInput && !Practicing && (!PvpOwned || LiveReady);
         if(fighter.SetVisionGuard(held) && !wasHeld) GuardsStarted++;
     }
     private void Process(Packet p,Received item) {
@@ -243,6 +255,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         else {
             sequence=p.sequence;lastLiveNs=now;
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
+            hasState=true;lastCalibrated=p.calibration_version==1 && p.calibrated;lastTracking=p.tracking;
+            sourceCaptureNs=p.capture_ns>0?p.capture_ns+p.receiver_offset_ns:0;
+            lastUncertaintyNs=p.clock_uncertainty_ns;
+            tutorialInputValid=lastCalibrated && p.tracking=="VALID";
+            presenceDeadline=tutorialInputValid ? deadline+100000000L : 0;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             CalibrationGeneration=p.calibration_generation;
             CalibrationObserved?.Invoke(p.calibration_version==1 && p.calibrated,p.calibration_generation);
@@ -257,7 +274,6 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             ApplyVisionGuard();
             // An attack candidate/return phase is still live camera input. It must
             // not clear tutorial readiness before the following one-shot event.
-            tutorialInputValid=p.calibration_version==1 && p.calibrated && p.tracking=="VALID";
             string tutorialState=!tutorialInputValid ? "UNAVAILABLE"
                 : p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "BUSY";
             NotifyPractice(tutorialState,1f,p.movement,p.movement_strength);
@@ -315,7 +331,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
     public void ClearInput() { Safe(); }
-    private void Safe() {
+    private void Safe(bool preservePresence=false) {
+        if(!preservePresence) {presenceDeadline=0;hasState=false;sourceCaptureNs=0;}
         if(player!=null) player.GetComponent<Fighter>()?.SetVisionGuard(false);
         if(controlling && player!=null) player.ClearExternalInput();
         if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f);

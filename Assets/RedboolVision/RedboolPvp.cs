@@ -48,7 +48,8 @@ public sealed class RedboolPvp : MonoBehaviour
     bool fullPreparation=true;
     float resumeSeconds=1;
     public bool BothLive => configured && Receivers[0]!=null && Receivers[1]!=null && Receivers[0].LiveReady && Receivers[1].LiveReady;
-    public bool CanFight => Fighting && !Resolved && !paused && BothLive && warmup==null && (!RequireView || ViewLink != null && ViewLink.PeerReady);
+    public bool BothPresent => configured && Receivers[0]!=null && Receivers[1]!=null && Receivers[0].PresenceReady && Receivers[1].PresenceReady;
+    public bool CanFight => Fighting && !Resolved && !paused && BothPresent && warmup==null && (!RequireView || ViewLink != null && ViewLink.PeerReady);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { Active=false; Instance=null; IsClient=false; RequireView=false; HostAddress="127.0.0.1"; }
@@ -172,7 +173,7 @@ public sealed class RedboolPvp : MonoBehaviour
             Practices[i].Tick();
             if(Practices[i].Complete) Receivers[i].PracticeAction-=Practices[i].Observe;
         }
-        bool ready=BothLive && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
+        bool ready=BothPresent && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
         double now=Time.realtimeSinceStartupAsDouble;
         if(!ready) {
             if(interruptionSince<0) interruptionSince=now;
@@ -183,16 +184,18 @@ public sealed class RedboolPvp : MonoBehaviour
         {
             // Completion is already an explicit practice interaction. A second simultaneous
             // two-arm READY gate deadlocks high guards and otherwise valid camera users.
-            // Fresh camera/display leases still gate every frame; old inputs never queue.
+            // Bounded transport-only presence tolerates one delayed camera frame.
+            // Starting/resuming still requires both input leases to be fresh; waiting
+            // for that edge does not restart the countdown on every brief lease gap.
             resumeSeconds=fullPreparation?1f:.10f;
             if(readySince<0) readySince=now;
-            else if(now-readySince>=resumeSeconds) {
+            else if(now-readySince>=resumeSeconds && BothLive) {
                 Debug.Log(FormattableString.Invariant($"[REDBOOL PVP RESUME] round={Round} delay={resumeSeconds:F2} interruption={(interruptionSince<0?0:now-interruptionSince):F3} utc={DateTime.UtcNow:o}"));
                 Fighting=true;fullPreparation=false;interruptionSince=-1;SetPaused(false);
             }
         }
         if(CanFight) Remaining=Mathf.Max(0,Remaining-Time.deltaTime);
-        Gate=Resolved?(byte)7:warmup!=null?(byte)1:RequireView&&(ViewLink==null||!ViewLink.PeerReady)?(byte)2:!Receivers[0].LiveReady?(byte)3:!Receivers[1].LiveReady?(byte)4:!Practices[0].Complete||!Practices[1].Complete?(byte)5:paused?(byte)6:(byte)0;
+        Gate=Resolved?(byte)7:warmup!=null?(byte)1:RequireView&&(ViewLink==null||!ViewLink.PeerReady)?(byte)2:!Receivers[0].PresenceReady?(byte)3:!Receivers[1].PresenceReady?(byte)4:!Practices[0].Complete||!Practices[1].Complete?(byte)5:paused?(byte)6:(byte)0;
         Diagnostic();RefreshUi();
     }
     public void SkipPractice(int slot,string expectedRun=null,int expectedStep=-1)
@@ -212,9 +215,11 @@ public sealed class RedboolPvp : MonoBehaviour
     {
         string row="gate="+Gate+" fight="+Fighting+" paused="+paused+" view="+(!RequireView||ViewLink!=null&&ViewLink.PeerReady);
         for(int i=0;i<2;i++) row+=" p"+(i+1)+"="+Practices[i].Step+":"+Practices[i].Hits+":"+Practices[i].Phase+":"+Receivers[i].LiveReady+":"+Receivers[i].InputPhase+":gen"+generations[i];
+        row+=" present1="+Receivers[0].PresenceReady+" present2="+Receivers[1].PresenceReady;
+        for(int i=0;i<2;i++) row+=" freshness"+(i+1)+"="+Receivers[i].InputFreshnessReason;
         double now=Time.realtimeSinceStartupAsDouble;
         if(row!=lastDiagnostic &&now-lastDiagnosticTime>.25 || now-lastDiagnosticTime>=2)
-        { Debug.Log("[REDBOOL PVP GATE] "+row+FormattableString.Invariant($" round={Round} remaining={Remaining:F2} hp1={Players[0].GetComponent<Health>().CurrentHealth} hp2={Players[1].GetComponent<Health>().CurrentHealth} age1_ms={Receivers[0].InputAgeMs:F1} age2_ms={Receivers[1].InputAgeMs:F1}")+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
+        { Debug.Log("[REDBOOL PVP GATE] "+row+FormattableString.Invariant($" round={Round} remaining={Remaining:F2} hp1={Players[0].GetComponent<Health>().CurrentHealth} hp2={Players[1].GetComponent<Health>().CurrentHealth} age1_ms={Receivers[0].InputAgeMs:F1} age2_ms={Receivers[1].InputAgeMs:F1} source1_ms={Receivers[0].SourceAgeMs:F1} source2_ms={Receivers[1].SourceAgeMs:F1} lease1_ms={Receivers[0].LeaseRemainingMs:F1} lease2_ms={Receivers[1].LeaseRemainingMs:F1} uncertainty1_ms={Receivers[0].ClockUncertaintyMs:F1} uncertainty2_ms={Receivers[1].ClockUncertaintyMs:F1}")+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
     }
     static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 연결 복구 후 자동 재개":gate==3?"1P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==4?"2P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"신호 확인 · 잠시 후 자동 시작":"2인 대전 · 블락 유지 / X자 파운장 · Esc: 메뉴";
     // Resolve after the contact world: simultaneous KO must not become a 1P win.
