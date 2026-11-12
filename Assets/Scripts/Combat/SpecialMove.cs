@@ -142,7 +142,7 @@ public class SpecialMove : MonoBehaviour
     void Update()
     {
         // 게이지 채우기는 연출 확인용 단축키. 웹캠 테스트 중에도 쓰므로 useKeyboard 와 상관없이 받는다.
-        if (chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
+        if (!RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
 
         if (controller == null || controller.useKeyboard)
         {
@@ -234,9 +234,9 @@ public class SpecialMove : MonoBehaviour
     IEnumerator Routine()
     {
         phase = Phase.CutIn;
-        HitImpact.ReleaseTimeControl();
-        QiPostFx.Set(1f);
-        QiCameraFx.Zoom(chargeZoom);
+        if (!RedboolPvp.Active) HitImpact.ReleaseTimeControl();
+        if (!RedboolPvp.Active) QiPostFx.Set(1f);
+        if (!RedboolPvp.Active) QiCameraFx.Zoom(chargeZoom);
         PlayVoice(assets ? assets.chargeStart : null, .9f);
         if (view != null) view.PlaySpecial(QiPalmTiming.ChargeState);
         if (assets != null && assets.charge != null)
@@ -244,9 +244,9 @@ public class SpecialMove : MonoBehaviour
             chargeFx = Instantiate(assets.charge).GetComponent<QiChargeFx>();
             FollowFx(0f);
         }
-        if (assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
+        if (!RedboolPvp.Active && assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
 
-        ownsTime = !fighter.InputLocked;
+        ownsTime = !RedboolPvp.Active && !fighter.InputLocked;
         if (ownsTime) SetTimeScale(cutInSlowScale);
         float t = 0f;
         while (t < cutInDuration)
@@ -277,7 +277,7 @@ public class SpecialMove : MonoBehaviour
 
         phase = Phase.Releasing;
         if (view != null) view.PlaySpecial(QiPalmTiming.ReleaseState);
-        QiCameraFx.Zoom(1f);
+        if (!RedboolPvp.Active) QiCameraFx.Zoom(1f);
         float r = 0f;
         while (r < QiPalmTiming.ReleaseImpact)
         {
@@ -298,7 +298,7 @@ public class SpecialMove : MonoBehaviour
             while (w < whiffOpen && !KoTookOver()) { w += Time.deltaTime; yield return null; }
         }
         fighter.EndSpecial();
-        QiPostFx.Set(0f);
+        if (!RedboolPvp.Active) QiPostFx.Set(0f);
         phase = Phase.Idle;
         routine = null;
     }
@@ -313,7 +313,7 @@ public class SpecialMove : MonoBehaviour
         var rot = Quaternion.LookRotation(dir > 0 ? Vector3.right : Vector3.left, Vector3.up);
         if (assets != null) QiFxLife.Spawn(assets.muzzle, hands, rot);
         PlayVoice(assets ? assets.release : null, 1f);
-        QiCameraFx.Shake(.05f, 7f);
+        if (!RedboolPvp.Active) QiCameraFx.Shake(.05f, 7f);
 
         int dmg = Mathf.RoundToInt(damage * (1f + fullChargeBonus * level));
         int chip = Mathf.Max(1, Mathf.RoundToInt(dmg * guardDamageRatio));
@@ -337,7 +337,7 @@ public class SpecialMove : MonoBehaviour
         bool finisher = target.IsDead;
         if (assets != null) QiFxLife.Spawn(assets.impact, point, Quaternion.identity, guarded ? .65f : 1.1f, guarded ? .5f : 1f);
         PlayVoice(assets ? assets.impactClip : null, guarded ? .65f : 1f);
-        QiCameraFx.Shake(guarded ? .05f : .13f, 5f);
+        if (!RedboolPvp.Active) QiCameraFx.Shake(guarded ? .05f : .13f, 5f);
         if (finisher) CombatSfx.PlayHit(false, true);
         HitImpact.Play(point, guarded, finisher, !finisher);
         Debug.Log($"[SpecialMove] 파운장 {(guarded ? "방어됨(기 관통)" : "적중")} → {target.DisplayName}");
@@ -362,12 +362,19 @@ public class SpecialMove : MonoBehaviour
         Debug.Log($"[SpecialMove] {name} 파운장 끊김 → 게이지 {refund} 반환");
     }
 
+    public void CancelForPause()
+    {
+        if (routine!=null) StopCoroutine(routine);
+        if (IsPlaying && !waveLaunched) { charge=Mathf.Min(hitsToCharge,charge+spent); OnChargeChanged?.Invoke(charge,hitsToCharge); }
+        Cleanup(false);
+    }
+
     void Cleanup(bool restoreTime)
     {
         if (loop) loop.Stop();
         if (chargeFx != null) { chargeFx.End(); chargeFx = null; }
-        QiPostFx.Set(0f);
-        QiCameraFx.Zoom(1f);
+        if (!RedboolPvp.Active) QiPostFx.Set(0f);
+        if (!RedboolPvp.Active) QiCameraFx.Zoom(1f);
         if (restoreTime) RestoreTime();
         ownsTime = false;
         fighter.EndSpecial();

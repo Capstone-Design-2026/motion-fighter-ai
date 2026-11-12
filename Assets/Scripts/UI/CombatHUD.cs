@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -98,6 +98,7 @@ public class CombatHUD : MonoBehaviour
 
     void Awake()
     {
+        if (RedboolPvp.Active) { enabled=false; return; }
         player = FindAnyObjectByType<PlayerController>();
         if (playerHealth == null && player != null)
             playerHealth = player.GetComponent<Health>();

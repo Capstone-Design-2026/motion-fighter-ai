@@ -20,6 +20,8 @@ public sealed class RedboolDuelTest : MonoBehaviour
         if (Array.IndexOf(Environment.GetCommandLineArgs(), "--redbool-duel-test") >= 0) Begin();
     }
 
+    public static void End() { Active=false; if(instance!=null) Destroy(instance.gameObject); instance=null; }
+
     public static void Begin()
     {
         Active = true;

@@ -54,6 +54,7 @@ public class BattleSceneBridge : MonoBehaviour
     void Awake()
     {
         defaultFixedDelta = Time.fixedDeltaTime;
+        if (RedboolPvp.Active) { enabled=false; return; }
         RemainingSeconds = Mathf.Max(1f, roundDuration);
 
         runMode = !RedboolDuelTest.Active && Run != null && Run.HasPendingBattle;

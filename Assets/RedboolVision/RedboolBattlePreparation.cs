@@ -36,6 +36,7 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     {
         // sceneLoaded runs after scene Awake and before Start/Update. Stage replacements
         // created by BattleSceneBridge.Awake are included in the first lock pass.
+        if (RedboolPvp.Active) return;
         PlayerController player = null;
         RedboolDemoReceiver receiver = null;
         foreach (var root in scene.GetRootGameObjects())

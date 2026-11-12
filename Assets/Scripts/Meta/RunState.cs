@@ -151,7 +151,7 @@ public class RunState : MonoBehaviour
 
     public void Save()
     {
-        if (RedboolDuelTest.Active) return;
+        if (RedboolDuelTest.Active || RedboolPvp.Active) return;
         if (!HasRun) return;
         PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(Data));
         PlayerPrefs.Save();
@@ -159,7 +159,7 @@ public class RunState : MonoBehaviour
 
     public void ClearSave()
     {
-        if (RedboolDuelTest.Active) return;
+        if (RedboolDuelTest.Active || RedboolPvp.Active) return;
         PlayerPrefs.DeleteKey(SaveKey);
         PlayerPrefs.Save();
     }

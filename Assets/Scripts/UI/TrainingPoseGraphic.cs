@@ -15,7 +15,7 @@ public class TrainingPoseGraphic : MaskableGraphic {
  protected override void OnPopulateMesh(VertexHelper vh){
   vh.Clear();Color ink=new Color(.79f,.75f,.63f),active=new Color(.98f,.73f,.33f);
   float t=Mathf.SmoothStep(0,1,(Mathf.Sin(Time.unscaledTime*2.4f)+1)*.5f);
-  if(step>=5){
+  if(step==5||step==6){
    float direction=step==5?-1:1;
    float shift=direction*.15f*t;
    Vector2 torso=new Vector2(.5f+shift,.68f),basePoint=new Vector2(.5f+(gameAction?shift:0),.36f);
@@ -47,8 +47,13 @@ public class TrainingPoseGraphic : MaskableGraphic {
    if(step==3){lknee=Vector2.Lerp(lknee,new Vector2(.73f,.34f),t);lfoot=Vector2.Lerp(lfoot,new Vector2(.96f,.28f),t);}
   }
   if(step==4){lh=new Vector2(.57f,.86f);rh=new Vector2(.43f,.86f);le=new Vector2(.68f,.70f);re=new Vector2(.32f,.70f);}
-  bool leftActive=gameAction?(step<2||step==4):(step!=1&&step!=3);
-  bool rightActive=gameAction?step==4:(step==1||step==3||step==4);
+  if(step==7){
+   le=new Vector2(.72f,.48f);re=new Vector2(.28f,.48f);
+   if(!gameAction){lh=Vector2.Lerp(new Vector2(.70f,.70f),new Vector2(.34f,.72f),t);rh=Vector2.Lerp(new Vector2(.30f,.70f),new Vector2(.66f,.72f),t);}
+   else {le=Vector2.Lerp(le,new Vector2(.68f,.62f),t);re=Vector2.Lerp(re,new Vector2(.68f,.56f),t);lh=new Vector2(.82f,.72f);rh=new Vector2(.82f,.59f);Ring(vh,new Vector2(.88f+.08f*t,.66f),.05f+.08f*t,active);}
+  }
+  bool leftActive=gameAction?(step<2||step==4||step==7):(step!=1&&step!=3);
+  bool rightActive=gameAction?(step==4||step==7):(step==1||step==3||step==4||step==7);
   Bone(vh,lshoulder,le,leftActive?active:ink);Bone(vh,le,lh,leftActive?active:ink);
   Bone(vh,rshoulder,re,rightActive?active:ink);Bone(vh,re,rh,rightActive?active:ink);
   Bone(vh,hip,lknee,gameAction&&(step==2||step==3)?active:ink);Bone(vh,lknee,lfoot,gameAction&&(step==2||step==3)?active:ink);
