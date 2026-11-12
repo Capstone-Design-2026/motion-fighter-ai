@@ -116,10 +116,28 @@ public static class RedboolPvpPlayCheck
   Check(Game.Receivers[0].port==5065&&Game.Receivers[1].port==5066,"Separate sockets assigned P1 and P2");
   for(int i=0;i<2;i++){clients[i]=new UdpClient();clients[i].Connect(IPAddress.Loopback,5065+i);}
   for(var w=Pump(.6f);w.MoveNext();)yield return null;
+  if(guest!=null) {
+   // Starting a native guest can compile shaders for several seconds. Wait for
+   // its warmup/complete-snapshot ACKs before emitting the short practice poses.
+   // This does not extend any packet lease or bypass an actual practice step.
+   double readyDeadline=Time.realtimeSinceStartupAsDouble+12,stableSince=-1;
+   bool stable=false;
+   while(Time.realtimeSinceStartupAsDouble<readyDeadline) {
+    if(Game.ViewLink.PeerReady) {
+     if(stableSince<0) stableSince=Time.realtimeSinceStartupAsDouble;
+     if(Time.realtimeSinceStartupAsDouble-stableSince>=.5) {stable=true;break;}
+    } else stableSince=-1;
+    for(var w=Pump(.05f);w.MoveNext();)yield return null;
+   }
+   Check(stable,"Guest completes startup and acknowledges snapshots stably before short practice fixtures");
+  }
   Check(Game.BothLive&&!Game.CanFight,"Both inputs live; tutorial still holds fight");Shot("pvp_practice");
+  // Screenshot rendering blocks this editor-only publisher; refresh the input
+  // state before sending an event, as the separate camera process normally does.
+  for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Gesture(0,"LEFT_PUNCH","duplicate");for(var w=Pump(.12f);w.MoveNext();)yield return null;
   Gesture(0,"LEFT_PUNCH","duplicate");for(var w=Pump(.12f);w.MoveNext();)yield return null;
-  Check(Game.Practices[0].Hits==1&&Game.Practices[1].Hits==0,"Event deduplication and player isolation");
+  Check(Game.Practices[0].Hits==1&&Game.Practices[1].Hits==0,"Event deduplication and player isolation: hits="+Game.Practices[0].Hits+" other="+Game.Practices[1].Hits+" ack="+(replies.TryGetValue("duplicate",out var duplicateAck)?duplicateAck.status:"MISSING"));
   // Reset initial test sample through the actual recalibration generation.
   Game.SkipPractice(1,"stale-run",0);Check(Game.Practices[1].Step==0,"Stale skip request cannot advance a tutorial");
   Game.SkipPractice(1,Game.Practices[1].Run,0);Check(Game.Practices[1].Step==1 && !Game.CanFight,"Explicit skip keeps battle gated and does not calibrate");
@@ -139,6 +157,7 @@ public static class RedboolPvpPlayCheck
    while(!Game.CanFight &&Time.realtimeSinceStartupAsDouble<reconnectDeadline) {for(var w=Pump(.1f);w.MoveNext();)yield return null;}
    Check(Game.CanFight &&Game.ViewLink.PeerReady,"Restarted second game rejoins current match without replaying attacks");
   }Shot("pvp_ready");
+  for(var w=Pump(.2f);w.MoveNext();)yield return null;
   for(int i=0;i<2;i++)Check(!Game.Players[i].GetComponent<Fighter>().VisionPreparationLocked,"P"+(i+1)+" unlocked");
   Gesture(0,"LEFT_PUNCH","p1-jab");Gesture(1,"RIGHT_PUNCH","p2-straight");
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
@@ -197,6 +216,7 @@ public static class RedboolPvpPlayCheck
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
   for(int i=0;i<2;i++) {var gauge=GameObject.Find("PvpSpecialGauge"+i).GetComponent<WuxiaCombatBar>();Check(gauge.Ready &&gauge.FillRatio==1,"P"+(i+1)+" charge bar fills and signals ready");}
   Shot("pvp_special_ready");
+  for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Gesture(0,"SPECIAL","special-p1");Gesture(1,"SPECIAL","special-p2");for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(replies["special-p1"].status=="APPLIED"&&replies["special-p2"].status=="APPLIED","Both X specials start without global cut-in ownership conflict");
   Check(Time.timeScale>.9f,"PvP specials do not impose competing global slow motion");

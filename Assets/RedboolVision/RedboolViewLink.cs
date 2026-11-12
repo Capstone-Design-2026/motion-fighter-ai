@@ -30,6 +30,38 @@ public sealed class RedboolViewLink : MonoBehaviour
     int captureCount;
     double lastCapture;
     StreamWriter trace;
+    // Fixed-size guest samples: distinguish replica/UI work from a slow whole
+    // frame without per-frame logging, allocations or changing render quality.
+    const int TimingCapacity=512;
+    readonly float[] replicaMs=new float[TimingCapacity],remoteUiMs=new float[TimingCapacity],receiveMs=new float[TimingCapacity],frameMs=new float[TimingCapacity],timingScratch=new float[TimingCapacity];
+    int timingSamples,replicaBoneCount,maxSnapshotWaves,maxSnapshotEffects;
+    long frameUiTicks,frameReceiveTicks;
+    static long TimingNow => System.Diagnostics.Stopwatch.GetTimestamp();
+    static float TicksMs(long ticks) => (float)(ticks*(1000.0/System.Diagnostics.Stopwatch.Frequency));
+    void ShowRemoteMeasured(RedboolViewFrame frame,bool fresh)
+    {
+        long start=TimingNow;game.ShowRemote(frame,fresh);frameUiTicks+=TimingNow-start;
+    }
+    void SampleGuest(long replicaTicks)
+    {
+        int index=timingSamples%TimingCapacity;timingSamples++;
+        replicaMs[index]=TicksMs(replicaTicks);remoteUiMs[index]=TicksMs(frameUiTicks);
+        receiveMs[index]=TicksMs(frameReceiveTicks);frameMs[index]=Time.unscaledDeltaTime*1000f;
+        if(assembler.Latest!=null) {maxSnapshotWaves=Math.Max(maxSnapshotWaves,assembler.Latest.world.waves.Count);maxSnapshotEffects=Math.Max(maxSnapshotEffects,assembler.Latest.world.effects.Count);}
+    }
+    string TimingStats(string label,float[] values)
+    {
+        int count=Math.Min(timingSamples,TimingCapacity);Array.Copy(values,timingScratch,count);Array.Sort(timingScratch,0,count);
+        int p50=(count-1)/2,p95=Math.Max(0,(int)Math.Ceiling(count*.95)-1);
+        return FormattableString.Invariant($" {label}_p50_ms={timingScratch[p50]:F3} {label}_p95_ms={timingScratch[p95]:F3} {label}_max_ms={timingScratch[count-1]:F3}");
+    }
+    void ReportGuestTiming()
+    {
+        if(!client ||timingSamples==0) return;
+        Debug.Log($"[REDBOOL VIEW CPU] samples={Math.Min(timingSamples,TimingCapacity)}"+TimingStats("replica",replicaMs)+TimingStats("ui",remoteUiMs)+TimingStats("receive",receiveMs)+TimingStats("frame",frameMs)
+            +$" bones={replicaBoneCount} snapshot_waves_max={maxSnapshotWaves} snapshot_effects_max={maxSnapshotEffects} history={history.Count} retired_sessions={retiredSessions.Count} target_fps={Application.targetFrameRate} vsync={QualitySettings.vSyncCount} focused={Application.isFocused} fresh={Fresh}");
+        timingSamples=maxSnapshotWaves=maxSnapshotEffects=0;
+    }
     [Serializable] sealed class TraceRow {public string seq;public double time,arrival;public RedboolViewWorld world;public RedboolViewActor[] actors;}
     void TraceFrame(RedboolViewFrame frame)
     {
@@ -58,7 +90,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             for(int i=0;i<2;i++)
             {
                 views[i]=game.Players[i].GetComponent<Fighter3DView>();
-                for(int b=0;b<bones[i].Length;b++) bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);
+                for(int b=0;b<bones[i].Length;b++) {bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);if(bones[i][b]) replicaBoneCount++;}
             }
             if(client) {mirror=gameObject.AddComponent<RedboolViewMirror>();mirror.Initialize(game,views,bones);Time.timeScale=1;}
             initialized=true;Debug.Log("[REDBOOL VIEW] "+(client?"guest "+peer:"host :5067")+" protocol="+RedboolViewProtocol.Version);
@@ -152,18 +184,20 @@ public sealed class RedboolViewLink : MonoBehaviour
     void Update()
     {
         if(!initialized) return;
-        double now=Time.realtimeSinceStartupAsDouble;Receive(now);
+        double now=Time.realtimeSinceStartupAsDouble;
+        if(client) {frameUiTicks=0;long start=TimingNow;Receive(now);frameReceiveTicks=TimingNow-start;}
+        else Receive(now);
         if(client && now>=nextSend)
         {
             nextSend=now+.05;
             Send(new RedboolViewPacket {kind=0,session=Guid.Empty,nonce=nonce,time=now});
             if(ack>0 && mirror.Ready) Send(new RedboolViewPacket {kind=4,session=session,nonce=nonce,seq=ack,time=now});
         }
-        if(client) {Time.timeScale=Fresh && assembler.Latest!=null && (!assembler.Latest.world.paused ||assembler.Latest.world.resolved)?1:0;if(!Fresh) game.ShowRemote(assembler.Latest,false);}
+        if(client) {Time.timeScale=Fresh && assembler.Latest!=null && (!assembler.Latest.world.paused ||assembler.Latest.world.resolved)?1:0;if(!Fresh) ShowRemoteMeasured(assembler.Latest,false);}
         if(now-lastReport>=5)
         {
             Debug.Log(FormattableString.Invariant($"[REDBOOL VIEW METRIC] client={client} seq={(client?ack:sequence)} complete={received} invalid={invalid} bytes={sentBytes} fresh={(client?Fresh:PeerReady)} rtt_ms={RttMs:F2}"));
-            lastReport=now;sentBytes=0;
+            ReportGuestTiming();lastReport=now;sentBytes=0;
         }
     }
     void LateUpdate()
@@ -174,14 +208,15 @@ public sealed class RedboolViewLink : MonoBehaviour
         {lastCapture=now;ScreenCapture.CaptureScreenshot(Path.Combine(captureDirectory,(client?"guest":"host")+(captureCount++)+".png"));}
         if(client)
         {
-            if(!Fresh || history.Count==0) return;
+            if(!Fresh || history.Count==0) {SampleGuest(0);return;}
             var latest=history[history.Count-1];double target=latest.time+now-latest.arrival-.05;
             var a=history[0];var b=a;
             foreach(var frame in history) {b=frame;if(frame.time>=target) break;a=frame;}
             float t=a==b?1:Mathf.Clamp01((float)((target-a.time)/(b.time-a.time)));
             // Never blend across round resets or paused snapshots.
             if(a.world.round!=b.world.round || a.world.paused!=b.world.paused) {a=b;t=1;}
-            mirror.Apply(a,b,t);game.ShowRemote(b,true);return;
+            long start=TimingNow;mirror.Apply(a,b,t);long replicaTicks=TimingNow-start;
+            ShowRemoteMeasured(b,true);SampleGuest(replicaTicks);return;
         }
         if(now<nextSend) return;nextSend=Math.Max(nextSend+1.0/30,now-.01);
         sequence++;
