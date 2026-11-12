@@ -11,6 +11,7 @@ public class PlayerController : MonoBehaviour
     private Health health;
     private Fighter fighter;
     private bool unifiedBoxing;
+    private HeroAuthoredMovement heroMovement;
     private Battle3DCamera battleCamera;
 
     [Header("이동")]
@@ -67,6 +68,7 @@ public class PlayerController : MonoBehaviour
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
         unifiedBoxing = GetComponent<Fighter3DView>() != null;
+        heroMovement = GetComponent<HeroAuthoredMovement>();
         if(Camera.main!=null)battleCamera=Camera.main.GetComponent<Battle3DCamera>();
 
         // 상대를 지정하지 않았으면 씬에서 찾는다. (EnemyAI 가 플레이어를 찾는 것과 대칭)
@@ -164,7 +166,8 @@ public class PlayerController : MonoBehaviour
         if (movingBack)  speed *= backwardSpeedMultiplier;
         if (isCrouching) speed *= crouchSpeedMultiplier;
 
-        rb.linearVelocity = new Vector2(moveX * speed, rb.linearVelocity.y);
+        if (heroMovement != null && heroMovement.isActiveAndEnabled) heroMovement.SetInput(moveX);
+        else rb.linearVelocity = new Vector2(moveX * speed, rb.linearVelocity.y);
         animator.SetBool("IsMoving", Mathf.Abs(moveX) > 0.01f);
         animator.SetBool("IsMovingBack", movingBack);
 
@@ -286,11 +289,14 @@ public class PlayerController : MonoBehaviour
     {
         externalControl = true;
         externalMoveX = Mathf.Clamp(axis, -1f, 1f);
+        if (heroMovement != null && heroMovement.isActiveAndEnabled)
+            heroMovement.SetInput(battleCamera != null ? battleCamera.ScreenHorizontalToWorld(externalMoveX) : externalMoveX);
     }
 
     public void ClearExternalInput()
     {
         externalControl = false;
+        if (heroMovement != null) heroMovement.Cancel();
         externalMoveX = 0f;
         externalGuardHeld = false;
         isCrouching = false;

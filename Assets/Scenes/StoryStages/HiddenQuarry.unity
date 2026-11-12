@@ -24807,6 +24807,7 @@ GameObject:
   - component: {fileID: 1351601489}
   - component: {fileID: 1351601490}
   - component: {fileID: 1351601491}
+  - component: {fileID: 1351601492}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -25130,6 +25131,18 @@ MonoBehaviour:
   guardClips:
   - {fileID: 7400000, guid: 6ace9821a9081df4a92551928766001c, type: 2}
   - {fileID: 7400000, guid: 3c1858024f0029249a79a9aa7bbb826a, type: 2}
+--- !u!114 &1351601492
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351601480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11830b06ca454ad44997d81ee7cf0783, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HeroAuthoredMovement
 --- !u!1001 &1364945876
 PrefabInstance:
   m_ObjectHideFlags: 0
