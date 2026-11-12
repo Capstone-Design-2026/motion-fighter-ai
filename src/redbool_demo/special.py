@@ -46,6 +46,21 @@ def cross_geometry(obs, cfg):
               and rw[0]-lw[0]>-.15)
     strict=(approach and lw[0]<=.12 and rw[0]>=-.12
             and rw[0]-lw[0]>=.04 and abs(lw[1]-rw[1])<=.40)
+    # Closed fists can meet before the estimated wrists cross. Require both
+    # hands to point inward from visibly bent elbows, not merely be close.
+    tips=(17,19,21,18,20,22)
+    v=np.asarray(obs.visibility,float)
+    if approach and not strict and all(w[1] <= .55 for w in (lw,rw)) and all(v[i]>=cfg.visibility for i in tips):
+        lh=np.median([pos(i) for i in (17,19,21)],axis=0)
+        rh=np.median([pos(i) for i in (18,20,22)],axis=0)
+        flat=p.copy();flat[:,2]=0
+        angles=[elbow_angle(flat,ids) for ids in ((11,13,15),(12,14,16))]
+        inward=(lh[0]<=lw[0]-.06 and rh[0]>=rw[0]+.06)
+        meet=(abs(lh[0]-rh[0])<=.28 and lh[0]<=.20 and rh[0]>=-.20
+            and abs(lh[1]-rh[1])<=.35)
+        compact=all(a is not None and .45<=a<=1.6 for a in angles)
+        fist_cross=bool(inward and meet and compact and abs(lw[0])<=.40 and abs(rw[0])<=.40)
+        strict=fist_cross
     # A clear one-arm raise also breaks the cross, even if the other hand
     # remains at the opposite shoulder. Do not require both hands in guard.
     separated=((lw[0]>.22 and rw[0]<-.22)

@@ -1,0 +1,15 @@
+# First-use effect preparation and personal guard calibration
+
+The November 11 real-play trace located 182ms and 183ms game frames at first-hit and first-special rendering. Direct effect construction took only a few milliseconds in controlled native checks; cold first rendered frames included 58/67/116ms stalls. The saved log cannot uniquely prove driver compilation versus all system scheduling costs. No claim of universally stutter-free gameplay is made.
+
+Unity now prepares hit render templates and dynamic cut-in glyphs, and renders the actual hit/QiPalm materials and post effects through the arena camera into a temporary target before allowing input. Temporary samples have gameplay scripts, colliders and sound disabled. Health, charge, clock and campaign saves are preserved, the camera target is restored, and two normal frames finish before input unlocks. No synthetic attack is sent in normal play. Per-frame stall logs now include scene, frame, focus and GC deltas instead of only 10-second maxima.
+
+This uses actual rendering rather than Shader.WarmupAllShaders: [Unity documents](https://docs.unity.com/en-us/engine/6000.0/manual/materials-and-shaders/shaders/shader-troubleshooting/shader-reduce-stalling/shader-prevent-stutter/shader-prewarm-other) that generic warmup may create the wrong pipeline states on Metal. The first-use mechanism is supported by automatic reproduction, but not a full GPU profiler capture of the original session.
+
+Python now uses the calibrated elbow angle, capped at 1.2 radians, for the supporting folded hand and fresh high-guard raise reference. It still requires a fresh upstroke, physical return, valid joints and a bent supporting arm. This fixes a mismatch where a valid personal calibration could be rejected by the fixed .6-radian support gate. Visibility, punch displacement/extension, event TTL and model weights are unchanged.
+
+Movement retains the settled final calibration pose. Only a final shoulder estimate which is an outlier against both the complete stable window and the preceding three frames is replaced by the window median. Gradual settling is not treated as noise. Manual C rebuilds all personal state; it does not reuse the previous person's measurements.
+
+Validation: 24 recorded sessions / 135,722 frames / 646 attack events preserved. Existing movement outputs preserved after rejecting the unconditional-median experiment. Existing 183 Python checks passed after rerunning environment-blocked socket/model fixtures; 10 personal calibration, 6 high-guard safety, 4 recorded participant, and 3 mirror tests passed. Unity preparation/camera/HP/clock/scene checks passed; native diagnostic and saved-video inference-load measurements are recorded under review_20261111_stability. Camera hardware was never opened. Synthetic body-size checks are not evidence of independent multi-person accuracy.
+
+Operationally use the existing demo_final_20261111_v2 launcher. Recalibrate with C when changing people. First-use rendering cost is moved into scene preparation, not hidden or removed from the measurements. No extra recordings are required for this change.

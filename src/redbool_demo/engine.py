@@ -44,6 +44,7 @@ class DemoEngine(DevelopmentEngine):
         self.calibration_status = 'PRESS C: HOLD GUARD'
         self.calibration_progress = 0.
         self.samples = deque()
+        self.calibration_observations = deque()
         cfg = AblationConfig(version='seated-demo-20261103-v1', channel_validity=True,
             calibrated_neutral_block=True, image_3d_extension=True)
         super().__init__(cfg, **kwargs)
@@ -53,6 +54,7 @@ class DemoEngine(DevelopmentEngine):
         self.attack.units = {s:DemoAttack(self.config) for s in ('LEFT','RIGHT')}
         self.calibration_signals = ChannelSignals(self.config)
         self.samples.clear()
+        self.calibration_observations.clear()
         self.calibrated = False
         self.calibration_progress = 0.
 
@@ -92,12 +94,13 @@ class DemoEngine(DevelopmentEngine):
                         and -.8<=a['position'][1]<=.4
                         and np.linalg.norm(a['position'][:2])<.9 for a in arms.values())
                     if not valid:
-                        self.samples.clear();self.calibration_progress=0.
+                        self.samples.clear();self.calibration_observations.clear();self.calibration_progress=0.
                     else:
                         if self.samples and any(np.linalg.norm(a['position'][:2]-old[s]['position'][:2])>.12
                             for _,old in self.samples for s,a in arms.items()):
-                            self.samples.clear()
+                            self.samples.clear();self.calibration_observations.clear()
                         self.samples.append((obs.capture_ns,arms))
+                        self.calibration_observations.append(obs)
                         elapsed=(obs.capture_ns-self.samples[0][0])/1e9
                         self.calibration_progress=min(1.,elapsed/.6)
                         if elapsed>=.6 and len(self.samples)>=12:

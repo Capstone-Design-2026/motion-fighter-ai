@@ -14,12 +14,15 @@ BONES=((11,12),(11,13),(13,15),(12,14),(14,16))
 
 def overlay(bgr, frame, *, name='stored', mirror=False, unprocessed=False):
     # Always copy: overlays must never contaminate the encoded source pixels.
-    out=bgr.copy();h,w=out.shape[:2];states=joint_states(frame);points=frame.get('image_landmarks')
+    # Flip the copied preview before drawing so labels remain readable.
+    out=cv2.flip(bgr,1) if mirror else bgr.copy()
+    h,w=out.shape[:2];states=joint_states(frame);points=frame.get('image_landmarks')
     if unprocessed:
         states={j:['NOT_PROCESSED'] for j in JOINTS};points=None
     def xy(j):
         if not points or len(points)<=j or any(v is None or not np.isfinite(v) for v in points[j][:2]):return None
-        return tuple(int(np.clip(v,0,1)*(size-1)) for v,size in zip(points[j][:2],(w,h)))
+        x,y = (int(np.clip(v,0,1)*(size-1)) for v,size in zip(points[j][:2],(w,h)))
+        return (w-1-x if mirror else x),y
     for a,b in BONES:
         pa,pb=xy(a),xy(b)
         if pa and pb:cv2.line(out,pa,pb,(170,170,170),1)
@@ -28,7 +31,6 @@ def overlay(bgr, frame, *, name='stored', mirror=False, unprocessed=False):
         if pos:
             cv2.circle(out,pos,6,COLORS[flags[0]],-1)
             cv2.putText(out,str(j),pos,cv2.FONT_HERSHEY_SIMPLEX,.4,(255,255,255),1)
-    if mirror:out=cv2.flip(out,1)
     # Text is unmirrored and anatomical LEFT/RIGHT are never swapped.
     panel=np.zeros((170,w,3),dtype=np.uint8)
     cv2.putText(panel,f'{name} frame {frame["frame_id"]} capture_ns {frame["capture_return_monotonic_ns"]}',(5,18),0,.42,(255,255,255),1)

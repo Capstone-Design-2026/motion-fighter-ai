@@ -54,6 +54,8 @@ class HighGuardRecordingTests(unittest.TestCase):
     def test_complete_recording_has_no_extra_events(self):
         from collections import Counter
         self.assertEqual(Counter(g for _,g in self.results[0][0]),
-            dict(LEFT_PUNCH=8,RIGHT_PUNCH=12,LEFT_RAISE=1,RIGHT_RAISE=4,SPECIAL=1))
+            dict(LEFT_PUNCH=9,RIGHT_PUNCH=12,LEFT_RAISE=1,RIGHT_RAISE=4,SPECIAL=1))
+        # Frame 1595 is a visible forward left punch, reviewed from raw video.
+        self.assertEqual(self.gestures(52.8,53.5),['LEFT_PUNCH'])
         self.assertEqual(self.gestures(0,52),[])
         self.assertEqual(self.gestures(131,134.28),[])

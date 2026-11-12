@@ -28,11 +28,37 @@ class LateralMovement:
                                       abs(p[11, 0] - p[12, 0])))
 
     def calibrate(self, obs):
-        p = np.asarray(obs.as_frame()['image_landmarks'], float)
-        self.origin = float((p[11, 0] + p[12, 0]) / 2)
-        self.width = abs(float(p[11, 0] - p[12, 0]))
-        self.left_sign = 1. if p[11, 0] > p[12, 0] else -1.
-        self.roll_origin = self._roll(p, obs)
+        self.calibrate_samples([obs])
+
+    def calibrate_samples(self, observations):
+        """Use the same stable window as the personal guard, not its last frame.
+
+        Median centre/width/roll replace only an outlier final estimate.
+        Small normal settling keeps the established movement neutral position.
+        Manual C constructs a new movement controller, so no prior person leaks.
+        """
+        rows = []
+        for obs in observations:
+            if joint_validity(obs, self.cfg)['MOVEMENT']: continue
+            p = np.asarray(obs.as_frame()['image_landmarks'], float)
+            rows.append(((p[11, 0] + p[12, 0]) / 2,
+                         abs(p[11, 0] - p[12, 0]), self._roll(p, obs),
+                         1. if p[11, 0] > p[12, 0] else -1.))
+        if not rows:
+            self.origin = self.width = self.roll_origin = None
+            self.reset()
+            return
+        median = np.median(rows, axis=0)
+        last = np.asarray(rows[-1])
+        # Do not move a valid neutral anchor by millimetres: lean hysteresis was
+        # calibrated against that settled pose. Correct clear single-frame noise.
+        limits = np.array([.05 * median[1], .10 * median[1], 2.0])
+        mad = np.median(np.abs(np.asarray(rows)[:, :3] - median[:3]), axis=0)
+        recent = np.median(np.asarray(rows[-4:-1]), axis=0) if len(rows) > 1 else last
+        outlier = bool(np.any((np.abs(last[:3] - median[:3]) > np.maximum(limits, 3 * mad))
+            & (np.abs(last[:3] - recent[:3]) > limits)))
+        self.calibration_source = 'window_median_outlier' if outlier else 'settled_final_frame'
+        self.origin, self.width, self.roll_origin, self.left_sign = map(float, median if outlier else last)
         self.reset()
 
     def update(self, obs, now):

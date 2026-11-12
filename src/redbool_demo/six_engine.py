@@ -12,6 +12,7 @@ from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
 from .special import CrossSpecial, cross_geometry, extended_cross_arm
 from .high_guard_raise import HighGuardRaise
+from .auxiliary_pose import same_body
 
 
 class SixBlock(RelativeBlock):
@@ -52,7 +53,7 @@ class SixAttack(DemoAttack):
         qualify. Ordinary guard keeps its existing bounds.
         """
         ordinary = (cls.guard_position(arm, base)
-            and arm['angle'] <= .6 and arm['speed_xy'] <= 2.0)
+            and arm['angle'] <= min(1.2, max(.6, base['angle'] + .15)) and arm['speed_xy'] <= 2.0)
         dx, dy = arm['position'][:2] - base['position'][:2]
         high = (abs(dx) <= .45 and -1.3 <= dy < -.30
             and arm['angle'] <= 1.2 and arm['speed_xy'] <= 1.2
@@ -61,6 +62,7 @@ class SixAttack(DemoAttack):
         return bool(ordinary or high)
 
     def update(self, arms, now, allow_commit=True, block=False):
+        if block: self.folded_low_block_until = now + 1_200_000_000
         # An upward gesture may first look diagonal in its first two frames.
         # Hand it to the raise channel only while the punch is uncommitted.
         # ACTIVE/EXTENDED/RETURNING still require the normal physical return.
@@ -141,8 +143,18 @@ class SixAttack(DemoAttack):
                     and arm['angle3d'] is not None
                     and arm['angle3d']<=min(2.55,base['angle3d']+.60)):
                 continue
+            # A compact, personally calibrated folded guard may still settle
+            # after block release. Keep the full dwell and spatial/elbow proof;
+            # avoid resetting that dwell on modest projected wrist jitter.
+            compact_return = (self.state == 'PREPARING' and not self.unreturned_punch
+                and self.now < getattr(self, 'folded_low_block_until', 0)
+                and abs(dx)<=.30 and -.20<=dy<=.40
+                and arm['position'][1]<=.45 and arm['angle']<=.50
+                and arm['angle3d'] is not None
+                and arm['angle3d']<=min(2.3,base['angle3d']+.15))
+            return_speed = 2.0 if compact_return else 1.2
             if not (abs(dx)<=.45 and (-.30<=dy<=.65 or (-.65<=dy<-.30 and arm['angle']<=.6 and arm['angle3d'] is not None and arm['angle3d']<=min(2.2,base['angle3d']+.25))) and arm['position'][1]<=.45
-                    and arm['speed_xy']<=1.2 and arm['angle']<=1.8
+                    and arm['speed_xy']<=return_speed and arm['angle']<=1.8
                     and arm['angle3d'] is not None
                     and arm['angle3d']<=min(2.6,base['angle3d']+.60)):
                 return False
@@ -203,6 +215,21 @@ class SixAttack(DemoAttack):
             if planar or body_planar:
                 row['onset_rule'] = bool(row['onset_rule'] or row['speed_signal'])
                 row['commit_rule'] = True
+            # A camera-directed short punch can retain a folded 2D elbow and
+            # reverse its projected wrist before monocular depth settles. Only
+            # complete an already observed onset, with the other fist guarding;
+            # never start an attack or rearm an extended hold from this route.
+            foreshortened_low = bool(self.baseline and self.state == 'CANDIDATE'
+                and self.now >= getattr(self, 'folded_low_block_until', 0)
+                and self.now - self.entered >= 80_000_000
+                and self.opposite_guard and getattr(self, "independent_elbow_opening", False) and .12 < delta[1] <= .45
+                and abs(delta[0]) >= .30 and abs(delta[2]) <= .75
+                and arm['position'][1] <= .50 and arm['angle'] <= .65
+                and arm['angle3d'] is not None and arm['angle3d'] >= 2.2
+                and arm['angle3d'] - self.baseline[side]['angle3d'] >= .15
+                and row['xy_displacement'] >= .38 and row['vertical_fraction'] <= .78)
+            row['foreshortened_low_commit'] = foreshortened_low
+            if foreshortened_low: row['commit_rule'] = True
             if self.forward_hint:
                 # Camera-directed extension can project mostly vertically. Keep
                 # displacement, speed, calibrated extension and outward motion.
@@ -245,6 +272,7 @@ class SixGestureEngine(DemoEngine):
         self.attack.units = {s: SixAttack(self.config) for s in ('LEFT', 'RIGHT')}
         self.movement = LateralMovement(self.config)
         self.special = CrossSpecial()
+        self.cross_extension_since = None
         self.route_signals = ChannelSignals(self.config)
         self.forward_sides = set()
         self.forward_proof = {}
@@ -266,7 +294,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-high-guard-raise-20261111-v21')
+        self.config = replace(self.config, version='seated-cross-recovery-20261111-v26')
         self._components()
 
     @property
@@ -293,6 +321,7 @@ class SixGestureEngine(DemoEngine):
     def _safe(self, now, reason):
         super()._safe(now, reason)
         self.special.invalidate()
+        self.cross_extension_since = None
         self.high_raise = HighGuardRaise(); self.high_raise_sides = set()
         self.route_signals.reset();self.forward_sides=set();self.forward_proof={};self.compact_forward_proof={};self.occluded_guard_sides=set();self.occlusion_until={}
         self.raise_armed = dict.fromkeys(('LEFT','RIGHT'), False)
@@ -320,7 +349,7 @@ class SixGestureEngine(DemoEngine):
                     self.vertical_state == 'PENDING' and self.vertical_candidate == side + '_RAISE')
             state = super().process(obs, evidence, now)
             if self.calibrated and not calibrated_before:
-                self.movement.calibrate(obs)
+                self.movement.calibrate_samples(self.calibration_observations)
             arms = self.vertical_signals.update(obs)
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             validity = joint_validity(obs, self.config)
@@ -408,7 +437,7 @@ class SixGestureEngine(DemoEngine):
                     self.outbox.pending[key] = replace(event, reason={**event.reason, 'gesture': event.side + '_PUNCH'})
             return self._publish_state(state)
 
-    def process(self, obs, evidence=None, now_ns=None):
+    def process(self, obs, evidence=None, now_ns=None, special_observation=None):
         with self.lock:
             now = self.clock() if now_ns is None else now_ns
             ident = (obs.actor_id, obs.capture_epoch)
@@ -418,9 +447,47 @@ class SixGestureEngine(DemoEngine):
             fresh = 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000
             valid = fresh and not joint_validity(obs, self.config)['BLOCK']
             approach, strict, separated = cross_geometry(obs, self.config) if valid else (False, False, False)
+            special_valid = valid
+            extended = extended_cross_arm(obs, self.config) if valid else False
+            open_votes = int(separated and not extended)
+            model_count = int(valid)
+            # Auxiliary Full landmarks may resolve crossed-arm occlusion which
+            # Lite confidently reconstructs as uncrossed. Never use a stale or
+            # different frame/person for this channel, and never alter punch,
+            # raise or movement coordinates with the auxiliary skeleton.
+            auxiliaries = special_observation if isinstance(special_observation, (tuple, list)) else (special_observation,)
+            for aux in auxiliaries:
+                if (self.calibrated and aux is not None
+                        and (aux.actor_id, aux.capture_epoch, aux.frame_id, aux.capture_ns)
+                        == (obs.actor_id, obs.capture_epoch, obs.frame_id, obs.capture_ns)
+                        and (aux.width, aux.height, aux.source_mirrored) == (obs.width, obs.height, obs.source_mirrored)
+                        and fresh and same_body(obs, aux, self.config) and not joint_validity(aux, self.config)['BLOCK']):
+                    ap, st, sep = cross_geometry(aux, self.config)
+                    approach = approach or ap
+                    strict = strict or st
+                    # Release a cross when either valid model sees a definite open
+                    # pose and neither model still supplies actual cross geometry.
+                    separated = (separated or sep) and not approach
+                    aux_extended = extended_cross_arm(aux, self.config)
+                    open_votes += int(sep and not aux_extended)
+                    model_count += 1
+                    extended = extended and aux_extended
+                    special_valid = True
+            if len(auxiliaries) >= 2 and model_count >= 2:
+                separated = (open_votes >= 2 or extended) and not approach
+            # During an owned X, one briefly visible skeleton must not convert
+            # occlusion jitter into a punch. Multi-model extension clears at
+            # once; lone-model extension must persist for 120 ms. No extra
+            # SPECIAL evidence is inferred from this suppression interval.
+            if (len(auxiliaries) >= 2 and self.special.owned and not self.special.latched
+                    and extended and model_count < 2):
+                if self.cross_extension_since is None:self.cross_extension_since = obs.capture_ns
+                extended = obs.capture_ns - self.cross_extension_since >= 120_000_000
+                separated = separated and extended
+            else:self.cross_extension_since = None
             # Reject a transient X candidate once an arm clearly extends. A
             # fired X keeps its normal release latch; tracking loss is not release.
-            if valid and extended_cross_arm(obs,self.config) and self.special.owned and not self.special.latched:
+            if special_valid and extended and self.special.owned and not self.special.latched:
                 self.special.owned=False;self.special.reset_dwell();self.special.return_since=None
             routing=self.route_signals.update(obs)
             anchors=self.attack.anchors();self.forward_sides=set();self.occluded_guard_sides=set()
@@ -434,6 +501,13 @@ class SixGestureEngine(DemoEngine):
                     other_d=routing[other]['position']-anchors[other]['position']
                     self.attack.units[side].opposite_guard=(
                         self.attack.units[other].supporting_guard(routing[other],anchors[other]))
+                    other_arm = routing[other]
+                    # Shared depth changes while leaning are not a short punch.
+                    # This extra completion route needs asymmetric elbow opening.
+                    self.attack.units[side].independent_elbow_opening = bool(
+                        arm['angle3d'] is not None and other_arm['angle3d'] is not None
+                        and arm['angle3d'] - base['angle3d']
+                        >= other_arm['angle3d'] - anchors[other]['angle3d'] + .10)
                     # A held punch crossing the guarding fist can swap wrist
                     # estimates. Temporarily suppress only the uncommitted hand,
                     # retaining the ongoing punch's physical-return lifecycle.
@@ -519,7 +593,7 @@ class SixGestureEngine(DemoEngine):
                 for side in high_started:self.raise_armed[side] = True
                 if self.vertical_state in ('DISARMED','LATCHED'):self.vertical_state = 'READY'
             state = self._process_actions(obs, evidence, now)
-            fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=valid,
+            fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=special_valid,
                 neutral=separated, approach=approach, strict=strict)
             if self.special.owned or self.special_inhibited:
                 # Reserve this bilateral gesture, including its return. Never
