@@ -29,12 +29,14 @@ public sealed class RedboolPvp : MonoBehaviour
     readonly Text[] playerLabels = new Text[2];
     readonly Text[] practiceLabels = new Text[2];
     readonly TrainingPoseGraphic[] diagrams=new TrainingPoseGraphic[2];
-    Text banner, clockLabel;
+    Text banner, clockLabel, roundResult;
+    GameObject resultPanel;
+    Button rematchButton;
     readonly Button[] skipButtons=new Button[2];
     readonly RectTransform[] playerPanels=new RectTransform[2];
     string lastDiagnostic;double lastDiagnosticTime;
     public byte Gate {get;private set;}
-    public float Countdown => readySince<0?1:Mathf.Max(0,1-(float)(Time.realtimeSinceStartupAsDouble-readySince));
+    public float Countdown => readySince<0?resumeSeconds:Mathf.Max(0,resumeSeconds-(float)(Time.realtimeSinceStartupAsDouble-readySince));
     Canvas canvas;
     RedboolRenderWarmup warmup;
     public bool Fighting { get; private set; }
@@ -42,7 +44,9 @@ public sealed class RedboolPvp : MonoBehaviour
     public float Remaining { get; private set; } = 120f;
     public string Result { get; private set; } = "";
     bool configured, paused=true;
-    double readySince=-1;
+    double readySince=-1, interruptionSince=-1;
+    bool fullPreparation=true;
+    float resumeSeconds=1;
     public bool BothLive => configured && Receivers[0]!=null && Receivers[1]!=null && Receivers[0].LiveReady && Receivers[1].LiveReady;
     public bool CanFight => Fighting && !Resolved && !paused && BothLive && warmup==null && (!RequireView || ViewLink != null && ViewLink.PeerReady);
 
@@ -123,13 +127,13 @@ public sealed class RedboolPvp : MonoBehaviour
             if(generations[slot]>=0) ResetPractice(slot);
             generations[slot]=generation;
         }
-        if(!calibrated) { readySince=-1;SetPaused(true); }
+        if(!calibrated) { fullPreparation=true;readySince=-1;SetPaused(true); }
     }
     void ResetPractice(int slot)
     {
         Receivers[slot].PracticeAction-=Practices[slot].Observe;
         Practices[slot].Reset();Receivers[slot].PracticeAction+=Practices[slot].Observe;
-        readySince=-1;SetPaused(true);
+        fullPreparation=true;readySince=-1;SetPaused(true);
     }
     void SetPaused(bool value)
     {
@@ -169,14 +173,23 @@ public sealed class RedboolPvp : MonoBehaviour
             if(Practices[i].Complete) Receivers[i].PracticeAction-=Practices[i].Observe;
         }
         bool ready=BothLive && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
-        if(!ready) { readySince=-1;SetPaused(true); }
+        double now=Time.realtimeSinceStartupAsDouble;
+        if(!ready) {
+            if(interruptionSince<0) interruptionSince=now;
+            if(now-interruptionSince>=1) fullPreparation=true;
+            readySince=-1;SetPaused(true);
+        }
         else if(paused)
         {
             // Completion is already an explicit practice interaction. A second simultaneous
             // two-arm READY gate deadlocks high guards and otherwise valid camera users.
             // Fresh camera/display leases still gate every frame; old inputs never queue.
-            if(readySince<0) readySince=Time.realtimeSinceStartupAsDouble;
-            else if(Time.realtimeSinceStartupAsDouble-readySince>=1.0) { Fighting=true;SetPaused(false); }
+            resumeSeconds=fullPreparation?1f:.10f;
+            if(readySince<0) readySince=now;
+            else if(now-readySince>=resumeSeconds) {
+                Debug.Log(FormattableString.Invariant($"[REDBOOL PVP RESUME] round={Round} delay={resumeSeconds:F2} interruption={(interruptionSince<0?0:now-interruptionSince):F3} utc={DateTime.UtcNow:o}"));
+                Fighting=true;fullPreparation=false;interruptionSince=-1;SetPaused(false);
+            }
         }
         if(CanFight) Remaining=Mathf.Max(0,Remaining-Time.deltaTime);
         Gate=Resolved?(byte)7:warmup!=null?(byte)1:RequireView&&(ViewLink==null||!ViewLink.PeerReady)?(byte)2:!Receivers[0].LiveReady?(byte)3:!Receivers[1].LiveReady?(byte)4:!Practices[0].Complete||!Practices[1].Complete?(byte)5:paused?(byte)6:(byte)0;
@@ -201,9 +214,9 @@ public sealed class RedboolPvp : MonoBehaviour
         for(int i=0;i<2;i++) row+=" p"+(i+1)+"="+Practices[i].Step+":"+Practices[i].Hits+":"+Practices[i].Phase+":"+Receivers[i].LiveReady+":"+Receivers[i].InputPhase+":gen"+generations[i];
         double now=Time.realtimeSinceStartupAsDouble;
         if(row!=lastDiagnostic &&now-lastDiagnosticTime>.25 || now-lastDiagnosticTime>=2)
-        { Debug.Log("[REDBOOL PVP GATE] "+row+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
+        { Debug.Log("[REDBOOL PVP GATE] "+row+FormattableString.Invariant($" round={Round} remaining={Remaining:F2} hp1={Players[0].GetComponent<Health>().CurrentHealth} hp2={Players[1].GetComponent<Health>().CurrentHealth} age1_ms={Receivers[0].InputAgeMs:F1} age2_ms={Receivers[1].InputAgeMs:F1}")+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
     }
-    static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 두 게임 버전과 연결을 확인하세요":gate==3?"1P 카메라 준비 대기 · 카메라 창에서 C로 보정":gate==4?"2P 카메라 준비 대기 · 카메라 창에서 C로 보정":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"준비 완료 · "+Mathf.CeilToInt(countdown)+"초 뒤 전투 시작":"2인 대전 · 블락 유지 / X자 파운장 · Esc: 메뉴";
+    static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 연결 복구 후 자동 재개":gate==3?"1P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==4?"2P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"신호 확인 · 잠시 후 자동 시작":"2인 대전 · 블락 유지 / X자 파운장 · Esc: 메뉴";
     // Resolve after the contact world: simultaneous KO must not become a 1P win.
     void LateUpdate()
     {
@@ -215,6 +228,7 @@ public sealed class RedboolPvp : MonoBehaviour
             {
                 Result=a.CurrentHealth==b.CurrentHealth?"무승부":a.CurrentHealth>b.CurrentHealth?"1P 승리":"2P 승리";
                 Resolved=true;SetPaused(true);
+                Debug.Log(FormattableString.Invariant($"[REDBOOL PVP ROUND END] round={Round} reason={(a.IsDead||b.IsDead?"KO":"TIMEOUT")} remaining={Remaining:F2} hp1={a.CurrentHealth} hp2={b.CurrentHealth} utc={DateTime.UtcNow:o}"));
             }
         }
         if(paused && !Resolved) Time.timeScale=0;
@@ -223,6 +237,7 @@ public sealed class RedboolPvp : MonoBehaviour
     {
         if(!configured || !Resolved || IsClient) return;
         Round++;
+        fullPreparation=true;interruptionSince=-1;
         Resolved=false;Fighting=false;Remaining=120;Result="";readySince=-1;
         for(int i=0;i<2;i++)
         {
@@ -232,6 +247,7 @@ public sealed class RedboolPvp : MonoBehaviour
             p.GetComponent<Fighter>().Contacts.ResetHistory();
         }
         SetPaused(true);
+        Debug.Log($"[REDBOOL PVP REMATCH] round={Round} utc={DateTime.UtcNow:o}");
     }
     void BuildUi()
     {
@@ -265,6 +281,14 @@ public sealed class RedboolPvp : MonoBehaviour
         UIFactory.Place(clockLabel.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-35),new Vector2(200,60));
         banner=WuxiaTheme.Text("Status",canvas.transform,"",27,TextAnchor.MiddleCenter,WuxiaTheme.Paper);
         UIFactory.Place(banner.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,25),new Vector2(1500,100));
+        var result=UIFactory.CreateImage("PvpRoundResult",canvas.transform,new Color(.02f,.04f,.06f,.94f));
+        resultPanel=result.gameObject;
+        UIFactory.Place(result.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(780,270));
+        roundResult=WuxiaTheme.Text("RoundResultText",result.transform,"",36,TextAnchor.MiddleCenter,WuxiaTheme.Gold);
+        UIFactory.Place(roundResult.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-20),new Vector2(750,155));
+        rematchButton=UIFactory.CreateButton("PvpRematch",result.transform,"다시 대전 · R",25,new Color(.14f,.20f,.23f,1),Rematch);
+        UIFactory.Place(rematchButton.GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,25),new Vector2(360,55));
+        resultPanel.SetActive(false);
     }
     void RefreshUi()
     {
@@ -280,6 +304,13 @@ public sealed class RedboolPvp : MonoBehaviour
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
         banner.text=Resolved?Result+" · R: 재대전 · Esc: 메뉴":GateText(Gate,Countdown);
+        ShowResult(Resolved,Result,Remaining,Players[0].GetComponent<Health>().CurrentHealth,Players[1].GetComponent<Health>().CurrentHealth,false);
+    }
+    void ShowResult(bool ended,string winner,float time,int hp1,int hp2,bool remote)
+    {
+        resultPanel.SetActive(ended);if(!ended)return;
+        roundResult.text=(hp1<=0||hp2<=0?"K.O. · 라운드 종료":"시간 종료 · 라운드 종료")+"\n"+winner+(remote?"\n1P 화면에서 다시 대전을 선택하세요":"");
+        rematchButton.gameObject.SetActive(!remote);
     }
     void ShowPracticeVisibility(int slot,bool show) {practiceLabels[slot].gameObject.SetActive(show);playerPanels[slot].SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,show?260:155);}
     void ShowHealth(int slot,int current,int maximum)
@@ -313,6 +344,7 @@ public sealed class RedboolPvp : MonoBehaviour
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
         banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?(frame.world.winner==0?"무승부":frame.world.winner+"P 승리")+" · 호스트에서 R: 재대전 · Esc: 메뉴":GateText(frame.world.gate,frame.world.countdown);
+        ShowResult(fresh&&Resolved,frame.world.winner==0?"무승부":frame.world.winner+"P 승리",Remaining,frame.actors[0].hp,frame.actors[1].hp,true);
     }
     public void Leave(bool menu)
     {

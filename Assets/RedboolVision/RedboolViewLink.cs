@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.IO;
 using System.Text;
+using System.Security.Cryptography;
 using System.Net.Sockets;
 using UnityEngine;
 
@@ -76,8 +77,16 @@ public sealed class RedboolViewLink : MonoBehaviour
     {
         if(peer==null || socket==null) return;
         var bytes=RedboolViewProtocol.Encode(packet);
-        try {socket.Send(bytes,bytes.Length,peer);sentBytes+=bytes.Length;}
+        try {socket.Send(bytes,bytes.Length,peer);sentBytes+=bytes.Length;AuditPacket(packet,bytes);}
         catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset || e.SocketErrorCode==SocketError.NetworkUnreachable || e.SocketErrorCode==SocketError.HostUnreachable) { }
+    }
+    void AuditPacket(RedboolViewPacket packet,byte[] bytes)
+    {
+        // One sampled snapshot per second, not video or per-frame disk writes.
+        // Compare encoded bytes so quaternion quantization cannot fake a mismatch.
+        if(packet.kind<1||packet.kind>3||packet.seq%30!=0)return;
+        using(var sha=SHA256.Create())
+            Debug.Log($"[REDBOOL VIEW AUDIT] client={client} session={packet.session:N} seq={packet.seq} kind={packet.kind} sha256={BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-","")}");
     }
     void Receive(double now)
     {
@@ -95,6 +104,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             if(client)
             {
                 if(!from.Equals(peer) || p.nonce!=nonce || p.kind<1 ||p.kind>3 ||p.session==Guid.Empty ||retiredSessions.Contains(p.session)) {invalid++;continue;}
+                AuditPacket(p,data);
                 if(session!=p.session)
                 {
                     if(assembler.Latest!=null) retiredSessions.Add(session);
@@ -104,6 +114,7 @@ public sealed class RedboolViewLink : MonoBehaviour
                 if(complete!=null)
                 {
                     received++;lastFrame=now;TraceFrame(complete);RedboolFrameMetrics.NoteLiveInput();history.Add(complete);if(history.Count>8) history.RemoveAt(0);
+                    if(complete.seq%30==0) Debug.Log($"[REDBOOL VIEW APPLIED] session={complete.session:N} seq={complete.seq} round={complete.world.round} resolved={complete.world.resolved}");
                     if(p.echo>0 && now>=p.echo) RttMs=(now-p.echo)*1000;
                     ack=complete.seq;
                 }

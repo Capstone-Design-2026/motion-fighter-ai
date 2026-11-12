@@ -21,8 +21,13 @@ def main():
     args = [str(editor), '-batchmode', '-quit', '-projectPath', str(ROOT), '-executeMethod', 'RedboolLocalDemoBuild.Run', '-logFile', str(log)]
     if a.check: print(json.dumps({'command': args, 'output': str(output)}, ensure_ascii=False)); return
     log.parent.mkdir(parents=True, exist_ok=True)
+    from build_stamp import snapshot
+    stamp = snapshot()
     env = {**os.environ, 'REDBOOL_BUILD_OUTPUT': str(output), 'REDBOOL_BUILD_TARGET': 'windows' if os.name == 'nt' else 'mac'}
-    return subprocess.call(args, cwd=ROOT, env=env)
+    code = subprocess.call(args, cwd=ROOT, env=env)
+    if code == 0:
+        (output.parent / 'build-info.json').write_text(json.dumps(stamp, ensure_ascii=False, indent=2), encoding='utf-8')
+    return code
 
 
 if __name__ == '__main__': sys.exit(main() or 0)

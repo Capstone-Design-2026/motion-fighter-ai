@@ -80,7 +80,14 @@ public static class RedboolPvpPlayCheck
     for(int i=first;i<=last;i++){block[i]=false;movement[i]="NEUTRAL";}
     for(var w=Pump(.5f);w.MoveNext();)yield return null;
    }
-   for(int i=first;i<=last;i++)Check(Game.Practices[i].Step==step+1,"P"+(i+1)+" practice step "+(step+1)+" independently completed");
+   for(int i=first;i<=last;i++) {
+    string detail="";
+    if(step<4||step==7)for(int attempt=0;attempt<2;attempt++) {
+     string id=(step==7?"practice-x-":"practice-")+generation[i]+"-"+i+"-"+(step==7?"":step+"-")+attempt;
+     detail+=" ack"+attempt+"="+(replies.TryGetValue(id,out var response)?response.status:"MISSING");
+    }
+    Check(Game.Practices[i].Step==step+1,"P"+(i+1)+" practice step "+(step+1)+" independently completed"+detail);
+   }
   }
  }
  static void Shot(string name){
@@ -146,6 +153,11 @@ public static class RedboolPvpPlayCheck
   block[0]=false;for(var w=Pump(.08f);w.MoveNext();)yield return null;Gesture(0,"RIGHT_PUNCH","block-followup");
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(replies["block-followup"].status=="APPLIED","Held guard releases into attack");
+  // Field v29: one short camera gap imposed another whole second of countdown.
+  send[1]=false;for(var w=Pump(.23f);w.MoveNext();)yield return null;
+  Check(!Game.CanFight,"Short input expiry still pauses immediately");
+  send[1]=true;for(var w=Pump(.30f);w.MoveNext();)yield return null;
+  Check(Game.CanFight,"Short interruption resumes automatically within 300ms, without R or another full countdown");
   send[1]=false;for(var w=Pump(.3f);w.MoveNext();)yield return null;
   Check(!Game.CanFight&&Game.Players[0].GetComponent<Fighter>().VisionPreparationLocked&&Game.Players[1].GetComponent<Fighter>().VisionPreparationLocked,"One missing camera pauses both fighters");
   float time=Game.Remaining;Gesture(0,"LEFT_PUNCH","paused-attack");for(var w=Pump(.2f);w.MoveNext();)yield return null;
@@ -170,8 +182,10 @@ public static class RedboolPvpPlayCheck
   Game.Players[0].GetComponent<Health>().SetCurrentHealth(0);Game.Players[1].GetComponent<Health>().SetCurrentHealth(0);
   for(var w=Pump(.1f);w.MoveNext();)yield return null;
   Check(Game.Resolved&&Game.Result=="무승부","Simultaneous zero HP resolves as draw");
+  Check(GameObject.Find("PvpRoundResult")!=null &&GameObject.Find("RoundResultText").GetComponent<UnityEngine.UI.Text>().text.Contains("K.O."),"Round ending has a central KO explanation instead of looking disconnected");
   Game.Rematch();for(var w=Pump(1.3f);w.MoveNext();)yield return null;
   Check(Game.CanFight&&Game.Players[0].GetComponent<Health>().CurrentHealth==100&&Game.Players[1].GetComponent<Health>().CurrentHealth==100,"Rematch restores both HP without another calibration/tutorial");
+  Check(GameObject.Find("PvpRoundResult")==null,"Result overlay clears after rematch");
   float x0=Game.Players[0].transform.position.x,x1=Game.Players[1].transform.position.x;
   movement[0]="LEFT";movement[1]="RIGHT";for(var w=Pump(.5f);w.MoveNext();)yield return null;
   Check(Mathf.Abs(Game.Players[0].transform.position.x-x0)>.1f&&Mathf.Abs(Game.Players[1].transform.position.x-x1)>.1f,"Both movement channels drive their own real character");
@@ -191,6 +205,12 @@ public static class RedboolPvpPlayCheck
   for(var w=Pump(.3f);w.MoveNext();)yield return null;
   Gesture(0,"LEFT_PUNCH","p1-real-contact");for(var w=Pump(.9f);w.MoveNext();)yield return null;
   Check(pb.GetComponent<Health>().CurrentHealth<100,"P1 real animated contact damages P2");
+  pa.GetComponent<Health>().SetCurrentHealth(60);pb.GetComponent<Health>().SetCurrentHealth(80);
+  typeof(RedboolPvp).GetProperty("Remaining").SetValue(Game,0f);
+  for(var w=Pump(.1f);w.MoveNext();)yield return null;
+  Check(Game.Resolved&&Game.Result=="2P 승리"&&GameObject.Find("RoundResultText").GetComponent<UnityEngine.UI.Text>().text.Contains("시간 종료"),"Timeout with both fighters alive explains round end, not a network disconnection");
+  Game.Rematch();for(var w=Pump(1.3f);w.MoveNext();)yield return null;
+  Check(Game.CanFight&&Game.Practices[0].Complete&&Game.Practices[1].Complete,"Timed-out round restarts without repeating tutorial");
   RunState.Instance.Save();RunState.Instance.ClearSave();
   Check(PlayerPrefs.GetString(SaveKey,"")==save,"PvP save and clear-save calls are guarded");
   Game.Leave(true);yield return null;yield return null;
