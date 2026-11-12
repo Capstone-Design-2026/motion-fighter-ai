@@ -14,7 +14,7 @@ public sealed class Fighter3DView : MonoBehaviour
     public const float BoxingTravelScale = .4f;
     public const float HurtDuration = .70f;
     public const float GuardReactionDuration = .225f;
-    const float GuardEntry = .27f, GuardRelease = .252f;
+    const float GuardEntry = .27f, GuardRelease = .252f, GuardSwitchBlend = .14f;
     static readonly string[] Attacks = { "JAB", "CROSS", "HIGHKICK", "LOWKICK" };
     Fighter fighter;
     Health health;
@@ -115,12 +115,15 @@ public sealed class Fighter3DView : MonoBehaviour
         modelAnimator.Play("IDLE", 0, 0f);
         modelAnimator.Update(0f);
     }
-    void Play(string state, bool restart = false, float offsetSeconds = 0f)
+    void Play(string state, bool restart = false, float offsetSeconds = 0f, float blendOverride = -1f)
     {
         if (!restart && state == currentState) return;
-        float blend = state == "HURT" || state.EndsWith("_HIT") ? .035f
+        float blend = blendOverride >= 0f ? blendOverride
+            : state == "HURT" || state.EndsWith("_HIT") ? .035f
             : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .16f
             : state == QiPalmTiming.ChargeState ? .1f : .06f;
+        // 기본자세에서 승인 걷기로 들어갈 때는 발이 튀지 않게 조금 더 길게 섞는다.
+        if (currentState == "IDLE" && (state == "HERO_FORWARD_STEP" || state == "HERO_BACKWARD_STEP")) blend = .14f;
         currentState = state; stateStarted = Time.time;
         // Never freeze the animator: held guards have dedicated looping pose clips,
         // so fades can finish and a subsequent action cannot stick in a T-pose.
@@ -136,6 +139,8 @@ public sealed class Fighter3DView : MonoBehaviour
             if (Time.time - stateStarted >= GuardEntry) Play(pose + "_HOLD");
         }
         else if (currentState == pose + "_HIT") Play(pose + "_HOLD");
+        // 막는 중에 높이만 바뀌면(상대 공격에 맞춘 자동 전환) 팔을 내렸다 다시 올리지 않고 그 자세로 바로 넘어간다.
+        else if (currentState != null && currentState.StartsWith("GUARD") && !currentState.EndsWith("_RELEASE")) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         else Play(pose);
     }
     void LateUpdate()
@@ -173,7 +178,9 @@ public sealed class Fighter3DView : MonoBehaviour
             else Play("IDLE");
         }
         bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
-        modelAnimator.speed = walkingState ? walk.PlaybackSpeed : 1f;
+        // 승인 걷기(HERO_*_STEP)는 걷기 빠르기 배율만큼 빨리 재생한다. 그 밖의 상태는 1.
+        bool heroStep = heroMovement != null && heroMovement.isActiveAndEnabled && (currentState == "HERO_FORWARD_STEP" || currentState == "HERO_BACKWARD_STEP");
+        modelAnimator.speed = walkingState ? walk.PlaybackSpeed : heroStep ? heroMovement.PlaybackSpeed : 1f;
         if (heroMovement == null || !heroMovement.isActiveAndEnabled)
             walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         Color tint = fighterTint;

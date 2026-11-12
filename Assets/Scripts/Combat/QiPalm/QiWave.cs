@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// 파운장의 기파. 전투 평면(X축)을 따라 날아가다 상대 몸에 닿으면 터진다.
 ///   정타: 큰 피해 + 넉백 + 추가 경직.
-///   방어: 시간제 방어 중이고 공격자를 바라보고 있으면 "기 관통" — 피해 일부만 들어가고 방어가 풀리며 밀려난다.
+///   방어: 방어 중이고 공격자를 바라보고 있으면 "기 관통" — 피해 일부만 들어가고 방어가 풀리며 약하게 밀려난다(뜨지 않는다).
 ///   빗나감: 사거리 끝에서 흩어진다.
 /// 판정은 Fighter 의 일반 공격과 같은 Health.TakeDamage 를 쓴다(가드 반응·게이지·HUD 가 그대로 이어진다).
 /// </summary>
@@ -23,19 +23,19 @@ public sealed class QiWave : MonoBehaviour
     Transform ownerRoot;
     int dir, damage, chip;
     Vector2 knockback;
-    float travelled, extraStun;
+    float travelled, extraStun, guardPush;
     bool finished;
     Action<QiWave, Health, bool, Vector3> onHit;
     Action<QiWave, Vector3> onExpire;
 
     public bool Finished => finished;
 
-    public void Launch(Health owner, int direction, int hitDamage, int guardDamage, Vector2 hitKnockback, float hitExtraStun,
+    public void Launch(Health owner, int direction, int hitDamage, int guardDamage, Vector2 hitKnockback, float guardKnockback, float hitExtraStun,
         Action<QiWave, Health, bool, Vector3> hit, Action<QiWave, Vector3> expire)
     {
         ownerHealth = owner; ownerRoot = owner ? owner.transform : null;
         dir = direction >= 0 ? 1 : -1; damage = hitDamage; chip = guardDamage;
-        knockback = hitKnockback; extraStun = hitExtraStun; onHit = hit; onExpire = expire;
+        knockback = hitKnockback; guardPush = guardKnockback; extraStun = hitExtraStun; onHit = hit; onExpire = expire;
         transform.rotation = Quaternion.LookRotation(dir > 0 ? Vector3.right : Vector3.left, Vector3.up);
     }
 
@@ -68,7 +68,8 @@ public sealed class QiWave : MonoBehaviour
         bool facing = fighter != null && (transform.position.x - target.transform.position.x) * fighter.Facing > 0f;
         bool guarded = fighter != null && fighter.IsGuarding && facing;
         int amount = guarded ? chip : damage;
-        Vector2 kb = new Vector2(knockback.x * dir * (guarded ? .55f : 1f), knockback.y * (guarded ? .4f : 1f));
+        // 정타는 크게 날린다. 막았을 때는 뜨지 않고 가로로만 살짝 밀린다.
+        Vector2 kb = guarded ? new Vector2(guardPush * dir, 0f) : new Vector2(knockback.x * dir, knockback.y);
         Vector3 point = new Vector3(Mathf.Lerp(transform.position.x, target.transform.position.x, .35f), transform.position.y, transform.position.z);
         bool damaged = target.TakeDamage(amount, kb, guarded, true);
         if (damaged && !guarded && !target.IsDead) target.ExtendStun(extraStun);

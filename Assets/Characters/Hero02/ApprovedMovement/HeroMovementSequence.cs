@@ -3,16 +3,31 @@ using UnityEngine;
 /// <summary>Gesture-level movement; UDP packet frequency never counts as repeated gestures.</summary>
 public sealed class HeroMovementSequence
 {
-    public enum Phase { Idle, ForwardDash, ForwardContinue, ForwardStep, BackwardDash }
+    public enum Phase { Idle, ForwardDash, ForwardContinue, ForwardStep, BackwardDash, BackwardStep }
     public const float DashSeconds = .6f, StepSeconds = 20f / 30f;
+    /// <summary>승인 걷기(스텝) 한 번에 나아가는 거리(모델 단위).</summary>
+    public const float StepDistance = .14f;
+    /// <summary>
+    /// 걷기 전용. 켜면 대시·이어 달리기를 쓰지 않고, 입력이 있는 동안 승인 걷기(스텝)만 반복한다.
+    /// 앞으로는 HERO_FORWARD_STEP, 뒤로는 같은 클립을 거꾸로 재생하는 HERO_BACKWARD_STEP. 입력을 떼면 바로 멈춘다.
+    /// </summary>
+    public bool WalkOnly { get; set; }
+    /// <summary>
+    /// 걷기 전용일 때의 빠르기 배율. 클립 재생과 나아가는 거리를 같은 비율로 올려서 보폭은 그대로, 발이 미끄러지지 않는다.
+    /// 1 = 클립 그대로(한 스텝 0.667초).
+    /// </summary>
+    public float WalkSpeed { get; set; } = 1f;
+    /// <summary>지금 재생 중인 상태에 곱할 애니메이션 빠르기.</summary>
+    public float PlaybackSpeed => WalkOnly && (Current == Phase.ForwardStep || Current == Phase.BackwardStep) ? Mathf.Max(.1f, WalkSpeed) : 1f;
     public const float HoldForContinuation = .22f;
     public Phase Current { get; private set; }
     public float Age { get; private set; }
     public int Direction { get; private set; }
     public int Revision { get; private set; }
-    public float Duration => Current == Phase.ForwardStep ? StepSeconds : DashSeconds;
+    public float Duration => Current == Phase.ForwardStep || Current == Phase.BackwardStep ? StepSeconds : DashSeconds;
     public string StateName => Current == Phase.Idle ? "IDLE" : Current == Phase.ForwardDash ? "HERO_DASH_FORWARD"
-        : Current == Phase.ForwardContinue ? "HERO_FORWARD_CONTINUE" : Current == Phase.ForwardStep ? "HERO_FORWARD_STEP" : "HERO_DASH_BACKWARD";
+        : Current == Phase.ForwardContinue ? "HERO_FORWARD_CONTINUE" : Current == Phase.ForwardStep ? "HERO_FORWARD_STEP"
+        : Current == Phase.BackwardStep ? "HERO_BACKWARD_STEP" : "HERO_DASH_BACKWARD";
     int input, pendingDirection, pendingCount;
     float held, forwardGrace;
     int lastForwardDirection;
@@ -45,6 +60,7 @@ public sealed class HeroMovementSequence
     {
         if (!allowed) { Cancel(); return 0; }
         if (dt <= 0) return 0;
+        if (WalkOnly) return AdvanceWalk(dt, facing);
         forwardGrace = Mathf.Max(0, forwardGrace-dt);
         if (Current == Phase.Idle) {
             int requested = input != 0 ? input : pendingDirection;
@@ -78,6 +94,22 @@ public sealed class HeroMovementSequence
         }
         return travel;
     }
+    /// <summary>걷기 전용 진행. 입력 방향으로 승인 걷기를 반복하고 일정한 빠르기로 나아간다(한 번에 StepDistance).</summary>
+    float AdvanceWalk(float dt, int facing)
+    {
+        pendingDirection = pendingCount = 0; repeat = false; forwardGrace = 0;
+        if (input == 0)
+        {
+            if (Current != Phase.Idle) { Current = Phase.Idle; Age = 0; Direction = 0; Revision++; }
+            return 0;
+        }
+        Phase want = input * facing > 0 ? Phase.ForwardStep : Phase.BackwardStep;
+        if (Current != want || Direction != input) { Current = want; Direction = input; Age = 0; Revision++; }
+        float clipDt = dt * Mathf.Max(.1f, WalkSpeed);   // Age 는 클립 시간이다
+        Age += clipDt;
+        while (Age >= StepSeconds) Age -= StepSeconds;   // 클립이 스스로 반복하므로 Revision 은 올리지 않는다
+        return input * StepDistance * clipDt / StepSeconds;
+    }
     static float Smooth(float t) { t = Mathf.Clamp01(t); return t*t*(3-2*t); }
     static float Dash(float t)
     {
@@ -91,7 +123,7 @@ public sealed class HeroMovementSequence
     {
         t = Mathf.Clamp01(t);
         if (phase == Phase.Idle) return 0;
-        if (phase == Phase.ForwardStep) return .14f*t;
+        if (phase == Phase.ForwardStep || phase == Phase.BackwardStep) return StepDistance*t;
         if (phase != Phase.ForwardContinue || t <= .5f) return Dash(t);
         float u = (t-.5f)*2, u2 = u*u, u3 = u2*u;
         float q = (.5f-.47f)/.16f;

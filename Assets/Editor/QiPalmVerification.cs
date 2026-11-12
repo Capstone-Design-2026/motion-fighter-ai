@@ -221,17 +221,21 @@ public static class QiPalmVerification
         playerF.Facing = 1;
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
 
-        // 7. 웹캠 입력 경로 (PlayerController.ExternalAction)
+        // 7. 웹캠 입력 경로 (PlayerController.ExternalAction) — 즉발로 고정: 신호 한 번이면 발사 신호 없이 바로 나간다.
+        Position(-1.25f, 1.25f); eh.ResetHealth(); Ready();
+        for (var w = Wait(.4f); w.MoveNext();) yield return null;
+        player.ExternalAction("SPECIAL");
+        for (var w = Until(() => special.IsPlaying, 1f); w.MoveNext();) yield return null;
+        Check(special.IsPlaying, "webcam SPECIAL starts the instant cast");
+        for (var w = Until(() => special.LastWave != null, 2f); w.MoveNext();) yield return null;
+        Check(special.LastWave != null, "webcam SPECIAL fires without a release signal");
+        for (var w = Until(() => !special.IsPlaying, 3f); w.MoveNext();) yield return null;
+        for (var w = Wait(.5f); w.MoveNext();) yield return null;
         Position(-1.25f, 1.25f); eh.ResetHealth(); Ready();
         for (var w = Wait(.4f); w.MoveNext();) yield return null;
         player.ExternalAction("SPECIAL_CHARGE");
-        for (var w = Until(() => special.CurrentPhase == SpecialMove.Phase.Charging, 3f); w.MoveNext();) yield return null;
-        Check(special.IsCharging, "webcam SPECIAL_CHARGE starts charging");
-        player.ExternalAction("SPECIAL_CHARGE"); // repeated packets keep charging, no restart
-        for (var w = Wait(.5f); w.MoveNext();) yield return null;
-        player.ExternalAction("SPECIAL_RELEASE");
-        for (var w = Until(() => special.LastWave != null, 2f); w.MoveNext();) yield return null;
-        Check(special.LastWave != null, "webcam SPECIAL_RELEASE fires the wave");
+        for (var w = Until(() => special.LastWave != null, 2.5f); w.MoveNext();) yield return null;
+        Check(special.LastWave != null, "legacy SPECIAL_CHARGE signal also fires instantly");
         for (var w = Until(() => !special.IsPlaying, 3f); w.MoveNext();) yield return null;
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
 
@@ -245,6 +249,8 @@ public static class QiPalmVerification
         until = Time.realtimeSinceStartup + 3f;
         while (special.IsCharging && Time.realtimeSinceStartup < until) { aiGuarded |= enemyF.IsGuarding; if (special.CurrentPhase == SpecialMove.Phase.Charging && aiGuarded) break; yield return null; }
         Check(aiGuarded, "enemy AI guards against the charge");
+        // 스토리 전투 무대에는 CombatSfx 가 놓여 있지 않다. 공격이 한 번이라도 나갔으면 자동으로 만들어져 있어야 한다.
+        Check(UnityEngine.Object.FindAnyObjectByType<CombatSfx>() != null, "combat sound effects are created in a story stage");
         special.Release();
         for (var w = Until(() => !special.IsPlaying, 4f); w.MoveNext();) yield return null;
         enemy.enabled = false; enemyF.CancelAttack();

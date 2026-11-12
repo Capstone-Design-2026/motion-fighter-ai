@@ -69,6 +69,7 @@ public class StartSceneUI : MonoBehaviour
         MakeButton("NewGameButton","새 게임",ref y,OnNewGame);
         continueButton=MakeButton("ContinueButton","이어하기",ref y,OnContinue);
         MakeButton("DuelTestButton","바로 결투 · 테스트",ref y,RedboolDuelTest.Begin);
+        MakeButton("CreditsButton","제작진",ref y,OnCredits);
         MakeButton("QuitButton","게임 종료",ref y,OnQuit);
 
         messageText=WuxiaTheme.Text("Message",canvas.transform,"",24,TextAnchor.MiddleLeft,WuxiaTheme.Paper);
@@ -128,6 +129,13 @@ public class StartSceneUI : MonoBehaviour
             else SceneRoutes.LoadMap();
         }
         else RefreshContinue();
+    }
+
+    /// <summary>시작 화면에서 제작진(엔딩 크레딧)을 연다. 진행 중인 판은 그대로 둔다.</summary>
+    private void OnCredits()
+    {
+        EndingSceneUI.OpenedFromMenu = true;
+        SceneRoutes.LoadEnding();
     }
 
     private void OnQuit()
