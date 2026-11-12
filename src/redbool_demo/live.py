@@ -9,6 +9,7 @@ import hashlib
 from dataclasses import asdict, replace
 from datetime import datetime
 import json
+import sys
 from pathlib import Path
 import threading
 import time
@@ -32,15 +33,20 @@ def run(a):
     from mediapipe.tasks.python.vision import PoseLandmarker,PoseLandmarkerOptions,RunningMode
     from action_engine.types import PoseObservation
     from continuous_events.protocol import verify_pose_asset
+    if getattr(sys,'frozen',False):
+        from .backend_assets import verify_pose_asset
     from continuous_events.viewer import overlay
     from session_recording import SessionRecorder
     from collect_gesture_pilot import PilotVideo,AsyncPilotVideo
     from pose_capture import open_camera
     from realtime_vision.live import Latest,AsyncLog
+    headless=getattr(a,'headless',False)
+    bridge=getattr(a,'bridge_instance',None)
     recording=getattr(a,'recording','lossless')
-    if recording not in ('review','logs','lossless'):raise ValueError('Unknown recording mode')
+    if recording not in ('review','logs','lossless','diagnostics'):raise ValueError('Unknown recording mode')
     preview_fps=getattr(a,'preview_fps',15.)
     if not 1<=preview_fps<=60:raise ValueError('preview_fps must be between 1 and 60')
+    if headless and preview_fps>15:raise ValueError('Headless preview_fps must not exceed15')
     preview_interval_ns=int(1e9/preview_fps)
     variant=getattr(a,'pose_variant','Lite')
     verify_pose_asset(a.pose,variant)
@@ -66,7 +72,12 @@ def run(a):
     out=a.output/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+stream[:8])
     out.mkdir(parents=True,exist_ok=False)
     sender=DemoSender(a.host,a.port,stream,a.actor,clock_ns=now_ns)
-    log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
+    log=AsyncLog(out/'trace.jsonl')
+    if recording=='diagnostics':
+        from .diagnostics_recording import DiagnosticsRecorder,DiagnosticLog
+        SessionRecorder=DiagnosticsRecorder
+        log=DiagnosticLog(log)
+    slot=Latest();stop=threading.Event();errors=[]
     runtime_clock={**clock_metadata(),'origin_ns':now_ns(),'origin_utc':datetime.now().astimezone().isoformat()}
     log.write({'type':'runtime_clock',**runtime_clock})
     acquisition=CaptureCadence();camera_info={};calibration_keys=CalibrationKeyGate()
@@ -75,6 +86,7 @@ def run(a):
     display={'event':'NONE','event_ns':0};cap=None;pose=None;cross_pose=None;recovery_pose=None;recovery_pool=None;video=None;recorder=None
     def fail(where,exc):
         errors.append({'where':where,'error':repr(exc)});stop.set()
+        if bridge:bridge.update(phase='error',error=str(exc))
     def capture():
         nonlocal cap
         try:
@@ -88,6 +100,7 @@ def run(a):
             camera_info.update(requested={'width':640,'height':480,'fps':30},
                                setting_accepted=requested,initial=camera_properties(cv,cap))
             log.write({'type':'camera_settings','timestamp_ns':now_ns(),**camera_info})
+            if bridge:bridge.update(camera_connected=True,phase='waiting_calibration')
             while not stop.is_set():
                 read_start=now_ns();ok,bgr=cap.read();stamp=now_ns()
                 if not ok:raise RuntimeError('Camera read failed')
@@ -103,6 +116,7 @@ def run(a):
     def publisher():
         try:
             while not stop.wait(.01):
+                if bridge and bridge.stop_requested.is_set():stop.set();break
                 with engine.lock:
                     engine.tick();events=engine.drain_events();state=engine.control
                     if hasattr(engine,'tutorial_context'):
@@ -139,6 +153,11 @@ def run(a):
     next_preview_ns=0;cross_samples=[];recovery_samples=[];pose_samples=[];age_samples=[];framing_counts=Counter()
     prior_cv_threads=cv.getNumThreads()
     try:
+        if headless and bridge is None:
+            from .local_bridge import LocalBridge,jpeg_encoder
+            bridge=LocalBridge(a.bridge_port,a.bridge_token,preview_fps=preview_fps,
+                parent_pid=getattr(a,'parent_pid',None),encoder=jpeg_encoder).start()
+        if bridge:bridge.update(stream_id=stream,output=str(out.resolve()))
         # OpenCV shares this process with MediaPipe, capture, recording and UDP.
         # Prevent small color/overlay operations from oversubscribing CPU cores.
         cv.setNumThreads(1)
@@ -161,11 +180,14 @@ def run(a):
         def redetect(image):
             begin=now_ns();result=recovery_pose.detect(image)
             return result,begin,now_ns()
-        for worker in workers:worker.start()
+        if bridge and bridge.stop_requested.is_set():stop.set()
+        for worker in workers:
+            if not stop.is_set():worker.start()
         while not stop.is_set() and time.monotonic()-started<a.seconds:
+            if bridge and bridge.stop_requested.is_set():break
             item=slot.take()
             if item is None:
-                if cv.waitKey(1)&255==ord('q'):break
+                if not headless and cv.waitKey(1)&255==ord('q'):break
                 stop.wait(.002);continue
             fid,stamp,bgr=item
             if origin is None:origin=stamp
@@ -186,7 +208,7 @@ def run(a):
                         'stream_id':stream,'recording_mode':recording,'scope':'full-rate Pose + FSM; optional RGB; not human ground truth',
                         'all_successful_captures_saved':False,'frame_policy':'full-rate pose; review RGB 15fps, lossless RGB full-rate, logs no RGB'})
                 recorder.update_manifest(actual_resolution=[bgr.shape[1],bgr.shape[0]],camera_backend=cap.getBackendName())
-                if recording!='logs':
+                if recording not in ('logs','diagnostics'):
                     if recording=='lossless':
                         raw=PilotVideo(cv,recorder,(bgr.shape[1],bgr.shape[0]),30,'ffv1',override_fps=30)
                         raw.metadata.update(recording_scope=['DEMO'],timebase='processed frames; use original capture timestamps')
@@ -241,6 +263,7 @@ def run(a):
                 armed=engine.calibrated;progress=engine.calibration_progress
                 calibrating=engine.calibrating
                 calibration_hint=engine.calibration_feedback.message
+                calibration_reason=engine.calibration_feedback.reason
                 arms=' / '.join(k+':'+v.state for k,v in engine.attack.units.items())
                 ready=engine.ready
                 cross_owned=engine.special.owned;cross_sent=engine.special.latched
@@ -249,7 +272,19 @@ def run(a):
             # Prompts, keys, recording, recognition and UDP keep their full rate.
             guided_prompt=guide.update(frame['frame_id'],stamp,armed,recorder,ready=ready) if guide else None
             preview_now=now_ns()
-            if preview_now>=next_preview_ns:
+            if bridge:
+                bridge.update(phase='calibrating' if calibrating else 'ready' if armed else 'waiting_calibration',
+                    calibrated=armed,calibrating=calibrating,calibration_progress=progress,
+                    calibration_hint=calibration_hint,calibration_reason=calibration_reason,
+                    tracking=state.tracking,framing=framing,framing_code=framing['code'],framing_message=framing['message'],
+                    frame_id=frame['frame_id'],capture_ns=stamp,ready=ready,block=state.block,
+                    movement=state.movement,event=display['event'],pose_ms=pose_ms,capture_fps=fps,
+                    special_progress=cross_progress,special_owned=cross_owned,special_sent=cross_sent,
+                    personal_status=engine.trainer.status if hasattr(engine,'trainer') else 'BASELINE V26',
+                    udp_synced=bool(sender.clock),last_status=sender.last_status)
+                landmarks=tuple((p.x,p.y,p.visibility) for p in result.pose_landmarks[0]) if result.pose_landmarks else None
+                bridge.offer_preview(bgr,stamp,mirror=a.mirror,landmarks=landmarks)
+            if not headless and preview_now>=next_preview_ns:
                 next_preview_ns=(preview_now+preview_interval_ns if preview_now-next_preview_ns>preview_interval_ns
                     else next_preview_ns+preview_interval_ns)
                 view=overlay(bgr,frame,name=f'REDBOOL {variant} VIDEO',mirror=a.mirror)
@@ -280,12 +315,13 @@ def run(a):
                     cv.putText(panel,line,(6,22+i*24),0,scale,color,1)
                 cv.imshow('REDBOOL DEMO',view)
                 counts['preview_frames']+=1
-            key=cv.waitKey(1)&255
+            command=bridge.take_command() if bridge else None
+            key=({'calibrate':ord('c'),'pause':ord('x')}.get(command,-1) if headless else cv.waitKey(1)&255)
             if key==ord('q') or (guide and guide.completed):break
             if (key==ord('c') and calibration_keys.accept(now_ns())) or key==ord('x'):
                 engine.request_calibration()
                 if key==ord('x'):engine.calibrating=False
-                recorder.record_annotation(label='CALIBRATE' if key==ord('c') else 'PAUSE',annotation_type='marker',event_frame_id=frame['frame_id'],source='human_demo_control')
+                recorder.record_annotation(label='CALIBRATE' if key==ord('c') else 'PAUSE',annotation_type='marker',event_frame_id=frame['frame_id'],source='unity_game_control' if headless else 'human_demo_control')
             if key==ord('m'):engine.toggle_movement()
             if key==ord(' ') and guide:guide.advance(stamp)
             if video is not None:video.check_error()
@@ -301,7 +337,7 @@ def run(a):
         if recovery_pose is not None:recovery_pose.close()
         if pose is not None:pose.close()
         if cross_pose is not None:cross_pose.close()
-        cv.destroyAllWindows()
+        if not headless:cv.destroyAllWindows()
         for item in engine.take_logs():log.write({'type':'engine','log':item})
         log.close()
         if log.error or log.dropped:errors.append({'where':'log','error':log.error,'dropped':log.dropped})
@@ -314,7 +350,12 @@ def run(a):
             recorder.finalize(completed=not errors,metadata={'errors':errors,'camera_slot_drops':slot.dropped,
                 'video_diagnostics':video.diagnostics() if video else None})
         cv.setNumThreads(prior_cv_threads)
+        if bridge:
+            bridge.update(phase='error' if errors else 'stopped',camera_connected=False)
+            counts['preview_frames']=bridge.snapshot()['preview_encoded']
+            bridge.close()
         performance={'camera_requested_fps':30,'preview_target_fps':preview_fps,
+            'headless':headless,'local_preview':bridge.snapshot() if bridge else None,
             'runtime_clock':runtime_clock,'acquisition':acquisition.summary(),'camera_properties':camera_info,
             'processed_fps':(counts['processed']-1)*1e9/(last_stamp-origin) if last_stamp is not None and last_stamp>origin else 0.,
             'cross_redetect_ms_p50_p95':np.percentile(recovery_samples,[50,95]).tolist() if recovery_samples else [],
@@ -332,7 +373,7 @@ def run(a):
     if errors:raise RuntimeError(errors)
 
 
-def main():
+def main(argv=None,bridge_instance=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output',type=Path,default=Path('local_data/demo_20261103'))
     p.add_argument('--pose',type=Path)
@@ -350,8 +391,16 @@ def main():
     p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action=argparse.BooleanOptionalAction,default=True,
         help='Mirror only the preview (default); --no-mirror shows the original camera view. Recognition and recording stay unmirrored.')
     p.add_argument('--preview-fps',type=float,default=15.,help='Camera window refresh only; recognition remains full rate (1-60)')
-    p.add_argument('--recording',choices=['review','logs','lossless'],default='review',help='review: compressed 15fps MP4; logs: no video; lossless: full RGB. Pose inference stays 30fps.')
-    p.add_argument('--check',action='store_true');a=p.parse_args()
+    p.add_argument('--recording',choices=['review','logs','lossless','diagnostics'],default='review',help='review: compressed 15fps MP4; logs: saved poses only; diagnostics: events/health only; lossless: full RGB. Inference stays full rate.')
+    p.add_argument('--headless',action='store_true',help='Unity-owned loopback controls and preview; no OpenCV window')
+    p.add_argument('--bridge-port',type=int,default=0)
+    p.add_argument('--bridge-token',default='')
+    p.add_argument('--parent-pid',type=int,help='Stop when the owning Unity game process exits')
+    p.add_argument('--check',action='store_true');a=p.parse_args(argv)
+    a.bridge_instance=bridge_instance
+    if a.headless and not a.check:
+        if not 1<=a.bridge_port<=65535 or len(a.bridge_token)<16 or not a.parent_pid:
+            p.error('Headless launch requires bridge-port, bridge-token and owning parent-pid')
     if a.pose is None:
         a.pose=Path('pose_landmarker.task' if a.pose_variant=='Lite' else 'local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task')
     import math

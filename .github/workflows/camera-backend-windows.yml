@@ -1,0 +1,46 @@
+name: Windows camera backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/tutorial-personal-pvp-20261112]
+    paths:
+      - src/**
+      - scripts/build_camera_backend.py
+      - scripts/camera_backend_entry.py
+      - scripts/check_camera_backend.py
+      - requirements-backend-build.txt
+      - .github/workflows/camera-backend-windows.yml
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src;tests
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install packaging runtime
+        run: python -m pip install -r requirements-backend-build.txt
+      - name: Fetch fingerprint-verified models
+        run: python scripts/setup_demo_models.py
+      - name: Camera-free control and storage tests
+        run: python -m unittest -v test_local_bridge test_headless_live test_diagnostics_recording test_live_clock test_backend_entry
+      - name: Build native executable and check assets
+        run: python scripts/build_camera_backend.py --pose pose_landmarker.task --cross-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task
+      - name: Verify packaged lifecycle without camera
+        run: python scripts/check_camera_backend.py --executable dist/camera_backend/REDBOOLCamera/REDBOOLCamera.exe --output dist/camera_backend/check-result.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: REDBOOLCamera-Windows-x64
+          path: dist/camera_backend/
+          retention-days: 14
+          if-no-files-found: error

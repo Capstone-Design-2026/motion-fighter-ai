@@ -184,7 +184,11 @@ class PersonalGestureEngine(SixGestureEngine):
             result.update(target=bool(extension and travel>=.27 and abs(dy)<=max(.12,abs(dx)*.65)
                 and dy<=.12 and not self.special.owned and not state.block
                 and self.attack.units[other].supporting_guard(arms[other],anchors[other])), amount=travel,
-                conflict=bool(self.special.owned or state.block or dy<-.35))
+                # A diagonal punch can briefly rise above this height before its
+                # strict horizontal target appears. Cancel only predominantly
+                # upward motion, using the existing raise-channel ratio.
+                conflict=bool(self.special.owned or state.block
+                    or (dy<-.35 and -dy>abs(dx)*1.2)))
             result['speed']=float(a['speed_xy'])
             result['onset'] = bool(travel>=.18 and abs(dy)<=max(.12,abs(dx)*.65) and dy<=.12
                 and a['angle3d'] is not None and a['angle3d']-anchors[side]['angle3d']>=.10
