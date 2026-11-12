@@ -7,6 +7,12 @@ from collections import Counter
 
 VERSION=2
 MAX_LEASE_MS=150
+CLOCK_MAX_AGE_NS=3_000_000_000
+SYNC_NORMAL_NS=1_000_000_000
+SYNC_RECOVERY_NS=200_000_000
+# Increase the uncertainty of an old sample by 1 ms per second. Selecting a
+# quieter exchange must never silently refresh that sample's original expiry.
+CLOCK_DRIFT_DIVISOR=1000
 
 
 def clock_estimate(t1,t2,t3,t4):
@@ -61,12 +67,32 @@ class ReceiverState:
 
 
 class Sender:
-    def __init__(self,host,port,stream_id,actor_id):
+    def __init__(self,host,port,stream_id,actor_id,*,clock_ns=None):
+        self.clock_ns=clock_ns or (lambda:time.monotonic_ns())
         self.target=(socket.gethostbyname(host),port);self.stream_id=stream_id;self.actor_id=actor_id;self.sequence=0
         self.sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);self.sock.bind(('0.0.0.0',0));self.sock.setblocking(False)
         self.pending={};self.clock=None;self.last_sync=0;self.counts=Counter()
+        self.clock_samples=[];self.clock_diagnostics=[]
+    def _select_clock(self,now):
+        previous=self.clock
+        self.clock_samples=[s for s in self.clock_samples if 0<=now-s['updated_ns']<=CLOCK_MAX_AGE_NS]
+        candidates=[]
+        for sample in self.clock_samples:
+            uncertainty=sample['clock_uncertainty_ns']+(now-sample['updated_ns']+CLOCK_DRIFT_DIVISOR-1)//CLOCK_DRIFT_DIVISOR
+            if uncertainty<=25_000_000:
+                candidates.append({**sample,'clock_uncertainty_ns':uncertainty})
+        self.clock=min(candidates,key=lambda s:(s['clock_uncertainty_ns'],-s['updated_ns'])) if candidates else None
+        old_id=previous.get('sync_id') if previous else None
+        new_id=self.clock.get('sync_id') if self.clock else None
+        if old_id==new_id:return
+        state='lost' if self.clock is None else 'recovered' if previous is None else 'selected'
+        self.counts['clock_'+state]+=1
+        self.clock_diagnostics.append({'type':'clock_sync','state':state,'timestamp_ns':now,
+            'sync_id':new_id,'uncertainty_ns':self.clock['clock_uncertainty_ns'] if self.clock else None,
+            'sample_age_ns':now-self.clock['updated_ns'] if self.clock else None})
+        self.clock_diagnostics=self.clock_diagnostics[-32:]
     def send(self,kind,**fields):
-        now=time.monotonic_ns();self.sequence+=1
+        now=self.clock_ns();self._select_clock(now);self.sequence+=1
         p={'version':2,'kind':kind,'stream_id':self.stream_id,'actor_id':self.actor_id,'capture_epoch':self.stream_id,
            'sequence':self.sequence,'sent_ns':now,**fields}
         if self.clock:
@@ -75,11 +101,15 @@ class Sender:
         if kind=='SYNC':p['sync_id']=fields['sync_id'];self.pending[p['sync_id']]=now
         try:self.sock.sendto(json.dumps(p,allow_nan=False).encode(),self.target);self.counts['sent_'+kind]+=1
         except (OSError,ValueError) as exc:self.counts['send_error']+=1;return {'type':'send_error','error':str(exc),'packet':p}
-        return {'type':'send','packet':p,'send_return_ns':time.monotonic_ns()}
+        return {'type':'send','packet':p,'send_return_ns':self.clock_ns()}
     def service(self):
-        rows=[];now=time.monotonic_ns()
+        rows=[];now=self.clock_ns()
+        self._select_clock(now)
         self.pending={k:v for k,v in self.pending.items() if now-v<5_000_000_000}
-        if now-self.last_sync>=1_000_000_000:
+        recovering=(self.clock is None or self.clock['clock_uncertainty_ns']>8_000_000
+                    or now-self.clock['updated_ns']>=1_000_000_000)
+        interval=SYNC_RECOVERY_NS if recovering else SYNC_NORMAL_NS
+        if now-self.last_sync>=interval:
             self.last_sync=now;rows.append(self.send('SYNC',sync_id=f'{self.stream_id}:{self.sequence+1}'))
         for _ in range(100):
             try:data,peer=self.sock.recvfrom(8192)
@@ -94,7 +124,7 @@ class Sender:
                     'errno':exc.errno,'winerror':getattr(exc,'winerror',None),
                     'recoverable':True})
                 break
-            t4=time.monotonic_ns()
+            t4=self.clock_ns()
             if peer!=self.target:continue
             try:
                 ack=json.loads(data)
@@ -106,8 +136,12 @@ class Sender:
                     t1=self.pending.pop(sid)
                     if ack['sender_ns']!=t1:continue
                     offset,uncertainty=clock_estimate(t1,ack['receiver_ns'],ack['ack_sent_ns'],t4)
-                    if uncertainty<=25_000_000:self.clock={'sync_id':sid,'receiver_offset_ns':offset,'clock_uncertainty_ns':uncertainty,'updated_ns':t4}
+                    if uncertainty<=25_000_000:
+                        self.counts['sync_sample_accepted']+=1
+                        self.clock_samples.append({'sync_id':sid,'receiver_offset_ns':offset,'clock_uncertainty_ns':uncertainty,'updated_ns':t4})
+                    else:self.counts['sync_sample_uncertain']+=1
             except (ValueError,KeyError,TypeError):self.counts['bad_ack']+=1
-        if self.clock and now-self.clock['updated_ns']>3_000_000_000:self.clock=None
+        self._select_clock(self.clock_ns())
+        rows.extend(self.clock_diagnostics);self.clock_diagnostics.clear()
         return rows
     def close(self):self.sock.close()

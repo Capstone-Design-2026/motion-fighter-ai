@@ -29,6 +29,8 @@ def small_trace(source):
             elif kind == 'engine':
                 data = row.get('log', {}); stamp = data.get('timestamp_ns', 0); key = None
                 keep = data.get('type') in ('event', 'personal_range', 'demo_calibrated', 'identity_reset', 'safety')
+            elif kind in ('runtime_clock', 'camera_settings', 'camera_runtime', 'clock_sync'):
+                stamp = row.get('timestamp_ns', 0); key = None; keep = True
             else:
                 continue
             if keep:

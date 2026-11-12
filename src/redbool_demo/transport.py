@@ -1,5 +1,4 @@
 """Bounded event retries preserve ID and the original event deadline."""
-import time
 from collections import Counter
 from realtime_vision.transport import Sender
 
@@ -11,7 +10,7 @@ class DemoSender(Sender):
         self.feedback={};self.feedback_sequence=-1;self.tutorial={}
 
     def game_hint(self, now_ns=None):
-        now=time.monotonic_ns() if now_ns is None else now_ns
+        now=self.clock_ns() if now_ns is None else now_ns
         f=self.feedback
         if not f or not 0<=now-f['sent_ns']<=500_000_000:
             return 'GAME UNKNOWN / SPECIAL UNKNOWN'
@@ -20,7 +19,7 @@ class DemoSender(Sender):
         return game+' / '+special
 
     def tutorial_context(self, now_ns=None):
-        now=time.monotonic_ns() if now_ns is None else now_ns
+        now=self.clock_ns() if now_ns is None else now_ns
         return dict(self.tutorial) if self.tutorial and 0<=now-self.tutorial['sent_ns']<=500_000_000 else None
 
     def offer(self,event):
@@ -29,7 +28,7 @@ class DemoSender(Sender):
         self.events.setdefault(event.event_id,{'event':event,'sent':0,'last':0})
 
     def service(self):
-        rows=super().service();now=time.monotonic_ns()
+        rows=super().service();now=self.clock_ns()
         for row in rows:
             if row['type']!='ack':continue
             ack=row['ack'];status=ack.get('status','').upper();eid=ack.get('event_id')
