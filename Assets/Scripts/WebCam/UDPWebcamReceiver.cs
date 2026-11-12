@@ -23,6 +23,11 @@ public class UDPWebcamReceiver : MonoBehaviour
 
     void OnEnable()
     {
+        // The packaged game owns one local preview. Do not open a second
+        // receiver or leave the old untextured rectangle over the arena.
+        if(!Application.isEditor && RedboolCameraRuntime.Packaged
+            && Array.IndexOf(Environment.GetCommandLineArgs(),"--redbool-external-camera")<0)
+        {if(miniMapRawImage!=null)miniMapRawImage.gameObject.SetActive(false);enabled=false;return;}
         if(RedboolPvp.Active) {if(miniMapRawImage!=null) miniMapRawImage.gameObject.SetActive(false);enabled=false;return;}
         webcamTexture = new Texture2D(320, 240, TextureFormat.RGB24, false);
         if (miniMapRawImage != null) miniMapRawImage.texture = webcamTexture;

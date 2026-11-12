@@ -114,7 +114,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 1d7a3b2f07103d247b7084b3a2303e0f, type: 3}
       propertyPath: m_Name
-      value: "\uD3EC\uB85C \uAC10\uC2DC\uAD00 Model"
+      value: "\uC625\uC878\uC7A5 Model"
       objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: 1d7a3b2f07103d247b7084b3a2303e0f, type: 3}
       propertyPath: m_Controller

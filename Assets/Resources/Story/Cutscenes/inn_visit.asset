@@ -18,7 +18,7 @@ MonoBehaviour:
   backgroundUv: {serializedVersion: 2, x: 0.03999999999999998, y: 0.2940625, width: 0.5, height: 0.421875}
   lines:
   - speaker: "연화"
-    text: "도윤 어른이 붙잡혔구나. 그날 지나간 행렬이 셋이었어."
+    text: "운학 어른이 붙잡혔구나. 그날 지나간 행렬이 셋이었어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -37,7 +37,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "서로 다른 행렬이군요. 흔적을 직접 확인하겠습니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

@@ -107,8 +107,44 @@ public class EnemyAI : MonoBehaviour
     private float ThinkPeriod => decisionInterval * 4f;
     private bool Is3D => GetComponent<Fighter3DView>() != null;
 
-    // Pose-based jab reach is shorter than the former shared attack rectangle.
-    private float StrikeRange => Is3D ? Mathf.Min(attackRange, 1.0f) : attackRange;
+    [Tooltip("3D: 잽이 닿는 가장 먼 거리보다 이만큼 더 다가가서 공격한다(m).")]
+    [SerializeField] private float reachMargin = 0.04f;
+    private Animator reachAnimator;
+    private CombatReach.Profile jabReach;
+
+    /// <summary>
+    /// 이 거리 안에 들어오면 공격을 시작한다(몸 중심 사이 거리).
+    /// 3D 는 캐릭터마다 실제 잽(왼주먹)이 상대 몸통 판정에 닿는 가장 먼 거리 − 여유이고, 최대 1.0m 다.
+    /// 키 작은 상대가 1.0m 에서 헛치던 문제를 막는다. 잽이 가장 짧은 공격이라 다른 공격도 이 거리면 닿는다.
+    /// </summary>
+    public float StrikeRange => Is3D ? Mathf.Min(attackRange, 1.0f, ReachStrikeRange) : attackRange;
+
+    /// <summary>잰 잽 사거리(몸 중심 → 주먹 앞면, 앞쪽 거리만). 아직 못 쟀으면 -1.</summary>
+    public float MeasuredJabReach => jabReach != null ? jabReach.forwardReach : -1f;
+
+    private float ReachStrikeRange
+    {
+        get
+        {
+            var view = GetComponent<Fighter3DView>();
+            if (view == null || view.modelAnimator == null) return 1.0f;
+            if (view.modelAnimator != reachAnimator)
+            {
+                reachAnimator = view.modelAnimator;
+                jabReach = CombatReach.MeasureJab(view, transform);
+            }
+            if (jabReach == null) return 1.0f;
+            if (target == null) FindTarget();
+            float hit = CombatReach.MaxHitDistance(jabReach, fighter, TargetFighter);
+            return hit > 0f ? Mathf.Max(0.6f, hit - reachMargin) : 1.0f;
+        }
+    }
+
+    private void FindTarget()
+    {
+        var player = FindAnyObjectByType<PlayerController>();
+        if (player != null) target = player.transform;
+    }
 
     private Fighter TargetFighter
     {
@@ -167,11 +203,7 @@ public class EnemyAI : MonoBehaviour
 
     void Start()
     {
-        if (target == null)
-        {
-            var player = FindAnyObjectByType<PlayerController>();
-            if (player != null) target = player.transform;
-        }
+        if (target == null) FindTarget();
         if (target == null)
             Debug.LogWarning("[EnemyAI] 타겟(Player)을 찾지 못했습니다.");
         ResetModeState();

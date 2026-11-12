@@ -23,7 +23,8 @@ def main():
     log.parent.mkdir(parents=True, exist_ok=True)
     from build_stamp import snapshot
     stamp = snapshot()
-    env = {**os.environ, 'REDBOOL_BUILD_OUTPUT': str(output), 'REDBOOL_BUILD_TARGET': 'windows' if os.name == 'nt' else 'mac'}
+    env = {**os.environ, 'UNITY_MCP_DISABLE': '1', 'REDBOOL_BUILD_OUTPUT': str(output),
+           'REDBOOL_BUILD_TARGET': 'windows' if os.name == 'nt' else 'mac'}
     code = subprocess.call(args, cwd=ROOT, env=env)
     if code == 0:
         (output.parent / 'build-info.json').write_text(json.dumps(stamp, ensure_ascii=False, indent=2), encoding='utf-8')

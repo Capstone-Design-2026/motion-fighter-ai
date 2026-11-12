@@ -16,7 +16,7 @@ public static partial class StoryStagesBuilder
     public const string Output=@"C:\Users\sbpar\Documents\VisionStriker_StageFinishing_20261021";
     public static readonly string[] Ids={"river","ridge","old_ferry","gate","quarry","east","camp","rescue","entrance","final"};
     public static readonly string[] Scenes={"RiverAmbush","WindRidge","OldFerry","SealedGate","HiddenQuarry","EasternRidge","SearchCamp","PrisonStockade","BlackCloudEntrance","SluiceFortress"};
-    public static readonly string[] Titles={"계곡 · 마교 척후병","산등성이 · 고용 산적","옛 나루 · 약탈자","폐쇄된 관문 · 철문","채석장 · 정예병","동쪽 능선 · 정예병","수색대 야영지","포로 수용소","흑운협 입구 · 흑견","수문 요새 · 무진"};
+    public static readonly string[] Titles={"계곡 · 마교 척후병","산등성이 · 고용 산적","옛 나루 · 약탈자","폐쇄된 관문 · 철문","채석장 · 정예병","동쪽 능선 · 정예병","추포대 야영지","포로 뇌옥","흑운협 입구 · 흑견","수문 요새 · 무진"};
     static Transform world;static int index;static System.Random rng;
     static Material wood,stone,iron,cloth,roof,ground;
     static float Rand(float a,float b)=>Mathf.Lerp(a,b,(float)rng.NextDouble());

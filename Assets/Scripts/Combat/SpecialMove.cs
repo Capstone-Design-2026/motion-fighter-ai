@@ -3,16 +3,19 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 필살기 파운장(破雲掌). 맞을 때마다 게이지가 차고, 다 차면 기를 모았다가 양 손바닥으로 기파를 밀어낸다.
+/// 필살기 파운장(破雲掌). 내 일반 공격이 막히지 않고 들어갈 때 공격자의 게이지가 1씩 차고, 5회면 준비된다.
+/// 막힌 공격·피격·방어·헛치기·파운장 자체 적중은 세지 않는다. 스토리와 PvP가 같은 규칙을 쓴다.
 ///
 /// 흐름
 ///   발동  : 짧은 슬로우와 컷인(破雲掌), 화면 줌·블룸.
-///   모으기: 활성 키를 누르고 있는 동안(최소 minCharge, 최대 maxCharge). 오래 모으면 피해가 조금 늘어난다.
+///   모으기: 일반 입력은 한 번으로 최소 minCharge만 모은 뒤 자동 발사한다.
+///           BeginCharge/Release 검사 API만 최대 maxCharge까지 유지할 수 있다.
 ///           이때 맞으면 끊기고 게이지 일부를 돌려받는다. 적 AI 는 이 자세를 보고 방어를 시도할 수 있다.
 ///   발사  : SPECIAL_RELEASE 의 ReleaseImpact 시점에 기파(QiWave)가 손을 떠난다.
 ///   적중  : 정타는 큰 피해·넉백, 방어는 "기 관통"으로 일부 피해만 들어가고 방어가 풀린다. 빗나가면 짧은 무방비.
 ///
-/// 입력: 키보드 activateKey(누르고 있다가 떼기), 웹캠 SPECIAL_CHARGE / SPECIAL_RELEASE / SPECIAL(즉시 발사).
+/// 입력: 즉발로 고정(2026-11-12). 키보드 activateKey 한 번, 웹캠 X자(SPECIAL) 한 번이면 최소 시간만 모으고 바로 발사한다.
+/// 길게 모으기(BeginCharge/Release)는 API 로만 남겨 둔다(검사용).
 ///
 /// timeScale 소유권: 발동 슬로우 동안만 timeScale 을 쥔다. 도중에 K.O. 가 나서 조작이 잠기면
 /// BattleSceneBridge 가 timeScale 주인이므로 여기서는 손을 뗀다. 타격 히트스톱(HitImpact)은 발동 시 먼저 정리한다.
@@ -26,8 +29,10 @@ public class SpecialMove : MonoBehaviour
     public enum Result { None, Hit, Blocked, Whiffed, Broken }
 
     [Header("게이지")]
-    [Tooltip("이만큼 맞으면 1회 사용할 수 있다. 가드로 막은 타격도 한 번으로 친다.")]
+    [Tooltip("내 일반 공격을 이만큼 맞히면 1회 사용할 수 있다. 막힌 공격과 파운장 자체의 적중은 세지 않는다.")]
     [SerializeField] private int hitsToCharge = 5;
+    [Tooltip("켜면 내가 맞았을 때도(막은 타격은 제외) 1칸 찬다. 기본은 꺼짐: 공격이 들어갔을 때만 찬다.")]
+    [SerializeField] private bool chargeWhenHit = false;
 
     [Header("피해량")]
     [Tooltip("기파 정타 피해. 끝까지 모으면 fullChargeBonus 만큼 늘어난다.")]
@@ -47,6 +52,8 @@ public class SpecialMove : MonoBehaviour
     [SerializeField] private float waveSpeed = 12f;
     [SerializeField] private float waveRange = 6.5f;
     [SerializeField] private Vector2 knockback = new Vector2(6.5f, 1.4f);
+    [Tooltip("방어로 막았을 때 밀려나는 처음 속도(m/s). 뜨지 않고 가로로만 미끄러진다. 2.1이면 약 0.2m 밀린다.")]
+    [SerializeField] private float guardKnockback = 2.1f;
     [Tooltip("정타 시 맞은 쪽 경직에 더하는 시간.")]
     [SerializeField] private float hitExtraStun = .35f;
     [Tooltip("빗나갔을 때 쓴 쪽 무방비 시간.")]
@@ -130,12 +137,14 @@ public class SpecialMove : MonoBehaviour
     void OnEnable()
     {
         health.OnDamaged += OnDamaged;
+        fighter.AttackLanded += OnAttackLanded;
         OnChargeChanged?.Invoke(charge, hitsToCharge);
     }
 
     void OnDisable()
     {
         health.OnDamaged -= OnDamaged;
+        fighter.AttackLanded -= OnAttackLanded;
         if (routine != null) { StopCoroutine(routine); routine = null; Cleanup(!fighter.InputLocked); }
         ClearReadyFx();
     }
@@ -148,8 +157,7 @@ public class SpecialMove : MonoBehaviour
         if (controller == null || controller.useKeyboard)
         {
             // 방어 중에 누르면 공격처럼 방어를 풀고 기를 모으기 시작한다(Fighter.BeginSpecial).
-            if (Input.GetKeyDown(activateKey)) BeginCharge();
-            if (Input.GetKeyUp(activateKey)) Release();
+            if (Input.GetKeyDown(activateKey)) Activate();
         }
     }
 
@@ -180,7 +188,7 @@ public class SpecialMove : MonoBehaviour
         if (IsReady)
         {
             PlayVoice(assets ? assets.readyClip : null, .7f);
-            Debug.Log($"[SpecialMove] {name} 파운장 준비 완료 ({activateKey} 키를 누르고 있다가 떼기)");
+            Debug.Log($"[SpecialMove] {name} 파운장 준비 완료 ({activateKey} 키)");
         }
     }
 
@@ -227,7 +235,13 @@ public class SpecialMove : MonoBehaviour
     void OnDamaged(bool guarded)
     {
         if (IsCharging || (phase == Phase.Releasing && !waveLaunched)) interrupted = true;
-        else if (!IsPlaying) AddCharge();
+        else if (chargeWhenHit && !guarded && !IsPlaying) AddCharge();
+    }
+
+    // Only successful unguarded normal attacks feed the meter; QiWave does not emit this event.
+    void OnAttackLanded(Fighter target)
+    {
+        if (!IsPlaying) AddCharge();
     }
 
     // ─────────────────────── 진행 ───────────────────────
@@ -324,7 +338,7 @@ public class SpecialMove : MonoBehaviour
         var wave = go.GetComponent<QiWave>();
         if (wave == null) wave = go.AddComponent<QiWave>();
         wave.speed = waveSpeed; wave.range = waveRange;
-        wave.Launch(health, dir, dmg, chip, knockback, hitExtraStun, OnWaveHit, OnWaveExpire);
+        wave.Launch(health, dir, dmg, chip, knockback, guardKnockback, hitExtraStun, OnWaveHit, OnWaveExpire);
         LastWave = wave;
         waveLaunched = true;
         Debug.Log($"[SpecialMove] {name} 파운장 발사 (모은 정도 {level:0.00}, 피해 {dmg} / 방어 시 {chip})");

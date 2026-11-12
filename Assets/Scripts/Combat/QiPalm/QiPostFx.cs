@@ -15,6 +15,9 @@ public static class QiPostFx
     /// <summary>목표 세기(0~1). 0 이 되면 잠시 뒤 카메라 후처리도 원래 상태로 돌아간다.</summary>
     public static void Set(float weight)
     {
+        // A fighter can disable after its scene's effect object was destroyed.
+        // Ending an effect must never create another object during scene teardown.
+        if (weight <= 0f && (!volume || !driver)) return;
         Ensure();
         driver.target = Mathf.Clamp01(weight);
     }

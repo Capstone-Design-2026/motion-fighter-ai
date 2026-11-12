@@ -120,7 +120,7 @@ public static class CombatFramingVerification
             for(var w=RealWait(.6f);w.MoveNext();)yield return null;
             Setup();Time.captureFramerate=24;Time.timeScale=1;Position(-1.6f,1.6f);
             for(var w=Wait(.7f);w.MoveNext();)yield return null;
-            Check(Mathf.Abs(rig.focusHeight-1.2f)<.001f&&Mathf.Abs(rig.minimumDistance-(rig.orbitArena?4.6f:5.35f))<.001f,key+" saved close framing settings");
+            Check(Mathf.Abs(rig.focusHeight-CombatFramingInstaller.FocusHeight)<.001f&&Mathf.Abs(rig.minimumDistance-(rig.orbitArena?CombatFramingInstaller.OrbitDistance:CombatFramingInstaller.SideDistance))<.001f,key+" saved close framing settings");
             foreach(var v in views){v.enabled=false;v.modelAnimator.Play("IDLE",0,0);v.modelAnimator.Update(0);v.modelAnimator.speed=0;}
             rig.enabled=false;PreviousFrame(rig.orbitArena);float before=Height();Capture(Out+"/stills/"+key+"_before.png");
             rig.enabled=true;rig.SetOrbit(0,7,true);rig.ResetOrbit();for(var w=Wait(.5f);w.MoveNext();)yield return null;

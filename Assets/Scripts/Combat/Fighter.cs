@@ -172,6 +172,9 @@ public class Fighter : MonoBehaviour
     /// <summary>방어로 상대 공격을 막아낸 순간.</summary>
     public event Action GuardBlocked;
 
+    /// <summary>내 일반 공격이 막히지 않고 상대에게 들어간 순간(직격). 인자는 맞은 상대. 필살기 게이지가 이걸로 찬다.</summary>
+    public event Action<Fighter> AttackLanded;
+
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
     private int nextAttackId;
@@ -179,6 +182,9 @@ public class Fighter : MonoBehaviour
     private bool crouching;
     private bool guarding;
     private bool guardCrouching;      // 방어를 시전한 순간의 자세
+    private float lowGuardUntil;      // 3D: 하단 공격 예고가 끝난 뒤에도 하단 방어를 유지하는 시각
+    /// <summary>3D에서 하단 공격 예고가 끝난 뒤 서서 막기로 돌아오기까지의 시간(초).</summary>
+    public const float LowGuardLinger = .3f;
 
     // 공격 의도를 주고받을 상대 목록. 1:1 이라 보통 둘뿐이다.
     private static readonly List<Fighter> active = new List<Fighter>();
@@ -252,6 +258,7 @@ public class Fighter : MonoBehaviour
             if (targetGuarding) target.EndGuard();
             preciseLanded = true;
             target.Health.ExtendStun(hitStunBonus);
+            AttackLanded?.Invoke(target);
         }
 
         HitVfx.Play(point,guarded);
@@ -267,6 +274,8 @@ public class Fighter : MonoBehaviour
     public void ConfigureGuard(float reduction) { blockDamageMultiplier=1f-Mathf.Clamp(reduction,0,.9f); }
     public int GuardedDamage(int incoming) { return Mathf.Max(1,Mathf.CeilToInt(incoming*blockDamageMultiplier-.00001f)); }
     public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
+
+    void Start() { CombatSfx.Prewarm(); }
 
     void Awake()
     {
@@ -323,6 +332,9 @@ public class Fighter : MonoBehaviour
 
         // K.O. 연출·사망·피격(뚫림)으로 끝난 경우.
         if (Health.IsDead || InputLocked || Health.IsHitStunned) EndGuard();
+        // 3D: 방어 높이는 상대 공격을 따라간다. 하단 공격이 끝나면 잠시 뒤 서서 막기로 돌아온다
+        // (다리를 든 로우킥 막기 자세로 계속 서 있지 않게). 다음 공격이 예고되면 ReceiveIntent 가 다시 맞춘다.
+        else if (guardCrouching && view3D != null && incomingFrom == null && Time.time >= lowGuardUntil) guardCrouching = false;
     }
 
     /// <summary>방어 시작. 시작됐으면 true. 공격 중에는 시작되지 않는다. low 면 앉아막기(하단 가드)로 끝날 때까지 고정된다.</summary>
@@ -373,7 +385,7 @@ public class Fighter : MonoBehaviour
     public void ClearIntent()
     {
         for (int i = 0; i < active.Count; i++)
-            if (active[i] != this && active[i].incomingFrom == this) active[i].incomingFrom = null;
+            if (active[i] != this && active[i].incomingFrom == this) { active[i].incomingFrom = null; active[i].lowGuardUntil = Time.time + LowGuardLinger; }
     }
 
     private void ReceiveIntent(Fighter attacker, CombatMove move)
@@ -559,6 +571,7 @@ public class Fighter : MonoBehaviour
                 {
                     landed = true;
                     targetHealth.ExtendStun(hitStunBonus);
+                    AttackLanded?.Invoke(targetFighter);
                 }
             }
 

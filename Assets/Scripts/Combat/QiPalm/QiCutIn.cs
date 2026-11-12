@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// 파운장 발동 컷인. 먹 붓자국이 자기 진영 쪽에서 쓸려 나오고, 그 위에 破雲掌 / 파운장 글씨가 찍힌다.
-/// 일러스트(cutInArt)가 있으면 서진 상반신이 붓자국과 함께 쓸려 들어오고 글씨는 그 아래에 찍힌다.
+/// 일러스트(cutInArt)가 있으면 청운 상반신이 붓자국과 함께 쓸려 들어오고 글씨는 그 아래에 찍힌다.
 /// 짧은 흰 섬광이 함께 지나간다. 실제 시간으로 움직여 발동 슬로우 중에도 흐른다.
 /// </summary>
 public sealed class QiCutIn : MonoBehaviour

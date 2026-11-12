@@ -111,8 +111,10 @@ public static class RedboolPvpPlayCheck
   Check(!Object.FindAnyObjectByType<BattleSceneBridge>().enabled,"Campaign bridge disabled before Start");
   Check(Game.Players[0].GetComponent<Fighter3DView>().modelAnimator.isHuman && Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.isHuman,"Both use humanoid character animations");
   Check(Game.Players[1].GetComponent<Fighter3DView>().visualRoot.name.Contains("Cheolmun"),"2P uses authored Cheolmun visual");
+  Check(Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.runtimeAnimatorController.name=="RedboolPvpCheolmun","2P uses only the targeted jab extension controller");
   Check(GameObject.Find("PvpSpecialGauge0")!=null &&GameObject.Find("PvpSpecialGauge1")!=null,"Both participants have original-style charge bars");
   Check(GameObject.Find("PvpHealthBar0")!=null &&GameObject.Find("PvpHealthBar1")!=null,"Both participants use story-style health bars");
+  for(int i=0;i<2;i++) Check(!new SerializedObject(Game.Players[i].GetComponent<SpecialMove>()).FindProperty("chargeWhenHit").boolValue,"P"+(i+1)+" scene/clone keeps incoming-hit charging disabled");
   Check(Game.Receivers[0].port==5065&&Game.Receivers[1].port==5066,"Separate sockets assigned P1 and P2");
   for(int i=0;i<2;i++){clients[i]=new UdpClient();clients[i].Connect(IPAddress.Loopback,5065+i);}
   for(var w=Pump(.6f);w.MoveNext();)yield return null;
@@ -247,6 +249,7 @@ public static class RedboolPvpPlayCheck
   Physics2D.SyncTransforms();for(var w=Pump(.3f);w.MoveNext();)yield return null;
   Gesture(1,"LEFT_PUNCH","p2-real-contact");for(var w=Pump(.9f);w.MoveNext();)yield return null;
   Check(pa.GetComponent<Health>().CurrentHealth<100,"P2 real animated contact damages P1: "+replies["p2-real-contact"].status+" positions "+pa.transform.position+" / "+pb.transform.position);
+  CheckCharge(0,0);CheckCharge(1,1);
   Check(GameObject.Find("PvpHealthBar0").GetComponent<WuxiaCombatBar>().FillRatio<1,"Damage lowers the real health bar");Shot("pvp_damage_health_bar");
   pa.GetComponent<Health>().ResetHealth();pb.GetComponent<Health>().ResetHealth();
   pa.transform.position=new Vector3(-.45f,pa.transform.position.y,0);pb.transform.position=new Vector3(.45f,pb.transform.position.y,0);pa.GetComponent<Rigidbody2D>().position=pa.transform.position;pb.GetComponent<Rigidbody2D>().position=pb.transform.position;
@@ -254,6 +257,7 @@ public static class RedboolPvpPlayCheck
   for(var w=Pump(.3f);w.MoveNext();)yield return null;
   Gesture(0,"LEFT_PUNCH","p1-real-contact");for(var w=Pump(.9f);w.MoveNext();)yield return null;
   Check(pb.GetComponent<Health>().CurrentHealth<100,"P1 real animated contact damages P2");
+  CheckCharge(0,1);CheckCharge(1,1);
   pa.GetComponent<Health>().SetCurrentHealth(60);pb.GetComponent<Health>().SetCurrentHealth(80);
   typeof(RedboolPvp).GetProperty("Remaining").SetValue(Game,0f);
   for(var w=Pump(.1f);w.MoveNext();)yield return null;
@@ -264,6 +268,18 @@ public static class RedboolPvpPlayCheck
   Check(PlayerPrefs.GetString(SaveKey,"")==save,"PvP save and clear-save calls are guarded");
   Game.Leave(true);yield return null;yield return null;
   Check(!RedboolPvp.Active&&SceneManager.GetActiveScene().name==SceneRoutes.Start&&Time.timeScale==1,"Exit restores menu, clock and story mode");
+ }
+ static void CheckCharge(int slot,int expected){
+  var meter=Game.Players[slot].GetComponent<SpecialMove>();
+  Check(meter.Charge==expected,"P"+(slot+1)+" charges only its own landed normal attack: "+meter.Charge);
+  var bar=GameObject.Find("PvpSpecialGauge"+slot).GetComponent<WuxiaCombatBar>();
+  Check(Mathf.Abs(bar.FillRatio-(float)expected/meter.HitsToCharge)<.001f,"P"+(slot+1)+" live charge bar agrees with contact count");
+  if(Game.ViewLink!=null){
+   var capture=typeof(RedboolViewLink).GetMethod("CaptureActor",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+   var actor=(RedboolViewActor)capture.Invoke(Game.ViewLink,new object[]{slot});
+   var packet=RedboolViewProtocol.Encode(new RedboolViewPacket {kind=(byte)(slot+2),session=Guid.NewGuid(),nonce=Guid.NewGuid(),seq=1,time=1,actor=actor});
+   Check(RedboolViewProtocol.TryDecode(packet,out var decoded)&&decoded.actor.charge==expected&&decoded.actor.maxCharge==meter.HitsToCharge,"P"+(slot+1)+" host snapshot carries the same charge to the second screen");
+  }
  }
  static void Finish(string failure){
   StopGuest();SessionState.SetBool(Active,false);EditorApplication.update-=Tick;foreach(var c in clients)c?.Close();

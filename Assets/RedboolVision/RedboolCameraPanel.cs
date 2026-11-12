@@ -1,0 +1,90 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>Own-camera preview and calibration controls; no video crosses the LAN.</summary>
+public sealed class RedboolCameraPanel : MonoBehaviour
+{
+    RedboolCameraRuntime cameraRuntime;
+    Canvas canvas;RectTransform panel;
+    RawImage image;Text heading,hint,placeholder;
+    Image progress;Button calibrate,reconnect,fold;
+    bool compact;float nextUi;
+    void Start()
+    {
+        cameraRuntime=GetComponent<RedboolCameraRuntime>();
+        canvas=UIFactory.CreateCanvas("MyCameraPanel",transform,250);
+        var background=UIFactory.CreateImage("CameraFrame",canvas.transform,new Color(.035f,.045f,.05f,.94f),true);
+        panel=background.rectTransform;
+        var border=background.gameObject.AddComponent<Outline>();border.effectColor=new Color(.65f,.51f,.28f,.8f);border.effectDistance=new Vector2(1,-1);
+        heading=WuxiaTheme.Text("CameraHeading",panel,"내 동작",22,TextAnchor.MiddleLeft,WuxiaTheme.Gold);
+        UIFactory.Place(heading.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-8),new Vector2(210,30));
+        fold=UIFactory.CreateButton("FoldCamera",panel,"접기",18,WuxiaTheme.Ink,()=> {compact=!compact;cameraRuntime.PreviewVisible=!compact;});
+        UIFactory.Place(fold.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-10,-8),new Vector2(60,30));
+        var display=UIFactory.CreateRect("LocalCameraImage",panel);image=display.gameObject.AddComponent<RawImage>();image.raycastTarget=false;
+        UIFactory.Place(display,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-46),new Vector2(288,216));
+        placeholder=WuxiaTheme.Text("CameraPlaceholder",display,"카메라 연결 중",20,TextAnchor.MiddleCenter,WuxiaTheme.Paper);UIFactory.Stretch(placeholder.rectTransform);
+        hint=WuxiaTheme.Text("CameraHint",panel,"중앙에서 가드를 잡고 보정하세요",18,TextAnchor.MiddleCenter,WuxiaTheme.Paper);
+        hint.horizontalOverflow=HorizontalWrapMode.Wrap;hint.verticalOverflow=VerticalWrapMode.Truncate;
+        var track=UIFactory.CreateImage("CalibrationTrack",panel,new Color(.15f,.18f,.18f,1));
+        UIFactory.Place(track.rectTransform,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
+        progress=UIFactory.CreateImage("CalibrationProgress",track.transform,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
+        calibrate=UIFactory.CreateButton("CameraCalibrate",panel,"보정 · C",20,WuxiaTheme.Ink,()=>cameraRuntime.Calibrate());
+        UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));WuxiaTheme.StyleButton(calibrate);
+        reconnect=UIFactory.CreateButton("CameraReconnect",panel,"다시 연결",18,WuxiaTheme.Ink,()=>cameraRuntime.Reconnect());
+        UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));WuxiaTheme.StyleButton(reconnect);
+    }
+    void Update()
+    {
+        if(cameraRuntime==null || canvas==null)return;
+        canvas.enabled=cameraRuntime.ShowPanel;
+        if(!canvas.enabled || Time.unscaledTime<nextUi)return;
+        nextUi=Time.unscaledTime+.1f;
+        bool tutorial=FindAnyObjectByType<CaveTutorial>()!=null;
+        UIFactory.Place(panel,tutorial?Vector2.one:new Vector2(1,0),tutorial?Vector2.one:new Vector2(1,0),
+            tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?155:376));
+        image.gameObject.SetActive(!compact);
+        image.texture=cameraRuntime.PreviewFresh?cameraRuntime.Preview:null;
+        image.color=image.texture!=null?Color.white:new Color(.08f,.1f,.11f,1);
+        placeholder.gameObject.SetActive(image.texture==null);
+        placeholder.text=cameraRuntime.Running?"카메라 연결 중":"카메라 연결 대기";
+        fold.GetComponentInChildren<Text>().text=compact?"펼치기":"접기";
+        heading.text=cameraRuntime.Synthetic?"카메라 연결 검사":RedboolPvp.Active?(RedboolPvp.IsClient?"2P · 내 동작":"1P · 내 동작"):"내 동작";
+        UIFactory.Place(hint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,68),new Vector2(288,44));
+        hint.text=Explain(cameraRuntime);
+        var state=cameraRuntime.Status;
+        float amount=state!=null?Mathf.Clamp01(state.calibration_progress):0;
+        if(float.IsNaN(amount)||float.IsInfinity(amount))amount=0;
+        progress.rectTransform.anchorMin=Vector2.zero;progress.rectTransform.anchorMax=new Vector2(amount,1);
+        progress.rectTransform.offsetMin=progress.rectTransform.offsetMax=Vector2.zero;
+        calibrate.interactable=cameraRuntime.Running&&cameraRuntime.Fresh&&(cameraRuntime.Synthetic||(state!=null&&state.camera_connected));
+    }
+    public static string Explain(RedboolCameraRuntime runtime)
+    {
+        if(runtime.Synthetic)return "연결 검사 화면 · 실제 카메라는 꺼져 있어요";
+        if(!string.IsNullOrEmpty(runtime.Error))return runtime.Error;
+        if(!runtime.Running)return "다시 연결을 눌러 카메라를 켜주세요";
+        var s=runtime.Status;
+        if(!runtime.Fresh||s==null)return "카메라 준비 중 · 잠시만 기다려주세요";
+        if(!string.IsNullOrEmpty(s.error))return "카메라 연결을 확인하고 다시 연결해주세요";
+        if(s.phase=="starting"||s.phase=="loading_models")return "동작 인식을 준비하고 있어요\n잠시만 기다려주세요";
+        if(!s.camera_connected)return "카메라 연결 중 · 최초 실행이라면\n카메라 사용 권한을 허용해주세요";
+        if(s.framing!=null&&s.framing.code=="OUTSIDE")
+        {
+            var edges=s.framing.outside_edges;
+            if(edges!=null&&System.Array.IndexOf(edges,"BOTTOM")>=0)return "손목이 화면 아래에 있어요\n손을 들거나 카메라 각도를 조절하세요";
+            return "양쪽 팔꿈치와 손목이 화면에\n들어오도록 거리와 각도를 맞추세요";
+        }
+        if(!s.calibrated)
+        {
+            if(s.calibration_reason=="ARMS_MOVING"||s.calibration_reason=="GUARD_SHIFTED")return "팔이 잘 보이도록 중앙에서\n편안한 가드를 잠시 유지하세요";
+            if(s.calibration_reason=="FISTS_LOW")return "주먹을 턱 근처로 올리고\n편안한 가드를 유지하세요";
+            if(s.calibration_reason=="FISTS_HIGH")return "주먹을 턱 근처로 조금 내려주세요";
+            if(s.calibration_reason=="ARMS_EXTENDED")return "팔꿈치를 굽혀 가드를 잡아주세요";
+            if(s.calibration_reason=="JOINTS_UNCERTAIN"||s.calibration_reason=="JOINT_HISTORY")return "양손과 팔꿈치가 가리지 않게\n카메라에 보여주세요";
+            if(s.calibration_progress>0||s.phase=="calibrating")return "가드 유지 중 · C를 다시 누르지 않아도 돼요";
+            return "중앙에서 가드를 잡고\n보정 버튼 또는 C를 누르세요";
+        }
+        if(s.tracking!="VALID")return "어깨와 양팔이 보이면 자동으로 이어져요";
+        return "준비됐어요 · 사람이 바뀌면 C로 재보정";
+    }
+}

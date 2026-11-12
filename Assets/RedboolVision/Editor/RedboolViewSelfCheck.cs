@@ -31,6 +31,7 @@ public static class RedboolViewSelfCheck
         Check(RedboolViewProtocol.TryDecode(skip,out var skipDecoded) &&skipDecoded.practiceStep==7,"skip control round trip");
         for(int cut=0;cut<skip.Length;cut++)Check(!RedboolViewProtocol.TryDecode(new ArraySegment<byte>(skip,0,cut).ToArray(),out _),"truncated skip control");
         for(int i=0;i<actor.bones.Length;i++) Check(Quaternion.Angle(actor.bones[i],parts[1].actor.bones[i])<.08f,"bone precision");
+        for(int i=1;i<3;i++) Check(parts[i].actor.charge==actor.charge && parts[i].actor.maxCharge==actor.maxCharge,"both actor meter values survive snapshot encoding exactly");
         Check(parts[0].world.effects.Count==12 &&parts[0].world.waves.Count==8,"bounded effect lists");
         var assembler=new RedboolViewAssembler();Check(assembler.Push(parts[2],1)==null,"part 3 first");Check(assembler.Push(parts[0],1.02)==null,"incomplete frame stays hidden");
         Check(assembler.Push(parts[1],1.03)!=null,"complete out of order frame");Check(assembler.Push(parts[1],1.04)==null,"duplicate suppressed");

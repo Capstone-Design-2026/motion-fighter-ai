@@ -151,14 +151,27 @@ public static class StoryCharacterVerification
             recording=false;
             // Real hitboxes, damage and guard mitigation, not just animation playback.
             foreach(var p in Object.FindObjectsByType<Pushbox>())p.enabled=false;
-            // 0.9 centre distance: the measured jab reach (CombatContacts doc) and inside the 3D AI attack range of 1.0.
-            Position(-.45f,.45f);ph.ResetHealth();eh.ResetHealth();
+            // The stage AI starts attacking only inside its measured reach (jab reach + player body front - margin, at most 1.0).
+            // Test the jab from exactly that distance: the farthest point the AI would ever attack from.
+            var stageAI=enemyF.GetComponent<EnemyAI>();float strike=stageAI.StrikeRange;
+            Check(stageAI.MeasuredJabReach>.5f&&strike>=.6f&&strike<=1f,key+" AI strike range "+strike.ToString("F3")+" (jab reach "+stageAI.MeasuredJabReach.ToString("F3")+")");
+            // The player's jab is character-specific as well (Hero02 plays its own clip), so measure how far it reaches this opponent the same way.
+            var playerJab=CombatReach.MeasureJab(player.GetComponent<Fighter3DView>(),player.transform);for(var w=Wait(.1f);w.MoveNext();)yield return null;
+            float heroReach=CombatReach.MaxHitDistance(playerJab,playerF,enemyF);
+            // The opponent may out-reach the player by a few centimetres, but never by a real step.
+            Check(heroReach>=strike-.05f,key+" player jab reach "+heroReach.ToString("F3")+" vs AI strike range "+strike.ToString("F3")+" (at most 0.05 shorter)");
+            Position(-strike/2f,strike/2f);for(var w=Wait(.3f);w.MoveNext();)yield return null;ph.ResetHealth();eh.ResetHealth(); // settle like a walked-in approach
             int hp=ph.CurrentHealth;Check(enemyF.TryAttack(CombatMove.Jab),key+" live jab accepted");
             for(var w=Wait(.85f);w.MoveNext();)yield return null;Check(ph.CurrentHealth<hp,key+" live attack damages player");
             for(var w=Wait(.6f);w.MoveNext();)yield return null;
             Position(-.45f,.45f);ph.ResetHealth();eh.ResetHealth();Check(enemyF.TryGuard(false),key+" live guard cast");
             bool guardedHit=false;Action<bool> onHit=g=>{if(g)guardedHit=true;};eh.OnDamaged+=onHit;
-            for(var w=Wait(.4f);w.MoveNext();)yield return null;hp=eh.CurrentHealth;playerF.TryAttack(CombatMove.Jab);
+            for(var w=Wait(.4f);w.MoveNext();)yield return null;
+            // Jab from where the player's fist actually reaches this opponent's raised guard (0.9 at most, as before).
+            float guardReach=CombatReach.MaxHitDistance(playerJab,playerF,enemyF),stand=Mathf.Min(.9f,guardReach-.04f);
+            Check(guardReach>=.7f,key+" player jab reaches the raised guard from "+guardReach.ToString("F3"));
+            Position(-stand/2f,stand/2f);for(var w=Wait(.2f);w.MoveNext();)yield return null;
+            hp=eh.CurrentHealth;playerF.TryAttack(CombatMove.Jab);
             for(var w=Wait(.8f);w.MoveNext();)yield return null;eh.OnDamaged-=onHit;int chip=hp-eh.CurrentHealth;
             Check(guardedHit&&chip==0,key+" live guard blocks the player's jab (blocked hits deal 0): guarded="+guardedHit+" damage="+chip);
             enemyF.ReleaseGuard();

@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "이제 돌아갈 수 있어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -37,7 +37,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     text: "이 길들을 모두 네가 찾았느냐?"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -47,7 +47,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "몇 번은 잘못 갔습니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -57,7 +57,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     text: "그래도 돌아왔구나."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -67,7 +67,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "이제 돌아가는 길은 압니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

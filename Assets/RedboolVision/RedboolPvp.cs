@@ -93,6 +93,7 @@ public sealed class RedboolPvp : MonoBehaviour
         if(secondVisual!=null && Players[1].GetComponent<Fighter3DView>().ApplyVisual(secondVisual))
             Debug.Log("[REDBOOL PVP] 2P visual: "+secondVisual.name);
         else Debug.LogWarning("[REDBOOL PVP] 2P visual unavailable; original character with UI identification");
+        RedboolPvpJab.Apply(Players[1].GetComponent<Fighter3DView>());
         for(int i=0;i<2;i++)
         {
             int slot=i;var p=Players[i];p.name="REDBOOL Player "+(i+1);p.useKeyboard=false;

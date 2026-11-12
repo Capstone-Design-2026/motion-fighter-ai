@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.08000000000000002, y: 0.578125, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "서찰은 지원군을 부르는 연락이었어. 포로 호송로가 아니야."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -29,7 +29,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "뒤는 절벽이고 연락책도 떠났군. 기록에는 포로 수레가 계곡 관문을 통과했다고 되어 있어. 청계역으로 돌아가자."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

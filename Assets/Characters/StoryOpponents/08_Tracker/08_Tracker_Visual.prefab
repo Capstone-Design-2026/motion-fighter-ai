@@ -94,7 +94,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 9c929676c387f114499bc6abf82e6098, type: 3}
       propertyPath: m_Name
-      value: "\uC218\uC0C9\uB300 \uCD94\uC801\uC790 Model"
+      value: "\uCD94\uD3EC\uB300 \uCD94\uC801\uC790 Model"
       objectReference: {fileID: 0}
     - target: {fileID: 2428290553278721264, guid: 9c929676c387f114499bc6abf82e6098, type: 3}
       propertyPath: m_Mesh

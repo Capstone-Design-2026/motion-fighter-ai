@@ -1,0 +1,119 @@
+"""Assemble a prebuilt Unity player and native local camera backend.
+
+Does not open a camera, download dependencies, or overwrite an existing package.
+The result has one game entry point; its supporting folders must stay together.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import plistlib
+import shutil
+import subprocess
+import sys
+
+from build_stamp import snapshot
+
+
+def assemble(player: Path, backend: Path, output: Path, target: str):
+    player, backend, output = (p.resolve() for p in (player, backend, output))
+    executable = backend / ('REDBOOLCamera.exe' if target == 'windows' else 'REDBOOLCamera')
+    if not executable.is_file() or not (backend / '_internal').is_dir():
+        raise ValueError('A complete native REDBOOLCamera onedir folder is required.')
+    metadata = json.loads((backend / 'backend-build.json').read_text(encoding='utf-8'))
+    expected = 'Windows' if target == 'windows' else 'Darwin'
+    if metadata.get('platform') != expected:
+        raise ValueError('Backend platform does not match the game target.')
+    for name in ('pose_landmarker_lite.task', 'pose_landmarker_full.task'):
+        model = backend / '_internal/assets' / name
+        if not model.is_file() or hashlib.sha256(model.read_bytes()).hexdigest() != metadata.get('models', {}).get(name):
+            raise ValueError('Bundled model fingerprint mismatch: ' + name)
+    if output.exists():
+        raise FileExistsError('Use a new output folder; existing packages are preserved.')
+    if output == player or player in output.parents or backend in output.parents:
+        raise ValueError('Output must be outside the input trees.')
+    if target == 'mac':
+        if player.suffix != '.app' or not (player / 'Contents/Info.plist').is_file():
+            raise ValueError('Mac player must be a built .app bundle.')
+        if sys.platform != 'darwin':
+            raise ValueError('Assemble and sign the Mac package on macOS.')
+        entry = output / 'REDBOOL.app'
+        data = entry / 'Contents/Resources/Data'
+        shutil.copytree(player, entry, symlinks=True)
+    else:
+        entry = output / player.name
+        if player.suffix.lower() != '.exe' or not player.is_file():
+            raise ValueError('Windows player must be a built .exe.')
+        source_data = player.with_name(player.stem + '_Data')
+        if not source_data.is_dir() or not (player.parent / 'UnityPlayer.dll').is_file():
+            raise ValueError('Unity Windows support files are missing.')
+        output.mkdir(parents=True)
+        # Copy only Unity runtime outputs, not unrelated files beside an exe.
+        for source in player.parent.iterdir():
+            if source.is_file() and (source.name in (player.name, 'UnityCrashHandler64.exe') or source.suffix.lower() == '.dll'):
+                shutil.copy2(source, output / source.name)
+            elif source.is_dir() and source.name in (source_data.name, 'MonoBleedingEdge', 'D3D12'):
+                shutil.copytree(source, output / source.name, symlinks=True)
+        data = output / source_data.name
+    destination = data / 'StreamingAssets/RedboolCamera'
+    if destination.exists():
+        raise ValueError('The input game already contains a camera backend.')
+    shutil.copytree(backend, destination, symlinks=True)
+    # Local/CI build paths are useful during assembly, not in the distributed app.
+    portable_backend = {k: metadata[k] for k in ('platform', 'architecture', 'python', 'mode', 'models') if k in metadata}
+    (destination / 'backend-build.json').write_text(json.dumps(portable_backend, indent=2), encoding='utf-8')
+    manifest = snapshot()
+    manifest.update(target=target, backend=portable_backend,
+                    backend_executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
+                    entry=entry.name, camera_preview='local loopback only; 320x240, at most 8 fps',
+                    camera_starts='enter tutorial, combat, or PvP; never on the main menu',
+                    recording='diagnostics only; no raw video or per-frame pose file',
+                    lan_protocol=29)
+    (output / '시작 안내.txt').write_text(
+        'REDBOOL v33 · 첫 통합 패키지 시험판\n\n'
+        'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
+        'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
+        'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
+        '스토리/결투/수련에 들어가면 내 동작 패널과 카메라가 켜집니다.\n'
+        '양손과 팔꿈치가 보이도록 앉아 보정 버튼 또는 C를 누르세요.\n'
+        '사람을 바꾸면 C로 다시 보정합니다. 게임을 종료하면 카메라도 종료됩니다.\n'
+        '접기를 누르면 영상 표시를 쉬며 동작 인식은 계속됩니다.\n\n'
+        '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
+        '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'
+        'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
+        '양쪽 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
+        '카메라 접근 권한은 최초 실행 시 허용해야 합니다. 내 영상은 다른 PC로 보내지 않습니다.\n'
+        '기본 저장은 작은 진단 기록이며 원본 영상은 녹화하지 않습니다.\n'
+        '테스트를 마친 뒤 메인 메뉴 아래 진단 기록 저장을 누르면 ZIP이 있는 폴더가 열립니다.\n'
+        '이 패키지는 첫 통합 시험판이며 실제 두 기기 카메라·성능 확인은 별도로 필요합니다.\n',
+        encoding='utf-8')
+    if target == 'mac':
+        plist_path = entry / 'Contents/Info.plist'
+        with plist_path.open('rb') as stream:
+            info = plistlib.load(stream)
+        info['NSCameraUsageDescription'] = '동작을 인식하고 게임 안에 내 모습을 보여주기 위해 카메라를 사용합니다. 영상은 다른 PC로 보내지 않습니다.'
+        info['CFBundleDisplayName'] = 'REDBOOL'
+        with plist_path.open('wb') as stream:
+            plistlib.dump(info, stream, sort_keys=False)
+        # Bundling changes the game resources. Ad-hoc signing supports local
+        # development testing; it is not Developer ID signing/notarization.
+        subprocess.run(['codesign', '--force', '--deep', '--sign', '-', str(entry)], check=True)
+        subprocess.run(['codesign', '--verify', '--deep', '--strict', str(entry)], check=True)
+    installed_executable = destination / executable.name
+    manifest['backend_executable_sha256'] = hashlib.sha256(installed_executable.read_bytes()).hexdigest()
+    (output / 'package-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
+    return manifest
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--player', type=Path, required=True)
+    parser.add_argument('--backend', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--target', choices=('mac', 'windows'), required=True)
+    args = parser.parse_args()
+    print(json.dumps(assemble(args.player, args.backend, args.output, args.target), ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    main()

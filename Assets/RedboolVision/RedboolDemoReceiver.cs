@@ -339,7 +339,9 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
     }
     private void OnGUI() {
-        if(!showStatus) return;
+        // Packaged play uses the camera panel and game HUD. Keep this technical
+        // overlay available only in the existing manual development workflow.
+        if(!showStatus || RedboolCameraRuntime.Instance!=null) return;
         GUI.Box(new Rect(12,12,470,130),"REDBOOL VISION :"+port);
         GUI.Label(new Rect(22,35,450,25),Status+" | "+LastGesture+" | attacks "+AttacksApplied+" | busy "+AttacksBusy);
         GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
