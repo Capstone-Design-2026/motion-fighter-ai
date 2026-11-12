@@ -28,7 +28,7 @@ MonoBehaviour:
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
   - speaker: "약초꾼"
-    text: "닮은 사람은 돌가루 묻은 채석장 길로 갔어. 동쪽에는 다른 포로들이, 서쪽에는 수색대가 갔지."
+    text: "닮은 사람은 돌가루 묻은 채석장 길로 갔어. 동쪽에는 다른 포로들이, 서쪽에는 추포대가 갔지."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -37,7 +37,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "사부님 외에도 붙잡힌 사람들이 있군요."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

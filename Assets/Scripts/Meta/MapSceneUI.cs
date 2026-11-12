@@ -1313,7 +1313,7 @@ public class MapSceneUI : MonoBehaviour
                     bool narration=string.IsNullOrEmpty(line.speaker);
                     if(!narration)
                     {
-                        Color who=line.speaker.Contains("서진")?WuxiaTheme.Jade:line.speaker.Contains("도윤")?new Color(.36f,.28f,.16f):new Color(.56f,.20f,.13f);
+                        Color who=line.speaker.Contains("청운")?WuxiaTheme.Jade:line.speaker.Contains("운학")?new Color(.36f,.28f,.16f):new Color(.56f,.20f,.13f);
                         var speaker=AddJournalText(detailBody,"Speaker",line.speaker,20,who,ref y,3,20);speaker.fontStyle=FontStyle.Bold;
                     }
                     var said=AddJournalText(detailBody,"Dialogue",line.text,24,narration?soft:WuxiaTheme.Ink,ref y,18,20);

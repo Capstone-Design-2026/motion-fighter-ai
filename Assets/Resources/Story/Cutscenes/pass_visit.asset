@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
   m_Name: pass_visit
   m_EditorClassIdentifier: 
-  location: "감시 초소 뒷길"
+  location: "망루 뒷길"
   background: {fileID: 0}
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.32906250000000004, width: 0.5, height: 0.421875}
@@ -27,8 +27,8 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
-    text: "요새 본관이 아니라 외곽 수용소다. 안에 사람들이 살아 있어."
+  - speaker: "청운"
+    text: "요새 본관이 아니라 외곽 뇌옥이다. 안에 사람들이 살아 있어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0

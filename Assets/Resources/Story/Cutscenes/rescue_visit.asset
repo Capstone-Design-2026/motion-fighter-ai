@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
   m_Name: rescue_visit
   m_EditorClassIdentifier: 
-  location: "포로 수용소"
+  location: "포로 뇌옥"
   background: {fileID: 0}
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.2590625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "포로 감시관"
+  - speaker: "옥졸장"
     text: "포로들에게서 떨어져라!"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "사람들을 풀어 줘라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

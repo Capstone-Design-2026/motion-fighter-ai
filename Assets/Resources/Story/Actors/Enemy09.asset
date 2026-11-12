@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 90bf26ec13c8451bbf48d59734ab9b3c, type: 3}
   m_Name: Enemy09
   m_EditorClassIdentifier:
-  displayName: "포로 감시관"
+  displayName: "옥졸장"
   artwork: {fileID: 2800000, guid: 4346cc9adbde45d8a5dd5331c09d46ca, type: 3}
   crop: {serializedVersion: 2, x: 0, y: 0, width: 1, height: 1}
   mouth: {x: 0.454, y: 0.783}
