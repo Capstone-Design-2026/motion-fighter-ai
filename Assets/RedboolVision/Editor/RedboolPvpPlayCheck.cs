@@ -27,6 +27,7 @@ public static class RedboolPvpPlayCheck
  static IEnumerator flow;static int frame=-1;static readonly UdpClient[] clients=new UdpClient[2];
  static readonly long[] sequences=new long[2];static readonly double[] nextSync=new double[2];
  static readonly bool[] calibrated={true,true},block={false,false},send={true,true};
+ static readonly string[] phases={"READY","READY"};
  static readonly string[] movement={"NEUTRAL","NEUTRAL"};static readonly int[] generation={1,1};
  static readonly Dictionary<string,Ack> replies=new Dictionary<string,Ack>();
  static readonly List<string> checks=new List<string>();
@@ -60,7 +61,7 @@ public static class RedboolPvpPlayCheck
  static void Drain(){for(int i=0;i<2;i++)while(clients[i]!=null&&clients[i].Available>0){var peer=new IPEndPoint(IPAddress.Any,0);var a=JsonUtility.FromJson<Ack>(Encoding.UTF8.GetString(clients[i].Receive(ref peer)));if(!String.IsNullOrEmpty(a.event_id))replies[a.event_id]=a;}}
  static IEnumerator Pump(float seconds){double end=Time.realtimeSinceStartupAsDouble+seconds;do{
   for(int i=0;i<2;i++)if(send[i]){if(Time.realtimeSinceStartupAsDouble>=nextSync[i]){Send(i,new Packet{kind="SYNC"});nextSync[i]=Time.realtimeSinceStartupAsDouble+1;}
-   Send(i,new Packet{kind="STATE",calibrated=calibrated[i],block_active=block[i],movement=movement[i],movement_strength=movement[i]=="NEUTRAL"?0:.8f});}
+   Send(i,new Packet{kind="STATE",fsm_state=phases[i],calibrated=calibrated[i],block_active=block[i],movement=movement[i],movement_strength=movement[i]=="NEUTRAL"?0:.8f});}
   Drain();yield return null;
  }while(Time.realtimeSinceStartupAsDouble<end);Drain();}
  static void Gesture(int slot,string gesture,string id,bool expired=false,string actor=null){Send(slot,new Packet{kind="GESTURE",gesture=gesture,event_id=id,side=gesture=="SPECIAL"?"BOTH":gesture.StartsWith("LEFT")?"LEFT":"RIGHT",event_expires_ns=Now+(expired?-1:150000000L),actor_id=actor});}
@@ -103,6 +104,7 @@ public static class RedboolPvpPlayCheck
   Check(Game.Players[0].GetComponent<Fighter3DView>().modelAnimator.isHuman && Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.isHuman,"Both use humanoid character animations");
   Check(Game.Players[1].GetComponent<Fighter3DView>().visualRoot.name.Contains("Cheolmun"),"2P uses authored Cheolmun visual");
   Check(GameObject.Find("PvpSpecialGauge0")!=null &&GameObject.Find("PvpSpecialGauge1")!=null,"Both participants have original-style charge bars");
+  Check(GameObject.Find("PvpHealthBar0")!=null &&GameObject.Find("PvpHealthBar1")!=null,"Both participants use story-style health bars");
   Check(Game.Receivers[0].port==5065&&Game.Receivers[1].port==5066,"Separate sockets assigned P1 and P2");
   for(int i=0;i<2;i++){clients[i]=new UdpClient();clients[i].Connect(IPAddress.Loopback,5065+i);}
   for(var w=Pump(.6f);w.MoveNext();)yield return null;
@@ -111,10 +113,14 @@ public static class RedboolPvpPlayCheck
   Gesture(0,"LEFT_PUNCH","duplicate");for(var w=Pump(.12f);w.MoveNext();)yield return null;
   Check(Game.Practices[0].Hits==1&&Game.Practices[1].Hits==0,"Event deduplication and player isolation");
   // Reset initial test sample through the actual recalibration generation.
-  generation[0]++;for(var w=Pump(.2f);w.MoveNext();)yield return null;
+  Game.SkipPractice(1,"stale-run",0);Check(Game.Practices[1].Step==0,"Stale skip request cannot advance a tutorial");
+  Game.SkipPractice(1,Game.Practices[1].Run,0);Check(Game.Practices[1].Step==1 && !Game.CanFight,"Explicit skip keeps battle gated and does not calibrate");
+  generation[1]++;generation[0]++;for(var w=Pump(.2f);w.MoveNext();)yield return null;
   for(var w=Practice();w.MoveNext();)yield return null;
+  phases[0]=phases[1]="PREPARING";block[0]=true;
   for(var w=Pump(1.3f);w.MoveNext();)yield return null;
-  Check(Game.CanFight,"Both complete + fresh neutral opens one shared round");
+  Check(Game.CanFight,"Both complete + fresh cameras opens one shared round without a second strict arm READY gate");
+  phases[0]=phases[1]="READY";block[0]=false;for(var w=Pump(.15f);w.MoveNext();)yield return null;
   if(guest!=null) {
    Check(Game.ViewLink.PeerReady,"Real second game acknowledges complete snapshots");
    StopGuest();for(var w=Pump(.4f);w.MoveNext();)yield return null;
@@ -178,6 +184,7 @@ public static class RedboolPvpPlayCheck
   Physics2D.SyncTransforms();for(var w=Pump(.3f);w.MoveNext();)yield return null;
   Gesture(1,"LEFT_PUNCH","p2-real-contact");for(var w=Pump(.9f);w.MoveNext();)yield return null;
   Check(pa.GetComponent<Health>().CurrentHealth<100,"P2 real animated contact damages P1: "+replies["p2-real-contact"].status+" positions "+pa.transform.position+" / "+pb.transform.position);
+  Check(GameObject.Find("PvpHealthBar0").GetComponent<WuxiaCombatBar>().FillRatio<1,"Damage lowers the real health bar");Shot("pvp_damage_health_bar");
   pa.GetComponent<Health>().ResetHealth();pb.GetComponent<Health>().ResetHealth();
   pa.transform.position=new Vector3(-.45f,pa.transform.position.y,0);pb.transform.position=new Vector3(.45f,pb.transform.position.y,0);pa.GetComponent<Rigidbody2D>().position=pa.transform.position;pb.GetComponent<Rigidbody2D>().position=pb.transform.position;
   pa.GetComponent<Rigidbody2D>().linearVelocity=pb.GetComponent<Rigidbody2D>().linearVelocity=Vector2.zero;Physics2D.SyncTransforms();

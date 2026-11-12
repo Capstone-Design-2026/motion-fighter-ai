@@ -30,6 +30,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public bool NeutralReady => LiveReady && !BlockActive && targetMove==0 && lastPhase=="READY";
     public int CalibrationGeneration { get; private set; }
     public string PersonalStatus { get; private set; } = "BASELINE V26";
+    public string InputPhase => lastPhase??"NONE";
+    public double InputAgeMs => lastLiveNs==0?-1:(NowNs()-lastLiveNs)/1000000.0;
     private string lastPhase;
     bool AllowsInput => (Preparation==null || Preparation.AllowsPlayer) && (ExternalGate==null || ExternalGate());
     bool Practicing => PracticeAction!=null || TutorialAction!=null;

@@ -1,0 +1,28 @@
+"""Build this checkout for this computer. Close Unity Editor before running."""
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+VERSION = '6000.4.5f1'
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--editor', type=Path); p.add_argument('--check', action='store_true')
+    a = p.parse_args()
+    editor = a.editor or (Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Unity/Hub/Editor' / VERSION / 'Editor/Unity.exe' if os.name == 'nt' else Path('/Applications/Unity/Hub/Editor') / VERSION / 'Unity.app/Contents/MacOS/Unity')
+    if not editor.is_file(): raise SystemExit('Unity ' + VERSION + ' not found; pass --editor PATH')
+    output = ROOT / 'Build/REDBOOL' / ('REDBOOL.exe' if os.name == 'nt' else 'REDBOOL.app')
+    log = ROOT / 'Logs/local-build.log'
+    args = [str(editor), '-batchmode', '-quit', '-projectPath', str(ROOT), '-executeMethod', 'RedboolLocalDemoBuild.Run', '-logFile', str(log)]
+    if a.check: print(json.dumps({'command': args, 'output': str(output)}, ensure_ascii=False)); return
+    log.parent.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, 'REDBOOL_BUILD_OUTPUT': str(output), 'REDBOOL_BUILD_TARGET': 'windows' if os.name == 'nt' else 'mac'}
+    return subprocess.call(args, cwd=ROOT, env=env)
+
+
+if __name__ == '__main__': sys.exit(main() or 0)

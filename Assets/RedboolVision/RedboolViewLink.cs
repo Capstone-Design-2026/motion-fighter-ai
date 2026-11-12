@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.IO;
+using System.Text;
 using System.Net.Sockets;
 using UnityEngine;
 
@@ -86,6 +87,10 @@ public sealed class RedboolViewLink : MonoBehaviour
             IPEndPoint from=new IPEndPoint(IPAddress.Any,0);byte[] data;
             try {data=socket.Receive(ref from);}
             catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset) {break;}
+            if(!client && Encoding.ASCII.GetString(data)=="REDBOOL_DISCOVER_V1") {
+                byte[] reply=Encoding.UTF8.GetBytes("{\"service\":\"REDBOOL\",\"view_version\":"+RedboolViewProtocol.Version+",\"view_port\":5067,\"p2_port\":5066}");
+                socket.Send(reply,reply.Length,from);continue;
+            }
             if(!RedboolViewProtocol.TryDecode(data,out var p)) {invalid++;continue;}
             if(client)
             {
@@ -111,9 +116,17 @@ public sealed class RedboolViewLink : MonoBehaviour
                     peer=from;peerNonce=p.nonce;lastHello=now;echo=p.time;
                 }
             }
+            else if(p.kind==5 &&peer!=null &&from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&PeerReady &&p.seq<=sequence &&sequence-p.seq<=8)
+                game.SkipPractice(1,p.practiceRun.ToString("N"),p.practiceStep);
             else if(p.kind==4 && peer!=null && from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&p.seq<=sequence &&p.seq>=ack)
             {ack=p.seq;lastHeartbeat=lastHello=now;echo=p.time;}
         }
+    }
+    public void RequestPracticeSkip()
+    {
+        if(!client ||!Fresh ||assembler.Latest==null) return;
+        var a=assembler.Latest.actors[1];if(a.step>=8)return;
+        Send(new RedboolViewPacket {kind=5,session=session,nonce=nonce,seq=ack,time=Time.realtimeSinceStartupAsDouble,practiceRun=a.practiceRun,practiceStep=(byte)a.step});
     }
     void Update()
     {
@@ -161,7 +174,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     RedboolViewActor CaptureActor(int i)
     {
         var p=game.Players[i];var h=p.GetComponent<Health>();var s=p.GetComponent<SpecialMove>();var practice=game.Practices[i];
-        var a=new RedboolViewActor {root=p.transform.position,visual=views[i].visualRoot.position,rotation=views[i].visualRoot.rotation,scale=views[i].visualRoot.localScale,hips=bones[i][0]?bones[i][0].localPosition:Vector3.zero,hp=h.CurrentHealth,maxHp=h.MaxHealth,charge=s.Charge,maxCharge=s.HitsToCharge,phase=(int)s.CurrentPhase,step=practice.Step,hits=practice.Hits,live=game.Receivers[i].LiveReady,attackSerial=p.GetComponent<Fighter>().AttackSerial};
+        var a=new RedboolViewActor {root=p.transform.position,visual=views[i].visualRoot.position,rotation=views[i].visualRoot.rotation,scale=views[i].visualRoot.localScale,hips=bones[i][0]?bones[i][0].localPosition:Vector3.zero,hp=h.CurrentHealth,maxHp=h.MaxHealth,charge=s.Charge,maxCharge=s.HitsToCharge,phase=(int)s.CurrentPhase,step=practice.Step,hits=practice.Hits,practiceRun=Guid.Parse(practice.Run),live=game.Receivers[i].LiveReady,attackSerial=p.GetComponent<Fighter>().AttackSerial};
         for(int b=0;b<a.bones.Length;b++) a.bones[b]=bones[i][b]?bones[i][b].localRotation:Quaternion.identity;
         a.chargeLevel=s.VisualChargeLevel;
         string status=game.Receivers[i].PersonalStatus;a.personal=(byte)(status.Contains("PERSONAL RANGE")?2:status.Contains("CYCLES")?1:0);
@@ -170,7 +183,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     }
     RedboolViewWorld CaptureWorld()
     {
-        var cam=Camera.main;var world=new RedboolViewWorld {round=game.Round,remaining=game.Remaining,paused=game.Paused,resolved=game.Resolved,fighting=game.Fighting,winner=game.Result.StartsWith("1P")?1:game.Result.StartsWith("2P")?2:0,camera=cam.transform.position,rotation=cam.transform.rotation,fov=cam.fieldOfView};
+        var cam=Camera.main;var world=new RedboolViewWorld {round=game.Round,gate=game.Gate,countdown=game.Countdown,remaining=game.Remaining,paused=game.Paused,resolved=game.Resolved,fighting=game.Fighting,winner=game.Result.StartsWith("1P")?1:game.Result.StartsWith("2P")?2:0,camera=cam.transform.position,rotation=cam.transform.rotation,fov=cam.fieldOfView};
         foreach(var wave in FindObjectsByType<QiWave>(FindObjectsSortMode.None)) if(wave.isActiveAndEnabled && !wave.Finished &&world.waves.Count<8) world.waves.Add(new RedboolViewWave {id=wave.GetInstanceID(),point=wave.transform.position,rotation=wave.transform.rotation});
         effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);return world;
     }

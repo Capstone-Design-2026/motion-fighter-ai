@@ -22,12 +22,19 @@ public sealed class RedboolPvp : MonoBehaviour
     readonly Vector3[] positions = new Vector3[2];
     readonly int[] generations = { -1,-1 };
     readonly string[] streams = new string[2];
+    readonly WuxiaCombatBar[] healthBars=new WuxiaCombatBar[2];
+    readonly float[] healthTarget=new float[2],healthTrail=new float[2],healthTrailUntil=new float[2];
     readonly WuxiaCombatBar[] chargeBars=new WuxiaCombatBar[2];
     readonly Text[] chargeLabels=new Text[2];
     readonly Text[] playerLabels = new Text[2];
     readonly Text[] practiceLabels = new Text[2];
     readonly TrainingPoseGraphic[] diagrams=new TrainingPoseGraphic[2];
     Text banner, clockLabel;
+    readonly Button[] skipButtons=new Button[2];
+    readonly RectTransform[] playerPanels=new RectTransform[2];
+    string lastDiagnostic;double lastDiagnosticTime;
+    public byte Gate {get;private set;}
+    public float Countdown => readySince<0?1:Mathf.Max(0,1-(float)(Time.realtimeSinceStartupAsDouble-readySince));
     Canvas canvas;
     RedboolRenderWarmup warmup;
     public bool Fighting { get; private set; }
@@ -151,24 +158,52 @@ public sealed class RedboolPvp : MonoBehaviour
         if(IsClient) { if(Input.GetKeyDown(KeyCode.Escape)) Leave(true);return; }
         if(Input.GetKeyDown(KeyCode.Escape)) { Leave(true);return; }
         if(Resolved && Input.GetKeyDown(KeyCode.R)) Rematch();
+        if(Input.GetKeyDown(KeyCode.F6)) SkipPractice(0);
+        if(Input.GetKeyDown(KeyCode.F7)) SkipPractice(1);
         for(int i=0;i<2;i++)
         {
             string stream=Receivers[i].StreamId;
             if(!String.IsNullOrEmpty(stream) && streams[i]!=stream)
             { if(streams[i]!=null) ResetPractice(i);streams[i]=stream; }
+            Practices[i].Tick();
             if(Practices[i].Complete) Receivers[i].PracticeAction-=Practices[i].Observe;
         }
         bool ready=BothLive && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
         if(!ready) { readySince=-1;SetPaused(true); }
         else if(paused)
         {
-            if(!Receivers[0].NeutralReady || !Receivers[1].NeutralReady) readySince=-1;
-            else if(readySince<0) readySince=Time.realtimeSinceStartupAsDouble;
+            // Completion is already an explicit practice interaction. A second simultaneous
+            // two-arm READY gate deadlocks high guards and otherwise valid camera users.
+            // Fresh camera/display leases still gate every frame; old inputs never queue.
+            if(readySince<0) readySince=Time.realtimeSinceStartupAsDouble;
             else if(Time.realtimeSinceStartupAsDouble-readySince>=1.0) { Fighting=true;SetPaused(false); }
         }
         if(CanFight) Remaining=Mathf.Max(0,Remaining-Time.deltaTime);
-        RefreshUi();
+        Gate=Resolved?(byte)7:warmup!=null?(byte)1:RequireView&&(ViewLink==null||!ViewLink.PeerReady)?(byte)2:!Receivers[0].LiveReady?(byte)3:!Receivers[1].LiveReady?(byte)4:!Practices[0].Complete||!Practices[1].Complete?(byte)5:paused?(byte)6:(byte)0;
+        Diagnostic();RefreshUi();
     }
+    public void SkipPractice(int slot,string expectedRun=null,int expectedStep=-1)
+    {
+        if(IsClient || !configured || slot<0 || slot>1 || Practices[slot].Complete) return;
+        var p=Practices[slot];
+        if(expectedRun!=null && (p.Run!=expectedRun || p.Step!=expectedStep)) return;
+        Debug.Log("[REDBOOL PRACTICE SKIP] player="+(slot+1)+" action="+p.Action+" baseline_retained=True");
+        p.Skip();
+    }
+    void SkipFromUi(int slot)
+    {
+        if(IsClient) {if(slot==1) ViewLink?.RequestPracticeSkip();}
+        else SkipPractice(slot);
+    }
+    void Diagnostic()
+    {
+        string row="gate="+Gate+" fight="+Fighting+" paused="+paused+" view="+(!RequireView||ViewLink!=null&&ViewLink.PeerReady);
+        for(int i=0;i<2;i++) row+=" p"+(i+1)+"="+Practices[i].Step+":"+Practices[i].Hits+":"+Practices[i].Phase+":"+Receivers[i].LiveReady+":"+Receivers[i].InputPhase+":gen"+generations[i];
+        double now=Time.realtimeSinceStartupAsDouble;
+        if(row!=lastDiagnostic &&now-lastDiagnosticTime>.25 || now-lastDiagnosticTime>=2)
+        { Debug.Log("[REDBOOL PVP GATE] "+row+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
+    }
+    static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 두 게임 버전과 연결을 확인하세요":gate==3?"1P 카메라 준비 대기 · 카메라 창에서 C로 보정":gate==4?"2P 카메라 준비 대기 · 카메라 창에서 C로 보정":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"준비 완료 · "+Mathf.CeilToInt(countdown)+"초 뒤 전투 시작":"2인 대전 · 블락 유지 / X자 파운장 · Esc: 메뉴";
     // Resolve after the contact world: simultaneous KO must not become a 1P win.
     void LateUpdate()
     {
@@ -204,15 +239,22 @@ public sealed class RedboolPvp : MonoBehaviour
         for(int i=0;i<2;i++)
         {
             float anchor=i==0?0:1;float x=i==0?35:-35;
+            int slot=i;
+            var skip=UIFactory.CreateButton("SkipPractice"+i,canvas.transform,"이 동작 건너뛰기 · 기본 인식 유지",19,new Color(.12f,.17f,.20f,.95f),()=>SkipFromUi(slot));
+            UIFactory.Place(skip.GetComponent<RectTransform>(),new Vector2(i==0?.25f:.75f,1),new Vector2(.5f,1),new Vector2(0,-300),new Vector2(480,45));skipButtons[i]=skip;
             var panel=UIFactory.CreateImage("PlayerPanel"+i,canvas.transform,new Color(.02f,.04f,.06f,.85f));
-            UIFactory.Place(panel.rectTransform,new Vector2(anchor,1),new Vector2(anchor,1),new Vector2(x,-30),new Vector2(540,220));
+            playerPanels[i]=panel.rectTransform;
+            UIFactory.Place(panel.rectTransform,new Vector2(anchor,1),new Vector2(anchor,1),new Vector2(x,-30),new Vector2(540,260));
             playerLabels[i]=WuxiaTheme.Text("Health"+i,panel.transform,"",28,TextAnchor.MiddleCenter,i==0?WuxiaTheme.Gold:new Color(.65f,.8f,1));
-            UIFactory.Place(playerLabels[i].rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-8),new Vector2(520,56));
+            UIFactory.Place(playerLabels[i].rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-5),new Vector2(520,36));
+            var health=UIFactory.CreateRect("PvpHealthBar"+i,panel.transform);
+            UIFactory.Place(health,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-45),new Vector2(500,38));
+            healthBars[i]=health.gameObject.AddComponent<WuxiaCombatBar>();healthBars[i].mirror=i==1;healthBars[i].raycastTarget=false;
             var gauge=UIFactory.CreateRect("PvpSpecialGauge"+i,panel.transform);
-            UIFactory.Place(gauge,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-64),new Vector2(475,24));
+            UIFactory.Place(gauge,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-88),new Vector2(475,24));
             chargeBars[i]=gauge.gameObject.AddComponent<WuxiaCombatBar>();chargeBars[i].resource=true;chargeBars[i].mirror=i==1;chargeBars[i].raycastTarget=false;
             chargeLabels[i]=WuxiaTheme.Text("PvpSpecialLabel"+i,panel.transform,"파운장 충전 중",21,TextAnchor.MiddleCenter,new Color(.66f,.93f,1f));
-            UIFactory.Place(chargeLabels[i].rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-93),new Vector2(500,32));
+            UIFactory.Place(chargeLabels[i].rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-118),new Vector2(500,32));
             var guide=UIFactory.CreateRect("MotionGuide"+i,canvas.transform);
             UIFactory.Place(guide,new Vector2(i==0?.25f:.75f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(220,240));
             diagrams[i]=guide.gameObject.AddComponent<TrainingPoseGraphic>();
@@ -230,13 +272,25 @@ public sealed class RedboolPvp : MonoBehaviour
         for(int i=0;i<2;i++)
         {
             diagrams[i].gameObject.SetActive(!Practices[i].Complete);diagrams[i].step=Practices[i].Step;
+            skipButtons[i].gameObject.SetActive(!Practices[i].Complete);
             var hp=Players[i].GetComponent<Health>();var special=Players[i].GetComponent<SpecialMove>();
-            playerLabels[i].text=(i+1)+"P   체력 "+hp.CurrentHealth+" / "+hp.MaxHealth;
+            ShowHealth(i,hp.CurrentHealth,hp.MaxHealth);ShowPracticeVisibility(i,!(Fighting&&!paused || Resolved));
             ShowCharge(i,special?special.Charge:0,special?special.HitsToCharge:5);
-            practiceLabels[i].text=(!Receivers[i].LiveReady?"카메라 연결 · C로 중앙 가드 보정\n":"")+Practices[i].Instruction+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"v26 + 개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"v26 기본 인식 기준 사용");
+            practiceLabels[i].text=(!Receivers[i].LiveReady?"카메라 연결 · C로 중앙 가드 보정\n":"")+Practices[i].Instruction+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
-        banner.text=RequireView && (ViewLink==null || !ViewLink.PeerReady)?"2P 게임 화면 연결 대기 · 연결이 끊기면 양쪽 전투가 멈춥니다":Resolved?Result+" · R: 재대전 · Esc: 메뉴":!BothLive?"두 카메라를 기다립니다 · P1 :5065 / P2 :5066\n연결이 끊기거나 보정 중이면 양쪽 전투가 멈춥니다":!Practices[0].Complete||!Practices[1].Complete?"각자 안내 동작을 두 번씩 한 뒤 팔과 몸을 중앙으로 돌려주세요":paused?"두 사람 모두 중앙 가드 · 1초 뒤 대전 시작":"2인 대전 · 블락은 자세를 유지하는 동안 · X자: 파운장 · Esc: 메뉴";
+        banner.text=Resolved?Result+" · R: 재대전 · Esc: 메뉴":GateText(Gate,Countdown);
+    }
+    void ShowPracticeVisibility(int slot,bool show) {practiceLabels[slot].gameObject.SetActive(show);playerPanels[slot].SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,show?260:155);}
+    void ShowHealth(int slot,int current,int maximum)
+    {
+        float value=maximum>0?Mathf.Clamp01((float)current/maximum):0;
+        if(value<healthTarget[slot]) healthTrailUntil[slot]=Time.unscaledTime+.35f;
+        else if(value>healthTarget[slot]) healthTrail[slot]=value;
+        healthTarget[slot]=value;
+        if(Time.unscaledTime>=healthTrailUntil[slot]) healthTrail[slot]=Mathf.MoveTowards(healthTrail[slot],value,1.5f*Time.unscaledDeltaTime);
+        healthBars[slot].SetValues(value,healthTrail[slot]);
+        playerLabels[slot].text=(slot+1)+"P";
     }
     void ShowCharge(int slot,int value,int maximum)
     {
@@ -252,13 +306,13 @@ public sealed class RedboolPvp : MonoBehaviour
         Remaining=frame.world.remaining;Resolved=frame.world.resolved;Fighting=frame.world.fighting;Round=frame.world.round;
         for(int i=0;i<2;i++)
         {
-            var a=frame.actors[i];diagrams[i].gameObject.SetActive(a.step<8);diagrams[i].step=a.step;
-            playerLabels[i].text=(i+1)+"P   체력 "+a.hp+" / "+a.maxHp;
+            var a=frame.actors[i];diagrams[i].gameObject.SetActive(a.step<8);diagrams[i].step=a.step;skipButtons[i].gameObject.SetActive(i==1 &&a.step<8);
+            ShowHealth(i,a.hp,a.maxHp);ShowPracticeVisibility(i,!(frame.world.fighting&&!frame.world.paused || frame.world.resolved));
             ShowCharge(i,a.charge,a.maxCharge);
-            practiceLabels[i].text=(!a.live?"카메라 연결 · C로 중앙 가드 보정\n":"")+(a.step>=8?"수련 완료 · 중앙에서 준비":RedboolPractice.Instructions[a.step]+"  "+a.hits+"/2")+"\n"+(a.personal==2?"v26 + 개인 동작 범위 적용":a.personal==1?"동작과 복귀를 확인 중":"v26 기본 인식 기준 사용");
+            practiceLabels[i].text=(!a.live?"카메라 연결 · C로 중앙 가드 보정\n":"")+RedboolPractice.Describe(a.step,a.hits)+"\n"+(a.personal==2?"개인 동작 범위 적용":a.personal==1?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
-        banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?(frame.world.winner==0?"무승부":frame.world.winner+"P 승리")+" · 호스트에서 R: 재대전 · Esc: 메뉴":frame.world.paused?"수련 · 카메라 보정 및 두 화면 준비 중 · 완료 후 중앙 가드 1초":"2인 대전 · 2P 화면 · 블락 유지 / X자 파운장 · Esc: 메뉴";
+        banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?(frame.world.winner==0?"무승부":frame.world.winner+"P 승리")+" · 호스트에서 R: 재대전 · Esc: 메뉴":GateText(frame.world.gate,frame.world.countdown);
     }
     public void Leave(bool menu)
     {

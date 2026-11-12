@@ -14,6 +14,7 @@ public static class RedboolViewSelfCheck
     }
     public static void Run()
     {
+        checks=0;
         var session=Guid.NewGuid();var nonce=Guid.NewGuid();var actor=Actor();
         var world=new RedboolViewWorld {round=3,remaining=87.4f,fov=60,camera=new Vector3(0,3,-7),rotation=Quaternion.identity,paused=false,fighting=true};
         for(int i=0;i<8;i++) world.waves.Add(new RedboolViewWave {id=i,point=new Vector3(i,1,0),rotation=Quaternion.identity});
@@ -26,6 +27,9 @@ public static class RedboolViewSelfCheck
             for(int cut=0;cut<bytes.Length;cut++) Check(!RedboolViewProtocol.TryDecode(new ArraySegment<byte>(bytes,0,cut).ToArray(),out _),"truncated packet");
             bytes[4]=27;Check(!RedboolViewProtocol.TryDecode(bytes,out _),"old release rejected");
         }
+        var skip=RedboolViewProtocol.Encode(new RedboolViewPacket {kind=5,session=session,nonce=nonce,seq=11,time=20,practiceRun=Guid.NewGuid(),practiceStep=7});
+        Check(RedboolViewProtocol.TryDecode(skip,out var skipDecoded) &&skipDecoded.practiceStep==7,"skip control round trip");
+        for(int cut=0;cut<skip.Length;cut++)Check(!RedboolViewProtocol.TryDecode(new ArraySegment<byte>(skip,0,cut).ToArray(),out _),"truncated skip control");
         for(int i=0;i<actor.bones.Length;i++) Check(Quaternion.Angle(actor.bones[i],parts[1].actor.bones[i])<.08f,"bone precision");
         Check(parts[0].world.effects.Count==12 &&parts[0].world.waves.Count==8,"bounded effect lists");
         var assembler=new RedboolViewAssembler();Check(assembler.Push(parts[2],1)==null,"part 3 first");Check(assembler.Push(parts[0],1.02)==null,"incomplete frame stays hidden");
