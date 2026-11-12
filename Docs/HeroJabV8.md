@@ -61,3 +61,8 @@ Exported from Blender 5.2.3 and imported back into a fresh scene at 60 fps:
 Unity 6000.4.5f1 batch verification was attempted, but the environment could not
 connect to its licensing client. This delivery therefore does not claim Unity
 import or gameplay validation. The verified artifact is the Blender/FBX motion.
+
+## Game integration
+
+Integrated into the game on 2026-11-13 as the Hero02 `JAB` state (Humanoid clip baked from this
+action). See `Docs/HeroJabIntegration.md` for how it was applied and what was verified.

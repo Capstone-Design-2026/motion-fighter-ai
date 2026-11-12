@@ -40,7 +40,7 @@ public static class HeroGuardBaker
     [Serializable] class Motion { public int fps; public string[] bones; public string[] parents; public float[] basePos; public MotionClip[] clips; }
     [Serializable] class MotionClip { public string name; public bool loop; public int frames; public float[] hips; public float[] rot; public float[] pos; }
 
-    static string Report { get { var a = Environment.GetCommandLineArgs(); int i = Array.IndexOf(a, "-heroGuardReport"); return i >= 0 && i + 1 < a.Length ? a[i + 1] : Path.GetFullPath("Logs/HeroGuard"); } }
+    static string Report { get { var a = Environment.GetCommandLineArgs(); int i = Array.IndexOf(a, "-heroMotionReport"); if (i < 0) i = Array.IndexOf(a, "-heroGuardReport"); return i >= 0 && i + 1 < a.Length ? a[i + 1] : Path.GetFullPath("Logs/HeroGuard"); } }
     static readonly List<string> log = new List<string>();
     static void L(string s) { log.Add(s); Debug.Log("[HeroGuard] " + s); }
     static Vector3 V(float[] a, int i) => new Vector3(a[i * 3], a[i * 3 + 1], a[i * 3 + 2]);
@@ -149,14 +149,22 @@ public static class HeroGuardBaker
         AssetDatabase.CreateAsset(asset, path); return asset;
     }
 
-    public static void Bake()
+    public static void Bake() => BakeSet(Sources, Folder, States, (anim, baked) =>
+        RenderPreview(anim, new[] { (baked[GuardClip], baked[HoldClip], "guard"), (baked[LowClip], baked[LowHoldClip], "low") }));
+
+    /// <summary>
+    /// 동작 파일 묶음을 주인공 클립으로 굽고 주인공 컨트롤러의 상태에 연결한다. 방어 말고 다른 주인공 동작(잽 등)도 이 경로를 쓴다.
+    /// sources: 같은 뼈대·같은 기준 자세·같은 fps로 내보낸 동작 파일들 / folder: 클립을 저장할 폴더 / stateMap: 클립 → 컨트롤러 상태들.
+    /// </summary>
+    internal static void BakeSet(string[] sources, string folder, Dictionary<string, string[]> stateMap, Action<Animator, Dictionary<string, AnimationClip>> preview)
     {
+        log.Clear();
         Directory.CreateDirectory(Report);
         try
         {
             // 동작 파일은 모두 같은 뼈대·같은 기준 자세에서 내보낸 것이라 클립만 한데 모은다.
-            var motion = JsonUtility.FromJson<Motion>(File.ReadAllText(Sources[0]));
-            foreach (string path in Sources.Skip(1))
+            var motion = JsonUtility.FromJson<Motion>(File.ReadAllText(sources[0]));
+            foreach (string path in sources.Skip(1))
             {
                 var more = JsonUtility.FromJson<Motion>(File.ReadAllText(path));
                 if (!more.bones.SequenceEqual(motion.bones) || more.fps != motion.fps) throw new Exception(path + ": 뼈대나 fps가 다르다");
@@ -210,7 +218,7 @@ public static class HeroGuardBaker
                 L($"{mc.name}: {mc.frames}프레임 / Blender 대비 관절 위치 오차 최대 {worst / height * 100:F3}% of height ({worstAt})");
                 if (worst > height * .02f) throw new Exception(mc.name + ": 자세가 Blender와 다르게 얹혔다");
                 var clip = MakeClip(mc.name, motion.fps, poses, extraPaths, local, mc.loop, AnimationUtility.GetAnimationClipSettings(idle));
-                baked[mc.name] = Save(clip, Folder + "/" + mc.name + ".anim"); direct[mc.name] = posed;
+                baked[mc.name] = Save(clip, folder + "/" + mc.name + ".anim"); direct[mc.name] = posed;
             }
             handler.Dispose();
             AssetDatabase.SaveAssets();
@@ -233,10 +241,10 @@ public static class HeroGuardBaker
                 if (worst > height * .03f) throw new Exception(mc.name + ": 재생 결과가 얹은 자세와 다르다");
             }
 
-            // 주인공 컨트롤러의 방어 상태에만 연결한다. 적이 쓰는 Unified_Combat은 건드리지 않는다.
+            // 주인공 컨트롤러의 해당 상태에만 연결한다. 적이 쓰는 Unified_Combat은 건드리지 않는다.
             var ctrl = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
             var states = ctrl.layers[0].stateMachine.states.Select(s => s.state).ToArray();
-            foreach (var pair in States)
+            foreach (var pair in stateMap)
                 foreach (string stateName in pair.Value)
                 {
                     var st = states.FirstOrDefault(s => s.name == stateName);
@@ -244,9 +252,10 @@ public static class HeroGuardBaker
                     st.motion = baked[pair.Key];
                 }
             EditorUtility.SetDirty(ctrl); AssetDatabase.SaveAssets();
-            L("방어 상태: " + string.Join(", ", states.Where(s => s.name.StartsWith("GUARD")).Select(s => s.name + "=" + (s.motion ? s.motion.name : "none"))));
+            var linked = new HashSet<string>(stateMap.Values.SelectMany(v => v));
+            L("연결한 상태: " + string.Join(", ", states.Where(s => linked.Contains(s.name)).Select(s => s.name + "=" + (s.motion ? s.motion.name : "none"))));
 
-            RenderPreview(anim, new[] { (baked[GuardClip], baked[HoldClip], "guard"), (baked[LowClip], baked[LowHoldClip], "low") });
+            preview?.Invoke(anim, baked);
             Object.DestroyImmediate(anim.transform.root.gameObject);
             File.WriteAllLines(Path.Combine(Report, "bake_log.txt"), log);
             File.WriteAllText(Path.Combine(Report, "bake_done.txt"), "PASS");
@@ -262,6 +271,17 @@ public static class HeroGuardBaker
     // ───────────── 확인용 그림 ─────────────
     static void RenderPreview(Animator anim, (AnimationClip guard, AnimationClip hold, string tag)[] sets)
     {
+        var shots = new List<(AnimationClip clip, float t, string tag)>();
+        foreach (var (guard, hold, name) in sets)
+        {
+            foreach (float t in new[] { 0f, .10f, .20f, .27f, .39f, .56f, .76f, .90f }) shots.Add((guard, t, name + "_" + Mathf.RoundToInt(t * 100).ToString("000")));
+            foreach (float t in new[] { 0f, .8f }) shots.Add((hold, t, name + "hold_" + Mathf.RoundToInt(t * 100).ToString("000")));
+        }
+        RenderShots(anim, shots);
+    }
+    /// <summary>클립의 지정한 시각들을 네 방향(game/front/quarter/left)에서 그려 frames 폴더에 저장한다.</summary>
+    internal static void RenderShots(Animator anim, List<(AnimationClip clip, float t, string tag)> shots)
+    {
         ShaderUtil.allowAsyncCompilation = false;
         var light = new GameObject("Key").AddComponent<Light>(); light.type = LightType.Directional; light.intensity = 1.2f; light.transform.rotation = Quaternion.Euler(40, -30, 0);
         RenderSettings.ambientMode = AmbientMode.Flat; RenderSettings.ambientLight = new Color(.55f, .56f, .6f);
@@ -272,12 +292,6 @@ public static class HeroGuardBaker
         string dir = Path.Combine(Report, "frames"); Directory.CreateDirectory(dir);
         // 게임 화면은 주인공의 오른쪽 옆을 본다(오른쪽을 보고 설 때). 주인공은 +Z를 보고 선다.
         var views = new[] { ("game", new Vector3(5, .5f, 0)), ("front", new Vector3(0, .5f, 5)), ("quarter", new Vector3(3.2f, .6f, 3.8f)), ("left", new Vector3(-5, .5f, 0)) };
-        var shots = new List<(AnimationClip clip, float t, string tag)>();
-        foreach (var (guard, hold, name) in sets)
-        {
-            foreach (float t in new[] { 0f, .10f, .20f, .27f, .39f, .56f, .76f, .90f }) shots.Add((guard, t, name + "_" + Mathf.RoundToInt(t * 100).ToString("000")));
-            foreach (float t in new[] { 0f, .8f }) shots.Add((hold, t, name + "hold_" + Mathf.RoundToInt(t * 100).ToString("000")));
-        }
         foreach (var (clip, t, tag) in shots)
         {
             Sample(anim, clip, t);
