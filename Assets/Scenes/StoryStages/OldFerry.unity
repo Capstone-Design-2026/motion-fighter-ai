@@ -23236,7 +23236,7 @@ Camera:
     height: 1
   near clip plane: 0.1
   far clip plane: 360
-  field of view: 47
+  field of view: 40
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -23262,8 +23262,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1177926583}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.06104854, y: 0, z: 0, w: 0.99813485}
-  m_LocalPosition: {x: 0, y: 1.940851, z: -5.789417}
+  m_LocalRotation: {x: 0.061048545, y: 0, z: 0, w: 0.99813485}
+  m_LocalPosition: {x: 0, y: 1.9112663, z: -6.6886783}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -23357,14 +23357,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Battle3DCamera
   player: {fileID: 1351601484}
   enemy: {fileID: 1900000011}
-  minimumDistance: 4.6
+  minimumDistance: 3.35
   maximumDistance: 16
-  focusHeight: 1.2
-  horizontalSafeArea: 0.9
-  verticalSafeArea: 0.8
+  focusHeight: 1.06
+  horizontalSafeArea: 0.92
+  verticalSafeArea: 0.9
   orbitArena: 1
   allowMouseOrbit: 1
-  combatPitch: 7
+  combatPitch: 3.5
   orbitSensitivity: 2.4
   arenaCenter: {x: 0, y: 0, z: 0}
   cameraBoundaryRadius: 17
@@ -25548,8 +25548,6 @@ MonoBehaviour:
   windup: 0.12
   recovery: 0.35
   blockDamageMultiplier: 0.2
-  guardDuration: 1.5
-  guardFailDelay: 0.5
   blockPunish: 0.4
   hitStunBonus: 0.15
   whiffPunish: 0.3
@@ -25586,53 +25584,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SpecialMove
   hitsToCharge: 5
   damage: 30
+  guardDamageRatio: 0.25
+  fullChargeBonus: 0.2
+  minCharge: 0.35
+  maxCharge: 2
+  fullChargeTime: 1.5
+  refundRatio: 0.5
+  waveSpeed: 12
+  waveRange: 6.5
+  knockback: {x: 6.5, y: 1.4}
+  hitExtraStun: 0.35
+  whiffOpen: 0.4
+  cutInSlowScale: 0.06
+  cutInDuration: 0.32
+  chargeZoom: 0.86
   chargeKey: 105
   chargeKeyAmount: 1
   activateKey: 111
-  cutInSprite: {fileID: 0}
-  cutInScale: 5
-  cutInHeight: 1.8
-  sweepCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0.41666666
-      outSlope: 0.41666666
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.5
-      value: 0.25
-      inSlope: 0.41666666
-      outSlope: 0.41666666
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.7
-      value: 1
-      inSlope: 1.875
-      outSlope: 1.875
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  fadeInTime: 0.1
-  fadeOutTime: 0.3
-  slowScale: 0
-  duration: 1
-  recoverTime: 0.3
-  zoomRatio: 0.75
-  zoomInTime: 0.2
-  zoomOutTime: 0.35
 --- !u!114 &1351601491
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -31628,8 +31596,6 @@ MonoBehaviour:
   windup: 0.12
   recovery: 0.35
   blockDamageMultiplier: 0.2
-  guardDuration: 1.5
-  guardFailDelay: 0.5
   blockPunish: 0.4
   hitStunBonus: 0.15
   whiffPunish: 0.3
@@ -31648,6 +31614,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
   target: {fileID: 0}
+  behaviorType: 0
   moveSpeed: 2.1
   attackRange: 1.2
   keepDistance: 0.8
@@ -31655,8 +31622,12 @@ MonoBehaviour:
   attackWeight: 5
   blockWeight: 3
   backstepWeight: 1.5
-  crouchWeight: 1
   attackDelay: 0.3
+  specialGuardChance: 0.5
+  reactionTime: 0.15
+  guardHoldTime: 1.5
+  outBoxMargin: 0.5
+  outBoxSpeedScale: 1.5
 --- !u!114 &1900000019
 MonoBehaviour:
   m_ObjectHideFlags: 0
