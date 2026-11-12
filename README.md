@@ -1,10 +1,111 @@
-# Motion Fighter AI
+# REDBOOL / Motion Fighter AI
 
-OpenCV + MediaPipe Pose 기반 상체 동작 인식 시스템입니다.
-웹캠으로 플레이어의 상체 움직임을 인식하고,
-Unity 격투 게임에 실시간 입력을 전송하는 것을 목표로 합니다.
+웹캠으로 상체 동작을 인식해 Unity 무협 격투 게임을 조작합니다. 현재 개발판은 **v33 첫 통합 패키지 시험 버전**입니다. 게임을 실행하면 전투·수련·PvP에서 해당 게임이 관리하는 카메라가 자동으로 켜지고, 게임 안에서 미리보기와 보정을 조작합니다.
+
+기존 스토리와 v26 기반 인식에 v32의 검증된 보완을 유지합니다. v33은 카메라 실행·화면·진단을 게임에 통합하고, 개인 수련 표본에서 대각선 펀치 전환이 잘못 제외되던 조건과 화면 아래 손목 안내를 보완합니다. 모든 사람의 실시간 인식률이나 지연이 검증 완료됐다는 의미는 아닙니다.
+
+## 체험자는 게임 패키지를 실행
+
+1. 전달받은 운영체제별 v33 게임 패키지를 **폴더 전체로** 풀고, Mac은 `REDBOOL.app`, Windows는 `REDBOOL.exe`를 실행합니다. Python이나 Unity Editor를 따로 설치할 필요는 없습니다.
+2. 스토리·결투 테스트로 들어가거나, 두 노트북에서 `PvP 대전`을 선택합니다. 한쪽은 `방 만들기`, 다른 쪽은 `방 찾기` 또는 호스트 IPv4 입력 후 `대전 참가`를 누릅니다. 양쪽에 같은 결투장이 표시됩니다.
+3. 카메라 안내에서 `보정` 또는 `C`를 누르고 중앙의 편한 가드 자세를 유지합니다. 사람이 바뀌면 다시 보정합니다. 손목과 팔꿈치가 화면 안에 보여야 합니다.
+4. 미리보기 `접기`는 화면만 접습니다. 인식은 계속됩니다. 문제가 있으면 `다시 연결`, 종료 후 메인 메뉴의 `진단 기록 저장`을 사용합니다.
+
+Windows 실행 파일 옆의 지원 폴더를 분리하지 마세요. GitHub의 **REDBOOLCamera-Windows-x64**는 게임에 넣을 카메라 부품이며 완성 게임 패키지가 아닙니다. Mac 배포본은 현재 로컬 시험용 서명이며 공증된 일반 배포본은 아닙니다.
+
+## 현재 동작과 개인 보정
+
+| 실제 동작 | 게임 입력 |
+|---|---|
+| 왼손 펀치 | 잽 |
+| 오른손 펀치 | 스트레이트 |
+| 왼손 레이즈 | 하이킥 |
+| 오른손 레이즈 | 로우킥 |
+| 양손을 얼굴 앞에 올려 유지 | 블락; 자세를 풀면 해제 |
+| 상체를 좌우로 기울임 / 중앙 복귀 | 이동 / 정지; 기울인 채 공격 가능 |
+| 가슴 앞에서 양팔 X자 유지 후 풀기 | 충전된 파운장 |
+
+- **Lite가 기본 관절 추정**, Full은 X자 확인을 돕는 보조 경로입니다. Full로 기본 모델을 자동 전환하지 않습니다.
+- 튜토리얼의 개인 보정은 두 번의 독립적이고 일관된 동작·복귀 표본으로 제한된 범위만 조절합니다. 수련 통과 자체를 새 학습 데이터의 정답으로 간주하지 않습니다.
+- 부족하거나 불안정한 표본에는 기존 기본값을 유지합니다. X자·관절 신뢰도·복귀 조건을 일괄 완화하지 않습니다. 사람 교체 후 `C`는 기존 개인 범위를 초기화합니다.
+- 마지막 Windows 수련 재생에서 29개 이벤트의 분류·발생 프레임을 유지하면서 스트레이트의 유효 개인 측정 표본 1개를 복구했습니다. 그 기록에서는 임계값 변경이 필요하지 않아 인식 정확도가 올라갔다고 주장하지 않습니다.
+
+## 저장과 두 노트북 통신
+
+통합 패키지의 기본 기록은 **진단 모드**입니다. 이벤트·보정·상태·프레임 요약만 저장하고 원본 영상과 프레임별 관절 좌표는 저장하지 않습니다. 용량을 줄이는 대신 해당 기록만으로 모든 실제 동작 누락을 영상 재검증할 수는 없습니다. 개발자용 `review`·`logs`·`lossless` 기록은 별도로 유지합니다.
+
+각 노트북이 자신의 카메라를 처리합니다. 미리보기 영상은 자기 컴퓨터 안에서만 전달되며 상대에게 보내지 않습니다. PvP는 기존 호스트 중심 LAN UDP 연결을 사용하고 외부 서버가 필요하지 않습니다. P1 입력은 `5065`, P2 입력은 `5066`, 화면 동기화·방 찾기는 `5067`입니다. 같은 공유기여도 무선 사용자 격리나 방화벽이 있으면 연결되지 않을 수 있습니다.
+
+## 개발 브랜치와 문서
+
+| 역할 | 브랜치 / 안내 |
+|---|---|
+| Python 인식·카메라 통합 | `codex/tutorial-personal-pvp-20261112` · [PR #12](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/12) |
+| Unity 스토리·두 화면 PvP·통합 패키징 | `codex/pvp-dual-screen-20261112` · [PR #14](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/14) |
+| Unity 팀원 콘텐츠 통합 기준 | `feature/unity`; 위 개발 브랜치에서 기능을 비교한 뒤 반영 |
+| 공통 기본 브랜치 | `main`; 이 개발판을 자동 병합하지 않음 |
+
+- [v33 카메라 구성·API·빌드 방법](docs/v33-integrated-camera.txt)
+- [Unity v33 패키지 조립·검증 방법](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/pvp-dual-screen-20261112/Tools/Developer/V33_PACKAGING.txt)
+- [v32 다인원 기록 검토와 남은 한계](docs/field-v32.txt)
+- [v31 통신 검사와 실행 안내](docs/network-v31.txt)
+- [Windows 네이티브 카메라 빌드 workflow](.github/workflows/camera-backend-windows.yml)
+
+기존 작업 파일을 보존한 상태에서 해당 개발 브랜치를 업데이트하세요. 충돌이 생기면 강제 초기화하지 말고 변경 내용을 확인합니다.
+
+```bash
+git fetch origin
+git switch codex/tutorial-personal-pvp-20261112
+git pull --ff-only
+```
+
+## 개발자가 게임과 카메라를 따로 실행할 때
+
+기존 Python 3.11 개발 환경과 Unity Editor 방식은 유지합니다. 새 Windows 카메라 개발 환경은 `requirements-pilot-windows.txt`를 사용하며 기존 Mac·학습 환경을 덮어쓰지 않습니다. 저장소 루트에서 환경을 활성화한 뒤:
+
+```bash
+python scripts/setup_demo_models.py
+python scripts/run_personal_camera.py --check
+```
+
+위 검사는 카메라를 열지 않습니다. Unity 개발 실행을 준비한 뒤 목적에 맞는 **한 줄만** 실행합니다.
+
+```bash
+# 스토리 / 로컬 결투
+python scripts/run_personal_camera.py --player story
+# PvP 호스트 노트북
+python scripts/run_personal_camera.py --player 1 --host 127.0.0.1
+# PvP 참가 노트북: HOST_IPV4를 호스트의 실제 IPv4로 바꿈
+python scripts/run_personal_camera.py --player 2 --host HOST_IPV4
+```
+
+이 수동 실행기는 기본적으로 검토용 압축 영상을 저장합니다. 통합 패키지의 기본 진단 모드와 다릅니다. 통합 게임을 사용할 때는 수동 카메라를 중복 실행하지 마세요. 개발 목적으로 패키지 게임과 수동 카메라를 연결하려면 게임에 `--redbool-external-camera`를 지정합니다.
+
+카메라 없이 LAN 왕복 응답을 확인하려면 호스트 게임을 켜고:
+
+```bash
+python scripts/check_pvp_network.py --host HOST_IPV4 --seconds 20
+```
+
+이는 네트워크와 호스트 게임 갱신 지연 검사이며 인식률이나 카메라→화면 전체 지연 검사는 아닙니다.
+
+## 패키징과 확인된 검증 범위
+
+카메라 실행 파일은 각 운영체제에서 네이티브로 빌드합니다. 별도 빌드 환경에서 `requirements-backend-build.txt`와 [v33 빌드 안내](docs/v33-integrated-camera.txt)를 사용하세요. Unity 게임과 카메라 폴더를 합치는 방법은 위 Unity 개발 문서에 있습니다.
+
+- Python 회귀 검사 249개 및 추가 카메라 통합 검사까지 합쳐 **262개 고유 검사 통과**.
+- [Windows 네이티브 빌드 실행](https://github.com/Capstone-Design-2026/motion-fighter-ai/actions/runs/43259318061): 21개 검사, x64 실행 파일 생성, 동봉된 Lite VIDEO·Full VIDEO/IMAGE 실제 추론, 로컬 미리보기·보정 요청·종료 검사 통과.
+- Mac 네이티브 카메라 패키지에서도 위 모델 추론·제어 검사를 통과했습니다. 검사는 합성 이미지와 저장된 기록을 사용하며 실제 카메라를 켜지 않습니다.
+- 실제 Mac/Windows 카메라 권한·드라이버·발열·동시 플레이는 첫 통합 패키지 현장 확인 대상입니다. 이전 Windows의 약 20fps 카메라 공급이나 게임 프레임 하락이 패키징만으로 해결됐다고 보지 않습니다.
+
+원본 촬영 자료, 학습 데이터, 모델 파일, 가상환경은 Git에 올리지 않습니다.
 
 ---
+
+<details>
+<summary>초기 MLP 연구·데이터 수집 문서 (이전 구성 보존)</summary>
+
+아래 문서는 이전 MLP 분류·어깨 회전 이동 실험을 보존한 것입니다. `IDLE / ATTACK / JUMP / CROUCH`, UDP `5055`, CSV 학습과 당시 테스트 수는 현재 v33 실행 방법이 아닙니다. 현재 데모는 위의 `redbool_demo` 경로를 사용합니다.
 
 # Project Overview
 
@@ -339,7 +440,7 @@ Features:
 python -m unittest discover -s tests
 ```
 
-현재 총 **53개 테스트가 통과**했습니다. Median/MAD, 유효 sample 필터링,
+이 초기 MLP 단계의 기록에서는 총 **53개 테스트가 통과**했습니다. Median/MAD, 유효 sample 필터링,
 calibration 시간·sample 수 조건, 완료 frame의 NEUTRAL 유지, offset 보정,
 baseline 보존, 기존 hysteresis/stabilization 및 Unity payload를 검증합니다.
 실제 다인원 카메라·Unity 재측정은 별도로 진행할 예정입니다.
@@ -428,14 +529,9 @@ Do NOT upload:
 
 Use .gitignore.
 
-# Branch Strategy
+# Previous Branch Strategy
 
-| Branch | Usage |
-|---|---|
-| main | Stable version |
-| feature/ai-vision | AI vision development |
-| feature/shoulder-movement | Shoulder-based movement channel |
-| feature/unity-test | Unity communication testing |
+초기 연구 단계에서는 AI·어깨 이동·Unity 수신 실험을 별도 feature 브랜치에서 진행했습니다. 현재 개발 브랜치는 위 v33 표를 기준으로 사용하세요.
 
 # Planned Features
 
@@ -461,9 +557,9 @@ Use .gitignore.
 - Combat system
 - UI / Stage implementation
 
-# Current Development Goal
+# Previous Development Goal
 
-## Current Status
+## 당시 상태
 
 - Shoulder movement 구현 완료
 - Neutral baseline calibration 구현 완료
@@ -486,3 +582,5 @@ Use .gitignore.
 # Contributors
 
 Capstone Design 2026 RedBool
+
+</details>
