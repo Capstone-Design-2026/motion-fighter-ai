@@ -8,7 +8,7 @@ class DemoSender(Sender):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.events={};self.delivery=Counter();self.last_status='WAITING FOR RECEIVER'
-        self.feedback={};self.feedback_sequence=-1
+        self.feedback={};self.feedback_sequence=-1;self.tutorial={}
 
     def game_hint(self, now_ns=None):
         now=time.monotonic_ns() if now_ns is None else now_ns
@@ -18,6 +18,10 @@ class DemoSender(Sender):
         game='GAME READY' if f['game_can_act'] else 'GAME BUSY'
         special='SPECIAL READY' if f['special_ready'] else 'SPECIAL NEEDS CHARGE'
         return game+' / '+special
+
+    def tutorial_context(self, now_ns=None):
+        now=time.monotonic_ns() if now_ns is None else now_ns
+        return dict(self.tutorial) if self.tutorial and 0<=now-self.tutorial['sent_ns']<=500_000_000 else None
 
     def offer(self,event):
         if len(self.events)>=32:
@@ -37,6 +41,9 @@ class DemoSender(Sender):
                 self.feedback={'sent_ns':sent,'game_can_act':ack['game_can_act'],
                                'special_ready':ack['special_ready']}
                 self.feedback_sequence=seq
+                self.tutorial={'sent_ns':sent,'run':ack.get('tutorial_run',''),
+                    'action':ack.get('tutorial_action',''),'phase':ack.get('tutorial_phase',''),
+                    'hits':ack.get('tutorial_hits',0)}
             if eid in self.events and status in ('APPLIED','DUPLICATE_EVENT','GAME_BUSY','NO_PLAYER','INPUT_LOCKED','UNASSIGNED','TUTORIAL_APPLIED','BAD_GESTURE','BAD_KIND','NOT_CHARGED','NO_SPECIAL'):
                 self.events.pop(eid)
                 self.delivery[status]+=1;self.last_status=status

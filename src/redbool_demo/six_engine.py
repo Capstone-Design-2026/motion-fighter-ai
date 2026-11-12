@@ -408,7 +408,7 @@ class SixGestureEngine(DemoEngine):
                     punch_return = self.attack.units[side].state in ('ACTIVE','EXTENDED','RETURNING')
                     new_raise_motion = not punch_return or arms[side]['velocity'][1] < -.25
                     if other_guard and vertical and new_raise_motion and side not in self.forward_sides:
-                        if dy <= -.40:
+                        if dy <= -getattr(self, 'personal_raise', {}).get(side, .40):
                             candidate = side + '_RAISE'
             if (self.vertical_state == 'READY' and candidate
                     and self.raise_armed[candidate.split('_')[0]] and not self.special_inhibited):

@@ -13,6 +13,7 @@ class LateralMovement:
         self.cfg = cfg
         self.origin = self.width = self.roll_origin = None
         self.left_sign = 1.
+        self.personal_enter = {}
         self.reset()
 
     def reset(self):
@@ -72,7 +73,7 @@ class LateralMovement:
         for direction, sign in (('LEFT', 1), ('RIGHT', -1)):
             x, angle = offset * sign, roll * sign
             holding = self.state == direction
-            translation = x >= (.12 if holding else .22)
+            translation = x >= (.12 if holding else self.personal_enter.get(direction, .22))
             lean = x >= (.10 if holding else .14) and angle >= (1.5 if holding else 3.)
             if translation or lean:
                 candidate = direction

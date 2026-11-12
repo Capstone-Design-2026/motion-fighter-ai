@@ -48,6 +48,10 @@ def run(a):
         if trained_variant!=variant:raise ValueError('Guard model and Pose variant do not match')
     else:
         engine=DemoEngine(movement=a.movement)
+    if getattr(a,'personal_calibration',False):
+        if getattr(a,'guard_model',None): raise ValueError('Personal calibration requires v26 rules')
+        from .personal import PersonalGestureEngine
+        engine=PersonalGestureEngine(movement=a.movement)
     if cross_path and getattr(a,"guard_model",None):
         raise ValueError("Auxiliary cross pose is supported by the calibrated engine only")
     if a.check:
@@ -84,6 +88,8 @@ def run(a):
             while not stop.wait(.01):
                 with engine.lock:
                     engine.tick();events=engine.drain_events();state=engine.control
+                    if hasattr(engine,'tutorial_context'):
+                        engine.tutorial_context(sender.tutorial_context(),time.monotonic_ns())
                     stamp=engine.last_capture;logs=engine.take_logs();armed=engine.calibrated
                 for item in logs:log.write({'type':'engine','log':item})
                 if not armed:sender.events.clear()
@@ -99,7 +105,9 @@ def run(a):
                     log.write(sender.send('STATE',ttl_ms=ttl,block_active=bool(state.block and fresh),
                         movement=state.movement if fresh else 'NEUTRAL',movement_strength=float(state.movement_strength) if fresh else 0.,
                         tracking=state.tracking if fresh else "STALE",fsm_state=state.attack_state,capture_ns=stamp,
-                        calibration_version=1,calibrated=bool(armed)))
+                        calibration_version=1,calibrated=bool(armed),
+                        calibration_generation=getattr(engine,'calibration_generation',0),
+                        personal_status=engine.trainer.status if hasattr(engine,'trainer') else 'BASELINE V26'))
                 # Deliver a fresh BLOCK release before an attack from that frame.
                 for item in sender.service():log.write(item)
                 if log.error or log.dropped:raise RuntimeError('Diagnostic log failed or overflowed')
@@ -231,6 +239,7 @@ def run(a):
                 if framing['code']!='OK':mode=framing['message']
                 hint=getattr(sender,'game_hint',lambda:'GAME UNKNOWN / SPECIAL UNKNOWN')()
                 prompt=guided_prompt if guide else hint
+                if hasattr(engine,'trainer') and engine.trainer.context: prompt=engine.trainer.status+' | '+engine.trainer.context['action']
                 lines=[f"{mode}  {progress:.0%}   {message}",prompt,
                     f"LEFT {counts['left']}  RIGHT {counts['right']}  X {counts['both']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                     f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
@@ -292,6 +301,8 @@ def run(a):
             'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
             'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
         (out/'summary.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
+    if hasattr(engine,'profile'):
+        (out/'personal_profile.json').write_text(json.dumps(engine.profile(),indent=2))
     if errors:raise RuntimeError(errors)
 
 
@@ -302,6 +313,7 @@ def main():
     p.add_argument('--pose-variant',choices=['Lite','Full'],default='Lite')
     p.add_argument('--cross-pose',type=Path,help='Optional Full asset for same-frame crossed-arm geometry only')
     p.add_argument('--cross-redetect',action=argparse.BooleanOptionalAction,default=True,help='Same-frame independent Full detection for X recovery; requires --cross-pose')
+    p.add_argument('--personal-calibration',action='store_true',help='Bounded per-person tutorial ranges; C resets the profile')
     p.add_argument('--guard-model',type=Path,help='Optional learned confirmation for relaxed guard; match Pose variant')
     p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=5065)
     p.add_argument('--actor',default='DEV01');p.add_argument('--stream-id');p.add_argument('--camera',type=int,default=0)
