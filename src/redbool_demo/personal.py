@@ -17,6 +17,8 @@ ACTIONS = ('JAB', 'STRAIGHT', 'HIGH_KICK', 'LOW_KICK', 'BLOCK',
 class PersonalTrainer:
     def __init__(self):
         self.context = None
+        self.pending_context = None
+        self.drain_until = None
         self.identity = None
         self.samples = {}
         self.cycle = None
@@ -36,8 +38,22 @@ class PersonalTrainer:
                  and context.get('phase') in ('PRACTICE', 'RETURN')
                  and isinstance(context.get('run'), str) and 0 < len(context['run']) <= 100
                  and 0 <= now - context.get('sent_ns', -10**20) <= 500_000_000)
+        fresh_complete = (isinstance(context, dict) and context.get('phase') == 'COMPLETE'
+            and self.context and context.get('run') == self.context['run']
+            and 0 <= now-context.get('sent_ns', -10**20) <= 500_000_000)
         new = (context['run'], context['action']) if valid else None
         old = (self.context['run'], self.context['action']) if self.context else None
+        # The UI may advance immediately after the second accepted event. Finish
+        # its already-started measured return before switching targets. Never
+        # invent a cycle from a prompt or carry one across recalibration/run IDs.
+        same_run = self.context and (valid or fresh_complete) and context['run'] == self.context['run']
+        if new != old and same_run and self.cycle is not None:
+            if self.drain_until is None: self.drain_until = now + 2_000_000_000
+            if now < self.drain_until:
+                self.pending_context = dict(context) if valid else None
+                self.context = {**self.context, 'phase': 'RETURN', 'sent_ns': context['sent_ns']}
+                return
+        self.drain_until = None; self.pending_context = None
         if new != old: self.reset_motion()
         self.context = dict(context) if valid else None
 

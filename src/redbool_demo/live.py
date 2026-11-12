@@ -1,8 +1,8 @@
-"""Explicitly launched demo: camera + lossless processed RGB + FSM + UDP v2.
+"""Explicitly launched demo: camera + configurable review recording + FSM + UDP v2.
 
 The capture latest-slot avoids latency backlog; skipped camera samples are
 counted, never silently represented as recorded frames. The recorder stores
-every processed RGB/Pose pair. No camera is opened by --check.
+every processed Pose observation. Review mode samples compressed RGB at 15 fps. No camera is opened by --check.
 """
 import argparse
 import hashlib
@@ -34,6 +34,8 @@ def run(a):
     from collect_gesture_pilot import PilotVideo,AsyncPilotVideo
     from pose_capture import open_camera
     from realtime_vision.live import Latest,AsyncLog
+    recording=getattr(a,'recording','lossless')
+    if recording not in ('review','logs','lossless'):raise ValueError('Unknown recording mode')
     preview_fps=getattr(a,'preview_fps',15.)
     if not 1<=preview_fps<=60:raise ValueError('preview_fps must be between 1 and 60')
     preview_interval_ns=int(1e9/preview_fps)
@@ -165,15 +167,18 @@ def run(a):
                         'cross_redetect':{'mode':'IMAGE','variant':'Full','scope':'same-frame X recovery only'} if recovery_pose else None,
                         'camera_requested_fps':30,'preview_target_fps':preview_fps,'opencv_threads':1,
                         'guard_model':engine.posture_model.meta if getattr(a,'guard_model',None) else None,
-                        'stream_id':stream,'scope':'processed RGB + Pose + FSM; not human ground truth',
-                        'all_successful_captures_saved':False,'frame_policy':'latest camera slot; all processed frames saved'})
+                        'stream_id':stream,'recording_mode':recording,'scope':'full-rate Pose + FSM; optional RGB; not human ground truth',
+                        'all_successful_captures_saved':False,'frame_policy':'full-rate pose; review RGB 15fps, lossless RGB full-rate, logs no RGB'})
                 recorder.update_manifest(actual_resolution=[bgr.shape[1],bgr.shape[0]],camera_backend=cap.getBackendName())
-                raw=PilotVideo(cv,recorder,(bgr.shape[1],bgr.shape[0]),30,'ffv1',override_fps=30)
-                raw.metadata.update(recording_scope=['DEMO'],timebase='processed frames; use original capture timestamps')
-                raw.verification_progress=lambda done,total: print(
-                    f"영상 저장 확인: {done}/{total} 프레임 ({100*done/max(1,total):.0f}%)",flush=True)
-                video=AsyncPilotVideo(raw,32)
-                recorder.update_manifest(video=raw.metadata)
+                if recording!='logs':
+                    if recording=='lossless':
+                        raw=PilotVideo(cv,recorder,(bgr.shape[1],bgr.shape[0]),30,'ffv1',override_fps=30)
+                        raw.metadata.update(recording_scope=['DEMO'],timebase='processed frames; use original capture timestamps')
+                    else:
+                        from .compact_video import CompactVideo
+                        raw=CompactVideo(cv,recorder,(bgr.shape[1],bgr.shape[0]),15)
+                    video=AsyncPilotVideo(raw,32)
+                    recorder.update_manifest(video=raw.metadata)
             # One immutable RGB sample goes to independent model instances.
             # Await this frame before publishing; no auxiliary backlog or stale reuse.
             image=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
@@ -210,7 +215,7 @@ def run(a):
                     visibility=tuple(recovery_data['visibility']) or None,pose_present=bool(recovery_data['landmarks']))
                 aux=(aux,recovery)
             state=engine.process(obs,special_observation=aux) if cross_data is not None else engine.process(obs)
-            video.write(bgr,rgb,frame,trial_state='DEMO')
+            if video is not None:video.write(bgr,rgb,frame,trial_state='DEMO')
             framing=framing_status(obs,engine.config.visibility);framing_counts[framing['code']]+=1
             counts['processed']+=1;pose_ms=(end-start)/1e6
             engine_end=time.monotonic_ns();pose_samples.append(pose_ms);age_samples.append((engine_end-stamp)/1e6)
@@ -280,7 +285,7 @@ def run(a):
         for item in engine.take_logs():log.write({'type':'engine','log':item})
         log.close()
         if log.error or log.dropped:errors.append({'where':'log','error':log.error,'dropped':log.dropped})
-        print("촬영 종료. 저장된 영상의 무결성을 검사합니다. 영상 길이에 따라 잠시 걸릴 수 있습니다.",flush=True)
+        print("촬영 종료. 기록을 마무리합니다. 원본 데이터는 삭제하지 않습니다.",flush=True)
         if video is not None:
             try:video.close()
             except BaseException as exc:errors.append({'where':'video','error':repr(exc)})
@@ -298,7 +303,7 @@ def run(a):
             'opencv_threads':1,'frame_policy':'latest camera sample; preview throttling never skips recognition or recording'}
         report={'performance':performance,'framing':dict(framing_counts),'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
             'camera_slot_drops':slot.dropped,'duration_seconds':time.monotonic()-started,
-            'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
+            'recording_mode':recording,'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
             'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
         (out/'summary.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
     if hasattr(engine,'profile'):
@@ -324,6 +329,7 @@ def main():
     p.add_argument('--movement',action='store_true');p.add_argument('--mirror',action=argparse.BooleanOptionalAction,default=True,
         help='Mirror only the preview (default); --no-mirror shows the original camera view. Recognition and recording stay unmirrored.')
     p.add_argument('--preview-fps',type=float,default=15.,help='Camera window refresh only; recognition remains full rate (1-60)')
+    p.add_argument('--recording',choices=['review','logs','lossless'],default='review',help='review: compressed 15fps MP4; logs: no video; lossless: full RGB. Pose inference stays 30fps.')
     p.add_argument('--check',action='store_true');a=p.parse_args()
     if a.pose is None:
         a.pose=Path('pose_landmarker.task' if a.pose_variant=='Lite' else 'local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task')
