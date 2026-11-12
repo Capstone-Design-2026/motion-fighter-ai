@@ -3,7 +3,8 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 필살기 파운장(破雲掌). 맞을 때마다 게이지가 차고, 다 차면 기를 모았다가 양 손바닥으로 기파를 밀어낸다.
+/// 필살기 파운장(破雲掌). 내 공격이 맞을 때마다 게이지가 차고, 다 차면 기를 모았다가 양 손바닥으로 기파를 밀어낸다.
+/// 게이지는 일반 공격이 막히지 않고 들어갔을 때만 찬다(2026-11-13). 막힌 공격, 내가 맞거나 막은 타격, 파운장 자체의 적중은 세지 않는다.
 ///
 /// 흐름
 ///   발동  : 짧은 슬로우와 컷인(破雲掌), 화면 줌·블룸.
@@ -27,8 +28,10 @@ public class SpecialMove : MonoBehaviour
     public enum Result { None, Hit, Blocked, Whiffed, Broken }
 
     [Header("게이지")]
-    [Tooltip("이만큼 맞으면 1회 사용할 수 있다. 가드로 막은 타격도 한 번으로 친다.")]
+    [Tooltip("내 일반 공격을 이만큼 맞히면 1회 사용할 수 있다. 막힌 공격과 파운장 자체의 적중은 세지 않는다.")]
     [SerializeField] private int hitsToCharge = 5;
+    [Tooltip("켜면 내가 맞았을 때도(막은 타격은 제외) 1칸 찬다. 기본은 꺼짐: 공격이 들어갔을 때만 찬다.")]
+    [SerializeField] private bool chargeWhenHit = false;
 
     [Header("피해량")]
     [Tooltip("기파 정타 피해. 끝까지 모으면 fullChargeBonus 만큼 늘어난다.")]
@@ -120,12 +123,14 @@ public class SpecialMove : MonoBehaviour
     void OnEnable()
     {
         health.OnDamaged += OnDamaged;
+        fighter.AttackLanded += OnAttackLanded;
         OnChargeChanged?.Invoke(charge, hitsToCharge);
     }
 
     void OnDisable()
     {
         health.OnDamaged -= OnDamaged;
+        fighter.AttackLanded -= OnAttackLanded;
         if (routine != null) { StopCoroutine(routine); routine = null; Cleanup(!fighter.InputLocked); }
         ClearReadyFx();
     }
@@ -213,10 +218,17 @@ public class SpecialMove : MonoBehaviour
         return true;
     }
 
+    /// <summary>맞으면 모으던 기가 끊긴다. 맞거나 막는 것으로는 게이지가 차지 않는다(chargeWhenHit 을 켜면 맞았을 때만 찬다).</summary>
     void OnDamaged(bool guarded)
     {
         if (IsCharging || (phase == Phase.Releasing && !waveLaunched)) interrupted = true;
-        else if (!IsPlaying) AddCharge();
+        else if (chargeWhenHit && !guarded && !IsPlaying) AddCharge();
+    }
+
+    /// <summary>내 일반 공격이 막히지 않고 들어갔다 → 게이지 1칸.</summary>
+    void OnAttackLanded(Fighter target)
+    {
+        if (!IsPlaying) AddCharge();
     }
 
     // ─────────────────────── 진행 ───────────────────────

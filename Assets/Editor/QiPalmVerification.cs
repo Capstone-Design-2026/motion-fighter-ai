@@ -119,6 +119,36 @@ public static class QiPalmVerification
         // 1. 게이지가 없으면 나가지 않는다
         special.ResetCharge(); Check(!special.BeginCharge() && !special.IsPlaying, "not ready: no charge");
 
+        // 1-1. 게이지는 내 공격이 막히지 않고 들어갔을 때만 찬다. 맞거나 막는 것, 막힌 공격으로는 차지 않는다.
+        Position(-.4f, .4f); ph.ResetHealth(); eh.ResetHealth(); special.ResetCharge();
+        for (var w = Wait(.6f); w.MoveNext();) yield return null;
+        int hpBefore = ph.CurrentHealth; enemyF.TryAttack(CombatMove.Jab);
+        for (var w = Wait(1.4f); w.MoveNext();) yield return null;
+        Check(ph.CurrentHealth < hpBefore && special.Charge == 0, "taking a hit does not fill the gauge: hp " + hpBefore + "→" + ph.CurrentHealth + " gauge " + special.Charge);
+        Position(-.4f, .4f); bool guardUp = playerF.TryGuard(false);
+        for (var w = Wait(.5f); w.MoveNext();) yield return null;
+        hpBefore = ph.CurrentHealth; bool blockedOne = false; Action<bool> onBlock = g => { if (g) blockedOne = true; }; ph.OnDamaged += onBlock;
+        enemyF.TryAttack(CombatMove.Jab);
+        for (var w = Wait(1.6f); w.MoveNext();) yield return null;
+        ph.OnDamaged -= onBlock; playerF.ReleaseGuard();
+        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
+        for (var w = Wait(.8f); w.MoveNext();) yield return null;
+        Position(-.4f, .4f); bool foeGuard = enemyF.TryGuard(false);
+        for (var w = Wait(.5f); w.MoveNext();) yield return null;
+        int foeHp = eh.CurrentHealth; playerF.TryAttack(CombatMove.Jab);
+        for (var w = Wait(1.6f); w.MoveNext();) yield return null;
+        enemyF.ReleaseGuard();
+        Check(foeGuard && eh.CurrentHealth == foeHp && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
+        for (var w = Wait(.8f); w.MoveNext();) yield return null;
+        for (int n = 1; n <= 2; n++)
+        {
+            Position(-.4f, .4f); for (var w = Wait(.9f); w.MoveNext();) yield return null;
+            foeHp = eh.CurrentHealth; playerF.TryAttack(n == 1 ? CombatMove.Jab : CombatMove.Straight);
+            for (var w = Wait(1.7f); w.MoveNext();) yield return null;
+            Check(eh.CurrentHealth < foeHp && special.Charge == n, "a landed " + (n == 1 ? "jab" : "straight") + " fills the gauge by one: gauge " + special.Charge);
+        }
+        for (var w = Wait(.6f); w.MoveNext();) yield return null;
+
         // 2. 정타 (녹화)
         Position(-1.25f, 1.25f); ph.ResetHealth(); eh.ResetHealth(); Ready();
         for (var w = Wait(.6f); w.MoveNext();) yield return null;
@@ -265,6 +295,7 @@ public static class QiPalmVerification
         special.Activate();
         for (var w = Until(() => eh.IsDead, 4f); w.MoveNext();) yield return null;
         Check(eh.IsDead && special.LastResult == SpecialMove.Result.Hit, "special K.O.");
+        Check(special.Charge == 0, "the special's own hit does not refill the gauge: gauge " + special.Charge);
         for (var w = Wait(1.2f); w.MoveNext();) yield return null;
         Still("05_ko");
         recording = false; Time.captureFramerate = 0;

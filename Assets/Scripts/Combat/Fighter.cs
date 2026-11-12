@@ -172,6 +172,9 @@ public class Fighter : MonoBehaviour
     /// <summary>방어로 상대 공격을 막아낸 순간.</summary>
     public event Action GuardBlocked;
 
+    /// <summary>내 일반 공격이 막히지 않고 상대에게 들어간 순간(직격). 인자는 맞은 상대. 필살기 게이지가 이걸로 찬다.</summary>
+    public event Action<Fighter> AttackLanded;
+
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
     private int nextAttackId;
@@ -255,6 +258,7 @@ public class Fighter : MonoBehaviour
             if (targetGuarding) target.EndGuard();
             preciseLanded = true;
             target.Health.ExtendStun(hitStunBonus);
+            AttackLanded?.Invoke(target);
         }
 
         HitVfx.Play(point,guarded);
@@ -565,6 +569,7 @@ public class Fighter : MonoBehaviour
                 {
                     landed = true;
                     targetHealth.ExtendStun(hitStunBonus);
+                    AttackLanded?.Invoke(targetFighter);
                 }
             }
 
