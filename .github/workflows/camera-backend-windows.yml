@@ -6,6 +6,7 @@ on:
     branches: [codex/tutorial-personal-pvp-20261112]
     paths:
       - src/**
+      - tests/**
       - scripts/build_camera_backend.py
       - scripts/camera_backend_entry.py
       - scripts/check_camera_backend.py
