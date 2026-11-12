@@ -15,9 +15,12 @@ public static class RedboolLocalDemoBuild
         var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
         if (scenes.Length == 0 || scenes.Any(s => !File.Exists(s))) throw new Exception("Missing build scenes.");
         RedboolInputSelfCheck.Run();
+        RedboolViewSelfCheck.Run();
         Directory.CreateDirectory(Path.GetDirectoryName(output));
+        var target = Environment.GetEnvironmentVariable("REDBOOL_BUILD_TARGET")=="windows" ? BuildTarget.StandaloneWindows64 : BuildTarget.StandaloneOSX;
+        PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone,ScriptingImplementation.Mono2x);
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
-            scenes = scenes, locationPathName = output, target = BuildTarget.StandaloneOSX,
+            scenes = scenes, locationPathName = output, target = target,
             options = BuildOptions.Development
         });
         var summary = report.summary;
@@ -29,6 +32,6 @@ public static class RedboolLocalDemoBuild
             "\nErrors: " + summary.totalErrors + "\nWarnings: " + summary.totalWarnings +
             "\nBytes: " + summary.totalSize + "\nSeconds: " + summary.totalTime.TotalSeconds +
             "\nOutput: " + output + "\n" + String.Join("\n", scenes));
-        if (summary.result != BuildResult.Succeeded) throw new Exception("Mac build failed: " + summary.result);
+        if (summary.result != BuildResult.Succeeded) throw new Exception("Standalone build failed: " + summary.result);
     }
 }

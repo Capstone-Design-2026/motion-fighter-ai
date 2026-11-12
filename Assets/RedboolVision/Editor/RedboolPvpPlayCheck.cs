@@ -15,6 +15,15 @@ using Object=UnityEngine.Object;
 public static class RedboolPvpPlayCheck
 {
  const string Active="RedboolPvpPlayCheck.Active", SaveKey="VisionStriker.Run";
+ static System.Diagnostics.Process guest;
+ static string GuestBinary=>Environment.GetEnvironmentVariable("REDBOOL_DUAL_CLIENT");
+ static void StartGuest(){
+  var info=new System.Diagnostics.ProcessStartInfo(GuestBinary,"--redbool-pvp-client 127.0.0.1 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -logFile \""+Path.Combine(Output,"guest.log")+"\"") {UseShellExecute=false};
+  info.EnvironmentVariables["REDBOOL_VIEW_TRACE_FILE"]=Path.Combine(Output,"guest-"+DateTime.UtcNow.Ticks+".jsonl");
+  info.EnvironmentVariables["REDBOOL_VIEW_CAPTURE_DIR"]=Output;
+  guest=System.Diagnostics.Process.Start(info);
+ }
+ static void StopGuest(){if(guest!=null){if(!guest.HasExited){guest.Kill();guest.WaitForExit(5000);}guest.Dispose();guest=null;}}
  static IEnumerator flow;static int frame=-1;static readonly UdpClient[] clients=new UdpClient[2];
  static readonly long[] sequences=new long[2];static readonly double[] nextSync=new double[2];
  static readonly bool[] calibrated={true,true},block={false,false},send={true,true};
@@ -86,12 +95,14 @@ public static class RedboolPvpPlayCheck
   yield return null;yield return null;
   Check(GameObject.Find("PvpButton")!=null,"Menu exposes PvP entry");
   string save=PlayerPrefs.GetString(SaveKey,"");
-  RedboolPvp.Begin();yield return null;yield return null;yield return null;
+  if(!String.IsNullOrEmpty(GuestBinary)){RedboolPvp.HostDual();StartGuest();}else RedboolPvp.Begin();yield return null;yield return null;yield return null;
   Check(SceneManager.GetActiveScene().name=="ScoutPass","Both humans use authored ScoutPass arena");
   Check(Object.FindObjectsByType<PlayerController>(FindObjectsSortMode.None).Length==2,"Exactly two human controllers");
   Check(Object.FindAnyObjectByType<EnemyAI>()==null,"No active AI opponent in PvP");
   Check(!Object.FindAnyObjectByType<BattleSceneBridge>().enabled,"Campaign bridge disabled before Start");
   Check(Game.Players[0].GetComponent<Fighter3DView>().modelAnimator.isHuman && Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.isHuman,"Both use humanoid character animations");
+  Check(Game.Players[1].GetComponent<Fighter3DView>().visualRoot.name.Contains("Cheolmun"),"2P uses authored Cheolmun visual");
+  Check(GameObject.Find("PvpSpecialGauge0")!=null &&GameObject.Find("PvpSpecialGauge1")!=null,"Both participants have original-style charge bars");
   Check(Game.Receivers[0].port==5065&&Game.Receivers[1].port==5066,"Separate sockets assigned P1 and P2");
   for(int i=0;i<2;i++){clients[i]=new UdpClient();clients[i].Connect(IPAddress.Loopback,5065+i);}
   for(var w=Pump(.6f);w.MoveNext();)yield return null;
@@ -103,7 +114,17 @@ public static class RedboolPvpPlayCheck
   generation[0]++;for(var w=Pump(.2f);w.MoveNext();)yield return null;
   for(var w=Practice();w.MoveNext();)yield return null;
   for(var w=Pump(1.3f);w.MoveNext();)yield return null;
-  Check(Game.CanFight,"Both complete + fresh neutral opens one shared round");Shot("pvp_ready");
+  Check(Game.CanFight,"Both complete + fresh neutral opens one shared round");
+  if(guest!=null) {
+   Check(Game.ViewLink.PeerReady,"Real second game acknowledges complete snapshots");
+   StopGuest();for(var w=Pump(.4f);w.MoveNext();)yield return null;
+   Check(!Game.CanFight,"Second screen exit pauses both players");float stopped=Game.Remaining;
+   Gesture(0,"LEFT_PUNCH","view-disconnected");for(var w=Pump(.2f);w.MoveNext();)yield return null;
+   Check(Game.Remaining==stopped && replies["view-disconnected"].status=="INPUT_LOCKED","Missing display freezes timer and rejects attacks");
+   StartGuest();double reconnectDeadline=Time.realtimeSinceStartupAsDouble+12;
+   while(!Game.CanFight &&Time.realtimeSinceStartupAsDouble<reconnectDeadline) {for(var w=Pump(.1f);w.MoveNext();)yield return null;}
+   Check(Game.CanFight &&Game.ViewLink.PeerReady,"Restarted second game rejoins current match without replaying attacks");
+  }Shot("pvp_ready");
   for(int i=0;i<2;i++)Check(!Game.Players[i].GetComponent<Fighter>().VisionPreparationLocked,"P"+(i+1)+" unlocked");
   Gesture(0,"LEFT_PUNCH","p1-jab");Gesture(1,"RIGHT_PUNCH","p2-straight");
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
@@ -126,6 +147,9 @@ public static class RedboolPvpPlayCheck
   send[1]=true;for(var w=Pump(1.5f);w.MoveNext();)yield return null;
   Check(Game.CanFight,"Reconnect resumes without replaying old attacks");
   for(int i=0;i<2;i++)Game.Players[i].GetComponent<SpecialMove>().AddCharge(5);
+  for(var w=Pump(.2f);w.MoveNext();)yield return null;
+  for(int i=0;i<2;i++) {var gauge=GameObject.Find("PvpSpecialGauge"+i).GetComponent<WuxiaCombatBar>();Check(gauge.Ready &&gauge.FillRatio==1,"P"+(i+1)+" charge bar fills and signals ready");}
+  Shot("pvp_special_ready");
   Gesture(0,"SPECIAL","special-p1");Gesture(1,"SPECIAL","special-p2");for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(replies["special-p1"].status=="APPLIED"&&replies["special-p2"].status=="APPLIED","Both X specials start without global cut-in ownership conflict");
   Check(Time.timeScale>.9f,"PvP specials do not impose competing global slow motion");
@@ -166,7 +190,7 @@ public static class RedboolPvpPlayCheck
   Check(!RedboolPvp.Active&&SceneManager.GetActiveScene().name==SceneRoutes.Start&&Time.timeScale==1,"Exit restores menu, clock and story mode");
  }
  static void Finish(string failure){
-  SessionState.SetBool(Active,false);EditorApplication.update-=Tick;foreach(var c in clients)c?.Close();
+  StopGuest();SessionState.SetBool(Active,false);EditorApplication.update-=Tick;foreach(var c in clients)c?.Close();
   if(SessionState.GetBool(Active+".HadSave",false))PlayerPrefs.SetString(SaveKey,SessionState.GetString(Active+".Save",""));else PlayerPrefs.DeleteKey(SaveKey);PlayerPrefs.Save();
   File.WriteAllText(Path.Combine(Output,"result.txt"),(failure==null?"PASS\n":"FAIL\n"+failure+"\n")+checks.Count+" checks");EditorApplication.Exit(failure==null?0:1);
  }

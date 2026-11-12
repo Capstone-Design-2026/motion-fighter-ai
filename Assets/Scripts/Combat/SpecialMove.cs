@@ -70,6 +70,7 @@ public class SpecialMove : MonoBehaviour
     public event Action<int, int> OnChargeChanged;
 
     public int Charge => charge;
+    public float VisualChargeLevel => level;
     public int HitsToCharge => hitsToCharge;
     public bool IsReady => charge >= hitsToCharge;
     public bool IsPlaying => phase != Phase.Idle;
@@ -331,6 +332,7 @@ public class SpecialMove : MonoBehaviour
 
     void OnWaveHit(QiWave wave, Health target, bool guarded, Vector3 point)
     {
+        RedboolViewLink.RecordEffect(point,guarded?3:2);
         LastResult = guarded ? Result.Blocked : Result.Hit;
         // 유지형 방어는 막아도 풀리지 않는다. 파운장은 기가 방어를 뚫고 들어가 방어를 풀어 버린다.
         if (guarded) target.GetComponent<Fighter>()?.ReleaseGuard();

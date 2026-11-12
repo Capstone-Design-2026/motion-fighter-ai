@@ -23,6 +23,7 @@ public class UDPWebcamReceiver : MonoBehaviour
 
     void OnEnable()
     {
+        if(RedboolPvp.Active) {if(miniMapRawImage!=null) miniMapRawImage.gameObject.SetActive(false);enabled=false;return;}
         webcamTexture = new Texture2D(320, 240, TextureFormat.RGB24, false);
         if (miniMapRawImage != null) miniMapRawImage.texture = webcamTexture;
         try
