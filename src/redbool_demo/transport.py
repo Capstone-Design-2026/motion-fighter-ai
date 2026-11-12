@@ -4,10 +4,33 @@ from realtime_vision.transport import Sender
 
 
 class DemoSender(Sender):
+    TERMINAL=('APPLIED','DUPLICATE_EVENT','GAME_BUSY','NO_PLAYER','INPUT_LOCKED','UNASSIGNED',
+              'TUTORIAL_APPLIED','BAD_GESTURE','BAD_KIND','NOT_CHARGED','NO_SPECIAL')
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.events={};self.delivery=Counter();self.last_status='WAITING FOR RECEIVER'
         self.feedback={};self.feedback_sequence=-1;self.tutorial={}
+        self.expired_diagnostics={};self.last_status_event_id=None
+
+    def _late_ack(self,ack,received_ns):
+        """Reconcile diagnostics only. An expired event is never put back on the wire."""
+        eid=ack.get('event_id');status=ack.get('status','').upper()
+        item=self.expired_diagnostics.get(eid)
+        if item is None or status not in self.TERMINAL+('EXPIRED',):return None
+        old=item['outcome']
+        def rank(value):
+            return 3 if value in ('APPLIED','TUTORIAL_APPLIED','DUPLICATE_EVENT') else 1 if value=='EXPIRED' else 2 if value else 0
+        # A late EXPIRED reply from a retry cannot erase an earlier APPLIED
+        # outcome. Conversely a later APPLIED reply resolves that ambiguity.
+        if rank(status)<=rank(old):return None
+        if old:self.delivery['late_ack_'+old]-=1
+        else:self.delivery['expired_unconfirmed']-=1
+        self.delivery['late_ack_'+status]+=1;item['outcome']=status
+        if self.last_status_event_id==eid:self.last_status=status+' (LATE ACK)'
+        return {'type':'late_event_ack','event_id':eid,'status':status,'previous_status':old,
+                'event_expires_ns':item['expires_ns'],'ack_receive_ns':received_ns,
+                'after_expiry_ms':(received_ns-item['expires_ns'])/1e6,
+                'scope':'diagnostic reconciliation only; no input replay'}
 
     def game_hint(self, now_ns=None):
         now=self.clock_ns() if now_ns is None else now_ns
@@ -29,6 +52,9 @@ class DemoSender(Sender):
 
     def service(self):
         rows=super().service();now=self.clock_ns()
+        self.expired_diagnostics={eid:item for eid,item in self.expired_diagnostics.items()
+                                  if now-item['recorded_ns']<=5_000_000_000}
+        late_rows=[]
         for row in rows:
             if row['type']!='ack':continue
             ack=row['ack'];status=ack.get('status','').upper();eid=ack.get('event_id')
@@ -43,14 +69,21 @@ class DemoSender(Sender):
                 self.tutorial={'sent_ns':sent,'run':ack.get('tutorial_run',''),
                     'action':ack.get('tutorial_action',''),'phase':ack.get('tutorial_phase',''),
                     'hits':ack.get('tutorial_hits',0)}
-            if eid in self.events and status in ('APPLIED','DUPLICATE_EVENT','GAME_BUSY','NO_PLAYER','INPUT_LOCKED','UNASSIGNED','TUTORIAL_APPLIED','BAD_GESTURE','BAD_KIND','NOT_CHARGED','NO_SPECIAL'):
+            if eid in self.events and status in self.TERMINAL:
                 self.events.pop(eid)
-                self.delivery[status]+=1;self.last_status=status
+                self.delivery[status]+=1;self.last_status=status;self.last_status_event_id=eid
+            elif eid in self.expired_diagnostics:
+                late=self._late_ack(ack,row['ack_receive_ns'])
+                if late:late_rows.append(late)
+        rows.extend(late_rows)
         for eid,item in list(self.events.items()):
             event=item['event'];remaining=int((event.expires_ns-now)//1_000_000)-1
             if remaining<=0:
                 self.events.pop(eid);self.delivery['expired_without_ack']+=1
-                self.last_status='EVENT EXPIRED WITHOUT ACK';continue
+                self.delivery['expired_unconfirmed']+=1
+                self.expired_diagnostics[eid]={'expires_ns':event.expires_ns,'recorded_ns':now,'outcome':None}
+                while len(self.expired_diagnostics)>128:self.expired_diagnostics.pop(next(iter(self.expired_diagnostics)))
+                self.last_status='EVENT EXPIRED WITHOUT ACK';self.last_status_event_id=eid;continue
             if self.clock and item['sent']<3 and now-item['last']>=35_000_000:
                 gesture=event.reason.get('gesture')
                 rows.append(self.send('GESTURE' if gesture else 'ATTACK',ttl_ms=min(150,remaining),event_id=eid,side=event.side,

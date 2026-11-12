@@ -38,11 +38,14 @@ class SixAttack(DemoAttack):
     guard_probability = 0.
 
     @staticmethod
-    def guard_position(arm, base):
+    def guard_position(arm, base, *, allow_calibrated_floor=False):
         dx, dy = arm['position'][:2] - base['position'][:2]
         # Accommodate eye-height calibration followed by a relaxed chin guard.
         # The absolute shoulder-relative height prevents drift into hands-down rest.
-        return abs(dx) <= .35 and -.30 <= dy <= .45 and arm['position'][1] <= .20
+        # Calibrated low guards can re-arm, but must not broaden the other-hand
+        # support proof used by extra body-punch routes without reviewed evidence.
+        floor = max(.20, min(.45, float(base['position'][1]) + .08)) if allow_calibrated_floor else .20
+        return abs(dx) <= .35 and -.30 <= dy <= .45 and arm['position'][1] <= floor
 
     @classmethod
     def supporting_guard(cls, arm, base):
@@ -120,7 +123,7 @@ class SixAttack(DemoAttack):
             dx, dy = arm['position'][:2] - base['position'][:2]
             if self.learned_guard_required and dy > .30 and self.guard_probability < .80:
                 return False
-            if not (self.guard_position(arm, base)
+            if not (self.guard_position(arm, base, allow_calibrated_floor=True)
                     and arm['speed_xy'] <= self.cfg.neutral_speed
                     and arm['angle'] <= 1.5
                     and arm['angle3d'] is not None
@@ -294,7 +297,7 @@ class SixGestureEngine(DemoEngine):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = replace(self.config, version='seated-cross-recovery-20261111-v26')
+        self.config = replace(self.config, version='seated-cross-recovery-20261111-v26+field-v32')
         self._components()
 
     @property
@@ -583,6 +586,26 @@ class SixGestureEngine(DemoEngine):
                         self.forward_sides.add(side)
                     elif not compact_forward:
                         self.compact_forward_proof.pop(side,None)
+                    # A bent forearm lifted above its own shoulder is a raise,
+                    # even when monocular depth spuriously straightens the elbow.
+                    # Only arbitrate an uncommitted, predominantly upward stroke;
+                    # never relabel an already extended punch during its return.
+                    shoulder, elbow, wrist = (11, 13, 15) if side == 'LEFT' else (12, 14, 16)
+                    folded_upward = (not self.attack.units[side].unreturned_punch
+                        and d[1] <= -.40 and abs(d[0]) <= .35
+                        and abs(d[1]) > abs(d[0]) * 1.2
+                        and arm['angle3d'] is not None and arm['angle3d'] < 2.6
+                        and arm['angle'] <= 1.6 and span > 1e-6
+                        # A camera-directed upper arm is foreshortened; keep
+                        # that forward route unless the elbow visibly lifts
+                        # out to the side as well as up.
+                        and abs(points[elbow,0] - points[shoulder,0]) / span >= .40
+                        and (points[elbow,1] - points[shoulder,1]) / span <= .20
+                        and (points[elbow,1] - points[wrist,1]) / span >= .50)
+                    if folded_upward:
+                        self.forward_sides.discard(side)
+                        self.forward_proof.pop(side, None)
+                        self.compact_forward_proof.pop(side, None)
             else:
                 self.forward_proof.clear();self.compact_forward_proof.clear()
             self.special_inhibited = self.special.owned or (not self.special.latched and approach)

@@ -26,22 +26,35 @@ class CrossRecoveryRecordingTests(unittest.TestCase):
                     events.extend({'frame':x.source_frame_id,'gesture':x.reason.get('gesture',x.side+'_PUNCH')} for x in e.drain_events(now));e.take_logs()
                     if o.frame_id in marks:e.request_calibration();e.calibrating=marks[o.frame_id]=='CALIBRATE'
             cls.results.append((spec,events))
-    def test_all_prior_true_attacks_and_special_holds_preserved(self):
+        if os.environ.get('REDBOOL_REPLAY_REPORT'):
+            Path(os.environ['REDBOOL_REPLAY_REPORT']).write_text(json.dumps(cls.results))
+    def test_prior_events_preserved_except_video_reviewed_corrections(self):
         for spec,events in self.results:
             for old in json.loads(Path(spec['baseline']).read_text()):
                 if old['frame'] in spec['false_punch_frames']:continue
+                # RGB re-review: this is the return from the preceding raise,
+                # not a second punch. Preserve the raised hold, not the error.
+                if spec['name']=='three' and old['frame']==5520:continue
                 target=spec.get('earlier_same_hold',{}).get(str(old['frame']),old['frame'])
-                self.assertTrue(any(x['gesture']==old['gesture'] and abs(x['frame']-target)<=15 for x in events),(spec['name'],old))
+                # RGB re-review (2026-11-13): the fist rises above the head
+                # with a visibly bent elbow here; the old punch label was wrong.
+                expected='RIGHT_RAISE' if spec['name']=='latest' and old['frame']==12111 else old['gesture']
+                self.assertTrue(any(x['gesture']==expected and abs(x['frame']-target)<=15 for x in events),(spec['name'],old))
     def test_reviewed_x_as_punch_errors_removed(self):
         for spec,events in self.results:
             for frame in spec['false_punch_frames']:
                 self.assertFalse(any('PUNCH' in x['gesture'] and abs(x['frame']-frame)<=15 for x in events),(spec['name'],frame))
-    def test_only_reviewed_specials_added_no_extra_attacks(self):
+    def test_only_reviewed_additions_and_removals(self):
         for spec,events in self.results:
             old=json.loads(Path(spec['baseline']).read_text())
             self.assertEqual(len(events),len(old)-len(spec['false_punch_frames'])+len(spec['new_special_frames']),spec['name'])
             for frame in spec['new_special_frames']:
                 self.assertTrue(any(x['gesture']=='SPECIAL' and abs(x['frame']-frame)<=15 for x in events),(spec['name'],frame))
+            if spec['name']=='three':
+                self.assertFalse(any(x['gesture']=='RIGHT_PUNCH' and abs(x['frame']-5520)<=15 for x in events))
+                # A separate, RGB-confirmed overhead raise was previously lost.
+                # One corrected removal and one addition leave total unchanged.
+                self.assertTrue(any(x['gesture']=='RIGHT_RAISE' and abs(x['frame']-5559)<=10 for x in events))
     def test_block_punch_and_special_followups_kept(self):
         spec,events=next(x for x in self.results if x[0]['name']=='latest')
         for old in json.loads(Path(spec['baseline']).read_text()):

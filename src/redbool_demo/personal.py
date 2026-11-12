@@ -24,6 +24,8 @@ class PersonalTrainer:
         self.cycle_details = {}
         self.cycle = None
         self.rest_since = None
+        self.last_rest_ns = None
+        self.shared_rest = False
         self.armed = False
         self.last_ns = None
         self.status = 'BASELINE V26'
@@ -31,6 +33,8 @@ class PersonalTrainer:
     def reset_motion(self):
         self.cycle = None
         self.rest_since = None
+        self.last_rest_ns = None
+        self.shared_rest = False
         self.armed = False
 
     def set_context(self, context, now):
@@ -55,7 +59,18 @@ class PersonalTrainer:
                 self.context = {**self.context, 'phase': 'RETURN', 'sent_ns': context['sent_ns']}
                 return
         self.drain_until = None; self.pending_context = None
-        if new != old: self.reset_motion()
+        if new != old:
+            # A prompt change must not erase the guard that was just measured
+            # while completing the previous step. Carry only common guarded
+            # rest from the same run, never a target hold or an X-only release.
+            carry = (same_run and valid and context['phase'] == 'PRACTICE'
+                and self.shared_rest and self.last_rest_ns is not None
+                and 0 <= now-self.last_rest_ns <= 100_000_000)
+            rest = (self.rest_since,self.last_rest_ns,self.armed)
+            self.reset_motion()
+            if carry:
+                self.rest_since,self.last_rest_ns,self.armed = rest
+                self.shared_rest = True
         self.context = dict(context) if valid else None
 
     def observe(self, row, now):
@@ -68,6 +83,8 @@ class PersonalTrainer:
             self.reset_motion(); return None
         action = self.context['action']
         if row['rest']:
+            self.last_rest_ns = now
+            self.shared_rest = bool(row.get('shared_rest'))
             if self.rest_since is None: self.rest_since = now
             if now - self.rest_since < 150_000_000: return None
             self.armed = True
@@ -89,11 +106,20 @@ class PersonalTrainer:
                         return action, min(pair)
             return None
         self.rest_since = None
+        self.last_rest_ns = None
+        self.shared_rest = False
         if self.cycle is not None and now - self.cycle['start'] > 4_000_000_000:
             self.reset_motion(); return None
         # The game acknowledges a punch before its measured peak. Preserve a
         # geometry-proven onset from PRACTICE when that ACK changes to RETURN.
         # A prompt or a RETURN-only pose still cannot start a training cycle.
+        if (self.cycle is None and self.context['phase'] == 'PRACTICE'
+                and row.get('verified_commit') and row['target'] and not row.get('conflict')):
+            # A same-frame v26 event already proves its normal physical rearm.
+            # This only starts measurement; independent peak geometry, return
+            # and two consistent complete cycles are still mandatory below.
+            self.cycle = {'start': now, 'last': now, 'frames': 0, 'targets':0, 'peak': 0.,'speed':0.}
+            self.armed = False
         if (self.cycle is None and self.armed and self.context['phase'] == 'PRACTICE'
                 and row.get('onset') and not row.get('conflict')):
             self.cycle = {'start': now, 'last': now, 'frames': 0, 'targets':0, 'peak': 0.,'speed':0.}
@@ -133,7 +159,7 @@ class PersonalGestureEngine(SixGestureEngine):
         with self.lock:
             defaults = dict(JAB=.32, STRAIGHT=.32, HIGH_KICK=.40, LOW_KICK=.40,
                             BLOCK=.32, MOVE_LEFT=.22, MOVE_RIGHT=.22,JAB_SPEED=.8,STRAIGHT_SPEED=.8)
-            return {'schema': 1, 'baseline': 'v26', 'identity': self.identity,
+            return {'schema': 1, 'baseline': 'v26', 'engine_version': self.config.version, 'identity': self.identity,
                     'calibration_generation': self.calibration_generation,
                     'samples': {k:list(v) for k,v in self.trainer.samples.items()}, 'changes': dict(self.personal_changes),
                     'cycle_details': {k:list(v) for k,v in self.trainer.cycle_details.items()},
@@ -149,7 +175,7 @@ class PersonalGestureEngine(SixGestureEngine):
         d = {s:a['position']-anchors[s]['position'] for s,a in arms.items()}
         guard = all(self.attack.units[s].guard_neutral({s:a}) for s,a in arms.items())
         rest = guard and state.movement == 'NEUTRAL' and not self.special.owned and not state.block
-        result = dict(valid=True,rest=rest,target=False,amount=0.,conflict=False)
+        result = dict(valid=True,rest=rest,shared_rest=rest,target=False,amount=0.,conflict=False)
         if target in ('JAB','STRAIGHT'):
             side = 'LEFT' if target == 'JAB' else 'RIGHT'; other = 'RIGHT' if side == 'LEFT' else 'LEFT'
             a=arms[side]; dx,dy,dz=d[side]; travel=float(np.linalg.norm(d[side][:2]))
@@ -183,6 +209,13 @@ class PersonalGestureEngine(SixGestureEngine):
             # Measure successful v26 X holds only. Do not weaken cross geometry.
             result.update(target=bool(self.special.latched),amount=1.,conflict=False,
                 rest=bool(not self.special.owned and not self.special.latched and not state.block))
+        gesture = {'JAB':'LEFT_PUNCH','STRAIGHT':'RIGHT_PUNCH',
+                   'HIGH_KICK':'LEFT_RAISE','LOW_KICK':'RIGHT_RAISE','SPECIAL':'SPECIAL'}.get(target)
+        result['verified_commit'] = bool(gesture and any(
+            ev.source_frame_id == obs.frame_id
+            and (ev.actor_id,ev.capture_epoch) == self.identity
+            and ev.reason.get('gesture',ev.side+'_PUNCH') == gesture
+            for ev in self.outbox.pending.values()))
         return result
 
     def _apply_personal(self, action, amount):

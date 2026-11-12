@@ -17,6 +17,7 @@ from .six_engine import SixGestureEngine as DemoEngine
 from .transport import DemoSender
 from realtime_vision.clock import now_ns, metadata as clock_metadata
 from .camera_diagnostics import CaptureCadence, camera_properties
+from .key_input import CalibrationKeyGate
 from .guided import GuidedCheck
 from .framing import framing_status
 from collections import Counter
@@ -68,7 +69,7 @@ def run(a):
     log=AsyncLog(out/'trace.jsonl');slot=Latest();stop=threading.Event();errors=[]
     runtime_clock={**clock_metadata(),'origin_ns':now_ns(),'origin_utc':datetime.now().astimezone().isoformat()}
     log.write({'type':'runtime_clock',**runtime_clock})
-    acquisition=CaptureCadence();camera_info={}
+    acquisition=CaptureCadence();camera_info={};calibration_keys=CalibrationKeyGate()
     counts={'captured':0,'processed':0,'events':0,'left':0,'right':0,'both':0,'preview_frames':0}
     guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False), focus=getattr(a,'guided_focus','all')) if getattr(a,'guided',False) else None
     display={'event':'NONE','event_ns':0};cap=None;pose=None;cross_pose=None;recovery_pose=None;recovery_pool=None;video=None;recorder=None
@@ -238,6 +239,8 @@ def run(a):
                 'pose_end_ns':end,'engine_end_ns':engine_end,'state':asdict(state),'framing':framing})
             with engine.lock:
                 armed=engine.calibrated;progress=engine.calibration_progress
+                calibrating=engine.calibrating
+                calibration_hint=engine.calibration_feedback.message
                 arms=' / '.join(k+':'+v.state for k,v in engine.attack.units.items())
                 ready=engine.ready
                 cross_owned=engine.special.owned;cross_sent=engine.special.latched
@@ -252,14 +255,16 @@ def run(a):
                 view=overlay(bgr,frame,name=f'REDBOOL {variant} VIDEO',mirror=a.mirror)
                 panel=view[bgr.shape[0]:];panel[:]=0
                 message=display['event'] if now_ns()-display['event_ns']<1_000_000_000 else ''
-                mode=('C: CALIBRATE GUARD' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
+                mode=('HOLD GUARD - CALIBRATING' if calibrating
+                    else 'C: START CALIBRATION' if not armed else 'TRACKING LOST' if state.tracking!='VALID'
                     else 'X SENT: OPEN ARMS OR RAISE ONE' if cross_owned and cross_sent
                     else f'X HOLD: {cross_progress:.0%}' if cross_owned
                     else 'BLOCK' if state.block else 'READY' if ready else 'RELEASE LAST POSE / NEXT MOVE')
-                if framing['code']!='OK':mode=framing['message']
+                if not calibrating and framing['code']!='OK':mode=framing['message']
                 hint=getattr(sender,'game_hint',lambda:'GAME UNKNOWN / SPECIAL UNKNOWN')()
                 prompt=guided_prompt if guide else hint
                 if hasattr(engine,'trainer') and engine.trainer.context: prompt=engine.trainer.status+' | '+engine.trainer.context['action']
+                if calibrating:prompt=calibration_hint
                 lines=[f"{mode}  {progress:.0%}   {message}",prompt,
                     f"LEFT {counts['left']}  RIGHT {counts['right']}  X {counts['both']}  BLOCK {state.block}  MOVE {state.movement} ({'ON' if engine.movement_enabled else 'OFF'})",
                     f"UDP {'SYNCED' if sender.clock else 'WAITING'}  {sender.last_status}",
@@ -277,7 +282,7 @@ def run(a):
                 counts['preview_frames']+=1
             key=cv.waitKey(1)&255
             if key==ord('q') or (guide and guide.completed):break
-            if key in (ord('c'),ord('x')):
+            if (key==ord('c') and calibration_keys.accept(now_ns())) or key==ord('x'):
                 engine.request_calibration()
                 if key==ord('x'):engine.calibrating=False
                 recorder.record_annotation(label='CALIBRATE' if key==ord('c') else 'PAUSE',annotation_type='marker',event_frame_id=frame['frame_id'],source='human_demo_control')
