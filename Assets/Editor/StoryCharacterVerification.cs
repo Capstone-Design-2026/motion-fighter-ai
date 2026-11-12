@@ -151,8 +151,11 @@ public static class StoryCharacterVerification
             recording=false;
             // Real hitboxes, damage and guard mitigation, not just animation playback.
             foreach(var p in Object.FindObjectsByType<Pushbox>())p.enabled=false;
-            // 0.9 centre distance: the measured jab reach (CombatContacts doc) and inside the 3D AI attack range of 1.0.
-            Position(-.45f,.45f);ph.ResetHealth();eh.ResetHealth();
+            // The stage AI starts attacking only inside its measured reach (jab reach + player body front - margin, at most 1.0).
+            // Test the jab from exactly that distance: the farthest point the AI would ever attack from.
+            var stageAI=enemyF.GetComponent<EnemyAI>();float strike=stageAI.StrikeRange;
+            Check(stageAI.MeasuredJabReach>.5f&&strike>=.6f&&strike<=1f,key+" AI strike range "+strike.ToString("F3")+" (jab reach "+stageAI.MeasuredJabReach.ToString("F3")+")");
+            Position(-strike/2f,strike/2f);for(var w=Wait(.3f);w.MoveNext();)yield return null;ph.ResetHealth();eh.ResetHealth(); // settle like a walked-in approach
             int hp=ph.CurrentHealth;Check(enemyF.TryAttack(CombatMove.Jab),key+" live jab accepted");
             for(var w=Wait(.85f);w.MoveNext();)yield return null;Check(ph.CurrentHealth<hp,key+" live attack damages player");
             for(var w=Wait(.6f);w.MoveNext();)yield return null;
