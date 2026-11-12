@@ -20,6 +20,23 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public string expectedStreamId = "";
     public PlayerController player;
     public RedboolBattlePreparation Preparation { get; set; }
+    public bool PvpOwned;
+    public Func<bool> ExternalGate;
+    public Func<RedboolPracticeContext> PracticeContext;
+    public event Action<string,float,string,float> PracticeAction;
+    public event Action<bool,int> CalibrationObserved;
+    public Fighter Opponent;
+    public bool LiveReady => controlling && tutorialInputValid && NowNs()<deadline;
+    public bool NeutralReady => LiveReady && !BlockActive && targetMove==0 && lastPhase=="READY";
+    public int CalibrationGeneration { get; private set; }
+    public string PersonalStatus { get; private set; } = "BASELINE V26";
+    private string lastPhase;
+    bool AllowsInput => (Preparation==null || Preparation.AllowsPlayer) && (ExternalGate==null || ExternalGate());
+    bool Practicing => PracticeAction!=null || TutorialAction!=null;
+    void NotifyPractice(string action,float confidence,string movement,float strength) {
+        if(PvpOwned) PracticeAction?.Invoke(action,confidence,movement,strength);
+        else TutorialAction?.Invoke(action,confidence,movement,strength);
+    }
     private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
@@ -58,7 +75,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private float feedbackUntil;
     private struct Received { public string json; public long time; public IPEndPoint peer; }
     [Serializable] private class Packet {
-        public int version, ttl_ms, calibration_version;
+        public int version, ttl_ms, calibration_version, calibration_generation;
+        public string personal_status;
         public string kind, stream_id, actor_id, capture_epoch, sync_id, event_id, side, movement, gesture, fsm_state, tracking;
         public long sequence, sent_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
         public bool block_active, calibrated;
@@ -86,6 +104,9 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public float game_frame_ms, game_time_scale;
         public int calibration_contract = 1;
         public int guards_started;
+        public string tutorial_run, tutorial_action, tutorial_phase;
+        public int tutorial_hits;
+        public string player_id;
     }
     private static long NowNs() {
         long t=Stopwatch.GetTimestamp(),f=Stopwatch.Frequency;
@@ -125,14 +146,14 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         }
     }
     private void Update() {
-        if(player==null) player=FindAnyObjectByType<PlayerController>();
+        if(player==null && !PvpOwned) player=FindAnyObjectByType<PlayerController>();
         if(player!=null && configuredPlayer!=player) {
             if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
             configuredPlayer=player;oldKeyboard=player.useKeyboard;player.useKeyboard=false;
             diagnosticsEnemy=FindAnyObjectByType<EnemyAI>();
         }
         // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
-        if(player!=null && player==configuredPlayer) player.useKeyboard=RedboolBattlePreparation.KeyboardTest;
+        if(player!=null && player==configuredPlayer) player.useKeyboard=!PvpOwned && RedboolBattlePreparation.KeyboardTest;
         if(NowNs()>=deadline) Safe();
         Received item;
         for(int i=0;i<32 && inbox.TryDequeue(out item);i++) {
@@ -143,7 +164,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             float alpha=movementSmoothingSeconds<=0 ? 1 : 1-Mathf.Exp(-Time.unscaledDeltaTime/movementSmoothingSeconds);
             currentMove=Mathf.Lerp(currentMove,targetMove,alpha);
             if(Mathf.Abs(currentMove)<.01f && targetMove==0) currentMove=0;
-            player.ExternalMovement(currentMove);
+            player.ExternalMovement(AllowsInput && !Practicing ? currentMove : 0);
             ApplyVisionGuard();
         }
     }
@@ -152,7 +173,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         var fighter=player!=null ? player.GetComponent<Fighter>() : null;
         if(fighter==null) return;
         bool wasHeld=fighter.IsVisionGuardHeld;
-        bool held=controlling && BlockActive && (Preparation==null || Preparation.AllowsPlayer);
+        bool held=controlling && BlockActive && AllowsInput && !Practicing;
         if(fighter.SetVisionGuard(held) && !wasHeld) GuardsStarted++;
     }
     private void Process(Packet p,Received item) {
@@ -193,13 +214,12 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 Fighter fighter=player!=null ? player.GetComponent<Fighter>() : null;
                 if(action==null) status="BAD_GESTURE";
                 else if(action=="UNASSIGNED") status="UNASSIGNED";
-                else if(TutorialAction!=null && action=="SPECIAL") status="UNASSIGNED";
-                else if(TutorialAction!=null && (!tutorialInputValid || now>=deadline)) status="INPUT_LOCKED";
-                else if(TutorialAction!=null) {
-                    TutorialAction.Invoke(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
+                else if(Practicing && (!tutorialInputValid || now>=deadline)) status="INPUT_LOCKED";
+                else if(Practicing) {
+                    NotifyPractice(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
                 }
                 else if(player==null || fighter==null) status="NO_PLAYER";
-                else if(Preparation!=null && !Preparation.AllowsPlayer) status="INPUT_LOCKED";
+                else if(!AllowsInput || (PvpOwned && !LiveReady)) status="INPUT_LOCKED";
                 else if(!fighter.CanAttack || BlockActive) { status="GAME_BUSY";AttacksBusy++; }
                 else if(action=="SPECIAL") {
                     var special=player.GetComponent<SpecialMove>();
@@ -222,6 +242,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             sequence=p.sequence;lastLiveNs=now;
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
+            CalibrationGeneration=p.calibration_generation;
+            CalibrationObserved?.Invoke(p.calibration_version==1 && p.calibrated,p.calibration_generation);
+            lastPhase=p.fsm_state;
+            PersonalStatus=(p.personal_status??"BASELINE V26");
+            if(PersonalStatus.Length>100) PersonalStatus=PersonalStatus.Substring(0,100);
             BlockActive=p.block_active;targetMove=(p.movement=="LEFT"?-1:p.movement=="RIGHT"?1:0)*WalkStrength(p.movement_strength);
             controlling=true;
             if(p.calibration_version==1 && p.calibrated && (p.tracking=="VALID" || p.tracking=="SYNTHETIC"))
@@ -233,8 +258,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             tutorialInputValid=p.calibration_version==1 && p.calibrated && p.tracking=="VALID";
             string tutorialState=!tutorialInputValid ? "UNAVAILABLE"
                 : p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "BUSY";
-            TutorialAction?.Invoke(tutorialState,1f,p.movement,p.movement_strength);
-            status=player!=null?"APPLIED":TutorialAction!=null?"TUTORIAL_APPLIED":"NO_PLAYER";
+            NotifyPractice(tutorialState,1f,p.movement,p.movement_strength);
+            status=player!=null?"APPLIED":Practicing?"TUTORIAL_APPLIED":"NO_PLAYER";
         }
         if(oneShot || status!="APPLIED") Status=status;
         Reply(p,item,status,oneShot && status=="APPLIED");
@@ -246,7 +271,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         Fighter fighter=player!=null ? player.GetComponent<Fighter>() : null;
         var body=player!=null ? player.GetComponent<Rigidbody2D>() : null;
         var view=player!=null ? player.GetComponent<Fighter3DView>() : null;
-        var opponent=diagnosticsEnemy!=null ? diagnosticsEnemy.GetComponent<Fighter>() : null;
+        var opponent=Opponent!=null ? Opponent : diagnosticsEnemy!=null ? diagnosticsEnemy.GetComponent<Fighter>() : null;
+        var teaching=PracticeContext!=null ? PracticeContext() : CaveTutorial.TeachingContext;
         if(!String.IsNullOrEmpty(p.event_id) && p.event_id!=feedbackEvent) {
             feedbackEvent=p.event_id;feedbackUntil=Time.unscaledTime+1.5f;
             inputFeedback=status=="APPLIED" ? "동작 인식 · 기술 실행"
@@ -256,13 +282,15 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 : status=="GAME_BUSY" ? "동작 인식 · 현재 기술 또는 전투 잠금 중"
                 : "입력 처리: "+status;
         }
-        var ack=new Ack { stream_id=StreamId,status=status,event_id=p.event_id,sequence=p.sequence,
+        var ack=new Ack { player_id=expectedActorId,
+            tutorial_run=teaching?.run, tutorial_action=teaching?.action, tutorial_phase=teaching?.phase, tutorial_hits=teaching!=null?teaching.hits:0,
+            stream_id=StreamId,status=status,event_id=p.event_id,sequence=p.sequence,
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
-            battle_preparing=Preparation!=null && Preparation.HoldRound,
+            battle_preparing=!AllowsInput || Preparation!=null && Preparation.HoldRound,
             special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
             // Wire contract: ready to start another attack, not merely free to move.
-            game_can_act=fighter!=null && fighter.CanAttack,game_guard_active=fighter!=null && fighter.IsGuarding,
+            game_can_act=AllowsInput && !Practicing && fighter!=null && fighter.CanAttack,game_guard_active=fighter!=null && fighter.IsGuarding,
             guards_started=GuardsStarted,
             game_attacking=fighter!=null && fighter.IsAttacking,
             game_special_active=fighter!=null && fighter.IsSpecialActive,
@@ -277,17 +305,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             game_player_facing=fighter!=null ? fighter.Facing : 0,
             game_opponent_facing=opponent!=null ? opponent.Facing : 0,
             game_player_x=player!=null ? player.transform.position.x : 0,
-            game_opponent_x=diagnosticsEnemy!=null ? diagnosticsEnemy.transform.position.x : 0,
+            game_opponent_x=opponent!=null ? opponent.transform.position.x : 0,
             game_velocity_x=body!=null ? body.linearVelocity.x : 0,
             game_move_input=currentMove,
             game_walk_stride=view!=null && view.Walk!=null ? view.Walk.StepLength : 0,
             game_walk_state=view!=null ? view.CurrentState : "" };
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
+    public void ClearInput() { Safe(); }
     private void Safe() {
         if(player!=null) player.GetComponent<Fighter>()?.SetVisionGuard(false);
         if(controlling && player!=null) player.ClearExternalInput();
-        if(controlling) TutorialAction?.Invoke("UNAVAILABLE",0f,"NEUTRAL",0f);
+        if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f);
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
     }
     private void OnGUI() {

@@ -88,6 +88,7 @@ public static class RedboolCampaignPlayCheck
         }
         foreach(var node in nodes)
         {
+            if(Environment.GetEnvironmentVariable("REDBOOL_LOSS_ONLY")=="1") break;
             run.StartNewRun(20261110); run.CompleteTutorial();
             run.Data.seenStoryIds.Add("final_after");
             foreach(var n in run.Data.map.nodes) {run.Data.seenStoryIds.Add(n.id+"_visit");run.Data.seenStoryIds.Add(n.id+"_after");}
@@ -121,6 +122,7 @@ public static class RedboolCampaignPlayCheck
         run.StartNewRun(20261110);run.CompleteTutorial();run.Data.pendingNodeId=nodes[0].id;run.Save();
         SceneRoutes.LoadBattle();yield return null;yield return null;yield return null;
         var p=Object.FindAnyObjectByType<PlayerController>();var g=Object.FindAnyObjectByType<RedboolBattlePreparation>();
+        while(g.EffectsPreparing) yield return null;
         g.Observe(true,"VALID","READY",false,"NEUTRAL");
         Check(p.GetComponent<Health>().TakeDamage(99999,Vector2.zero,false,true),"Player KO triggers actual loss handler");
         double end=Time.realtimeSinceStartupAsDouble+10;

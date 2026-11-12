@@ -130,7 +130,15 @@ public static class RedboolTutorialPlayCheck
    Check(tutorial.SuccessfulAttempts==2,"Center and move counts second attempt");
    movement="NEUTRAL";for(var wait=Pump(1.4f);wait.MoveNext();)yield return null;
   }
-  Check(run.Data.tutorialCompleted&&run.Data.tutorialStep==7,"All seven steps completed through actual UDP");
+  Check(tutorial.CurrentStep==7,"Movement advances to X special practice");
+  for(var wait=Pump(3);wait.MoveNext();)yield return null;
+  for(int attempt=0;attempt<2;attempt++){
+   Gesture("SPECIAL","tutorial-x-"+attempt);for(var wait=Pump(.12f);wait.MoveNext();)yield return null;
+   Check(tutorial.SuccessfulAttempts==attempt+1,"X special counts without combat charge");
+   state="READY";for(var wait=Pump(.2f);wait.MoveNext();)yield return null;
+  }
+  for(var wait=Pump(1.4f);wait.MoveNext();)yield return null;
+  Check(run.Data.tutorialCompleted&&run.Data.tutorialStep==8,"All eight steps completed through actual UDP");
  }
  static void Finish(string failure){
   SessionState.SetBool(Active,false);EditorApplication.update-=Tick;client?.Close();

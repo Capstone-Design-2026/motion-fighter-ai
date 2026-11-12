@@ -50,7 +50,20 @@ public sealed class CombatContactWorld:MonoBehaviour
                 }
             }
             pending.Sort((a,b)=>{int c=a.t.CompareTo(b.t);return c!=0?c:a.from.GetInstanceID().CompareTo(b.from.GetInstanceID());});
-            foreach(var c in pending)if(c.from.PreciseAttackActive&&c.from.AttackSerial==c.serial&&!c.from.HasContacted(c.to.Health))c.from.ResolveContact(c.to,c.point,c.part);
+            if(!RedboolPvp.Active) {
+                foreach(var c in pending)if(c.from.PreciseAttackActive&&c.from.AttackSerial==c.serial&&!c.from.HasContacted(c.to.Health))c.from.ResolveContact(c.to,c.point,c.part);
+            } else {
+                // Contacts within one millisecond are a trade, not an instance-ID win.
+                // Earlier contacts still interrupt later ones. Snapshot eligibility
+                // before resolving the group; never revive an old queued attack.
+                for(int begin=0;begin<pending.Count;) {
+                    int end=begin+1;while(end<pending.Count&&(pending[end].t-pending[begin].t)*dt<=.001f)end++;
+                    var eligible=new List<Contact>();
+                    for(int i=begin;i<end;i++){var c=pending[i];if(c.from.PreciseAttackActive&&c.from.AttackSerial==c.serial&&!c.from.HasContacted(c.to.Health))eligible.Add(c);}
+                    foreach(var c in eligible)if(!c.from.HasContacted(c.to.Health))c.from.ResolveContact(c.to,c.point,c.part);
+                    begin=end;
+                }
+            }
         }
         foreach(var f in fighters)f.FinishPreciseAttack(now);
         previousTime=now;hasTime=true;

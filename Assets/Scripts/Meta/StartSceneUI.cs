@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
@@ -65,10 +65,11 @@ public class StartSceneUI : MonoBehaviour
             title.font=WuxiaTheme.MenuFont;
             UIFactory.Place(title.rectTransform,new Vector2(0,.5f),new Vector2(0,.5f),new Vector2(100,190),new Vector2(480,150));
         }
-        float y=5;
+        float y=40;
         MakeButton("NewGameButton","새 게임",ref y,OnNewGame);
         continueButton=MakeButton("ContinueButton","이어하기",ref y,OnContinue);
         MakeButton("DuelTestButton","바로 결투 · 테스트",ref y,RedboolDuelTest.Begin);
+        MakeButton("PvpButton","2인 대전 · 카메라 연결",ref y,RedboolPvp.Begin);
         MakeButton("QuitButton","게임 종료",ref y,OnQuit);
 
         messageText=WuxiaTheme.Text("Message",canvas.transform,"",24,TextAnchor.MiddleLeft,WuxiaTheme.Paper);

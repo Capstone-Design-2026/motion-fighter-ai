@@ -5,26 +5,30 @@ using UnityEngine.UI;
 
 /// <summary>Seven responsive practice steps. Vision and explicitly selected keyboard tests stay separate.</summary>
 public class CaveTutorial : MonoBehaviour {
- public static readonly string[] Actions={"JAB","STRAIGHT","HIGH_KICK","LOW_KICK","BLOCK","MOVE_LEFT","MOVE_RIGHT"};
- static readonly string[] Names={"잽","스트레이트","하이킥","로우킥","막기","왼쪽 이동","오른쪽 이동"};
- static readonly string[] Gestures={"왼손을 앞으로 지르세요","오른손을 앞으로 뻗으세요","왼손을 위로 들어 올리세요","오른손을 위로 들어 올리세요","두 손을 올려 가드 자세를 취하세요","어깨 중심을 왼쪽으로 옮기세요","어깨 중심을 오른쪽으로 옮기세요"};
- static readonly string[] Tips={"왼손 주먹이 카메라에 가려지지 않게, 한 번 뻗고 되돌리세요.","왼손은 가드에 두고 오른손만 앞으로 뻗어보세요.","실제로 다리를 차지 않아도 됩니다. 왼손을 어깨보다 높이 들어보세요.","실제로 다리를 차지 않아도 됩니다. 오른손을 어깨보다 높이 들어보세요.","두 손을 얼굴 앞에 올린 뒤 기본 자세로 내려보세요.","몸을 비틀기보다 두 어깨의 중심을 왼쪽으로 옮겨보세요.","두 어깨의 중심을 오른쪽으로 옮긴 뒤 중앙으로 돌아오세요."};
+ public static readonly string[] Actions={"JAB","STRAIGHT","HIGH_KICK","LOW_KICK","BLOCK","MOVE_LEFT","MOVE_RIGHT","SPECIAL"};
+ static readonly string[] Names={"잽","스트레이트","하이킥","로우킥","막기","왼쪽 이동","오른쪽 이동","파운장"};
+ static readonly string[] Gestures={"왼손을 앞으로 지르세요","오른손을 앞으로 뻗으세요","왼손을 위로 들어 올리세요","오른손을 위로 들어 올리세요","두 손을 올려 가드 자세를 취하세요","어깨 중심을 왼쪽으로 옮기세요","어깨 중심을 오른쪽으로 옮기세요","가슴 앞에서 팔을 X자로 1초 유지한 뒤 풀어주세요"};
+ static readonly string[] Tips={"왼손 주먹이 카메라에 가려지지 않게, 한 번 뻗고 되돌리세요.","왼손은 가드에 두고 오른손만 앞으로 뻗어보세요.","실제로 다리를 차지 않아도 됩니다. 왼손을 어깨보다 높이 들어보세요.","실제로 다리를 차지 않아도 됩니다. 오른손을 어깨보다 높이 들어보세요.","두 손을 얼굴 앞에 올린 뒤 기본 자세로 내려보세요.","몸을 비틀기보다 두 어깨의 중심을 왼쪽으로 옮겨보세요.","두 어깨의 중심을 오른쪽으로 옮긴 뒤 중앙으로 돌아오세요.","양쪽 손목과 팔꿈치가 보이도록 가슴 앞에서 교차하세요. 수련에서는 충전이 필요 없습니다."};
+ static CaveTutorial active;
+ readonly string teachingRun=System.Guid.NewGuid().ToString("N");
+ public static RedboolPracticeContext TeachingContext => active==null || active.keyboard || active.exit ? null : new RedboolPracticeContext {
+  run=active.teachingRun,action=Actions[active.CurrentStep],phase=active.IsDemonstrating?"DEMO":active.advancing?"RETURN":"PRACTICE",hits=active.hits};
  RunState run;Transform frame;Text title,instruction,progress,status,modeLabel,inputHint,signal,phaseLabel;TrainingPoseGraphic inputPose,resultPose;
  RectTransform focus;Image flash;bool keyboard,armed,exit,advancing;int hits,mistakes;float lastPacket=-100,nextStepAt,demoUntil,stepStarted,feedbackUntil,successPulse;string lastSignal="";
  public int CurrentStep=>run==null?0:Mathf.Clamp(run.Data.tutorialStep,0,Actions.Length-1);
  public int SuccessfulAttempts=>hits;
  public bool IsDemonstrating=>Time.unscaledTime<demoUntil;
  public bool IsKeyboardMode=>keyboard;
- bool DiscreteVisionStep=>!keyboard&&CurrentStep<4;
+ bool DiscreteVisionStep=>!keyboard&&(CurrentStep<4||CurrentStep==7);
  public static IEnumerator Play(RunState state){
   if(state.Data.tutorialCompleted)yield break;
   if(state.Data.tutorialStep>=Actions.Length){state.CompleteTutorial();yield break;}
-  UIFactory.EnsureEventSystem();var canvas=UIFactory.CreateCanvas("CaveTutorialCanvas",null,210);var tutorial=canvas.gameObject.AddComponent<CaveTutorial>();tutorial.run=state;tutorial.Build();
+  UIFactory.EnsureEventSystem();var canvas=UIFactory.CreateCanvas("CaveTutorialCanvas",null,210);var tutorial=canvas.gameObject.AddComponent<CaveTutorial>();tutorial.run=state;active=tutorial;tutorial.Build();
   RedboolDemoReceiver.TutorialAction+=tutorial.OnVision;
   if(Object.FindAnyObjectByType<RedboolDemoReceiver>()==null){var receiver=new GameObject("TutorialVisionReceiver");receiver.transform.SetParent(canvas.transform);receiver.AddComponent<RedboolDemoReceiver>();}
   try{while(!tutorial.exit)yield return null;}finally{RedboolDemoReceiver.TutorialAction-=tutorial.OnVision;if(canvas!=null)Destroy(canvas.gameObject);}
  }
- void OnDestroy(){RedboolDemoReceiver.TutorialAction-=OnVision;}
+ void OnDestroy(){if(active==this)active=null;RedboolDemoReceiver.TutorialAction-=OnVision;}
  void Build(){
   var backdrop=UIFactory.CreateImage("BlockMapInput",transform,Color.black,true);UIFactory.Stretch(backdrop.rectTransform);
   var logical=UIFactory.CreateRect("TrainingFrame",transform);logical.gameObject.AddComponent<CinematicFrame>().Fit();frame=logical;
@@ -56,11 +60,11 @@ public class CaveTutorial : MonoBehaviour {
  }
  public void ReplayDemonstration(){armed=false;demoUntil=Time.unscaledTime+2.6f;feedbackUntil=0;status.text="먼저 벽화와 아래 시범을 보세요. 곧 따라 할 차례예요.";}
  public void ToggleInputMode(){keyboard=!keyboard;hits=0;armed=false;advancing=false;mistakes=0;modeLabel.text=keyboard?"비전 인식으로 전환":"키보드 테스트";RefreshStep();}
- void RefreshStep(){int step=CurrentStep;title.text="마른 폭포 동굴   ·   "+(step+1)+" / 7   "+Names[step];instruction.text=Gestures[step];inputPose.step=resultPose.step=step;stepStarted=Time.unscaledTime;mistakes=0;lastSignal="";
+ void RefreshStep(){int step=CurrentStep;title.text="마른 폭포 동굴   ·   "+(step+1)+" / "+Actions.Length+"   "+Names[step];instruction.text=Gestures[step];inputPose.step=resultPose.step=step;stepStarted=Time.unscaledTime;mistakes=0;lastSignal="";
   float[] xs={505,790,1410,1100};if(step<4){focus.gameObject.SetActive(true);Box(focus,xs[step],390,275,380);}else focus.gameObject.SetActive(false);
-  frame.Find("InputPoseExplanation").GetComponent<Text>().text=Gestures[step]+(step<5?"\n정면 거울 · 내 왼손은 화면 오른쪽":"\n이동 후 중앙으로 돌아오기");
+  frame.Find("InputPoseExplanation").GetComponent<Text>().text=Gestures[step]+(step<5?"\n내 왼손·오른손 기준으로 움직이세요":"\n이동 후 중앙으로 돌아오기");
   frame.Find("ResultPoseExplanation").GetComponent<Text>().text=Names[step]+(step==2?"\n상대의 머리 높이를 공격":step==3?"\n상대의 허벅지 높이를 공격":"\n인식 성공 후 기본 자세로");
-  inputHint.text=keyboard?"키보드 테스트 · Space 준비 / 1 잽 / 2 스트레이트 / 3 하이킥 / 4 로우킥 / 5 막기 / 6 왼쪽 / 7 오른쪽":"비전 인식 · 카메라에 양손과 어깨가 보이게 준비하세요. 손동작으로 공격하고 어깨로 이동합니다.";
+  inputHint.text=keyboard?"키보드 테스트 · Space 준비 / 1 잽 / 2 스트레이트 / 3 하이킥 / 4 로우킥 / 5 막기 / 6 왼쪽 / 7 오른쪽 / 8 X자":"비전 인식 · 카메라에 양손과 어깨가 보이게 준비하세요. 손동작으로 공격하고 어깨로 이동합니다.";
   progress.text="성공  "+hits+" / 2";signal.text=keyboard?"테스트 입력 대기":"카메라 신호 대기";ReplayDemonstration();
  }
  void Feedback(string message){status.text=message;feedbackUntil=Time.unscaledTime+2.2f;}
@@ -80,7 +84,7 @@ public class CaveTutorial : MonoBehaviour {
   action=Normalize(action);
   // Punches/raises arrive as receiver-deduplicated one-shot events. Python
   // already checks their own-arm release; do not impose another guard gate.
-  bool oneShot=action=="JAB"||action=="STRAIGHT"||action=="HIGH_KICK"||action=="LOW_KICK";
+  bool oneShot=action=="JAB"||action=="STRAIGHT"||action=="HIGH_KICK"||action=="LOW_KICK"||action=="SPECIAL";
   if(oneShot){Accept(action,confidence,true);return;}
   if(CurrentStep<4){
    if(action=="BUSY"){signal.text="카메라 연결됨 · 동작 인식 중";return;}
