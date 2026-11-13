@@ -86,7 +86,8 @@ public sealed class Fighter3DView : MonoBehaviour
     }
     public static float Impact(CombatMove move)
     {
-        switch (move) { case CombatMove.Jab: return .20f; case CombatMove.HighKick: return .48f;
+        // Straight: the fist is fully out at .167s in the installed clip (it was .40s in the previous one).
+        switch (move) { case CombatMove.Jab: return .20f; case CombatMove.Straight: return .17f; case CombatMove.HighKick: return .48f;
             case CombatMove.LowKick: return .42f; default: return .40f; }
     }
     public void BeginAttack(CombatMove move)
