@@ -57,18 +57,38 @@ public class CombatSfx : MonoBehaviour
     private AudioSource[] attackVoices;
     private int nextAttackVoice;
 
-    /// <summary>공격 시작 효과음. 씬에 CombatSfx 가 없으면 아무 일도 일어나지 않는다.</summary>
-    public static void PlayAttack()
+    private static bool prefabMissing;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatic() { instance = null; prefabMissing = false; }
+
+    /// <summary>
+    /// 씬에 CombatSfx 가 없으면 Resources/Audio/CombatSfx 프리팹으로 하나 만든다.
+    /// 예전에는 GameScene 에만 놓여 있어서 스토리 전투 무대에서는 공격·타격·K.O. 소리가 나지 않았다.
+    /// </summary>
+    private static CombatSfx Ensure()
     {
-        if (instance != null) instance.PlayAttackClip();
+        if (instance != null || prefabMissing) return instance;
+        var prefab = Resources.Load<GameObject>("Audio/CombatSfx");
+        if (prefab == null) { prefabMissing = true; return null; }
+        Instantiate(prefab).name = "CombatSfx (auto)";   // Awake 가 instance 를 채운다
+        return instance;
     }
 
-    /// <summary>타격 효과음. 씬에 CombatSfx 가 없으면 아무 일도 일어나지 않는다.</summary>
+    /// <summary>공격 시작 효과음.</summary>
+    public static void PlayAttack()
+    {
+        var sfx = Ensure();
+        if (sfx != null) sfx.PlayAttackClip();
+    }
+
+    /// <summary>타격 효과음.</summary>
     /// <param name="guarded">가드에 막힌 타격이면 true.</param>
     /// <param name="finisher">이 타격으로 상대가 쓰러졌으면 true.</param>
     public static void PlayHit(bool guarded, bool finisher = false)
     {
-        if (instance != null) instance.PlayHitClip(guarded, finisher);
+        var sfx = Ensure();
+        if (sfx != null) sfx.PlayHitClip(guarded, finisher);
     }
 
     void Awake()

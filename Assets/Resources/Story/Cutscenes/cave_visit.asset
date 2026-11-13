@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundUv: {serializedVersion: 2, x: 0, y: 0, width: 1, height: 1}
   backgroundTexture: {fileID: 2800000, guid: 8f936b4587c2430899d399487efa5f4a, type: 3}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "이제 손동작과 발놀림이 이어지는 느낌을 알겠어. 서두르지 않고 하나씩 확인하면 돼."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -29,7 +29,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤의 편지"
+  - speaker: "운학의 편지"
     text: "내가 돌아오지 못하거든 청계역의 연화를 찾아가거라. 길을 모를 때는 사람에게 묻고, 들은 말은 네 눈으로 확인해라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -37,11 +37,11 @@ MonoBehaviour:
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
     evidence: 2
-    evidenceTitle: "도윤의 편지"
+    evidenceTitle: "운학의 편지"
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "지도를 챙기자. 먼저 산 아래 청계역으로 간다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

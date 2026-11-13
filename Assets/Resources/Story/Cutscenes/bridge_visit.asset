@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0, y: 0.2240625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "다리는 무너졌지만 옆으로 좁은 길이 남아 있어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "곡식 낟알과 짐꾼들의 발자국이다. 옛 나루까지 따라가 보자."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

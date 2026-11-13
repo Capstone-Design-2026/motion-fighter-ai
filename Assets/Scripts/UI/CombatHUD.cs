@@ -194,7 +194,7 @@ public class CombatHUD : MonoBehaviour
         bar.graphic.SetValues(next, bar.chipRatio);
         string name = bar.health.DisplayName;
         if (string.IsNullOrWhiteSpace(name) || name == "PLAYER" || name == "ENEMY")
-            name = bar.leftSide ? "서진" : "상대";
+            name = bar.leftSide ? "서청운" : "상대";
         bar.label.text = name;
         bar.amount.text = current + " / " + max;
     }
@@ -301,7 +301,7 @@ public class CombatHUD : MonoBehaviour
         bar.gauge.fillColor = ready ? gaugeReadyColor : gaugeFillColor;
         bar.gauge.SetValues(max > 0 ? (float)current/max : 0, 0, ready);
         bar.gaugeLabel.text = ready
-            ? "파운장 준비  [" + bar.resource.ActivateKey + " 길게]"
+            ? "파운장 준비  [" + bar.resource.ActivateKey + "]"
             : "파운장  " + current + " / " + max;
         bar.gaugeLabel.color = ready ? new Color(.66f,.93f,1f) : new Color(.83f,.88f,.88f);
     }
@@ -398,8 +398,8 @@ public class CombatHUD : MonoBehaviour
                 AddGuideRow(i++, player.highKickKey + " / " + player.lowKickKey, "하이킥 / 로우킥");
             }
             if (special != null)
-                AddGuideRow(i++, special.ActivateKey + " 누르고 떼기",
-                            "파운장 · 기를 모았다가 발사 · " + special.HitsToCharge + "번 맞으면 충전 · " + special.Damage + " 피해");
+                AddGuideRow(i++, special.ActivateKey.ToString(),
+                            "파운장 · 바로 발사 · " + special.HitsToCharge + "번 맞으면 충전 · " + special.Damage + " 피해");
         }
         else
         {

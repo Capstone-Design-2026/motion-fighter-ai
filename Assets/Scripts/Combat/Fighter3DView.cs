@@ -9,12 +9,18 @@ public sealed class Fighter3DView : MonoBehaviour
     public Color fighterTint = Color.white;
     public AnimationClip[] strikeClips;
     public AnimationClip[] guardClips;
+    /// <summary>
+    /// 걷기 방식(주인공 전용 스텝을 쓰지 않는 캐릭터, 곧 적에게 해당).
+    /// true: 걷기 클립이 발을 직접 딛는다. 적의 걷기 클립은 주인공 스텝을 옮긴 것이라 주인공과 같은 걸음이 된다(2026-11-13).
+    /// false: 예전 방식. 코드가 실제 이동에 맞춰 발을 IK로 딛게 한다(GroundedBoxingWalk).
+    /// </summary>
+    public bool authoredSteps = true;
     // The old run-speed travel forced tiny boxing steps to play several times too fast.
     // Scale only grounded 3D locomotion; stage-relative speeds and 2D mode stay intact.
     public const float BoxingTravelScale = .4f;
     public const float HurtDuration = .70f;
     public const float GuardReactionDuration = .225f;
-    const float GuardEntry = .27f, GuardRelease = .252f;
+    const float GuardEntry = .27f, GuardRelease = .252f, GuardSwitchBlend = .14f;
     static readonly string[] Attacks = { "JAB", "CROSS", "HIGHKICK", "LOWKICK" };
     Fighter fighter;
     Health health;
@@ -80,7 +86,8 @@ public sealed class Fighter3DView : MonoBehaviour
     }
     public static float Impact(CombatMove move)
     {
-        switch (move) { case CombatMove.Jab: return .20f; case CombatMove.HighKick: return .48f;
+        // Straight: the fist is fully out at .167s in the installed clip (it was .40s in the previous one).
+        switch (move) { case CombatMove.Jab: return .20f; case CombatMove.Straight: return .17f; case CombatMove.HighKick: return .48f;
             case CombatMove.LowKick: return .42f; default: return .40f; }
     }
     public void BeginAttack(CombatMove move)
@@ -115,12 +122,15 @@ public sealed class Fighter3DView : MonoBehaviour
         modelAnimator.Play("IDLE", 0, 0f);
         modelAnimator.Update(0f);
     }
-    void Play(string state, bool restart = false, float offsetSeconds = 0f)
+    void Play(string state, bool restart = false, float offsetSeconds = 0f, float blendOverride = -1f)
     {
         if (!restart && state == currentState) return;
-        float blend = state == "HURT" || state.EndsWith("_HIT") ? .035f
+        float blend = blendOverride >= 0f ? blendOverride
+            : state == "HURT" || state.EndsWith("_HIT") ? .035f
             : state == "KO" ? .07f : state == "IDLE" || state.StartsWith("WALK_") ? .16f
             : state == QiPalmTiming.ChargeState ? .1f : .06f;
+        // 기본자세에서 승인 걷기로 들어갈 때는 발이 튀지 않게 조금 더 길게 섞는다.
+        if (currentState == "IDLE" && (state == "HERO_FORWARD_STEP" || state == "HERO_BACKWARD_STEP")) blend = .14f;
         currentState = state; stateStarted = Time.time;
         // Never freeze the animator: held guards have dedicated looping pose clips,
         // so fades can finish and a subsequent action cannot stick in a T-pose.
@@ -136,6 +146,8 @@ public sealed class Fighter3DView : MonoBehaviour
             if (Time.time - stateStarted >= GuardEntry) Play(pose + "_HOLD");
         }
         else if (currentState == pose + "_HIT") Play(pose + "_HOLD");
+        // 막는 중에 높이만 바뀌면(상대 공격에 맞춘 자동 전환) 팔을 내렸다 다시 올리지 않고 그 자세로 바로 넘어간다.
+        else if (currentState != null && currentState.StartsWith("GUARD") && !currentState.EndsWith("_RELEASE")) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         else Play(pose);
     }
     void LateUpdate()
@@ -173,8 +185,10 @@ public sealed class Fighter3DView : MonoBehaviour
             else Play("IDLE");
         }
         bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
-        modelAnimator.speed = walkingState ? walk.PlaybackSpeed : 1f;
-        if (heroMovement == null || !heroMovement.isActiveAndEnabled)
+        // 승인 걷기(HERO_*_STEP)는 걷기 빠르기 배율만큼 빨리 재생한다. 그 밖의 상태는 1.
+        bool heroStep = heroMovement != null && heroMovement.isActiveAndEnabled && (currentState == "HERO_FORWARD_STEP" || currentState == "HERO_BACKWARD_STEP");
+        modelAnimator.speed = walkingState ? (authoredSteps ? walk.AuthoredPlaybackSpeed : walk.PlaybackSpeed) : heroStep ? heroMovement.PlaybackSpeed : 1f;
+        if (!authoredSteps && (heroMovement == null || !heroMovement.isActiveAndEnabled))
             walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;

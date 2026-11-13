@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: east_twilight_Sheen
+  m_Shader: {fileID: 4800000, guid: 71214b3a78054e143a437561a226e996, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 2800000, guid: 788c123e7ba70e54aaa2b5293cbb96a9, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Arc: 84
+    - _Aspect: 1.7777778
+    - _Center: 0
+    - _GroundV: 0.5
+    - _Lift: 0
+    - _Patch: 0.4
+    - _Rough: 3.5
+    - _Spec: 0.28800002
+    - _Strength: 0.18
+    m_Colors:
+    - _Radius: {r: 7, g: 11.5, b: 0, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

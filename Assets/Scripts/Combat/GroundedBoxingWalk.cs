@@ -39,6 +39,38 @@ public sealed class GroundedBoxingWalk
     // Distance for one step-and-follow pair. The lead/rear stance never swaps.
     public float StepLength => Mathf.Lerp(.24f, .38f, Mathf.InverseLerp(.25f, 1.4f, speed)) * legLength / .80f;
     public float PlaybackSpeed => Mathf.Clamp(.66f * speed / Mathf.Max(.1f, StepLength), .35f, 3f);
+    /// <summary>
+    /// 주인공의 다리 길이(허벅지+정강이, 모델 배율 1 기준). 주인공 스텝을 적에게 옮길 때 이 비율로 보폭을 맞췄다.
+    /// EnemyHeroMotionInstaller 가 로그에 적는 값("배율 1일 때 다리 길이")과 같아야 한다.
+    /// </summary>
+    public const float HeroLegLength = .4318f;
+    /// <summary>
+    /// 주인공 스텝을 옮긴 걷기 클립(적의 WALK_FORWARD / WALK_BACK)을 실제 이동 빠르기에 맞춰 재생할 빠르기.
+    /// 그 클립은 한 바퀴에 "주인공 보폭 × (이 캐릭터 다리 길이 ÷ 주인공 다리 길이)"만큼 딛는다. 발이 미끄러지지 않게 그 거리와 실제 이동을 맞춘다.
+    /// </summary>
+    public float AuthoredPlaybackSpeed
+    {
+        get
+        {
+            float stride = HeroMovementSequence.StepDistance * LegLength() / HeroLegLength;
+            return Mathf.Clamp(speed * HeroMovementSequence.StepSeconds / Mathf.Max(.01f, stride), .35f, 3.2f);
+        }
+    }
+    float LegLength()
+    {
+        if (legLength > 0) return legLength;
+        if (animator == null || !animator.isHuman || animator.avatar == null || !animator.avatar.isValid) return .8f;
+        float sum = 0;
+        for (int i = 0; i < 2; i++)
+        {
+            var hip = animator.GetBoneTransform(i == 0 ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg);
+            var knee = animator.GetBoneTransform(i == 0 ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg);
+            var foot = animator.GetBoneTransform(i == 0 ? HumanBodyBones.LeftFoot : HumanBodyBones.RightFoot);
+            if (!hip || !knee || !foot) return .8f;
+            sum += Vector3.Distance(hip.position, knee.position) + Vector3.Distance(knee.position, foot.position);
+        }
+        return legLength = sum * .5f;
+    }
     public Vector3 ContactPosition => PlantedFoot < 0 ? root.position : legs[PlantedFoot].foot.position;
 
     public GroundedBoxingWalk(Transform visual, Animator model)

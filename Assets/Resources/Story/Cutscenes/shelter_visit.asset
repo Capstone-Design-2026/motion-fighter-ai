@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.5690625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "도윤"
+  - speaker: "운학"
     text: "어깨에 힘이 빠졌구나."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "이제는 언제 들어가야 할지 조금 보입니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -37,7 +37,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     text: "그렇다면 네 판단을 믿어라. 사람들은 내가 맡으마."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

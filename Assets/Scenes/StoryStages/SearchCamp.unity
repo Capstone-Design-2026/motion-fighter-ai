@@ -31360,7 +31360,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5f3c9a1d7e2b4c8a9d6f1e0b3a7c5d24, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Health
-  displayName: "\uC218\uC0C9\uB300 \uC57C\uC601\uC9C0"
+  displayName: "\uCD94\uD3EC\uB300 \uC57C\uC601\uC9C0"
   maxHealth: 100
   hitStunTime: 0.3
   guardStunTime: 0.15

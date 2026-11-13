@@ -119,6 +119,38 @@ public static class QiPalmVerification
         // 1. 게이지가 없으면 나가지 않는다
         special.ResetCharge(); Check(!special.BeginCharge() && !special.IsPlaying, "not ready: no charge");
 
+        // 1-1. 게이지는 내 공격이 막히지 않고 들어갔을 때만 찬다. 맞거나 막는 것, 막힌 공격으로는 차지 않는다.
+        // 상대가 때리는 두 경우는 그 상대의 잽이 실제로 닿는 거리에서 한다(캐릭터와 잽 동작에 따라 닿는 거리가 다르다).
+        float foeReach = Mathf.Clamp(enemy.StrikeRange - .03f, .5f, .8f);
+        Position(-foeReach * .5f, foeReach * .5f); ph.ResetHealth(); eh.ResetHealth(); special.ResetCharge();
+        for (var w = Wait(.6f); w.MoveNext();) yield return null;
+        int hpBefore = ph.CurrentHealth; enemyF.TryAttack(CombatMove.Jab);
+        for (var w = Wait(1.4f); w.MoveNext();) yield return null;
+        Check(ph.CurrentHealth < hpBefore && special.Charge == 0, "taking a hit does not fill the gauge: hp " + hpBefore + "→" + ph.CurrentHealth + " gauge " + special.Charge);
+        Position(-foeReach * .5f, foeReach * .5f); bool guardUp = playerF.TryGuard(false);
+        for (var w = Wait(.5f); w.MoveNext();) yield return null;
+        hpBefore = ph.CurrentHealth; bool blockedOne = false; Action<bool> onBlock = g => { if (g) blockedOne = true; }; ph.OnDamaged += onBlock;
+        enemyF.TryAttack(CombatMove.Jab);
+        for (var w = Wait(1.6f); w.MoveNext();) yield return null;
+        ph.OnDamaged -= onBlock; playerF.ReleaseGuard();
+        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
+        for (var w = Wait(.8f); w.MoveNext();) yield return null;
+        Position(-.4f, .4f); bool foeGuard = enemyF.TryGuard(false);
+        for (var w = Wait(.5f); w.MoveNext();) yield return null;
+        int foeHp = eh.CurrentHealth; playerF.TryAttack(CombatMove.Jab);
+        for (var w = Wait(1.6f); w.MoveNext();) yield return null;
+        enemyF.ReleaseGuard();
+        Check(foeGuard && eh.CurrentHealth == foeHp && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
+        for (var w = Wait(.8f); w.MoveNext();) yield return null;
+        for (int n = 1; n <= 2; n++)
+        {
+            Position(-.4f, .4f); for (var w = Wait(.9f); w.MoveNext();) yield return null;
+            foeHp = eh.CurrentHealth; playerF.TryAttack(n == 1 ? CombatMove.Jab : CombatMove.Straight);
+            for (var w = Wait(1.7f); w.MoveNext();) yield return null;
+            Check(eh.CurrentHealth < foeHp && special.Charge == n, "a landed " + (n == 1 ? "jab" : "straight") + " fills the gauge by one: gauge " + special.Charge);
+        }
+        for (var w = Wait(.6f); w.MoveNext();) yield return null;
+
         // 2. 정타 (녹화)
         Position(-1.25f, 1.25f); ph.ResetHealth(); eh.ResetHealth(); Ready();
         for (var w = Wait(.6f); w.MoveNext();) yield return null;
@@ -221,17 +253,21 @@ public static class QiPalmVerification
         playerF.Facing = 1;
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
 
-        // 7. 웹캠 입력 경로 (PlayerController.ExternalAction)
+        // 7. 웹캠 입력 경로 (PlayerController.ExternalAction) — 즉발로 고정: 신호 한 번이면 발사 신호 없이 바로 나간다.
+        Position(-1.25f, 1.25f); eh.ResetHealth(); Ready();
+        for (var w = Wait(.4f); w.MoveNext();) yield return null;
+        player.ExternalAction("SPECIAL");
+        for (var w = Until(() => special.IsPlaying, 1f); w.MoveNext();) yield return null;
+        Check(special.IsPlaying, "webcam SPECIAL starts the instant cast");
+        for (var w = Until(() => special.LastWave != null, 2f); w.MoveNext();) yield return null;
+        Check(special.LastWave != null, "webcam SPECIAL fires without a release signal");
+        for (var w = Until(() => !special.IsPlaying, 3f); w.MoveNext();) yield return null;
+        for (var w = Wait(.5f); w.MoveNext();) yield return null;
         Position(-1.25f, 1.25f); eh.ResetHealth(); Ready();
         for (var w = Wait(.4f); w.MoveNext();) yield return null;
         player.ExternalAction("SPECIAL_CHARGE");
-        for (var w = Until(() => special.CurrentPhase == SpecialMove.Phase.Charging, 3f); w.MoveNext();) yield return null;
-        Check(special.IsCharging, "webcam SPECIAL_CHARGE starts charging");
-        player.ExternalAction("SPECIAL_CHARGE"); // repeated packets keep charging, no restart
-        for (var w = Wait(.5f); w.MoveNext();) yield return null;
-        player.ExternalAction("SPECIAL_RELEASE");
-        for (var w = Until(() => special.LastWave != null, 2f); w.MoveNext();) yield return null;
-        Check(special.LastWave != null, "webcam SPECIAL_RELEASE fires the wave");
+        for (var w = Until(() => special.LastWave != null, 2.5f); w.MoveNext();) yield return null;
+        Check(special.LastWave != null, "legacy SPECIAL_CHARGE signal also fires instantly");
         for (var w = Until(() => !special.IsPlaying, 3f); w.MoveNext();) yield return null;
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
 
@@ -245,6 +281,8 @@ public static class QiPalmVerification
         until = Time.realtimeSinceStartup + 3f;
         while (special.IsCharging && Time.realtimeSinceStartup < until) { aiGuarded |= enemyF.IsGuarding; if (special.CurrentPhase == SpecialMove.Phase.Charging && aiGuarded) break; yield return null; }
         Check(aiGuarded, "enemy AI guards against the charge");
+        // 스토리 전투 무대에는 CombatSfx 가 놓여 있지 않다. 공격이 한 번이라도 나갔으면 자동으로 만들어져 있어야 한다.
+        Check(UnityEngine.Object.FindAnyObjectByType<CombatSfx>() != null, "combat sound effects are created in a story stage");
         special.Release();
         for (var w = Until(() => !special.IsPlaying, 4f); w.MoveNext();) yield return null;
         enemy.enabled = false; enemyF.CancelAttack();
@@ -259,6 +297,7 @@ public static class QiPalmVerification
         special.Activate();
         for (var w = Until(() => eh.IsDead, 4f); w.MoveNext();) yield return null;
         Check(eh.IsDead && special.LastResult == SpecialMove.Result.Hit, "special K.O.");
+        Check(special.Charge == 0, "the special's own hit does not refill the gauge: gauge " + special.Charge);
         for (var w = Wait(1.2f); w.MoveNext();) yield return null;
         Still("05_ko");
         recording = false; Time.captureFramerate = 0;

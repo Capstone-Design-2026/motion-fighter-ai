@@ -80,7 +80,7 @@ public static class CombatHUDVerification
         Check(!hp.mirror&&enemyHP.mirror,"Opposing HP fill directions");
         Check(enemy.GetComponent<SpecialMove>()==null&&!enemyGauge.Available&&enemyGauge.FillRatio==0,"Enemy without SpecialMove has no fabricated charge");
         Check(canvas.GetComponentsInChildren<Graphic>().All(g=>!g.raycastTarget),"HUD does not intercept gameplay/UI pointer events");
-        Check(rail.Find("PlayerVitals/FighterName").GetComponent<Text>().text=="서진","PLAYER placeholder displays protagonist name");
+        Check(rail.Find("PlayerVitals/FighterName").GetComponent<Text>().text=="서청운","PLAYER placeholder displays protagonist name");
         player.ResetHealth();enemy.ResetHealth();special.ResetCharge();TimeLeft(120);
         // Keep the real keyboard panel available in-game; hide it only for the clean screenshot.
         canvas.transform.Find("KeyGuide")?.gameObject.SetActive(false);

@@ -34,13 +34,11 @@ MonoBehaviour:
   - boss_04
   - boss_final
   campaignBranches: 3
-  endingTitle: VISION STRIKER
-  creditsText: "\uC81C\uC791\uC9C4\n\n\uD504\uB85C\uC81D\uD2B8 \uCD1D\uAD04 \xB7
-    PM\n\uBC15\uC7AC\uD64D\n\n\uAC8C\uC784 \uAE30\uD68D\n\uBC15\uC7AC\uD64D \xB7
-    \uC548\uB3C4\uD604\n\n\uAC8C\uC784 \uD504\uB85C\uADF8\uB798\uBC0D\n\uBC15\uC7AC\uD64D
-    \xB7 \uAE40\uC6C5\uBE48 \xB7 \uC548\uB3C4\uD604 \xB7 \uC624\uC2B9\uC900\n\nAI
-    \xB7 \uBE44\uC804 \uC778\uC2DD\n\uAE40\uC6C5\uBE48 \xB7 \uC624\uC2B9\uC900\n\n3D
-    \uCE90\uB9AD\uD130 \uBAA8\uB378\uB9C1\n\uAE40\uD558\uC740"
+  heroMovement: 0
+  heroWalkSpeed: 2.61
+  endingTitle: "\uD751\uC6B4\uD611"
+  endingMusic: {fileID: 8300000, guid: 0adb13e1fda6cf949a3efb8d8ac5cb8c, type: 3}
+  creditsText: "[logo]\n---\n# \uB9CC\uB4E0 \uC0AC\uB78C\uB4E4\n## \uD300 RedBool\n- \uB2E8\uAD6D\uB300\uD559\uAD50 2026 \uCEA1\uC2A4\uD1A4\uB514\uC790\uC778\n---\n## \uBC15\uC7AC\uD64D\n= \uCD1D\uAD04 \u00B7 \uAE30\uD68D \u00B7 \uAC1C\uBC1C\n- \uC2A4\uD1A0\uB9AC\uC640 \uC9C0\uB3C4 \u00B7 \uCEF7\uC52C\uACFC \uD504\uB864\uB85C\uADF8 \u00B7 3D \uC804\uD22C\uC640 \uD0C0\uACA9 \uD310\uC815\n- \uC804\uD22C \uBB34\uB300 11\uACF3 \u00B7 \uC0C1\uB300 \uCE90\uB9AD\uD130 11\uC778 \u00B7 \uD544\uC0B4\uAE30 \uD30C\uC6B4\uC7A5\n## \uAE40\uC6C5\uBE48\n= \uB3D9\uC791 \uC778\uC2DD AI\n- \uC6F9\uCEA0 \uB3D9\uC791 \uC778\uC2DD \u00B7 \uBCF4\uC815\uACFC \uD559\uC2B5 \u00B7 \uAC8C\uC784 \uC5F0\uACB0 \u00B7 \uD544\uC0B4\uAE30 \uC778\uC2DD\n## \uC548\uB3C4\uD604\n= \uC804\uD22C \uC124\uACC4 \u00B7 \uC0AC\uC6B4\uB4DC\n- \uC804\uD22C \uADDC\uCE59 \u00B7 \uC801 AI \uD589\uB3D9 \u00B7 \uD0C0\uACA9\uAC10 \u00B7 \uBC30\uACBD\uC74C\uC545\uACFC \uD6A8\uACFC\uC74C\n## \uC624\uC2B9\uC900\n= \uB3D9\uC791 \uC778\uC2DD AI \u00B7 \uC8FC\uC778\uACF5 \uC774\uB3D9\n- \uC6F9\uCEA0 \uD654\uBA74\uACFC \uD1B5\uC2E0 \u00B7 \uC2E4\uD589 \uD328\uD0A4\uC9D5 \u00B7 \uC8FC\uC778\uACF5 \uC774\uB3D9 \uB3D9\uC791\n## \uAE40\uD558\uC740\n= \uCE90\uB9AD\uD130 \uC560\uB2C8\uBA54\uC774\uC158\n- \uCE90\uB9AD\uD130 \uBAA8\uB378\uB9C1 \u00B7 \uAE30\uBCF8\uC790\uC138 \u00B7 \uBC29\uC5B4 \u00B7 \uACF5\uACA9 \u00B7 \uC4F0\uB7EC\uC9D0 \uB3D9\uC791\n---\n# \uD6A8\uACFC\uC74C \uCD9C\uCC98\n- Pixabay \u2014 Dragon Studio \u00B7 Ribhav Agrawal \u00B7 Universfield\n---\n# \uB3C4\uAD6C\n- \uAC8C\uC784 \uC5D4\uC9C4 \u00B7 3D : Unity 6 \u00B7 Blender \u00B7 Tripo\n- \uB3D9\uC791 \uC778\uC2DD : Python \u00B7 MediaPipe \u00B7 OpenCV \u00B7 scikit-learn\n- \uADF8\uB9BC \u00B7 \uC74C\uC545 : Figma \u00B7 Suno\n- \uD611\uC5C5 : GitHub \u00B7 Notion\n\n- \uC774 \uAC8C\uC784\uC758 \uC77C\uBD80 \uCF58\uD150\uCE20\uB294 \uC0DD\uC131\uD615 AI \uB3C4\uAD6C\uB97C \uD65C\uC6A9\uD574 \uC81C\uC791\uB418\uC5C8\uC2B5\uB2C8\uB2E4."
   creditsAttributions: 
   creditsDuration: 32
   playerMaxHealth: 100
@@ -252,24 +250,24 @@ MonoBehaviour:
     visualPrefab: {fileID: 413684891346348912, guid: bcd695372e6d70041b77ed9933afdcca, type: 3}
   nodeBattleScenes:
   - nodeId: scout
-    sceneName: ScoutPass
+    sceneName: ScoutPass_Moon
   - nodeId: river
-    sceneName: RiverAmbush
+    sceneName: RiverAmbush_Morning
   - nodeId: ridge
-    sceneName: WindRidge
+    sceneName: WindRidge_Sunrise
   - nodeId: old_ferry
-    sceneName: OldFerry
+    sceneName: OldFerry_Dawn
   - nodeId: gate
-    sceneName: SealedGate
+    sceneName: SealedGate_Storm
   - nodeId: quarry
-    sceneName: HiddenQuarry
+    sceneName: HiddenQuarry_Gold
   - nodeId: east
-    sceneName: EasternRidge
+    sceneName: EasternRidge_Twilight
   - nodeId: camp
-    sceneName: SearchCamp
+    sceneName: SearchCamp_Stars
   - nodeId: rescue
-    sceneName: PrisonStockade
+    sceneName: PrisonStockade_Predawn
   - nodeId: entrance
-    sceneName: BlackCloudEntrance
+    sceneName: BlackCloudEntrance_BlackCloud
   - nodeId: final
-    sceneName: SluiceFortress
+    sceneName: SluiceFortress_Sunset

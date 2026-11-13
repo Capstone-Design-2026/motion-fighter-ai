@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0, y: 0.1590625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "청계역 주변을 감시하라는 명령서다. 마교가 아직 길을 통제하고 있어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

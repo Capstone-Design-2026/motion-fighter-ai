@@ -1,5 +1,10 @@
 # Hero02 approved idle and movement
 
+> **2026-11-12 변경:** 주인공 이동을 대시 없이 **승인 걷기(스텝, `HERO_FORWARD_STEP`)** 로 통일했다. 승인 기본자세(IDLE)는 그대로 쓴다.
+> 앞으로는 스텝을 반복하고, 뒤로는 같은 클립을 거꾸로 재생한다(`HERO_BACKWARD_STEP`, 컨트롤러에 추가한 속도 -1 상태). 입력을 떼면 바로 멈춘다.
+> 빠르기는 `RunConfig`의 **Hero Walk Speed** 배율로 정한다(기본 2.61배, 초당 약 1.0m). 1배는 클립 그대로(한 스텝 0.667초에 약 0.26m, 초당 약 0.38m)다. 재생과 이동을 같은 비율로 올려 보폭이 그대로라 발이 미끄러지지 않는다.
+> 방식은 `RunConfig`의 **Hero Movement** 로 바꾼다: `ApprovedWalk`(기본) / `DashAndStep`(아래 설명의 대시 → 이어 달리기 → 스텝, 뒤로는 백대시) / `CommonWalk`(적과 같은 걷기).
+
 Hero02 uses the approved Jin-inspired guard idle and X-axis authored movement in
 GameScene, ScoutPass, and the ten StoryStages scenes. The shared enemy controller
 and existing scene objects are unchanged.
