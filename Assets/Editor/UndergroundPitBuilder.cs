@@ -369,7 +369,12 @@ public static class UndergroundPitBuilder
             foreach (var l in rootObject.GetComponentsInChildren<Light>(true)) if (l.enabled && l.gameObject.activeInHierarchy) { l.enabled = false; report.AppendLine("   light off: " + l.name + " (" + l.type + ")"); }
             if (rootObject.name == "Ground" || rootObject.name.StartsWith("ArenaWall"))
                 foreach (var r in rootObject.GetComponentsInChildren<Renderer>(true)) if (r.enabled) { r.enabled = false; report.AppendLine("   renderer off: " + r.name); }
-            foreach (var v in rootObject.GetComponentsInChildren<Volume>(true)) report.AppendLine("   existing volume: " + v.name + " global=" + v.isGlobal + " priority=" + v.priority + " profile=" + (v.sharedProfile ? v.sharedProfile.name : "-"));
+            // 원본 씬의 전역 후처리는 끈다. 이 무대는 자기 후처리만 쓴다 (원본의 색 보정이 섞이면 불빛이 죽는다).
+            foreach (var v in rootObject.GetComponentsInChildren<Volume>(true))
+            {
+                report.AppendLine("   existing volume: " + v.name + " global=" + v.isGlobal + " priority=" + v.priority + " profile=" + (v.sharedProfile ? v.sharedProfile.name : "-") + (v.isGlobal ? "  -> turned off" : ""));
+                if (v.isGlobal) v.gameObject.SetActive(false);
+            }
         }
         foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
             if (r.enabled && !r.GetComponentInParent<Fighter>() && !r.GetComponentInParent<Canvas>())
