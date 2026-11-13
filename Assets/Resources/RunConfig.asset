@@ -250,7 +250,7 @@ MonoBehaviour:
     visualPrefab: {fileID: 413684891346348912, guid: bcd695372e6d70041b77ed9933afdcca, type: 3}
   nodeBattleScenes:
   - nodeId: scout
-    sceneName: ScoutPass_Moon
+    sceneName: ScoutPass
   - nodeId: river
     sceneName: RiverAmbush_Morning
   - nodeId: ridge
