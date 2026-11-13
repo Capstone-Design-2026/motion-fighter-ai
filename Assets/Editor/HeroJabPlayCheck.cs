@@ -119,7 +119,7 @@ public static class HeroJabPlayCheck
         AnimationClip jabClip = null;
         foreach (var c in anim.runtimeAnimatorController.animationClips) if (c != null && c.name.EndsWith("_JAB")) jabClip = c;
         Note("잽 클립: " + (jabClip ? jabClip.name + $" length={jabClip.length:F3}s fps={jabClip.frameRate:F0} human={jabClip.isHumanMotion}" : "없음"));
-        Check(jabClip != null && jabClip.name == HeroJabBaker.JabClip, "주인공 컨트롤러의 잽 클립이 승준 v8(" + HeroJabBaker.JabClip + ")이다");
+        Check(jabClip != null && jabClip.name == HeroJabBaker.JabClip, "주인공 컨트롤러의 잽 클립이 " + HeroJabBaker.JabClip + " 이다 (v8·v10 모두 이 이름)");
         Check(jabClip != null && jabClip.isHumanMotion && Mathf.Abs(jabClip.length - HeroJabBaker.Length) < .002f, "잽 클립은 Humanoid이고 길이 0.45초");
         Check(view.CurrentState == "IDLE" && hero.CanAct, "시작: 기본자세, 조작 가능 (state=" + view.CurrentState + ")");
 
