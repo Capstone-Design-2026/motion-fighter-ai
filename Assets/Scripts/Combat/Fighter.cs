@@ -47,7 +47,11 @@ public class Fighter : MonoBehaviour
     [SerializeField] private float recovery = 0.35f;  // 후딜: 다음 공격까지
 
     [Header("방어")]
-    [Tooltip("지금은 쓰지 않는다 — 방어에 성공하면 피해가 0 이다. ConfigureGuard / GuardedDamage 호환용으로 남겨 둔다.")]
+    [Tooltip("방어에 막힌 잽·스트레이트가 막은 쪽에 주는 피해.")]
+    [Min(0)] [SerializeField] private int guardedPunchDamage = 2;
+    [Tooltip("방어에 막힌 하이킥·로우킥이 막은 쪽에 주는 피해.")]
+    [Min(0)] [SerializeField] private int guardedKickDamage = 5;
+    [Tooltip("지금은 쓰지 않는다 — 막힌 피해는 guardedPunchDamage / guardedKickDamage 를 따른다. ConfigureGuard / GuardedDamage 호환용으로 남겨 둔다.")]
     [Range(0f, 1f)]
     [SerializeField] private float blockDamageMultiplier = 0.2f;
 
@@ -244,8 +248,8 @@ public class Fighter : MonoBehaviour
         alreadyHit.Add(target.Health);
         bool targetGuarding = target.IsBlocking;
         bool guarded=IsGuardedBy(target);
-        // 방어에 성공하면 피해를 입지 않는다. 넉백도 없다.
-        int damage=guarded ? 0 : attackDamage;
+        // 방어에 성공해도 정해진 피해(펀치 2, 킥 5)는 들어간다. 넉백은 없다.
+        int damage=guarded ? GuardedDamageOf(CurrentMove) : attackDamage;
         Vector2 force=guarded ? Vector2.zero : new Vector2(knockback.x*Facing,knockback.y);
         if (!target.Health.TakeDamage(damage,force,guarded)) return;
 
@@ -277,6 +281,8 @@ public class Fighter : MonoBehaviour
     public int AttackDamage => attackDamage;
     public float GuardReduction => 1f-blockDamageMultiplier;
     public void ConfigureGuard(float reduction) { blockDamageMultiplier=1f-Mathf.Clamp(reduction,0,.9f); }
+    /// <summary>이 공격이 막혔을 때 막은 쪽에 주는 피해. 펀치(잽·스트레이트)와 킥이 다르다.</summary>
+    public int GuardedDamageOf(CombatMove move) { return move == CombatMove.HighKick || move == CombatMove.LowKick ? guardedKickDamage : guardedPunchDamage; }
     public int GuardedDamage(int incoming) { return Mathf.Max(1,Mathf.CeilToInt(incoming*blockDamageMultiplier-.00001f)); }
     public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
 
@@ -534,7 +540,7 @@ public class Fighter : MonoBehaviour
 
                 if (guarded)
                 {
-                    damage = 0;   // 방어에 성공하면 피해를 입지 않는다. 넉백도 없다.
+                    damage = GuardedDamageOf(CurrentMove);   // 방어에 성공해도 정해진 피해는 들어간다. 넉백은 없다.
                     kb = Vector2.zero;
                     Debug.Log($"[Fighter] {name} 의 {height} 공격을 {targetFighter.name} 가 방어 (데미지 {damage})");
                 }
