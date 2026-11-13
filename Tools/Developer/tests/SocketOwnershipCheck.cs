@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Text;
 using System.Threading.Tasks;
 
 public static class SocketOwnershipCheck
@@ -34,6 +35,8 @@ public static class SocketOwnershipCheck
         [DataMember] public List<int> rebind_native_errors=new List<int>();
         [DataMember] public bool child_alive_after_parent_close, child_exited, all_ports_recovered, passed;
         [DataMember] public int child_pid;
+        [DataMember] public int child_exit_code=-1;
+        [DataMember] public string child_error;
     }
     [DataContract] public sealed class Evidence
     {
@@ -70,9 +73,21 @@ public static class SocketOwnershipCheck
     static int Child(string token)
     {
         Console.WriteLine("READY "+token);Console.Out.Flush();
-        var input=Console.In.ReadLineAsync();
-        if(!input.Wait(15000))return 3;
-        return input.Result=="STOP "+token?0:4;
+        // Framework may prefix redirected input with its encoding preamble;
+        // decode the pipe explicitly instead of the inherited console code page.
+        using(var reader=new StreamReader(Console.OpenStandardInput(),Encoding.UTF8,true))
+        {
+            var input=reader.ReadLineAsync();
+            if(!input.Wait(15000))return 3;
+            if(input.Result=="STOP "+token)return 0;
+            Console.Error.WriteLine("Unexpected stop marker; length="+(input.Result==null?-1:input.Result.Length));
+            return 4;
+        }
+    }
+    static void SendStop(Process child,string token)
+    {
+        byte[] bytes=Encoding.ASCII.GetBytes("STOP "+token+"\n");
+        child.StandardInput.BaseStream.Write(bytes,0,bytes.Length);child.StandardInput.BaseStream.Flush();
     }
     static Process StartChild(string token)
     {
@@ -96,9 +111,9 @@ public static class SocketOwnershipCheck
         {
             if(!child.HasExited)
             {
-                try {child.StandardInput.WriteLine("STOP "+token);child.StandardInput.Flush();}
+                try {SendStop(child,token);}
                 catch(IOException) { }
-                if(!child.WaitForExit(3000)) {child.Kill();Require(child.WaitForExit(3000),"Owned child did not exit after bounded cleanup");}
+                if(!child.WaitForExit(3000)) {child.Kill();if(!child.WaitForExit(3000))throw new TimeoutException("Owned child did not exit after bounded cleanup");}
             }
         }
         catch(InvalidOperationException) { }
@@ -139,8 +154,10 @@ public static class SocketOwnershipCheck
                 if(mode=="inheritable_control")Require(!rebound,"Forced-inheritance positive control did not retain endpoint; do not infer reproduction");
                 if(mode=="protected")Require(rebound,"Protected socket leaked into child");
             }
-            child.StandardInput.WriteLine("STOP "+token);child.StandardInput.Flush();
-            Require(child.WaitForExit(3000)&&child.ExitCode==0,"Child did not exit gracefully");row.child_exited=true;
+            SendStop(child,token);
+            row.child_exited=child.WaitForExit(3000);
+            if(row.child_exited) {row.child_exit_code=child.ExitCode;row.child_error=child.StandardError.ReadToEnd();}
+            Require(row.child_exited&&row.child_exit_code==0,"Child did not exit gracefully: exited="+row.child_exited+", code="+row.child_exit_code+", stderr="+row.child_error);
             foreach(int port in Ports) {int nativeError;Require(CanBind(port,out nativeError),"Port did not recover after child exit");}
             row.all_ports_recovered=true;row.passed=true;
         }
