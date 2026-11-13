@@ -83,5 +83,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Hybrid/SluiceFortress_Sunset.unity
     guid: f17185ea2546ee542b440b45f313e2b8
+  - enabled: 1
+    path: Assets/Scenes/PvpStages/UndergroundPit.unity
+    guid: 6f5a033fc50b94643952957d84407dbf
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
