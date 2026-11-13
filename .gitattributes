@@ -20,3 +20,7 @@ Assets/Joseon_Royal_Wear/**/*.tga  filter=lfs diff=lfs merge=lfs -text
 Assets/Joseon_Royal_Wear/**/*.TGA  filter=lfs diff=lfs merge=lfs -text
 Assets/Joseon_Royal_Wear/**/*.fbx  filter=lfs diff=lfs merge=lfs -text
 Assets/Joseon_Royal_Wear/**/*.FBX  filter=lfs diff=lfs merge=lfs -text
+
+# Authored jab/straight corrective meshes (binary Unity assets).
+Assets/Characters/Hero02/AuthoredPunches/JabSurface.asset filter=lfs diff=lfs merge=lfs -text
+Assets/Characters/Hero02/AuthoredPunches/StraightSurface.asset filter=lfs diff=lfs merge=lfs -text
