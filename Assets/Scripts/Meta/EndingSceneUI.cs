@@ -7,7 +7,7 @@ using UnityEngine.UI;
 /// 엔딩 크레딧. 최종 보스 승리 뒤에 나오고, 시작 화면의 '제작진'으로도 볼 수 있다.
 /// 구성(다른 게임들의 크레딧을 참고):
 ///   제목 → 만든 팀 → 팀원(이름 한 번 + 맡은 일) → 출처 · 도구 → 안내 문구 → 제목과 감사 인사
-///   왼쪽에는 등장인물 초상이 차례로 지나가고, 오른쪽으로 크레딧이 올라간다.
+///   글만 화면 가운데로 올라간다(등장인물 초상은 2026-11-13에 뺐다).
 /// 내용은 RunConfig.creditsText 에서 편집한다. 줄 머리 표시:
 ///   [logo]   흑운협 제목 그림
 ///   # 분야    금색 머리말(작은 글씨 + 금색 선)
@@ -20,26 +20,19 @@ using UnityEngine.UI;
 /// </summary>
 public class EndingSceneUI : MonoBehaviour
 {
-    const float Speed = 66f;          // 기준 해상도(1080p)에서 초당 올라가는 거리
+    const float Speed = 60f;          // 기준 해상도(1080p)에서 초당 올라가는 거리 (초상이 있을 때는 약 47이었다)
     const float EndCardTime = 6f;     // 마지막 제목 화면을 보여 주는 시간
-    const float CastSeconds = 4.2f;   // 등장인물 한 명을 보여 주는 최소 시간
     static readonly Color Gold = new Color(.86f, .69f, .40f);
     static readonly Color Name = new Color(.96f, .93f, .86f);
     static readonly Color Note = new Color(.70f, .72f, .76f);
-    static readonly string[] CastOrder = { "Seojin", "Doyun", "Yeonhwa", "Herbalist", "Physician",
-        "Enemy01", "Enemy02", "Enemy03", "Enemy04", "Enemy05", "Enemy06", "Enemy07", "Enemy08", "Enemy09", "Enemy10", "Enemy11" };
 
     /// <summary>시작 화면의 '제작진'으로 들어왔는지. 그때는 진행 중인 판을 지우지 않는다.</summary>
     public static bool OpenedFromMenu;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { OpenedFromMenu = false; }
 
-    RectTransform roll, viewport, backdropRect, castRect;
+    RectTransform roll, viewport, backdropRect;
     CanvasGroup endCard, rollGroup;
-    RawImage castImage;
-    Text castName, castLabel;
-    readonly List<StoryActorDefinition> cast = new List<StoryActorDefinition>();
-    int castIndex = -1;
     AudioSource music;
     float elapsed, travel;
     bool leaving, ready, fromMenu;
@@ -70,34 +63,11 @@ public class EndingSceneUI : MonoBehaviour
         var shade = UIFactory.CreateImage("Shade", canvas.transform, new Color(0f, 0f, 0f, .38f));
         UIFactory.Stretch(shade.rectTransform);
 
-        // 왼쪽: 등장인물 초상. 위아래 어둠(Edge)보다 먼저 만들어 발치가 어둠에 묻히게 한다.
-        foreach (var id in CastOrder)
-        {
-            var actor = Resources.Load<StoryActorDefinition>("Story/Actors/" + id);
-            if (actor != null && actor.artwork != null) cast.Add(actor);
-        }
-        if (cast.Count > 0)
-        {
-            castImage = new GameObject("CastPortrait", typeof(RectTransform)).AddComponent<RawImage>();
-            castImage.transform.SetParent(canvas.transform, false); castImage.raycastTarget = false; castImage.color = Color.clear;
-            castRect = castImage.rectTransform;
-            castRect.anchorMin = castRect.anchorMax = new Vector2(.22f, 0f); castRect.pivot = new Vector2(.5f, 0f);
-        }
         Edge(canvas.transform, "TopFade", true); Edge(canvas.transform, "BottomFade", false);
-        if (cast.Count > 0)
-        {
-            castLabel = UIFactory.CreateText("CastLabel", canvas.transform, "등장인물", 20, TextAnchor.MiddleCenter, Color.clear);
-            castLabel.font = WuxiaTheme.MenuFont;
-            UIFactory.Place(castLabel.rectTransform, new Vector2(.22f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 128f), new Vector2(600f, 30f));
-            castName = UIFactory.CreateText("CastName", canvas.transform, "", 42, TextAnchor.MiddleCenter, Color.clear);
-            castName.font = WuxiaTheme.MenuFont;
-            var castShadow = castName.gameObject.AddComponent<Shadow>(); castShadow.effectColor = new Color(0f, 0f, 0f, .8f); castShadow.effectDistance = new Vector2(2f, -2f);
-            UIFactory.Place(castName.rectTransform, new Vector2(.22f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 68f), new Vector2(600f, 60f));
-        }
 
-        // 오른쪽: 올라가는 크레딧. 초상이 없으면 화면 전체를 쓴다.
+        // 올라가는 크레딧. 화면 전체를 쓰고 글은 가운데에 놓인다.
         viewport = UIFactory.CreateRect("CreditsViewport", canvas.transform);
-        viewport.anchorMin = new Vector2(cast.Count > 0 ? .42f : 0f, 0f); viewport.anchorMax = Vector2.one;
+        viewport.anchorMin = Vector2.zero; viewport.anchorMax = Vector2.one;
         viewport.offsetMin = viewport.offsetMax = Vector2.zero;
         viewport.gameObject.AddComponent<RectMask2D>();
         roll = UIFactory.CreateRect("CreditsRoll", viewport);
@@ -265,38 +235,10 @@ public class EndingSceneUI : MonoBehaviour
         float since = elapsed - RollSeconds;
         float rollAlpha = 1f - Mathf.Clamp01(since / 1.5f);
         if (rollGroup != null) rollGroup.alpha = rollAlpha;
-        UpdateCast(rollAlpha);
         endCard.alpha = Mathf.Clamp01((since - .6f) / 1.5f);
         if (music != null && since > EndCardTime - 2f) music.volume = Mathf.Min(music.volume, Mathf.Clamp01((EndCardTime - since) / 2f) * .8f);
 
         if (Input.GetKeyDown(KeyCode.Escape) || since >= EndCardTime) Finish();
-    }
-
-    /// <summary>등장인물 초상을 크레딧 길이에 맞춰 차례로 보여 준다. 청운만 오른쪽을 보고 있어 나머지는 좌우를 뒤집는다.</summary>
-    void UpdateCast(float rollAlpha)
-    {
-        if (castImage == null || cast.Count == 0) return;
-        float per = Mathf.Clamp(RollSeconds / cast.Count, CastSeconds, 7f);
-        int index = Mathf.Clamp((int)(elapsed / per), 0, cast.Count - 1);
-        float local = elapsed - index * per;
-        if (index != castIndex)
-        {
-            castIndex = index;
-            var actor = cast[index];
-            Rect crop = actor.crop;
-            bool flip = actor.name != "Seojin";
-            castImage.texture = actor.artwork;
-            castImage.uvRect = flip ? new Rect(crop.x + crop.width, crop.y, -crop.width, crop.height) : crop;
-            float aspect = (actor.artwork.width * crop.width) / (actor.artwork.height * crop.height);
-            castRect.sizeDelta = new Vector2(860f * aspect, 860f);
-            castName.text = actor.displayName;
-        }
-        bool last = index == cast.Count - 1;
-        float a = Mathf.Clamp01(local / .7f) * (last ? 1f : Mathf.Clamp01((per - local) / .7f)) * rollAlpha;
-        castRect.anchoredPosition = new Vector2(Mathf.Lerp(-36f, 0f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(local / 1.1f))), 0f);
-        castImage.color = new Color(.93f, .93f, .93f, a);
-        castName.color = new Color(Name.r, Name.g, Name.b, a);
-        castLabel.color = new Color(Gold.r, Gold.g, Gold.b, a * .9f);
     }
 
     /// <summary>검사·미리보기용: 지정한 시간만큼 흐른 모습으로 맞춘다.</summary>
@@ -304,15 +246,8 @@ public class EndingSceneUI : MonoBehaviour
     public bool Ready => ready;
     /// <summary>마지막 줄이 화면 위쪽에 이르기까지 올라가야 하는 거리.</summary>
     float RollDistance => Mathf.Max(0f, travel - viewport.rect.height * .45f);
-    /// <summary>올라가는 빠르기. 등장인물이 모두 한 번씩(각 CastSeconds 이상) 지나가도록, 내용이 짧으면 더 천천히 올린다.</summary>
-    float PixelsPerSecond
-    {
-        get
-        {
-            float speed = Speed * Mathf.Max(.5f, viewport.rect.height / 1080f);
-            return cast.Count > 0 ? Mathf.Min(speed, RollDistance / (cast.Count * CastSeconds)) : speed;
-        }
-    }
+    /// <summary>올라가는 빠르기(화면 높이에 비례).</summary>
+    float PixelsPerSecond => Speed * Mathf.Max(.5f, viewport.rect.height / 1080f);
     /// <summary>크레딧이 다 올라가 마지막 제목 화면으로 넘어가는 시각(초).</summary>
     public float RollSeconds => ready ? RollDistance / PixelsPerSecond : 0f;
 
