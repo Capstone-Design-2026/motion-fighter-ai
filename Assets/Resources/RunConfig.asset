@@ -250,24 +250,24 @@ MonoBehaviour:
     visualPrefab: {fileID: 413684891346348912, guid: bcd695372e6d70041b77ed9933afdcca, type: 3}
   nodeBattleScenes:
   - nodeId: scout
-    sceneName: ScoutPass
+    sceneName: ScoutPass_Moon
   - nodeId: river
-    sceneName: RiverAmbush
+    sceneName: RiverAmbush_Morning
   - nodeId: ridge
-    sceneName: WindRidge
+    sceneName: WindRidge_Sunrise
   - nodeId: old_ferry
-    sceneName: OldFerry
+    sceneName: OldFerry_Dawn
   - nodeId: gate
-    sceneName: SealedGate
+    sceneName: SealedGate_Storm
   - nodeId: quarry
-    sceneName: HiddenQuarry
+    sceneName: HiddenQuarry_Gold
   - nodeId: east
-    sceneName: EasternRidge
+    sceneName: EasternRidge_Twilight
   - nodeId: camp
-    sceneName: SearchCamp
+    sceneName: SearchCamp_Stars
   - nodeId: rescue
-    sceneName: PrisonStockade
+    sceneName: PrisonStockade_Predawn
   - nodeId: entrance
-    sceneName: BlackCloudEntrance
+    sceneName: BlackCloudEntrance_BlackCloud
   - nodeId: final
-    sceneName: SluiceFortress
+    sceneName: SluiceFortress_Sunset

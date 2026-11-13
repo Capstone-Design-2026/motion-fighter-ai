@@ -50,5 +50,38 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/StoryStages/SluiceFortress.unity
     guid: dff11284df052c74e939281e8c543749
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/ScoutPass_Moon.unity
+    guid: 6b87fa4cf96e15148b30af6b6a8388f7
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/RiverAmbush_Morning.unity
+    guid: 60ebfc88f1c6bc844962ab538e52482a
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/WindRidge_Sunrise.unity
+    guid: c53f31b17300e484591e541a01d98aa7
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/OldFerry_Dawn.unity
+    guid: cc1fde75ed0425e4fb2574a18c3581e0
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/SealedGate_Storm.unity
+    guid: 741b1da4490a5be419f674ea3bee1470
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/HiddenQuarry_Gold.unity
+    guid: 9fdbf405d582cdb4a8e79aaba4177c13
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/EasternRidge_Twilight.unity
+    guid: 851fdb0e337ec914ba97d474d798fb0b
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/SearchCamp_Stars.unity
+    guid: 0b3e9b4f72eb1124296fdf4143d2c385
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/PrisonStockade_Predawn.unity
+    guid: 52c0e07b4d41b9a49a40574a2d9da6b5
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/BlackCloudEntrance_BlackCloud.unity
+    guid: effddea84cb3f064ba5950bccdf604fc
+  - enabled: 1
+    path: Assets/Scenes/Hybrid/SluiceFortress_Sunset.unity
+    guid: f17185ea2546ee542b440b45f313e2b8
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
