@@ -138,6 +138,14 @@ public class BattleSceneBridge : MonoBehaviour
         var stage = Run.PendingStage;
         var node  = Run.PendingNode;
 
+        // 보스 칸이면 씬의 전투곡 대신 보스 전투곡만 튼다.
+        bool bossNode = (node != null && node.type == NodeType.Boss) || (stage != null && stage.nodeType == NodeType.Boss);
+        if (bossNode && Run.Config != null && Run.Config.bossBattleMusic != null)
+        {
+            var bgm = FindAnyObjectByType<BattleBgm>();
+            if (bgm != null) bgm.SetClips(Run.Config.bossBattleMusic);
+        }
+
         if (stage == null)
         {
             string what = node != null ? node.type.ToString() : "?";
