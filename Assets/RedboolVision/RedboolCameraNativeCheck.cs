@@ -100,6 +100,20 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         end=Time.realtimeSinceStartupAsDouble+10;
         while(!runtime.PreviewFresh) {Deadline(end,"first story preview JPEG");yield return null;}
         Check(runtime.PreviewFresh,"Story preview arrives from the new child");
+        // A Windows child must not retain a scene receiver's socket. Keep the
+        // same DEV01 child alive while the old scene closes and reopens 5065.
+        var beforeReceiver=FindAnyObjectByType<RedboolDemoReceiver>();
+        Check(beforeReceiver!=null&&beforeReceiver.isActiveAndEnabled,"Story input receiver opens before scene transition");
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        yield return null;
+        end=Time.realtimeSinceStartupAsDouble+15;
+        while(FindAnyObjectByType<RedboolBattlePreparation>()==null||!runtime.PreviewFresh)
+        {Deadline(end,"scene transition with persistent camera child");yield return null;}
+        var afterReceiver=FindAnyObjectByType<RedboolDemoReceiver>();
+        Check(afterReceiver!=null&&afterReceiver!=beforeReceiver&&afterReceiver.isActiveAndEnabled&&
+            !afterReceiver.Status.StartsWith("SOCKET ERROR"),"New scene reopens input port while camera child stays alive");
+        Check(runtime.ChildId==second&&Alive(second),"Scene change retains the same camera process");
+        yield return new WaitForSecondsRealtime(.2f);
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"03_story_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
         var stop=(IEnumerator)typeof(RedboolCameraRuntime).GetMethod("StopOwned",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(runtime,null);

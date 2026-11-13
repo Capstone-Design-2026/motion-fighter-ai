@@ -206,13 +206,15 @@ public class StartSceneUI : MonoBehaviour
         try
         {
             discoverySocket=new UdpClient(AddressFamily.InterNetwork);
+            RedboolSocketOwnership.PreventInheritance(discoverySocket.Client,"UDP room discovery 0.0.0.0:0");
             discoverySocket.Client.Bind(new IPEndPoint(IPAddress.Any,0));
             discoverySocket.EnableBroadcast=true;
             discoverySocket.Client.Blocking=false;
         }
-        catch(Exception e) when(e is SocketException || e is System.Security.SecurityException)
+        catch(Exception e) when(e is SocketException || e is System.Security.SecurityException || e is System.ComponentModel.Win32Exception)
         {
             StopRoomSearch();
+            Debug.LogWarning("[REDBOOL DISCOVERY] Cannot open room search: "+e.Message);
             pvpMessage.text="방 찾기를 사용할 수 없어요. 친구의 IPv4를 직접 입력해주세요.";
             return;
         }

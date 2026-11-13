@@ -1,4 +1,12 @@
-REDBOOL v33 — first integrated package trial
+REDBOOL v33.1 — Windows socket ownership correction
+
+Windows game sockets are explicitly marked non-inheritable immediately after
+creation. A camera child must not keep a tutorial/scene UDP port alive after its
+Unity owner closes it. This changes handle ownership only, not UDP ports,
+protocol29, recognition thresholds/models, calibration or story behavior.
+The packaged synthetic lifecycle fixture also reloads a combat scene while the
+same DEV01 child stays alive and verifies the new receiver can reopen its port.
+Windows-specific regression instructions are in Tools/Developer/tests.
 
 The Unity player owns one local REDBOOLCamera child while in tutorial/combat/PvP.
 Story scenes retain one calibration. Returning to the main menu stops the child;

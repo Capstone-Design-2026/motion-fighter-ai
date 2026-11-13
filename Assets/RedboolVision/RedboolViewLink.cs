@@ -81,6 +81,7 @@ public sealed class RedboolViewLink : MonoBehaviour
         try
         {
             socket=new UdpClient(new IPEndPoint(IPAddress.Any,client?0:RedboolViewProtocol.Port));
+            RedboolSocketOwnership.PreventInheritance(socket.Client,"UDP display "+socket.Client.LocalEndPoint);
             socket.Client.Blocking=false;socket.Client.ReceiveBufferSize=128*1024;
             if(client) {
                 int port=RedboolViewProtocol.Port;var args=Environment.GetCommandLineArgs();int index=Array.IndexOf(args,"--redbool-view-port");
@@ -95,8 +96,8 @@ public sealed class RedboolViewLink : MonoBehaviour
             if(client) {mirror=gameObject.AddComponent<RedboolViewMirror>();mirror.Initialize(game,views,bones);Time.timeScale=1;}
             initialized=true;Debug.Log("[REDBOOL VIEW] "+(client?"guest "+peer:"host :5067")+" protocol="+RedboolViewProtocol.Version);
         }
-        catch(Exception e) when(e is SocketException || e is FormatException)
-        {Debug.LogError("[REDBOOL VIEW] Cannot open display channel: "+e.Message);}
+        catch(Exception e) when(e is SocketException || e is FormatException || e is System.ComponentModel.Win32Exception)
+        {socket?.Close();socket=null;Debug.LogError("[REDBOOL VIEW] Cannot open display channel: "+e.Message);}
     }
     public static void RecordEffect(Vector3 point,int kind)
     {

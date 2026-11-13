@@ -70,7 +70,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recording='diagnostics only; no raw video or per-frame pose file',
                     lan_protocol=29)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v33 · 첫 통합 패키지 시험판\n\n'
+        'REDBOOL v33.1 · Windows 연결 수정 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'

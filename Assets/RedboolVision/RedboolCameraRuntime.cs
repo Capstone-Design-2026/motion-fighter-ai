@@ -116,7 +116,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         try
         {
         var reservation=new TcpListener(IPAddress.Loopback,0);
-        try { reservation.Start();port=((IPEndPoint)reservation.LocalEndpoint).Port; }
+        try { RedboolSocketOwnership.PreventInheritance(reservation.Server,"TCP camera bridge reservation 127.0.0.1:0");
+            reservation.Start();port=((IPEndPoint)reservation.LocalEndpoint).Port; }
         finally { reservation.Stop(); }
         token=Guid.NewGuid().ToString("N")+Guid.NewGuid().ToString("N");url="http://127.0.0.1:"+port;
         string diagnosticRoot=Path.Combine(Application.persistentDataPath,"CameraDiagnostics");

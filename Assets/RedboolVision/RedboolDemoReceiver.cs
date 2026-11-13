@@ -135,12 +135,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             hasState=false;sourceCaptureNs=lastUncertaintyNs=0;
             syncs.Clear();outcomes.Clear();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
+            RedboolSocketOwnership.PreventInheritance(udp.Client,"UDP "+bindAddress+":"+port);
             udp.Client.ReceiveTimeout=100;
             listeners[port]=this;
             running=true;worker=new Thread(Receive) { IsBackground=true };worker.Start();
             DisableLegacy();
             Status="WAITING FOR PYTHON :"+port;
-        } catch(Exception e) { Status="SOCKET ERROR: "+e.Message;UnityEngine.Debug.LogError(Status);enabled=false; }
+        } catch(Exception e) {
+            var native=e as System.ComponentModel.Win32Exception;var socketError=e as SocketException;
+            string code=native==null?"":" (native "+native.NativeErrorCode+(socketError==null?"":", "+socketError.SocketErrorCode)+")";
+            Status="SOCKET ERROR: "+bindAddress+":"+port+code+" "+e.Message;
+            UnityEngine.Debug.LogError(Status);enabled=false;
+        }
     }
     private void Start() { DisableLegacy(); }
     private void DisableLegacy() {

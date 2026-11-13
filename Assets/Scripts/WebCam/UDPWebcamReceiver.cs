@@ -34,6 +34,7 @@ public class UDPWebcamReceiver : MonoBehaviour
         try
         {
             udpClient = new UdpClient(port);
+            RedboolSocketOwnership.PreventInheritance(udpClient.Client,"UDP preview 0.0.0.0:"+port);
             isRunning = true;
             var socket = udpClient;
             receiveThread = new Thread(() => ReceiveData(socket)) { IsBackground = true, Name = "VisionStriker Webcam" };
