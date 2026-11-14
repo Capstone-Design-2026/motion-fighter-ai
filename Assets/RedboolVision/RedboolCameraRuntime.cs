@@ -101,6 +101,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     IEnumerator StartAuthorized()
     {
+        string initialRole=DesiredRole();
+        string initialAddress=initialRole=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
+        if(quitting || restartRequested || role!=initialRole || address!=initialAddress)yield break;
         // macOS support was added in Unity2023.1.0a19 (official release notes);
         // this Unity6 main-thread preflight avoids OpenCV's first-use permission
         // request from the capture worker. Synthetic checks never request access.
