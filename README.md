@@ -1,6 +1,6 @@
 # REDBOOL / Motion Fighter AI
 
-웹캠으로 상체 동작을 인식해 Unity 무협 격투 게임을 조작하는 프로젝트입니다. 최신 개발판은 **v33 첫 통합 패키지 시험 버전**입니다.
+웹캠으로 상체 동작을 인식해 Unity 무협 격투 게임을 조작하는 프로젝트입니다. 최신 개발판은 **v34 게임 콘텐츠·관절 진단 기록 통합 시험 버전**입니다.
 
 **현재 `main`의 코드는 초기 MLP 실험 스냅샷입니다.** 최신 게임·인식 코드는 아래 개발 브랜치와 PR에 있습니다. 이 README 갱신은 안내 문서만 바꾼 것이며, 게임 코드나 개발 PR을 `main`에 병합한 것은 아닙니다.
 
@@ -12,14 +12,17 @@
 | Unity 스토리·두 화면 PvP·패키징 | `codex/pvp-dual-screen-20261112` | [현재 README](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/pvp-dual-screen-20261112/README.md) · [PR #14](https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/14) |
 
 - [카메라 구성·API·네이티브 빌드 방법](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/tutorial-personal-pvp-20261112/docs/v33-integrated-camera.txt)
-- [Unity 통합 패키지 조립·검증 방법](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/pvp-dual-screen-20261112/Tools/Developer/V33_PACKAGING.txt)
-- [Windows 카메라 빌드 workflow](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/tutorial-personal-pvp-20261112/.github/workflows/camera-backend-windows.yml) · [통과한 실행 기록](https://github.com/Capstone-Design-2026/motion-fighter-ai/actions/runs/43259318061)
+- [v34 관절 기록·진단·재생 방법](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/tutorial-personal-pvp-20261112/docs/v34-landmark-diagnostics.txt)
+- [Unity 통합 패키지 조립·검증 방법](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/pvp-dual-screen-20261112/Tools/Developer/V34_PACKAGING.txt)
+- [Windows 카메라 빌드 workflow](https://github.com/Capstone-Design-2026/motion-fighter-ai/blob/codex/tutorial-personal-pvp-20261112/.github/workflows/camera-backend-windows.yml) · [통과한 실행 기록](https://github.com/Capstone-Design-2026/motion-fighter-ai/actions/runs/43585315988)
 
 ## 게임 체험과 2인 대전
 
 1. 전달받은 운영체제별 게임 패키지를 폴더 전체로 풀고 Mac은 `REDBOOL.app`, Windows는 `REDBOOL.exe`를 실행합니다. 지원 폴더를 분리하지 않습니다.
 2. 스토리·결투 또는 `PvP 대전`으로 들어갑니다. 두 노트북에서는 한쪽이 `방 만들기`, 다른 쪽이 `방 찾기` 또는 호스트 IPv4 입력 후 `대전 참가`를 선택합니다.
 3. 게임 안 카메라 안내에서 `보정` 또는 `C`를 누르고 편한 중앙 가드 자세를 유지합니다. 사람이 바뀌면 다시 보정합니다.
+
+PvP 양쪽은 **v34**를 사용하세요. 최신 캐릭터의 펀치 외형을 맞추는 화면 통신 규약은 **30**이며 이전 버전과 섞어 연결하지 않습니다.
 
 각 노트북에서 자신의 카메라를 처리하고 같은 결투장을 봅니다. 기존 호스트 중심 LAN 연결을 사용하므로 외부 서버가 필요하지 않습니다. 미리보기 영상은 상대에게 보내지 않습니다. 두 노트북의 로컬 통신과 방화벽 허용은 필요합니다.
 
@@ -29,9 +32,9 @@
 
 - v26 기반 인식과 검증된 보완을 유지하며, Lite가 기본 관절 추정이고 Full은 X자 인식 보조입니다.
 - 튜토리얼 개인 보정은 독립적이고 일관된 동작·복귀 표본으로 제한된 범위만 조절합니다. 두 번의 수련으로 모든 사람의 동작을 새로 학습했다고 보지 않습니다.
-- 통합 패키지는 기본적으로 이벤트·보정·성능 요약을 저장하며 원본 영상이나 프레임별 관절 좌표를 저장하지 않습니다. 용량은 줄지만 모든 실제 동작을 영상 재검증할 수 있는 기록은 아닙니다.
+- 통합 패키지는 원본 영상 없이 처리한 관절 좌표와 처리 순서·보정·공격·성능 기록을 압축 저장합니다. 카메라 실행당 관절 기록은 최대 128MiB이며 빠진 구간은 명시합니다. 기록으로 인식 과정을 재생할 수 있지만, 영상이나 의도 라벨 없이 모든 실제 동작의 정답을 확정할 수는 없습니다.
 - Windows 네이티브 빌드에서 동봉 모델 추론, 로컬 미리보기·보정 명령·정상 종료 검사를 통과했습니다. 실제 카메라를 사용하지 않은 검사이며 현장 인식률·Wi-Fi·게임 지연의 검증을 대신하지 않습니다.
-- 첫 통합 패키지는 실제 Mac/Windows 카메라 권한·드라이버·발열·동시 플레이 확인이 남아 있습니다. 일반 배포용 서명·공증 완료 버전으로 안내하지 않습니다.
+- v34의 실제 Mac/Windows 카메라 권한·드라이버·발열·동시 플레이와 새 적 필살기 첫 실행 성능 확인은 남아 있습니다. 일반 배포용 서명·공증 완료 버전으로 안내하지 않습니다.
 
 원본 촬영 자료, 학습 데이터, 모델 파일, 가상환경은 Git에 올리지 않습니다. 기존 연구·데이터 수집 문서는 아래에 보존했습니다.
 
@@ -40,7 +43,7 @@
 <details>
 <summary>초기 MLP 연구·데이터 수집 문서 — main 코드의 이전 구성</summary>
 
-아래의 분류명·MLP 학습 명령·브랜치 전략·계획은 초기 실험 당시의 기록입니다. 최신 v33 실행은 위 개발 브랜치 안내를 사용하세요.
+아래의 분류명·MLP 학습 명령·브랜치 전략·계획은 초기 실험 당시의 기록입니다. 최신 v34 실행은 위 개발 브랜치 안내를 사용하세요.
 
 # Motion Fighter AI
 
