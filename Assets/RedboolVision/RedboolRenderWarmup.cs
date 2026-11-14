@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 // Render the actual materials through the actual arena camera/URP before input
 // unlocks. Merely loading shaders does not prepare Metal's render pipeline states.
+[DefaultExecutionOrder(200)] // After HeroPunchSurfaceVisibility chooses the normal visible skin.
 public sealed class RedboolRenderWarmup : MonoBehaviour
 {
     public RedboolBattlePreparation preparation;
@@ -12,11 +13,51 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
     Camera cameraUsed;
     RenderTexture previous, target;
     bool restored;
+    sealed class PunchSurface
+    {
+        public SkinnedMeshRenderer renderer;
+        public bool enabled, forceRenderingOff, updateWhenOffscreen;
+    }
+    readonly List<PunchSurface> punchSurfaces = new List<PunchSurface>();
+    bool warmingPunchSurfaces;
+
+    void PreparePunchSurfaces()
+    {
+        // This warmup is installed by the existing story preparation gate only.
+        // Leave remote view/controller ownership and its CurrentSurface untouched.
+        if (RedboolPvp.Active) return;
+        foreach (var skin in FindObjectsByType<HeroPunchSurfaceVisibility>(FindObjectsSortMode.None))
+        {
+            if (!skin.isActiveAndEnabled) continue;
+            foreach (var renderer in new[] { skin.jabSurface, skin.straightSurface })
+            {
+                if (renderer == null || renderer.sharedMesh == null || !renderer.gameObject.activeInHierarchy) continue;
+                if (punchSurfaces.Exists(saved => saved.renderer == renderer)) continue;
+                punchSurfaces.Add(new PunchSurface { renderer = renderer, enabled = renderer.enabled,
+                    forceRenderingOff = renderer.forceRenderingOff, updateWhenOffscreen = renderer.updateWhenOffscreen });
+            }
+        }
+        warmingPunchSurfaces = true;
+    }
+
+    void LateUpdate()
+    {
+        if (!warmingPunchSurfaces || cameraUsed == null || cameraUsed.targetTexture != target) return;
+        // Use the actual renderers, so their large mesh/skin GPU buffers are ready
+        // before the first attack. Only the temporary camera target sees this.
+        foreach (var saved in punchSurfaces) if (saved.renderer != null)
+        {
+            saved.renderer.enabled = true;
+            saved.renderer.forceRenderingOff = false;
+            saved.renderer.updateWhenOffscreen = true;
+        }
+    }
 
     IEnumerator Start()
     {
         // Let normal Start methods prepare assets, camera and render templates.
         yield return null;
+        if (!isActiveAndEnabled) yield break;
         cameraUsed = Camera.main;
         if (cameraUsed == null) { Restore(); if (preparation != null) preparation.EffectsPreparing = false; Destroy(this); yield break; }
         previous = cameraUsed.targetTexture;
@@ -55,9 +96,11 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
                 }
             }
             QiPostFx.PrepareRenderWeight(1f);
+            PreparePunchSurfaces();
             // SRP renders into the temporary target during normal player frames.
             // More than one frame prepares both transient geometry and post effects.
             for (int i = 0; i < 4; i++) yield return null;
+            Debug.Log($"[REDBOOL PREWARM] punch-surfaces={punchSurfaces.Count} offscreen_frames=4 controller_unchanged=true");
         }
         finally { Restore(); }
         // Also let the restored backbuffer render before accepting live input.
@@ -70,6 +113,14 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
     void Restore()
     {
         if (restored) return; restored = true;
+        warmingPunchSurfaces = false;
+        foreach (var saved in punchSurfaces) if (saved.renderer != null)
+        {
+            saved.renderer.enabled = saved.enabled;
+            saved.renderer.forceRenderingOff = saved.forceRenderingOff;
+            saved.renderer.updateWhenOffscreen = saved.updateWhenOffscreen;
+        }
+        punchSurfaces.Clear();
         foreach (var go in visuals) if (go != null) { go.SetActive(false); Destroy(go); }
         if (cameraUsed != null) cameraUsed.targetTexture = previous;
         if (target != null) RenderTexture.ReleaseTemporary(target);

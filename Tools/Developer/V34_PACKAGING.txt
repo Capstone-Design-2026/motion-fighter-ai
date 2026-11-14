@@ -1,4 +1,14 @@
-REDBOOL v34 — current Unity content and bounded landmark diagnostics
+REDBOOL v34.1 — current Unity content and bounded landmark diagnostics
+
+Field patch: the existing story combat warmup renders both real Hero02 punch
+correction surfaces into its temporary target before input unlocks. Renderer
+flags and controller state are restored on completion or interruption; PvP,
+damage, animation and recognition rules are unchanged. A native fixture passes
+33 checks, including both real meshes and exact restoration. The first Windows
+straight had a144ms frame with a120MB D3D12 upload; improvement on that machine
+is not yet measured. The backend retains capture frame IDs alongside raw model
+metadata; offline replay reports tight cross-platform float roundoff separately
+while requiring exact event decisions, integer timing and ordering.
 
 Reviewed Unity upstream: 85ea2defc027ce22285466a9da8338d37d5701b7.
 Includes new story arenas, UndergroundPit PvP arena, corrected hero punch meshes,

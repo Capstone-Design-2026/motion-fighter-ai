@@ -81,7 +81,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recognition_recording_schema='redbool.landmarks/1',
                     lan_protocol=30)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v34 · 최신 게임 콘텐츠·관절 진단 기록 통합 시험판\n\n'
+        'REDBOOL v34.1 · 첫 타격 사전 준비·관절 진단 보완 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -90,7 +90,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '사람을 바꾸면 C로 다시 보정합니다. 게임을 종료하면 카메라도 종료됩니다.\n'
         '접기를 누르면 영상 표시를 쉬며 동작 인식은 계속됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 v34를 사용하세요. 이전 버전과 화면 통신 규약이 다릅니다.\n'
+        '양쪽 모두 같은 v34.1 패키지로 테스트하세요. 화면 통신 규약은 v34와 같습니다.\n'
         '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'
         'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
         '양쪽 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
