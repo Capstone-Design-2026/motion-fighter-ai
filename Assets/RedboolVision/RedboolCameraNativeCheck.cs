@@ -61,12 +61,27 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         try {using(var p=Process.GetProcessById(id))return !p.HasExited;}
         catch(ArgumentException){return false;}catch(InvalidOperationException){return false;}
     }
-    static bool ModalBlocksScreenPoint(Vector2 point)
+    static bool ModalBlocksScreenPoint(Vector2 point,bool expected)
     {
-        if(EventSystem.current==null)return false;
         var hits=new List<RaycastResult>();
-        EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current){position=point},hits);
-        return hits.Count>0&&hits[0].gameObject.GetComponentInParent<Canvas>()?.name=="GameMenuCanvas";
+        if(EventSystem.current!=null)
+            EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current){position=point},hits);
+        bool blocked=hits.Count>0&&hits[0].gameObject.GetComponentInParent<Canvas>()?.name=="GameMenuCanvas";
+        if(blocked!=expected)
+        {
+            Debug.Log($"[CAMERA CHECK RAYCAST] expected={expected} actual={blocked} point={point} screen={Screen.width}x{Screen.height} event_system={EventSystem.current} hits={hits.Count}");
+            foreach(var hit in hits)
+                Debug.Log($"[CAMERA CHECK RAYCAST HIT] object={hit.gameObject.name} depth={hit.depth} sorting={hit.sortingLayer}/{hit.sortingOrder} distance={hit.distance} module={hit.module}");
+            foreach(var menuCanvas in FindObjectsByType<Canvas>(FindObjectsInactive.Include,FindObjectsSortMode.None))
+            {
+                if(menuCanvas.name!="GameMenuCanvas")continue;
+                var caster=menuCanvas.GetComponent<GraphicRaycaster>();
+                Debug.Log($"[CAMERA CHECK RAYCAST CANVAS] enabled={menuCanvas.enabled} active={menuCanvas.gameObject.activeInHierarchy} mode={menuCanvas.renderMode} order={menuCanvas.sortingOrder} scale={menuCanvas.scaleFactor} raycaster={caster?.enabled}");
+                foreach(var graphic in menuCanvas.GetComponentsInChildren<Graphic>(true))
+                    Debug.Log($"[CAMERA CHECK RAYCAST GRAPHIC] object={graphic.name} enabled={graphic.enabled} active={graphic.gameObject.activeInHierarchy} target={graphic.raycastTarget} depth={graphic.depth} cull={graphic.canvasRenderer.cull} rect={graphic.rectTransform.rect} position={graphic.rectTransform.position}");
+            }
+        }
+        return blocked;
     }
     void InstallUnsavedMapFixture()
     {
@@ -107,13 +122,18 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(runtime.Synthetic&&RedboolCameraRuntime.Packaged,"Bundled runtime explicitly synthetic");
         Check(!runtime.Running,"Menu does not open camera child");
         float menuTime=Time.timeScale,menuStep=Time.fixedDeltaTime;
-        RedboolPauseMenu.Open();Canvas.ForceUpdateCanvases();
+        RedboolPauseMenu.Open();
+        // Canvas depth/raycast registration is populated on its first displayed
+        // frame; the behavior under test starts after that frame is available.
+        yield return new WaitForEndOfFrame();Canvas.ForceUpdateCanvases();
         Check(RedboolPauseMenu.IsOpen&&ButtonNamed("GameMenuContinue")!=null&&ButtonNamed("GameMenuReturn")!=null,"Universal game menu opens with Continue and Return choices");
         Check(!runtime.Running&&!runtime.DiagnosticsPending,"Opening main-menu overlay does not start a camera child");
-        Check(ModalBlocksScreenPoint(new Vector2(12,12)),"Fullscreen modal prevents pointer clicks reaching the underlying scene");
+        Check(ModalBlocksScreenPoint(new Vector2(12,12),true),"Fullscreen modal prevents pointer clicks reaching the underlying scene");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory,"00_menu_game_menu.png"));
+        yield return new WaitForEndOfFrame();
         ButtonNamed("GameMenuContinue").onClick.Invoke();
         Check(!RedboolPauseMenu.IsOpen&&RedboolPauseMenu.BlocksStoryInput,"Continue closes overlay and consumes its closing-frame story input");
-        Check(!ModalBlocksScreenPoint(new Vector2(12,12)),"Closed menu no longer blocks pointer input to the scene");
+        Check(!ModalBlocksScreenPoint(new Vector2(12,12),false),"Closed menu no longer blocks pointer input to the scene");
         Check(Mathf.Approximately(Time.timeScale,menuTime)&&Mathf.Approximately(Time.fixedDeltaTime,menuStep),"Opening and continuing menu never takes ownership of simulation time");
         yield return null;
         Check(!RedboolPauseMenu.BlocksStoryInput&&!runtime.Running,"Story keyboard input resumes next frame without opening a camera");
