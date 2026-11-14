@@ -26,6 +26,17 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 
+def _print_status(*values, **options):
+    """A terminal encoding/closed pipe must never interrupt capture cleanup."""
+    try:
+        print(*values, **options)
+    except (UnicodeError, OSError, ValueError):
+        try:
+            print(*(str(v).encode('ascii','backslashreplace').decode('ascii') for v in values), **options)
+        except (UnicodeError, OSError, ValueError):
+            pass
+
+
 def run(a):
     import numpy as np
     import cv2 as cv
@@ -73,7 +84,7 @@ def run(a):
         raise ValueError("Auxiliary cross pose is supported by the calibrated engine only")
     if a.check:
         mode='learned guard confirmation' if getattr(a,'guard_model',None) else 'calibrated rules'
-        print(f'Demo modules, {variant} asset and {mode} OK. Camera/UDP not opened.');return
+        _print_status(f'Demo modules, {variant} asset and {mode} OK. Camera/UDP not opened.');return
     stream=a.stream_id or uuid.uuid4().hex
     out=a.output/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+stream[:8])
     out.mkdir(parents=True,exist_ok=False)
@@ -182,7 +193,7 @@ def run(a):
                 log.write(sender.send('STATE',ttl_ms=150,block_active=False,movement='NEUTRAL',movement_strength=0.,tracking='STOPPED',fsm_state='UNAVAILABLE',calibration_version=1,calibrated=False))
             sender.close()
     workers=[threading.Thread(target=capture,name='demo-camera',daemon=True),threading.Thread(target=publisher,name='demo-publisher',daemon=True)]
-    print(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)
+    _print_status(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)
     started=time.monotonic();last_stamp=None;origin=None;last_ms=-1;pose_ms=0.
     next_preview_ns=0;cross_samples=[];recovery_samples=[];pose_samples=[];age_samples=[];framing_counts=Counter()
     prior_cv_threads=cv.getNumThreads()
@@ -402,7 +413,7 @@ def run(a):
         for item in engine.take_logs():log.write({'type':'engine','log':item})
         log.close()
         if log.error or log.dropped:errors.append({'where':'log','error':log.error,'dropped':log.dropped})
-        print("촬영 종료. 기록을 마무리합니다. 원본 데이터는 삭제하지 않습니다.",flush=True)
+        _print_status("촬영 종료. 기록을 마무리합니다. 원본 데이터는 삭제하지 않습니다.",flush=True)
         if video is not None:
             try:video.close()
             except BaseException as exc:errors.append({'where':'video','error':repr(exc)})
@@ -429,7 +440,7 @@ def run(a):
             'camera_slot_drops':slot.dropped,'duration_seconds':time.monotonic()-started,
             'recording_mode':recording,'recording':recording_health,'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
             'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
-        (out/'summary.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
+        (out/'summary.json').write_text(json.dumps(report,indent=2));_print_status(json.dumps(report,indent=2))
     if hasattr(engine,'profile'):
         (out/'personal_profile.json').write_text(json.dumps(engine.profile(),indent=2))
     if errors:raise RuntimeError(errors)

@@ -85,7 +85,7 @@ class LandmarkJournalTests(unittest.TestCase):
             wait_until(lambda:len(journal.chunks)==1)
             journal.chunk_rows=100
             journal.offer('publisher',test=2)
-            wait_until(lambda:journal.active_part is not None)
+            wait_until(lambda:bool(json.loads((journal.directory/INDEX).read_text())['health']['active_part']))
             index=json.loads((journal.directory/INDEX).read_text())
             self.assertFalse(index['complete'])
             self.assertTrue(index['health']['active_part'].endswith('.part'))

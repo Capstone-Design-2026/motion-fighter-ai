@@ -1,5 +1,7 @@
 """Exercise production live wiring with synthetic camera/models; never open a device."""
 import argparse
+import contextlib
+import io
 from collections import Counter
 import json
 from pathlib import Path
@@ -16,6 +18,18 @@ from test_chest_special import pose
 
 
 class LandmarkLiveTests(unittest.TestCase):
+    def test_terminal_unicode_and_broken_pipe_are_nonfatal(self):
+        from redbool_demo.live import _print_status
+        encoded=io.BytesIO();console=io.TextIOWrapper(encoded,encoding='cp1252')
+        with contextlib.redirect_stdout(console):_print_status('한글 경로',flush=True)
+        self.assertIn(b'\\u',encoded.getvalue())
+        class Broken:
+            def write(self,*args):raise BrokenPipeError('terminal closed')
+            def flush(self):raise BrokenPipeError('terminal closed')
+        with contextlib.redirect_stdout(Broken()):_print_status('종료',flush=True)
+        closed=io.StringIO();closed.close()
+        with contextlib.redirect_stdout(closed):_print_status('already closed',flush=True)
+
     def test_headless_all_models_calibration_controls_and_full_rate_journal(self):
         from redbool_demo.live import run
         from mediapipe.tasks.python.vision import PoseLandmarker
@@ -53,14 +67,15 @@ class LandmarkLiveTests(unittest.TestCase):
                 return None
             def close(self):pass
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td);lite=root/'lite.task';full=root/'full.task';lite.write_bytes(b'lite');full.write_bytes(b'full')
+            root=Path(td)/'한글 경로';root.mkdir();lite=root/'lite.task';full=root/'full.task';lite.write_bytes(b'lite');full.write_bytes(b'full')
             bridge=Bridge();args=argparse.Namespace(output=root/'runs',pose=lite,pose_variant='Lite',cross_pose=full,
                 cross_redetect=True,guard_model=None,personal_calibration=True,check=False,stream_id='synthetic',
                 movement=True,actor='DEV01',host='127.0.0.1',port=9,camera=0,backend='auto',seconds=6,
                 guided=False,recording='diagnostics',preview_fps=8,headless=True,bridge_instance=bridge,mirror=True)
             with patch('continuous_events.protocol.verify_pose_asset'),patch('pose_capture.open_camera',return_value=Camera()),\
                  patch.object(PoseLandmarker,'create_from_options',side_effect=lambda *a,**kw:Model()),\
-                 patch('redbool_demo.live.DemoSender',Sender):
+                 patch('redbool_demo.live.DemoSender',Sender), \
+                 contextlib.redirect_stdout(io.TextIOWrapper(io.BytesIO(),encoding='cp1252')):
                 run(args)
             output=next((root/'runs').iterdir());summary=json.loads((output/'summary.json').read_text())
             self.assertFalse(summary['errors']);self.assertEqual(summary['recording']['state'],'complete')
@@ -73,6 +88,8 @@ class LandmarkLiveTests(unittest.TestCase):
             self.assertTrue(all(len(r['frame']['full_image']['world'])==33 for r in frames))
             self.assertTrue(all(len(r['frame']['full_video']['presence'])==33 for r in frames))
             self.assertEqual(bridge.data['recording']['state'],'complete')
+            self.assertFalse(any(t.is_alive() and t.name=='landmark-journal' for t in threading.enumerate()))
+            self.assertFalse(list(output.rglob('*.part')))
             self.assertFalse(list(output.rglob('frames.jsonl')))
             self.assertFalse(list(output.rglob('*.avi'))+list(output.rglob('*.mp4')))
 

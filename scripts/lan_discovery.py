@@ -31,4 +31,4 @@ def discover(timeout=1.2, targets=None):
 
 if __name__ == '__main__':
     peers = discover()
-    print('\n'.join(peers) if peers else 'No v29 host found. Start the host game; use its IPv4 if broadcasts are blocked.')
+    print('\n'.join(peers) if peers else 'No compatible host found. Start the host game; use its IPv4 if broadcasts are blocked.')
