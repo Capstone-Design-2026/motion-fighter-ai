@@ -34,7 +34,7 @@ jobs:
       - name: Fetch fingerprint-verified models
         run: python scripts/setup_demo_models.py
       - name: Camera-free control and storage tests
-        run: python -m unittest -v test_local_bridge test_headless_live test_diagnostics_recording test_live_clock test_backend_entry test_landmark_recording test_landmark_live test_landmark_replay_comparison test_backend_provenance test_calibration_sampling test_performance_policy
+        run: python -m unittest -v test_local_bridge test_headless_live test_diagnostics_recording test_live_clock test_backend_entry test_landmark_recording test_landmark_live test_landmark_replay_comparison test_backend_provenance test_calibration_sampling test_performance_policy test_camera_profile
       - name: Build native executable and check assets
         run: python scripts/build_camera_backend.py --pose pose_landmarker.task --cross-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task
       - name: Verify packaged lifecycle without camera

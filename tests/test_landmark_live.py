@@ -36,21 +36,29 @@ class LandmarkLiveTests(unittest.TestCase):
     def test_sustained_auxiliary_overload_stops_full_calls_and_replays_exactly(self):
         self._check_live(overload=True)
 
-    def _check_live(self, overload):
+    def test_startup_probe_frames_never_enter_engine_or_journal(self):
+        self._check_live(overload=False,profiling=True)
+
+    def test_cancel_during_startup_probe_releases_owned_camera_without_observations(self):
+        self._check_live(overload=False,profiling=True,cancel_profile=True)
+
+    def _check_live(self, overload, profiling=False, cancel_profile=False):
         from redbool_demo.live import run
+        from redbool_demo.camera_profile import select_startup_profile
         from mediapipe.tasks.python.vision import PoseLandmarker
         models=[]
         class Camera:
             frame=0
             def set(self,*args):return True
             def get(self,*args):return 30.
-            def getBackendName(self):return 'SYNTHETIC_NO_DEVICE'
+            def getBackendName(self):return 'DSHOW' if profiling else 'SYNTHETIC_NO_DEVICE'
             def read(self):
                 time.sleep(.018);self.frame+=1
-                bgr=np.zeros((48,64,3),dtype=np.uint8)
+                if cancel_profile and self.frame>=4:bridge.stop_requested.set()
+                bgr=np.zeros((480,640,3) if profiling else (48,64,3),dtype=np.uint8)
                 bgr[0,0,0]=self.frame%256;bgr[0,0,1]=self.frame//256
                 return True,bgr
-            def release(self):pass
+            def release(self):self.released=True
         class Model:
             def __init__(self):self.calls=[];self.index=len(models);models.append(self)
             def detect_for_video(self,image,*args):
@@ -71,8 +79,8 @@ class LandmarkLiveTests(unittest.TestCase):
             def offer(self,event):self.delivery['offered']+=1
             def close(self):self.closed=True
         class Bridge:
-            def __init__(self):self.stop_requested=threading.Event();self.data=dict(preview_encoded=0);self.done=set()
-            def update(self,**kw):self.data.update(kw)
+            def __init__(self):self.stop_requested=threading.Event();self.data=dict(preview_encoded=0);self.done=set();self.history=[]
+            def update(self,**kw):self.data.update(kw);self.history.append(dict(kw))
             def offer_preview(self,*args,**kw):self.data['preview_encoded']+=1
             def snapshot(self):return dict(self.data)
             def take_command(self):
@@ -84,17 +92,28 @@ class LandmarkLiveTests(unittest.TestCase):
             def close(self):pass
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/'한글 경로';root.mkdir();lite=root/'lite.task';full=root/'full.task';lite.write_bytes(b'lite');full.write_bytes(b'full')
-            bridge=Bridge();args=argparse.Namespace(output=root/'runs',pose=lite,pose_variant='Lite',cross_pose=full,
+            bridge=Bridge();camera=Camera();args=argparse.Namespace(output=root/'runs',pose=lite,pose_variant='Lite',cross_pose=full,
                 cross_redetect=True,guard_model=None,personal_calibration=True,check=False,stream_id='synthetic',
                 movement=True,actor='DEV01',host='127.0.0.1',port=9,camera=0,backend='auto',seconds=8,
                 guided=False,recording='diagnostics',preview_fps=8,headless=True,bridge_instance=bridge,mirror=True)
-            with patch('continuous_events.protocol.verify_pose_asset'),patch('pose_capture.open_camera',return_value=Camera()),\
+            with patch('continuous_events.protocol.verify_pose_asset'),patch('pose_capture.open_camera',return_value=camera),\
                  patch.object(PoseLandmarker,'create_from_options',side_effect=lambda *a,**kw:Model()),\
                  patch('redbool_demo.live.DemoSender',Sender), \
+                 patch('redbool_demo.live.profile_eligible',return_value=profiling), \
+                 patch('redbool_demo.live.select_startup_profile',side_effect=lambda *a,**kw:select_startup_profile(*a,**kw,system='Windows')), \
                  contextlib.redirect_stdout(io.TextIOWrapper(io.BytesIO(),encoding='cp1252')):
                 run(args)
             output=next((root/'runs').iterdir());summary=json.loads((output/'summary.json').read_text())
             self.assertFalse(summary['errors']);self.assertEqual(summary['recording']['state'],'complete')
+            self.assertTrue(camera.released)
+            if cancel_profile:
+                self.assertEqual(summary['counts']['processed'],0)
+                self.assertEqual(summary['counts']['captured'],0)
+                self.assertTrue(all(not m.calls for m in models))
+                self.assertFalse(any(r['kind']=='process' for r in iter_journal(output/'recognition')))
+                self.assertFalse(bridge.data['camera_connected'])
+                self.assertFalse(any(t.is_alive() and t.name=='demo-camera' for t in threading.enumerate()))
+                return
             result=verify_replay(output/'recognition')
             self.assertTrue(result['passed'],result['mismatches'][:1])
             self.assertEqual(result['frames'],summary['counts']['processed'])
@@ -127,10 +146,18 @@ class LandmarkLiveTests(unittest.TestCase):
             self.assertEqual(runs,[False,True,False] if overload else [False,True,False,True],
                 'Recalibration retains an overload latch, otherwise it reenables auxiliaries')
             self.assertEqual(len(models),3,'All models are created once and reused')
-            self.assertEqual(models[0].calls,camera_ids)
+            probe_reads=summary['performance']['camera_properties'].get('startup_profile',{}).get('probe_reads',0)
+            self.assertEqual(probe_reads,14 if profiling else 0)
+            if profiling:
+                optimizing=[h for h in bridge.history if h.get('phase')=='optimizing_camera']
+                self.assertEqual(len(optimizing),1);self.assertFalse(optimizing[0]['camera_connected'])
+                self.assertTrue(any(h.get('camera_connected') is True for h in bridge.history))
+                self.assertEqual(summary['performance']['camera_properties']['startup_profile']['probe_frames_published'],0)
+                self.assertTrue(all(c>probe_reads for c in models[0].calls))
+            self.assertEqual(models[0].calls,[c+probe_reads for c in camera_ids])
             auxiliary_ids=[r['frame']['camera_frame_id'] for r in frames if r['has_auxiliary']]
-            self.assertEqual(models[1].calls,auxiliary_ids)
-            self.assertEqual(models[2].calls,auxiliary_ids)
+            self.assertEqual(models[1].calls,[c+probe_reads for c in auxiliary_ids])
+            self.assertEqual(models[2].calls,[c+probe_reads for c in auxiliary_ids])
             self.assertEqual(summary['performance']['auxiliary_frames'],len(auxiliary_ids))
             self.assertEqual(summary['performance']['auxiliary_calibration_skipped_frames']+
                 summary['performance']['auxiliary_overload_skipped_frames'],len(frames)-len(auxiliary_ids))

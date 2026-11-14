@@ -19,6 +19,7 @@ from .six_engine import SixGestureEngine as DemoEngine
 from .transport import DemoSender
 from realtime_vision.clock import now_ns, metadata as clock_metadata
 from .camera_diagnostics import CaptureCadence, camera_properties
+from .camera_profile import eligible as profile_eligible, select_startup_profile, format_name
 from .key_input import CalibrationKeyGate
 from .performance_policy import InferencePolicy
 from .guided import GuidedCheck
@@ -132,8 +133,20 @@ def run(a):
             requested['fps']=bool(cap.set(cv.CAP_PROP_FPS,30))
             camera_info.update(requested={'width':640,'height':480,'fps':30},
                                setting_accepted=requested,initial=camera_properties(cv,cap))
+            if profile_eligible(cap):
+                if bridge:bridge.update(camera_connected=False,phase='optimizing_camera')
+                profile=select_startup_profile(cv,cap,stop,clock_ns=now_ns)
+                camera_info['startup_profile']=profile
+                if stop.is_set():return
+                camera_info['selected']=camera_properties(cv,cap)
+                log.write({'type':'camera_profile','timestamp_ns':now_ns(),**profile})
+            else:profile=None
+            selected=camera_info.get('selected',camera_info['initial'])
+            camera_profile=str(selected.get('backend') or 'UNKNOWN')+'/'+format_name(selected.get('fourcc'))
             log.write({'type':'camera_settings','timestamp_ns':now_ns(),**camera_info})
-            if bridge:bridge.update(camera_connected=True,phase='waiting_calibration')
+            if bridge:bridge.update(camera_connected=True,phase='waiting_calibration',
+                camera_profile=camera_profile,camera_slow=bool(profile and profile['camera_slow']),
+                acquisition_fps=profile['acquisition_fps'] if profile else None)
             while not stop.is_set():
                 read_start=now_ns();ok,bgr=cap.read();stamp=now_ns()
                 if not ok:raise RuntimeError('Camera read failed')
@@ -141,6 +154,8 @@ def run(a):
                 window=acquisition.observe(stamp,read_start)
                 if window is not None:
                     log.write({'type':'camera_runtime',**window,'properties':camera_properties(cv,cap)})
+                    if bridge:bridge.update(acquisition_fps=window['measured_fps'],
+                        camera_slow=window['measured_fps']<15,camera_profile=camera_profile)
         except BaseException as exc:fail('camera',exc)
         finally:
             if cap is not None:

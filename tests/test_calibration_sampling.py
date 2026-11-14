@@ -38,8 +38,9 @@ class LegacyCalibration(SixGestureEngine):
 
 
 class CalibrationSamplingTests(unittest.TestCase):
-    def test_six_eight_and_jittery_ten_fps_keep_twelve_sample_guard_requirement(self):
-        for gaps in ((166_666_667,), (125_000_000,), (93_000_000, 107_000_000)):
+    def test_three_six_eight_and_jittery_ten_fps_keep_twelve_sample_guard_requirement(self):
+        for gaps in ((333_333_333,), (350_000_000,), (166_666_667,),
+                     (125_000_000,), (93_000_000, 107_000_000)):
             with self.subTest(gaps=gaps):
                 fixture = Fixture()
                 # First observation has no derivative; the next eleven are
@@ -59,12 +60,12 @@ class CalibrationSamplingTests(unittest.TestCase):
                                         600_000_000)
                 self.assertFalse(fixture.events)
 
-    def test_more_than_two_hundred_ms_requires_a_whole_new_guard_window(self):
+    def test_more_than_three_hundred_fifty_ms_requires_a_whole_new_guard_window(self):
         fixture = Fixture()
         for _ in range(10):
             fixture.step(gap_ns=125_000_000)
         self.assertEqual(len(fixture.engine.samples), 9)
-        fixture.step(gap_ns=200_000_001)
+        fixture.step(gap_ns=350_000_001)
         self.assertFalse(fixture.engine.calibrated)
         self.assertEqual(len(fixture.engine.samples), 0)
         self.assertEqual(fixture.engine.calibration_progress, 0.)
@@ -85,6 +86,22 @@ class CalibrationSamplingTests(unittest.TestCase):
         self.assertEqual(len(fixture.engine.samples), 0)
         self.assertEqual(fixture.engine.calibration_progress, 0.)
         self.assertEqual(fixture.engine.calibration_feedback.reason, 'STALE_FRAME')
+        self.assertFalse(fixture.events)
+
+    def test_slow_samples_still_require_a_spatially_stable_guard(self):
+        def drifting_guard(observation):
+            points = np.array(observation.landmarks)
+            phase = observation.frame_id % 16
+            # Slow enough to pass the speed gate, but the complete window
+            # travels too far to define a single stationary guard anchor.
+            points[[15, 16], 0] += min(phase, 16 - phase) * .01
+            return replace(observation, landmarks=tuple(map(tuple, points)))
+
+        fixture = Fixture()
+        for _ in range(48):
+            fixture.step(gap_ns=333_333_333, transform=drifting_guard)
+        self.assertFalse(fixture.engine.calibrated)
+        self.assertGreater(fixture.engine.calibration_feedback.counts['GUARD_SHIFTED'], 0)
         self.assertFalse(fixture.events)
 
     def test_missing_or_outside_wrist_cannot_be_bridged_by_longer_sample_bound(self):

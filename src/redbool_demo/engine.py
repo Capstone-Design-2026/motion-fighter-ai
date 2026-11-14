@@ -54,10 +54,11 @@ class DemoEngine(DevelopmentEngine):
     def _components(self):
         super()._components()
         self.attack.units = {s:DemoAttack(self.config) for s in ('LEFT','RIGHT')}
-        # A stationary guard can span slower camera samples. Keep this bound
-        # separate from live attack timing; freshness and pose checks stay strict.
+        # A stationary guard can span slower camera samples (about 3fps).
+        # Keep this separate from live attack timing; every observation must
+        # still be fresh and pass the unchanged pose and stable-window checks.
         self.calibration_signals = ChannelSignals(replace(self.config,
-            max_gap_ms=max(self.config.max_gap_ms, 200)))
+            max_gap_ms=max(self.config.max_gap_ms, 350)))
         self.samples.clear()
         self.calibration_observations.clear()
         self.calibrated = False

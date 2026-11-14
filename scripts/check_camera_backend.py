@@ -25,13 +25,13 @@ def main():
             result=subprocess.run([str(executable),'--check'],cwd=cwd,capture_output=True,text=True,timeout=120)
             if result.returncode:raise RuntimeError(result.stdout+result.stderr)
             report['capabilities']=json.loads(result.stdout.strip().splitlines()[-1])
-            assert report['capabilities']['release']=='v34.2'
+            assert report['capabilities']['release']=='v34.3'
             assert report['capabilities']['recording_schema']=='redbool.landmarks/1'
             assert report['capabilities']['frozen'] and not report['capabilities']['camera_opened']
             metadata=json.loads((executable.parent/'backend-build.json').read_text(encoding='utf-8'))
             for key in ('release','recording_schema','source_sha256','source_commit','source_dirty'):
                 assert report['capabilities'][key]==metadata[key], 'Bundled provenance differs: '+key
-            report['checks'].append('v34.2 bundled landmark journal schema and source provenance')
+            report['checks'].append('v34.3 bundled landmark journal schema and source provenance')
             report['checks'].append('bundled assets and imports outside source directory')
             result=subprocess.run([str(executable),'--check-inference'],cwd=cwd,capture_output=True,text=True,timeout=120)
             if result.returncode:raise RuntimeError(result.stdout+result.stderr)
