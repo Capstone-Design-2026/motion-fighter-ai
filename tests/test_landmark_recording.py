@@ -81,18 +81,34 @@ class LandmarkJournalTests(unittest.TestCase):
     def test_each_closed_chunk_valid_and_active_chunk_excluded(self):
         with tempfile.TemporaryDirectory() as td:
             journal=LandmarkJournal(Path(td)/'recognition',chunk_rows=1,chunk_seconds=100)
-            journal.offer('header',test=1)
-            wait_until(lambda:len(journal.chunks)==1)
-            journal.chunk_rows=100
-            journal.offer('publisher',test=2)
-            wait_until(lambda:bool(json.loads((journal.directory/INDEX).read_text())['health']['active_part']))
-            index=json.loads((journal.directory/INDEX).read_text())
-            self.assertFalse(index['complete'])
-            self.assertTrue(index['health']['active_part'].endswith('.part'))
-            self.assertEqual(len(list(iter_journal(journal.directory,require_complete=False))),1)
-            with self.assertRaisesRegex(ValueError,'Incomplete'):list(iter_journal(journal.directory))
-            self.assertEqual(journal.close()['state'],'complete')
-            self.assertEqual(len(list(iter_journal(journal.directory))),2)
+            try:
+                index_path=journal.directory/INDEX
+                def published(second_active=False):
+                    if not index_path.is_file():return False
+                    value=json.loads(index_path.read_text())
+                    return (len(value['chunks'])==1
+                        and value['chunks'][0]['first_seq']==1
+                        and (not second_active or value['health']['active_part']=='landmarks-000002.jsonl.gz.part'))
+                journal.offer('header',test=1)
+                # In-memory metadata may precede its atomic on-disk publication.
+                # Wait for the exact exported snapshot, not any old active part.
+                wait_until(published)
+                journal.chunk_rows=100
+                journal.offer('publisher',test=2)
+                wait_until(lambda:published(second_active=True))
+                index=json.loads(index_path.read_text())
+                self.assertFalse(index['complete'])
+                self.assertEqual(index['chunks'][0]['first_seq'],1)
+                self.assertEqual(index['chunks'][0]['last_seq'],1)
+                self.assertEqual(index['health']['active_part'],'landmarks-000002.jsonl.gz.part')
+                self.assertEqual(len(list(iter_journal(journal.directory,require_complete=False))),1)
+                with self.assertRaisesRegex(ValueError,'Incomplete'):list(iter_journal(journal.directory))
+                self.assertEqual(journal.close()['state'],'complete')
+                self.assertEqual(len(list(iter_journal(journal.directory))),2)
+            finally:
+                # Even a failed assertion must close owned handles before the
+                # temporary directory exits, especially on Windows.
+                journal.close()
 
     def test_queue_is_bounded_nonblocking_and_reports_exact_sequence_gaps(self):
         entered=threading.Event();release=threading.Event()
