@@ -37,6 +37,7 @@ MonoBehaviour:
   heroMovement: 0
   heroWalkSpeed: 2.61
   titleMusic: {fileID: 8300000, guid: d12559d7163eff64bb3c5e7f77521464, type: 3}
+  mapMusic: {fileID: 8300000, guid: 9b6aa1a1760182340b83a211f94c6308, type: 3}
   bossBattleMusic: {fileID: 8300000, guid: ed4d7ba16ab75014cb845e12e218a4f6, type: 3}
   endingTitle: "\uD751\uC6B4\uD611"
   endingMusic: {fileID: 8300000, guid: 314d08115be92d949a7c07907a9d24f8, type: 3}

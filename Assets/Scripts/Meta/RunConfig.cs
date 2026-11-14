@@ -108,6 +108,10 @@ public class RunConfig : ScriptableObject
     [Tooltip("시작 화면에서 반복 재생할 음악. 비어 있으면 무음.")]
     public AudioClip titleMusic;
 
+    [Header("지도 화면")]
+    [Tooltip("지도 화면(스토리·튜토리얼 포함)에서 반복 재생할 음악. 비어 있으면 무음.")]
+    public AudioClip mapMusic;
+
     [Header("보스 전투")]
     [Tooltip("보스 칸 전투에서 씬의 전투곡 대신 반복 재생할 음악. 비어 있으면 씬 기본 전투곡.")]
     public AudioClip bossBattleMusic;
