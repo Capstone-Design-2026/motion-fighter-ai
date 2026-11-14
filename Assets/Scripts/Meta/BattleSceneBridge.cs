@@ -45,6 +45,7 @@ public class BattleSceneBridge : MonoBehaviour
     private Text bannerText;
 
     private RedboolBattlePreparation visionPreparation;
+    private BattleIntroSequence intro;
     private bool resolved;
     private bool runMode;                 // 지도를 거쳐 들어온 전투인가
     private float defaultFixedDelta;
@@ -58,6 +59,9 @@ public class BattleSceneBridge : MonoBehaviour
 
         runMode = !RedboolDuelTest.Active && Run != null && Run.HasPendingBattle;
         if (runMode) ApplyStage();
+        intro = GetComponent<BattleIntroSequence>();
+        if (intro == null) intro = gameObject.AddComponent<BattleIntroSequence>();
+        intro.Prepare();
     }
 
     void Start()
@@ -97,6 +101,7 @@ public class BattleSceneBridge : MonoBehaviour
     void Update()
     {
         if (resolved || playerHealth == null || enemyHealth == null) return;
+        if (intro != null && intro.HoldRound) return;
         if (visionPreparation != null && visionPreparation.HoldRound) return;
         if (playerHealth.IsDead || enemyHealth.IsDead) return;
 
@@ -119,6 +124,7 @@ public class BattleSceneBridge : MonoBehaviour
         resolved = false;
         RemainingSeconds = Mathf.Max(1f, roundDuration);
         SetInputLock(false);
+        if (intro != null) intro.Restart();
     }
 
     void OnDestroy()

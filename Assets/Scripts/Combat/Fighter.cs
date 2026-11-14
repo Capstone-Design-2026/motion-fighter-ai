@@ -129,7 +129,16 @@ public class Fighter : MonoBehaviour
     /// K.O. 연출 중에는 true. 진 쪽뿐 아니라 이긴 쪽 조작까지 전부 막는다.
     /// 이게 없으면 쓰러진 상대를 계속 때릴 수 있다. BattleSceneBridge 가 켜고 끈다.
     /// </summary>
-    public bool InputLocked { get; set; }
+    private bool inputLocked;
+    public bool InputLocked { get => inputLocked || RoundIntroLocked; set => inputLocked = value; }
+    public bool RoundIntroLocked { get; private set; }
+    public bool OnlyRoundIntroLocked => RoundIntroLocked && !inputLocked;
+    // The intro owns its lock independently of KO, story and camera preparation.
+    public void SetRoundIntroLock(bool value)
+    {
+        RoundIntroLocked = value;
+        if (value && Health != null) { CancelAttack(); EndGuard(); IsCrouching = false; }
+    }
     public bool VisionPreparationLocked { get; private set; }
     public void SetVisionPreparationLock(bool value)
     {
