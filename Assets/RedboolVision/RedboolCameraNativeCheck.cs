@@ -193,6 +193,41 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Application.targetFrameRate=60;end=Time.realtimeSinceStartupAsDouble+20;
         while(runtime.CurrentPreviewTargetFps!=15) {Deadline(end,"preview recovers after healthy windows");yield return null;}
         Check(runtime.Fresh,"Preview restores higher rate after sustained healthy frames");
+        // Inject only an already-parsed local status for this synchronous fixture.
+        // No backend mode, camera, process or input protocol is changed.
+        var savedStatus=runtime.Status;bool savedSynthetic=runtime.Synthetic;
+        int savedPreviewTarget=runtime.CurrentPreviewTargetFps;
+        var pressured=JsonUtility.FromJson<RedboolCameraRuntime.CameraStatus>("{\"schema\":1,\"phase\":\"running\",\"camera_connected\":true,\"calibrated\":true,\"tracking\":\"VALID\",\"inference_mode\":\"lite_overload\",\"inference_warning\":\"AUXILIARY_DISABLED_FOR_LATENCY\"}");
+        int displayWidth=Screen.width,displayHeight=Screen.height;
+        try
+        {
+            typeof(RedboolCameraRuntime).GetProperty("Status").SetValue(runtime,pressured);
+            typeof(RedboolCameraRuntime).GetProperty("Synthetic").SetValue(runtime,false);
+            Check(runtime.InferencePressure&&runtime.Status.inference_mode=="lite_overload","Backend inference warning and mode survive local status parsing");
+            float lowBudget=RedboolCameraRenderBudget.ScaleFor(2880,1800,1,true);
+            Check(2880*lowBudget<=1280.1f&&1800*lowBudget<=720.1f&&Mathf.Approximately(RedboolCameraRenderBudget.ScaleFor(1280,720,.7f,true),.7f),"Latency budget caps 3D pixels at 720p and preserves lower settings");
+            budget.Refresh();
+            Check(Mathf.Approximately(pipeline.renderScale,RedboolCameraRenderBudget.ScaleFor(Screen.width,Screen.height,originalRenderScale,true))&&Screen.width==displayWidth&&Screen.height==displayHeight,"Actual inference warning lowers only scene rendering without resizing the window");
+            pipeline.renderScale=.2f;budget.Refresh();
+            Check(Mathf.Approximately(pipeline.renderScale,.2f),"Latency budget preserves an external lower render setting");
+            pipeline.renderScale=originalRenderScale;budget.Refresh();
+            typeof(RedboolCameraRuntime).GetMethod("ApplyInferencePressure",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(runtime,null);
+            Check(runtime.CurrentPreviewTargetFps==8,"Latched inference pressure immediately limits preview work to 8fps");
+            Check(RedboolCameraPanel.Explain(runtime).Contains("속도 우선"),"Valid tracking exposes speed-priority mode without an accuracy claim");
+            pressured.calibrated=false;pressured.calibration_reason="STALE_FRAME";
+            pressured.framing=new RedboolCameraRuntime.Framing{code="OUTSIDE",outside_edges=new[]{"BOTTOM"}};
+            Check(RedboolCameraPanel.Explain(runtime).Contains("처리 지연")&&!RedboolCameraPanel.Explain(runtime).Contains("손을 들"),"Stale frames show processing delay rather than an incorrect pose instruction");
+            pressured.framing=null;pressured.calibration_reason="JOINT_HISTORY";
+            Check(RedboolCameraPanel.Explain(runtime).Contains("자세를 안정적으로")&&!RedboolCameraPanel.Explain(runtime).Contains("처리 지연"),"Joint-history guidance stays distinct from processing delay");
+        }
+        finally
+        {
+            typeof(RedboolCameraRuntime).GetProperty("Status").SetValue(runtime,savedStatus);
+            typeof(RedboolCameraRuntime).GetProperty("Synthetic").SetValue(runtime,savedSynthetic);
+            typeof(RedboolCameraRuntime).GetProperty("CurrentPreviewTargetFps").SetValue(runtime,savedPreviewTarget);
+            pipeline.renderScale=originalRenderScale;budget.Refresh();
+        }
+        Check(runtime.Synthetic&&!runtime.InferencePressure&&Mathf.Approximately(pipeline.renderScale,RedboolCameraRenderBudget.ScaleFor(Screen.width,Screen.height,originalRenderScale)),"Removing fixture pressure restores normal budget and keeps physical camera closed");
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_pvp_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
         float pvpTime=Time.timeScale,pvpStep=Time.fixedDeltaTime;

@@ -2,8 +2,13 @@ REDBOOL v34.2 — fullscreen camera preview and diagnostic gameplay
 
 v34.2 uses a new native backend with a calibration-only sampling fix: allow up to
 200ms between samples, retain120ms evidence age,12samples, dwell and guard geometry.
-Only Lite runs while uncalibrated; configured Full VIDEO/IMAGE resume with current
-pixels on the next calibrated frame. Gameplay gaps/thresholds/models stay unchanged.
+Only Lite runs while uncalibrated. After calibration, Full VIDEO/IMAGE run with
+current pixels unless sustained auxiliary latency/continuity pressure latches a
+Lite-only mode for this process. Healthy recorded PCs keep the three-model path.
+The primary X detector remains, but occluded X gestures that relied on Full may
+be harder in Lite-only mode. Gameplay gaps/thresholds/expiry stay unchanged.
+Overloaded Unity sessions also cap3D at1280x720 and preview at8fps; UI/window
+resolution stays native. Actual new FPS and accuracy require live verification.
 The failed Windows10.8fps record now calibrates in saved-landmark replay; successful
 Mac and Windows calibration anchors, personal profiles and discrete events stay equal.
 This does not measure live camera FPS or model warm-start latency.

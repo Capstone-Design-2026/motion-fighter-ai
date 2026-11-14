@@ -77,7 +77,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     manifest.update(target=target, backend=portable_backend,
                     backend_executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
                     entry=entry.name, camera_preview='local loopback only; 320x240; 15 fps target, 8 fps under game/preview load',
-                    camera_render_budget='3D targets at most 1920x1200 during integrated camera play; native window/UI resolution retained',
+                    camera_render_budget='3D targets at most 1920x1200; 1280x720 on sustained inference overload; native window/UI retained',
                     camera_starts='enter tutorial, combat, or PvP; never on the main menu',
                     recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
                     recognition_recording_max_bytes=134217728,
@@ -94,6 +94,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '접기를 누르면 영상 표시를 쉬며 동작 인식은 계속됩니다.\n\n'
         '내 동작 미리보기는 최대 15fps이며 게임 처리에 부담이 생기면 8fps로 낮춥니다.\n'
         '전체 화면 크기는 유지하고 카메라와 함께 실행하는 3D 화면의 처리량을 조절합니다.\n'
+        '느린 PC는 자동으로 속도 우선 인식과 720p 3D 화면으로 전환합니다.\n'
+        '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
         '결투 바로가기는 수련을 건너뛰며 기본 보정은 C입니다.\n모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
         '양쪽 모두 같은 v34.2 패키지로 테스트하는 것을 권합니다. 화면 통신 규약은 v34·v34.1과 같습니다.\n'

@@ -24,6 +24,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         public int schema,control_count; public bool camera_connected,calibrated,synthetic;
         public float calibration_progress,pose_ms,capture_fps;
         public string phase,calibration_hint,calibration_reason,tracking,error,stream_id,last_command;
+        public string inference_mode,inference_warning;
         public long preview_sequence; public Framing framing;
         public RecordingStatus recording;
     }
@@ -47,6 +48,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     public bool ShowPanel { get; private set; }
     public bool PreviewVisible { get; set; } = true;
     public bool Synthetic { get; private set; }
+    public bool InferencePressure => Status!=null && Status.inference_warning=="AUXILIARY_DISABLED_FOR_LATENCY";
     Process child,stoppingChild; StreamWriter childLog;
     Coroutine statusRoutine,previewRoutine;
     string role,address="127.0.0.1",token,url; int generation,port;
@@ -130,6 +132,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     {
         // KeyDown must be read every frame, including while the game is paused.
         if(ShowPanel && Running && Input.GetKeyDown(KeyCode.C)) Calibrate();
+        // The backend warning stays latched until this camera session ends.
+        // Recalibration must not raise preview work while inference is overloaded.
+        ApplyInferencePressure();
         double now=Time.realtimeSinceStartupAsDouble;
         if(lastFrameAt>=0) {frameElapsed+=now-lastFrameAt;frameSamples++;}
         lastFrameAt=now;
@@ -142,7 +147,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             int windowTarget=CurrentPreviewTargetFps;
             if(Running && frameSamples>0)
             {
-                if(meanFrame>22 || meanDecode>2 || meanRequest>80)
+                if(InferencePressure || meanFrame>22 || meanDecode>2 || meanRequest>80)
                 {
                     CurrentPreviewTargetFps=8;healthyPreviewWindows=0;
                 }
@@ -157,6 +162,10 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             frameSamples=0;frameElapsed=0;
             metricStarted=now;metricAt=now+5;
         }
+    }
+    void ApplyInferencePressure()
+    {
+        if(Running && InferencePressure) {CurrentPreviewTargetFps=8;healthyPreviewWindows=0;}
     }
     static bool Exited(Process process) { try { return process.HasExited; } catch(InvalidOperationException) { return true; } }
     static string Quote(string value)

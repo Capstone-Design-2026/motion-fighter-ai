@@ -8,14 +8,17 @@ using UnityEngine.Rendering.Universal;
 public sealed class RedboolCameraRenderBudget : MonoBehaviour
 {
     const int MaxWidth = 1920, MaxHeight = 1200;
+    const int LatencyWidth = 1280, LatencyHeight = 720;
     UniversalRenderPipelineAsset owned;
     float originalScale, appliedScale, nextCheck;
     public float CurrentScale => owned != null ? appliedScale : 1f;
 
-    public static float ScaleFor(int width, int height, float configuredScale)
+    public static float ScaleFor(int width, int height, float configuredScale, bool inferencePressure = false)
     {
         if (width <= 0 || height <= 0) return configuredScale;
-        float limit = Mathf.Min((float)MaxWidth / width, (float)MaxHeight / height);
+        int maxWidth = inferencePressure ? LatencyWidth : MaxWidth;
+        int maxHeight = inferencePressure ? LatencyHeight : MaxHeight;
+        float limit = Mathf.Min((float)maxWidth / width, (float)maxHeight / height);
         return Mathf.Min(configuredScale, Mathf.Clamp(limit, .1f, 1f));
     }
 
@@ -40,10 +43,11 @@ public sealed class RedboolCameraRenderBudget : MonoBehaviour
         }
         // Respect a lower scale selected by another game setting while active.
         if (!Mathf.Approximately(owned.renderScale, appliedScale)) originalScale = owned.renderScale;
-        float desired = ScaleFor(Screen.width, Screen.height, originalScale);
+        bool inferencePressure = runtime.InferencePressure;
+        float desired = ScaleFor(Screen.width, Screen.height, originalScale, inferencePressure);
         if (Mathf.Approximately(desired, owned.renderScale)) { appliedScale = desired; return; }
         owned.renderScale = desired; appliedScale = desired;
-        Debug.Log(FormattableString.Invariant($"[REDBOOL RENDER BUDGET] display={Screen.width}x{Screen.height} render_scale={desired:F3} target={Mathf.RoundToInt(Screen.width * desired)}x{Mathf.RoundToInt(Screen.height * desired)} ui_native=true"));
+        Debug.Log(FormattableString.Invariant($"[REDBOOL RENDER BUDGET] display={Screen.width}x{Screen.height} render_scale={desired:F3} target={Mathf.RoundToInt(Screen.width * desired)}x{Mathf.RoundToInt(Screen.height * desired)} ui_native=true inference_pressure={inferencePressure}"));
     }
 
     void Release()

@@ -70,6 +70,8 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         if(!string.IsNullOrEmpty(s.error))return "카메라 연결을 확인하고 다시 연결해주세요";
         if(s.phase=="starting"||s.phase=="loading_models")return "동작 인식을 준비하고 있어요\n잠시만 기다려주세요";
         if(!s.camera_connected)return "카메라 연결 중 · 최초 실행이라면\n카메라 사용 권한을 허용해주세요";
+        if((!s.calibrated&&s.calibration_reason=="STALE_FRAME")||s.tracking=="STALE")
+            return "영상 처리 지연을 줄이고 있어요\nC 반복 없이 잠시 기다려주세요";
         if(s.framing!=null&&s.framing.code=="OUTSIDE")
         {
             var edges=s.framing.outside_edges;
@@ -83,19 +85,20 @@ public sealed class RedboolCameraPanel : MonoBehaviour
             if(s.calibration_reason=="FISTS_HIGH")return "주먹을 턱 근처로 조금 내려주세요";
             if(s.calibration_reason=="ARMS_EXTENDED")return "팔꿈치를 굽혀 가드를 잡아주세요";
             if(s.calibration_reason=="FISTS_FAR")return "주먹을 몸 가까이 가져와\n편안한 가드를 잡아주세요";
-            if(s.calibration_reason=="STALE_FRAME"||s.calibration_reason=="JOINT_HISTORY")return "카메라 움직임을 확인하고 있어요\n가드를 유지하면 자동으로 이어집니다";
+            if(s.calibration_reason=="JOINT_HISTORY")return "자세를 안정적으로 확인하고 있어요\n중앙 가드를 잠시 유지하세요";
             if(s.calibration_reason=="JOINTS_OUTSIDE")return "어깨와 양팔이 화면 안에\n들어오도록 앉아주세요";
             if(s.calibration_reason=="JOINTS_UNCERTAIN")return "양손과 팔꿈치가 가리지 않게\n카메라에 보여주세요";
             if(s.calibration_progress>0||s.phase=="calibrating")return "가드 유지 중 · C를 다시 누르지 않아도 돼요";
             return "중앙에서 가드를 잡고\n보정 버튼 또는 C를 누르세요";
         }
-        if(s.tracking!="VALID")return "어깨와 양팔이 보이면 자동으로 이어져요";
+        if(s.tracking!="VALID")return runtime.InferencePressure ? "처리량을 줄여 인식을 복구 중이에요\n가드를 잠시 유지하세요" : "어깨와 양팔이 보이면 자동으로 이어져요";
         if(s.recording!=null)
         {
             if(s.recording.state=="budget_exhausted")return "플레이 가능 · 관절 기록 용량에 도달했어요\n현재까지 기록은 진단 ZIP에 남아요";
             if(s.recording.state=="error")return "플레이 가능 · 관절 기록 저장을 확인해주세요";
             if(s.recording.queue_dropped_rows>0)return "플레이 가능 · 일부 관절 기록이 빠졌어요\n누락 구간은 진단 ZIP에 표시돼요";
         }
+        if(runtime.InferencePressure)return "속도 우선으로 인식 중이에요\n사람이 바뀌면 C로 재보정";
         return "준비됐어요 · 사람이 바뀌면 C로 재보정";
     }
 }
