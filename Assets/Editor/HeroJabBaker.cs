@@ -18,7 +18,17 @@ public static class HeroJabBaker
     public const float ContactTime = 8f / 60f;
     public const float Length = 27f / 60f;
 
-    public static void Bake() => HeroGuardBaker.BakeSet(new[] { Source }, Folder,
+    /// <summary>
+    /// 2026-11-13 21:23부터 주인공 잽은 승준이 직접 넣은 v10(Assets/Characters/Hero02/AuthoredPunches/Hero_JAB.anim)이다.
+    /// 이 도구를 그냥 돌리면 JAB 상태가 v8로 되돌아가므로, 일부러 되돌릴 때만 -heroJabV8 를 붙여 실행한다.
+    /// </summary>
+    public static void Bake()
+    {
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-heroJabV8") < 0)
+            throw new System.Exception("주인공 잽은 지금 승준 v10(AuthoredPunches/Hero_JAB)이다. v8로 되돌리려면 -heroJabV8 를 붙여 실행한다.");
+        BakeV8();
+    }
+    static void BakeV8() => HeroGuardBaker.BakeSet(new[] { Source }, Folder,
         new Dictionary<string, string[]> { { JabClip, new[] { "JAB" } } },
         (anim, baked) =>
         {

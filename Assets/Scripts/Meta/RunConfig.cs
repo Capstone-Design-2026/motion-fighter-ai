@@ -105,6 +105,14 @@ public class RunConfig : ScriptableObject
     [Tooltip("ApprovedWalk 일 때 걷기 빠르기 배율. 1 = 클립 그대로(초당 약 0.38m). 재생과 이동을 함께 올려 발이 미끄러지지 않는다. Play 중에 바꿔도 바로 반영된다.")]
     [Range(1f, 3f)] public float heroWalkSpeed = 2.61f;   // 초당 약 1.0m
 
+    [Header("시작 화면")]
+    [Tooltip("시작 화면에서 반복 재생할 음악. 비어 있으면 무음.")]
+    public AudioClip titleMusic;
+
+    [Header("보스 전투")]
+    [Tooltip("보스 칸 전투에서 씬의 전투곡 대신 반복 재생할 음악. 비어 있으면 씬 기본 전투곡.")]
+    public AudioClip bossBattleMusic;
+
     [Header("엔딩 크레딧")]
     public string endingTitle = "흑운협";
     [Tooltip("엔딩 크레딧에서 반복 재생할 음악. 비어 있으면 무음.")]

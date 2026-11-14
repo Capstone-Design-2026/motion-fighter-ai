@@ -1,5 +1,7 @@
 # 주인공 잽 — 승준 v8 게임 적용
 
+> **2026-11-13 21:23 이후**: 주인공 잽은 승준이 직접 넣은 v10(`Assets/Characters/Hero02/AuthoredPunches/Hero_JAB.anim`, 커밋 `9637a7e8`)으로 바뀌었고, 적의 잽도 그 동작을 옮긴 것으로 바뀌었다(`Docs/EnemyHeroMotion.md`). 아래 내용과 수치는 그 전의 v8 기준 기록이다. `HeroJabBaker.Bake`는 `-heroJabV8`를 붙여야만 돌아간다(그냥 돌리면 v8로 되돌아가기 때문).
+
 2026-11-13 적용. 주인공(Hero02)의 잽을 승준이 만든 Hero02 잽 v8로 바꿨다.
 동작 자체의 설명(타이밍, 발 디딤, 팔 펴짐)은 `Docs/HeroJabV8.md`에 있다. 이 문서는 그 동작을 게임에 넣은 방법과 확인한 내용이다.
 

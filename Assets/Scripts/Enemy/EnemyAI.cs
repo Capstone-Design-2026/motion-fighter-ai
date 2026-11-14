@@ -162,6 +162,8 @@ public class EnemyAI : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
+        // 적 필살기(게이지, 스스로 발동, 스테이지당 1회)는 EnemySpecial 이 맡는다. 적 프리팹마다 붙이지 않아도 되게 여기서 붙인다.
+        if (GetComponent<EnemySpecial>() == null) gameObject.AddComponent<EnemySpecial>();
     }
 
     void OnEnable() { fighter.GuardBlocked += OnGuardBlocked; }

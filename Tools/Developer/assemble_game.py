@@ -24,6 +24,13 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     expected = 'Windows' if target == 'windows' else 'Darwin'
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
+    if metadata.get('recording_schema') != 'redbool.landmarks/1':
+        raise ValueError('v34 requires the camera backend with landmark journal support.')
+    provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
+    provenance_fields = ('release', 'recording_schema', 'source_commit', 'source_sha256',
+                         'source_dirty', 'source_file_count')
+    if any(key not in metadata or provenance.get(key) != metadata[key] for key in provenance_fields):
+        raise ValueError('Embedded and external camera build provenance differ.')
     for name in ('pose_landmarker_lite.task', 'pose_landmarker_full.task'):
         model = backend / '_internal/assets' / name
         if not model.is_file() or hashlib.sha256(model.read_bytes()).hexdigest() != metadata.get('models', {}).get(name):
@@ -60,17 +67,21 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         raise ValueError('The input game already contains a camera backend.')
     shutil.copytree(backend, destination, symlinks=True)
     # Local/CI build paths are useful during assembly, not in the distributed app.
-    portable_backend = {k: metadata[k] for k in ('platform', 'architecture', 'python', 'mode', 'models') if k in metadata}
+    portable_backend = {k: metadata[k] for k in ('platform', 'architecture', 'python', 'mode', 'models',
+        'release', 'recording_schema', 'source_commit', 'source_sha256',
+        'source_dirty', 'source_file_count') if k in metadata}
     (destination / 'backend-build.json').write_text(json.dumps(portable_backend, indent=2), encoding='utf-8')
     manifest = snapshot()
     manifest.update(target=target, backend=portable_backend,
                     backend_executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
                     entry=entry.name, camera_preview='local loopback only; 320x240, at most 8 fps',
                     camera_starts='enter tutorial, combat, or PvP; never on the main menu',
-                    recording='diagnostics only; no raw video or per-frame pose file',
-                    lan_protocol=29)
+                    recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
+                    recognition_recording_max_bytes=134217728,
+                    recognition_recording_schema='redbool.landmarks/1',
+                    lan_protocol=30)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v33.1 · Windows 연결 수정 시험판\n\n'
+        'REDBOOL v34 · 최신 게임 콘텐츠·관절 진단 기록 통합 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -79,12 +90,15 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '사람을 바꾸면 C로 다시 보정합니다. 게임을 종료하면 카메라도 종료됩니다.\n'
         '접기를 누르면 영상 표시를 쉬며 동작 인식은 계속됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
+        '양쪽 모두 v34를 사용하세요. 이전 버전과 화면 통신 규약이 다릅니다.\n'
         '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'
         'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
         '양쪽 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
         '카메라 접근 권한은 최초 실행 시 허용해야 합니다. 내 영상은 다른 PC로 보내지 않습니다.\n'
-        '기본 저장은 작은 진단 기록이며 원본 영상은 녹화하지 않습니다.\n'
-        '테스트를 마친 뒤 메인 메뉴 아래 진단 기록 저장을 누르면 ZIP이 있는 폴더가 열립니다.\n'
+        '원본 영상은 녹화하지 않고 관절 좌표·인식·보정·성능 기록을 압축 저장합니다.\n'
+        '관절 기록은 카메라 실행마다 최대 128MiB이며, 제한에 도달해도 게임은 계속됩니다.\n'
+        '테스트를 마친 뒤 메인 메뉴의 기록 마무리가 끝나면 진단 기록 저장을 누르세요.\n'
+        '최근 3개 카메라 실행의 ZIP이 있는 폴더가 열립니다. PvP는 두 PC의 ZIP을 보내주세요.\n'
         '이 패키지는 첫 통합 시험판이며 실제 두 기기 카메라·성능 확인은 별도로 필요합니다.\n',
         encoding='utf-8')
     if target == 'mac':

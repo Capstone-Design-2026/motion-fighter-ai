@@ -139,25 +139,27 @@ public static class QiPalmVerification
         special.ResetCharge(); Check(!special.BeginCharge() && !special.IsPlaying, "not ready: no charge");
 
         // 1-1. 게이지는 내 공격이 막히지 않고 들어갔을 때만 찬다. 맞거나 막는 것, 막힌 공격으로는 차지 않는다.
-        Position(-.4f, .4f); ph.ResetHealth(); eh.ResetHealth(); special.ResetCharge();
+        // 상대가 때리는 두 경우는 그 상대의 잽이 실제로 닿는 거리에서 한다(캐릭터와 잽 동작에 따라 닿는 거리가 다르다).
+        float foeReach = Mathf.Clamp(enemy.StrikeRange - .03f, .5f, .8f);
+        Position(-foeReach * .5f, foeReach * .5f); ph.ResetHealth(); eh.ResetHealth(); special.ResetCharge();
         for (var w = Wait(.6f); w.MoveNext();) yield return null;
         int hpBefore = ph.CurrentHealth; enemyF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.4f); w.MoveNext();) yield return null;
         Check(ph.CurrentHealth < hpBefore && special.Charge == 0, "taking a hit does not fill the gauge: hp " + hpBefore + "→" + ph.CurrentHealth + " gauge " + special.Charge);
-        Position(-.4f, .4f); bool guardUp = playerF.TryGuard(false);
+        Position(-foeReach * .5f, foeReach * .5f); bool guardUp = playerF.TryGuard(false);
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
         hpBefore = ph.CurrentHealth; bool blockedOne = false; Action<bool> onBlock = g => { if (g) blockedOne = true; }; ph.OnDamaged += onBlock;
         enemyF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         ph.OnDamaged -= onBlock; playerF.ReleaseGuard();
-        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
+        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore-enemyF.GuardedDamageOf(CombatMove.Jab) && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         Position(-.4f, .4f); bool foeGuard = enemyF.TryGuard(false);
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
         int foeHp = eh.CurrentHealth; playerF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         enemyF.ReleaseGuard();
-        Check(foeGuard && eh.CurrentHealth == foeHp && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
+        Check(foeGuard && eh.CurrentHealth == foeHp-playerF.GuardedDamageOf(CombatMove.Jab) && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         for (int n = 1; n <= 2; n++)
         {

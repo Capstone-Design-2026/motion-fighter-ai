@@ -9,7 +9,7 @@ public static class RedboolViewSelfCheck
     static void Check(bool ok,string why) {checks++;if(!ok) throw new Exception("View protocol: "+why);}
     static RedboolViewActor Actor()
     {
-        var a=new RedboolViewActor {root=new Vector3(1,2,3),visual=new Vector3(4,5,6),scale=Vector3.one,hips=new Vector3(.1f,.2f,.3f),rotation=Quaternion.Euler(10,45,25),hp=95,maxHp=100,charge=3,maxCharge=5,step=7,hits=2,phase=3,attackSerial=21,live=true};
+        var a=new RedboolViewActor {root=new Vector3(1,2,3),visual=new Vector3(4,5,6),scale=Vector3.one,hips=new Vector3(.1f,.2f,.3f),rotation=Quaternion.Euler(10,45,25),hp=95,maxHp=100,charge=3,maxCharge=5,punchSurface=2,step=7,hits=2,phase=3,attackSerial=21,live=true};
         for(int i=0;i<a.bones.Length;i++) a.bones[i]=Quaternion.Euler(i*3,i*2,i);return a;
     }
     public static void Run()
@@ -25,13 +25,22 @@ public static class RedboolViewSelfCheck
             var p=new RedboolViewPacket {kind=i,session=session,nonce=nonce,seq=10,time=20,echo=10,actor=actor,world=world};var bytes=RedboolViewProtocol.Encode(p);total+=bytes.Length;max=Math.Max(max,bytes.Length);
             Check(bytes.Length<=1200,"MTU budget");Check(RedboolViewProtocol.TryDecode(bytes,out parts[i-1]),"round trip");Check(parts[i-1].nonce==nonce && parts[i-1].session==session,"session and recipient identity");
             for(int cut=0;cut<bytes.Length;cut++) Check(!RedboolViewProtocol.TryDecode(new ArraySegment<byte>(bytes,0,cut).ToArray(),out _),"truncated packet");
-            bytes[4]=27;Check(!RedboolViewProtocol.TryDecode(bytes,out _),"old release rejected");
+            bytes[4]=(byte)(RedboolViewProtocol.Version-1);Check(!RedboolViewProtocol.TryDecode(bytes,out _),"old release rejected");
         }
         var skip=RedboolViewProtocol.Encode(new RedboolViewPacket {kind=5,session=session,nonce=nonce,seq=11,time=20,practiceRun=Guid.NewGuid(),practiceStep=7});
         Check(RedboolViewProtocol.TryDecode(skip,out var skipDecoded) &&skipDecoded.practiceStep==7,"skip control round trip");
         for(int cut=0;cut<skip.Length;cut++)Check(!RedboolViewProtocol.TryDecode(new ArraySegment<byte>(skip,0,cut).ToArray(),out _),"truncated skip control");
         for(int i=0;i<actor.bones.Length;i++) Check(Quaternion.Angle(actor.bones[i],parts[1].actor.bones[i])<.08f,"bone precision");
         for(int i=1;i<3;i++) Check(parts[i].actor.charge==actor.charge && parts[i].actor.maxCharge==actor.maxCharge,"both actor meter values survive snapshot encoding exactly");
+        for(int i=1;i<3;i++) Check(parts[i].actor.punchSurface==2,"both actors preserve the host straight correction surface");
+        for(byte surface=0;surface<3;surface++) {
+            actor.punchSurface=surface;
+            var encoded=RedboolViewProtocol.Encode(new RedboolViewPacket {kind=2,session=session,nonce=nonce,seq=1,time=1,actor=actor});
+            Check(RedboolViewProtocol.TryDecode(encoded,out var decoded)&&decoded.actor.punchSurface==surface,"idle/jab/straight surface round trip");
+        }
+        actor.punchSurface=3;
+        Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(new RedboolViewPacket {kind=2,session=session,nonce=nonce,seq=1,time=1,actor=actor}),out _),"unknown correction surface rejected");
+        actor.punchSurface=2;
         Check(parts[0].world.effects.Count==12 &&parts[0].world.waves.Count==8,"bounded effect lists");
         var assembler=new RedboolViewAssembler();Check(assembler.Push(parts[2],1)==null,"part 3 first");Check(assembler.Push(parts[0],1.02)==null,"incomplete frame stays hidden");
         Check(assembler.Push(parts[1],1.03)!=null,"complete out of order frame");Check(assembler.Push(parts[1],1.04)==null,"duplicate suppressed");

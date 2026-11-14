@@ -32,6 +32,11 @@ public class StartSceneUI : MonoBehaviour
     [SerializeField] private bool showClouds = true;
     [Range(0,2)] [SerializeField] private float cloudSpeed = 1f;
 
+    [Header("음악 (RunConfig.titleMusic)")]
+    [Range(0f, 1f)] [SerializeField] private float musicVolume = 0.5f;
+    [Tooltip("시작할 때 음악이 커지는 시간(초).")]
+    [Min(0f)] [SerializeField] private float musicFadeIn = 2f;
+
     private Canvas canvas;
     private Button continueButton;
     private Text messageText;
@@ -48,6 +53,7 @@ public class StartSceneUI : MonoBehaviour
         public string service;
         public int view_version, view_port, p2_port;
     }
+    private AudioSource music;
 
     void Start()
     {
@@ -55,6 +61,26 @@ public class StartSceneUI : MonoBehaviour
         Build();
         RefreshContinue();
         ShowLastMessage();
+        PlayMusic();
+    }
+
+    void Update()
+    {
+        if (music != null && music.volume < musicVolume)
+            music.volume = musicFadeIn > 0f ? Mathf.MoveTowards(music.volume, musicVolume, musicVolume / musicFadeIn * Time.unscaledDeltaTime) : musicVolume;
+    }
+
+    private void PlayMusic()
+    {
+        var config = RunState.Instance != null ? RunState.Instance.Config : null;
+        if (config == null || config.titleMusic == null) return;
+        music = gameObject.AddComponent<AudioSource>();
+        music.clip = config.titleMusic;
+        music.loop = true;
+        music.playOnAwake = false;
+        music.spatialBlend = 0f;
+        music.volume = musicFadeIn > 0f ? 0f : musicVolume;
+        music.Play();
     }
 
     // ─────────────────────── 화면 구성 ───────────────────────
@@ -286,7 +312,7 @@ public class StartSceneUI : MonoBehaviour
         try
         {
             var reply=JsonUtility.FromJson<RoomReply>(Encoding.UTF8.GetString(data));
-            if(reply==null || reply.service!="REDBOOL" || reply.view_version!=29
+            if(reply==null || reply.service!="REDBOOL" || reply.view_version!=RedboolViewProtocol.Version
                 || reply.p2_port!=5066 || reply.view_port!=5067) return false;
             address=from.Address.ToString();return true;
         }

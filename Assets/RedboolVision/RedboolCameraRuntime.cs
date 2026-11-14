@@ -15,12 +15,17 @@ using Debug = UnityEngine.Debug;
 public sealed class RedboolCameraRuntime : MonoBehaviour
 {
     [Serializable] public sealed class Framing { public string code,message; public string[] outside_edges; }
+    [Serializable] public sealed class RecordingStatus
+    {
+        public string state,error; public long queue_dropped_rows,budget_omitted_rows;
+    }
     [Serializable] public sealed class CameraStatus
     {
         public int schema,control_count; public bool camera_connected,calibrated,synthetic;
         public float calibration_progress,pose_ms,capture_fps;
         public string phase,calibration_hint,calibration_reason,tracking,error,stream_id,last_command;
         public long preview_sequence; public Framing framing;
+        public RecordingStatus recording;
     }
     [Serializable] sealed class Command { public string command,request_id; }
     public static RedboolCameraRuntime Instance { get; private set; }
@@ -31,6 +36,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     public Texture2D Preview { get; private set; }
     public string Error { get; private set; }
     public bool Running => child!=null && !Exited(child);
+    public bool DiagnosticsPending => child!=null || stoppingChild!=null;
     public int ChildId => Running ? child.Id : 0;
     public bool Fresh => Status!=null && Time.realtimeSinceStartupAsDouble-lastStatus<1.5;
     public bool PreviewFresh => Preview!=null && Time.realtimeSinceStartupAsDouble-lastPreview<1;
@@ -247,7 +253,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 request.SetRequestHeader("Content-Type","application/json");request.SetRequestHeader("X-REDBOOL-Token",token);
                 yield return request.SendWebRequest();
             }
-            double end=Time.realtimeSinceStartupAsDouble+2;
+            // Landmark chunks drain on their own worker. Keep the menu responsive
+            // while allowing final checksums/index/summary to finish before export.
+            double end=Time.realtimeSinceStartupAsDouble+5;
             while(!Exited(owned)&&Time.realtimeSinceStartupAsDouble<end)yield return null;
             TerminateOwned(owned);
         }

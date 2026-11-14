@@ -85,6 +85,12 @@ public sealed class RedboolCameraPanel : MonoBehaviour
             return "중앙에서 가드를 잡고\n보정 버튼 또는 C를 누르세요";
         }
         if(s.tracking!="VALID")return "어깨와 양팔이 보이면 자동으로 이어져요";
+        if(s.recording!=null)
+        {
+            if(s.recording.state=="budget_exhausted")return "플레이 가능 · 관절 기록 용량에 도달했어요\n현재까지 기록은 진단 ZIP에 남아요";
+            if(s.recording.state=="error")return "플레이 가능 · 관절 기록 저장을 확인해주세요";
+            if(s.recording.queue_dropped_rows>0)return "플레이 가능 · 일부 관절 기록이 빠졌어요\n누락 구간은 진단 ZIP에 표시돼요";
+        }
         return "준비됐어요 · 사람이 바뀌면 C로 재보정";
     }
 }

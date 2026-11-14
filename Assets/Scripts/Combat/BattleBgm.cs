@@ -37,6 +37,14 @@ public class BattleBgm : MonoBehaviour
             PlayRandom();
     }
 
+    /// <summary>재생 목록을 바꾼다(보스전 전용 곡 등). 이미 재생 중이면 새 목록에서 바로 다시 고른다.</summary>
+    public void SetClips(params AudioClip[] newClips)
+    {
+        clips = newClips;
+        lastIndex = -1;
+        if (source != null && source.isPlaying) PlayRandom();
+    }
+
     private void PlayRandom()
     {
         if (clips == null || clips.Length == 0) return;

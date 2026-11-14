@@ -10,15 +10,16 @@ using UnityEngine.Playables;
 using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
-// Compare visible authored arm extension on the actual v32/v33 rigs. This does not
-// enlarge hitboxes or tune camera recognition. Contact/gameplay tests run separately.
+// Measure the installed clips on their actual humanoid rigs, within each clip's
+// physical contact window. Immutable previous clips prevent GUID reuse from
+// silently changing the baseline. No range/hitbox parameters are modified.
 public static class RedboolJabIntegrationCheck
 {
     [Serializable] public class Pose {
-        public string version, clip; public float length, peakTime, elbowDegrees, wristForward,
-            wristFromShoulder, armLength, extensionRatio, height;
+        public string version, clip, move; public float length, peakTime, elbowDegrees, wristForward,
+            wristFromShoulder, armLength, extensionRatio, height, windowStart, windowEnd;
     }
-    [Serializable] public class Report { public Pose before, after, pvpOpponent, pvpExtended; public bool passed, onlyElbowCurveChanged, onlyJabOverrideChanged; public string scope; }
+    [Serializable] public class Report { public Pose[] samples; public bool passed; public string scope; }
     public static void Run()
     {
         string output=Environment.GetEnvironmentVariable("REDBOOL_JAB_CHECK_OUTPUT") ?? "Logs/JabIntegration";
@@ -28,51 +29,36 @@ public static class RedboolJabIntegrationCheck
             ShaderUtil.allowAsyncCompilation=false;
             RenderSettings.ambientMode=AmbientMode.Flat; RenderSettings.ambientLight=new Color(.65f,.65f,.65f);
             var light=new GameObject("Key").AddComponent<Light>();light.type=LightType.Directional;light.intensity=1.1f;light.transform.rotation=Quaternion.Euler(35,-25,0);
-            var report=new Report {
-                before=Measure("v32", "Assets/RedboolVision/Editor/Fixtures/Hero02_V32.prefab",output),
-                after=Measure("v33", "Assets/Characters/Hero02/Hero02_Visual.prefab",output),
-                pvpOpponent=Measure("pvp_p2", "Assets/Characters/StoryOpponents/05_Cheolmun/05_Cheolmun_Visual.prefab",output),
-                pvpExtended=Measure("pvp_p2_extended", "Assets/Characters/StoryOpponents/05_Cheolmun/05_Cheolmun_Visual.prefab",output,RedboolPvpJabBake.Output),
-                onlyElbowCurveChanged=CheckCurves(), onlyJabOverrideChanged=CheckController(),
-                scope="Sampled visible rig extension within the existing .12-.215 second contact window; no hitbox inflation. Live blending/contact tested by HeroJabPlayCheck."
+            const string hero="Assets/Characters/Hero02/Hero02_Visual.prefab";
+            const string oldHero="Assets/RedboolVision/Editor/Fixtures/Hero02_V33.prefab";
+            const string p2="Assets/Characters/StoryOpponents/05_Cheolmun/05_Cheolmun_Visual.prefab";
+            var poses=new[]{
+                Measure("hero_v33_jab",oldHero,output,CombatMove.Jab,"Assets/RedboolVision/Editor/Fixtures/HeroJab_V33.anim"),
+                Measure("hero_v34_jab",hero,output,CombatMove.Jab),
+                Measure("hero_v33_straight",oldHero,output,CombatMove.Straight,"Assets/RedboolVision/Editor/Fixtures/HeroCross_V33.anim",new Vector2(.295f,.43f)),
+                Measure("hero_v34_straight",hero,output,CombatMove.Straight),
+                Measure("p2_v33_jab",p2,output,CombatMove.Jab,"Assets/RedboolVision/Editor/Fixtures/CheolmunJab_V33.anim"),
+                Measure("p2_upstream_jab",p2,output,CombatMove.Jab,RedboolPvpJabBake.Original),
+                Measure("p2_selected_jab",p2,output,CombatMove.Jab,RedboolPvpJabBake.Selected),
+                Measure("p2_upstream_straight",p2,output,CombatMove.Straight)
             };
-            report.passed=report.onlyElbowCurveChanged && report.onlyJabOverrideChanged && report.after.clip=="Hero_JAB" && report.after.elbowDegrees>=165f && report.after.extensionRatio>=.96f && report.pvpExtended.elbowDegrees>=168f && report.pvpExtended.elbowDegrees<=174f && report.pvpExtended.wristForward>=report.pvpOpponent.wristForward;
+            var report=new Report {samples=poses,scope="Sampled authored humanoid geometry and corrective skin on actual rigs within physical contact windows. No hitbox inflation; blended animation, actual contact/whiff and held guard tested separately by HeroJabPlayCheck.",
+                passed=poses.All(p=>p.armLength>0 && p.wristFromShoulder>0 && p.elbowDegrees>90f && p.extensionRatio>.7f)
+                    && poses[1].elbowDegrees>=165f && poses[1].extensionRatio>=.96f
+                    && poses[3].elbowDegrees>=155f && poses[3].extensionRatio>=.92f
+                    && poses[6].elbowDegrees>=165f && poses[6].extensionRatio>=.96f
+                    && Math.Abs(poses[6].length-poses[5].length)<.001f};
             File.WriteAllText(Path.Combine(output,"comparison.json"),JsonUtility.ToJson(report,true));
             Debug.Log("[REDBOOL JAB] "+JsonUtility.ToJson(report));
             EditorApplication.Exit(report.passed?0:1);
         } catch(Exception e) {File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());Debug.LogException(e);EditorApplication.Exit(1);}
     }
-    static bool CheckCurves()
-    {
-        var original=AssetDatabase.LoadAssetAtPath<AnimationClip>(RedboolPvpJabBake.Original);
-        var revised=AssetDatabase.LoadAssetAtPath<AnimationClip>(RedboolPvpJabBake.Output);
-        var bindings=AnimationUtility.GetCurveBindings(original);
-        if(bindings.Length!=AnimationUtility.GetCurveBindings(revised).Length || Math.Abs(original.length-revised.length)>.0001f)return false;
-        int changed=0;
-        foreach(var b in bindings) {
-            var a=AnimationUtility.GetEditorCurve(original,b);var c=AnimationUtility.GetEditorCurve(revised,b);
-            bool equal=c!=null && a.keys.SequenceEqual(c.keys) && a.preWrapMode==c.preWrapMode && a.postWrapMode==c.postWrapMode;
-            if(!equal){changed++;if(b.propertyName!="Left Forearm Stretch")return false;}
-        }
-        return changed==1;
-    }
-    static bool CheckController()
-    {
-        var original=AssetDatabase.LoadAssetAtPath<AnimatorOverrideController>("Assets/Characters/StoryOpponents/05_Cheolmun/05_Cheolmun_UnifiedBoxing.overrideController");
-        var revised=AssetDatabase.LoadAssetAtPath<AnimatorOverrideController>("Assets/Resources/RedboolPvpCheolmun.overrideController");
-        if(original.runtimeAnimatorController!=revised.runtimeAnimatorController)return false;
-        var before=new List<KeyValuePair<AnimationClip,AnimationClip>>();var after=new List<KeyValuePair<AnimationClip,AnimationClip>>();original.GetOverrides(before);revised.GetOverrides(after);
-        if(before.Count!=after.Count)return false;
-        int changed=0;
-        foreach(var pair in before){var target=after.Single(p=>p.Key==pair.Key).Value;if(target==pair.Value)continue;changed++;if(pair.Value.name!="05_Cheolmun_JAB" || target.name!="RedboolPvpCheolmun_JAB")return false;}
-        return changed==1;
-    }
-    static Pose Measure(string version,string path,string output,string clipPath=null)
+    static Pose Measure(string version,string path,string output,CombatMove move,string clipPath=null,Vector2? oldWindow=null)
     {
         var model=(GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(path));
         var anim=model.GetComponentsInChildren<Animator>(true).First(a=>a.avatar&&a.avatar.isHuman);
         model.transform.position=Vector3.zero;model.transform.rotation=Quaternion.identity;
-        var clip=clipPath==null?anim.runtimeAnimatorController.animationClips.First(c=>c&&c.name.EndsWith("_JAB")):AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
+        var clip=clipPath==null?anim.runtimeAnimatorController.animationClips.First(c=>c&&c.name.EndsWith(move==CombatMove.Jab?"_JAB":"_CROSS")):AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
         anim.applyRootMotion=false;anim.cullingMode=AnimatorCullingMode.AlwaysAnimate;
         foreach(var r in model.GetComponentsInChildren<SkinnedMeshRenderer>())r.forceMatrixRecalculationPerRender=true;
         // Match Fighter3DView's runtime neutral tint rather than a prefab's unset property value.
@@ -81,12 +67,14 @@ public static class RedboolJabIntegrationCheck
         var graph=PlayableGraph.Create("JabComparison");graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
         var play=AnimationClipPlayable.Create(graph,clip);play.SetApplyFootIK(false);play.SetApplyPlayableIK(false);
         AnimationPlayableOutput.Create(graph,"Jab",anim).SetSourcePlayable(play);graph.Play();
-        var shoulder=anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);var elbow=anim.GetBoneTransform(HumanBodyBones.LeftLowerArm);
-        var wrist=anim.GetBoneTransform(HumanBodyBones.LeftHand);var head=anim.GetBoneTransform(HumanBodyBones.Head);
+        var shoulder=anim.GetBoneTransform(move==CombatMove.Jab?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm);
+        var elbow=anim.GetBoneTransform(move==CombatMove.Jab?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm);
+        var wrist=anim.GetBoneTransform(move==CombatMove.Jab?HumanBodyBones.LeftHand:HumanBodyBones.RightHand);var head=anim.GetBoneTransform(HumanBodyBones.Head);
         var foot=anim.GetBoneTransform(HumanBodyBones.LeftFoot);
-        var best=new Pose{version=version,clip=clip.name,length=clip.length,wristForward=float.NegativeInfinity};
+        var window=oldWindow??CombatContactWorld.Window(move);
+        var best=new Pose{version=version,move=move.ToString(),clip=clip.name,length=clip.length,windowStart=window.x,windowEnd=window.y,wristForward=float.NegativeInfinity};
         for(int i=0;i<=180;i++) {
-            float t=.12f+(.215f-.12f)*i/180f;play.SetTime(t);graph.Evaluate(0f);
+            float t=Mathf.Lerp(window.x,window.y,i/180f);play.SetTime(t);graph.Evaluate(0f);
             float forward=Vector3.Dot(wrist.position-model.transform.position,model.transform.forward);
             if(forward<=best.wristForward)continue;
             best.peakTime=t;best.wristForward=forward;
@@ -97,6 +85,7 @@ public static class RedboolJabIntegrationCheck
             best.height=head.position.y-foot.position.y;
         }
         play.SetTime(best.peakTime);graph.Evaluate(0f);
+        foreach(var surface in model.GetComponentsInChildren<HeroPunchSurfaceVisibility>(true))surface.ApplyRemoteSurface(move==CombatMove.Jab?(byte)1:(byte)2);
         var camera=new GameObject("Comparison camera").AddComponent<Camera>();camera.orthographic=true;
         camera.orthographicSize=1.1f;camera.nearClipPlane=.01f;camera.farClipPlane=30;
         camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.24f,.27f,.30f);

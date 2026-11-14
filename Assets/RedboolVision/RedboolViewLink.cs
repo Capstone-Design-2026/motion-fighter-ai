@@ -21,6 +21,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     readonly List<RedboolViewEffect> effects=new List<RedboolViewEffect>();
     readonly Transform[][] bones={new Transform[(int)HumanBodyBones.LastBone],new Transform[(int)HumanBodyBones.LastBone]};
     readonly Fighter3DView[] views=new Fighter3DView[2];
+    readonly HeroPunchSurfaceVisibility[] punchSurfaces=new HeroPunchSurfaceVisibility[2];
     RedboolViewMirror mirror;
     double nextSend,lastHello=-10,lastHeartbeat=-10,lastFrame=-10,echo,lastReport;
     ulong sequence,ack;
@@ -91,6 +92,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             for(int i=0;i<2;i++)
             {
                 views[i]=game.Players[i].GetComponent<Fighter3DView>();
+                punchSurfaces[i]=views[i].visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);
                 for(int b=0;b<bones[i].Length;b++) {bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);if(bones[i][b]) replicaBoneCount++;}
             }
             if(client) {mirror=gameObject.AddComponent<RedboolViewMirror>();mirror.Initialize(game,views,bones);Time.timeScale=1;}
@@ -234,6 +236,7 @@ public sealed class RedboolViewLink : MonoBehaviour
         var a=new RedboolViewActor {root=p.transform.position,visual=views[i].visualRoot.position,rotation=views[i].visualRoot.rotation,scale=views[i].visualRoot.localScale,hips=bones[i][0]?bones[i][0].localPosition:Vector3.zero,hp=h.CurrentHealth,maxHp=h.MaxHealth,charge=s.Charge,maxCharge=s.HitsToCharge,phase=(int)s.CurrentPhase,step=practice.Step,hits=practice.Hits,practiceRun=Guid.Parse(practice.Run),live=game.Receivers[i].LiveReady,attackSerial=p.GetComponent<Fighter>().AttackSerial};
         for(int b=0;b<a.bones.Length;b++) a.bones[b]=bones[i][b]?bones[i][b].localRotation:Quaternion.identity;
         a.chargeLevel=s.VisualChargeLevel;
+        a.punchSurface=punchSurfaces[i]!=null?punchSurfaces[i].CurrentSurface:(byte)0;
         string status=game.Receivers[i].PersonalStatus;a.personal=(byte)(status.Contains("PERSONAL RANGE")?2:status.Contains("CYCLES")?1:0);
         var renderer=views[i].visualRoot.GetComponentInChildren<Renderer>();if(renderer) {var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);a.tint=block.GetColor("_BaseColor");}
         return a;

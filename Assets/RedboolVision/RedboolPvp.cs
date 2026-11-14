@@ -7,6 +7,7 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(200)]
 public sealed class RedboolPvp : MonoBehaviour
 {
+    public const string ArenaScene = "UndergroundPit";
     public static bool Active { get; private set; }
     public static bool IsClient { get; private set; }
     public static string HostAddress { get; private set; } = "127.0.0.1";
@@ -76,11 +77,11 @@ public sealed class RedboolPvp : MonoBehaviour
         Instance=go.AddComponent<RedboolPvp>(); DontDestroyOnLoad(go);
         SceneManager.sceneLoaded+=Instance.SceneLoaded;
         Time.timeScale=1;Time.fixedDeltaTime=.02f;HitImpact.ReleaseTimeControl();
-        SceneManager.LoadScene(RedboolDuelTest.ArenaScene);
+        SceneManager.LoadScene(ArenaScene);
     }
     void SceneLoaded(Scene scene,LoadSceneMode mode)
     {
-        if(scene.name!=RedboolDuelTest.ArenaScene) { Leave(false); return; }
+        if(scene.name!=ArenaScene) { Leave(false); return; }
         var first=FindAnyObjectByType<PlayerController>();
         var enemy=FindAnyObjectByType<EnemyAI>();
         if(first==null || enemy==null) throw new InvalidOperationException("PvP arena needs two spawn positions");
@@ -120,7 +121,7 @@ public sealed class RedboolPvp : MonoBehaviour
         if(!IsClient && RedboolEffectPreparation.Enabled) warmup=Receivers[0].gameObject.AddComponent<RedboolRenderWarmup>();
         BuildUi();SetPaused(true);
         ViewLink=gameObject.AddComponent<RedboolViewLink>();ViewLink.Initialize(this);
-        Debug.Log("[REDBOOL PVP] ScoutPass, P1 :5065 / P2 :5066, campaign untouched");
+        Debug.Log("[REDBOOL PVP] UndergroundPit, P1 :5065 / P2 :5066, campaign untouched");
     }
     void OnCalibration(int slot,bool calibrated,int generation)
     {

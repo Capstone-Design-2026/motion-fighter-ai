@@ -19,9 +19,12 @@ public sealed class CombatContactWorld:MonoBehaviour
     public static void Unregister(Fighter fighter){if(instance)instance.fighters.Remove(fighter);}
     void OnDestroy(){if(instance==this)instance=null;}
     // Windows derived from the installed clips: extension/impact only, never the recovery.
+    // Straight: the installed clip (AuthoredPunches/Hero_CROSS and the enemy clips made from it) extends the arm
+    // from .10s to .167s and then holds it out. The window covers that extension and the start of the hold,
+    // the same length as before; it was .295~.43 for the previous clip, whose arm extended from .30s to .40s.
     public static Vector2 Window(CombatMove move){
         switch(move){case CombatMove.Jab:return new Vector2(.12f,.215f);
-            case CombatMove.Straight:return new Vector2(.295f,.43f);
+            case CombatMove.Straight:return new Vector2(.12f,.255f);
             case CombatMove.HighKick:return new Vector2(.295f,.49f);
             default:return new Vector2(.29f,.445f);}
     }

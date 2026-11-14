@@ -1,6 +1,7 @@
 using UnityEngine;
 
-// Only the second human receives the extended elbow curve. Story Cheolmun keeps its authored controller.
+// The second player uses the reviewed upstream Cheolmun clips. The current jab
+// already extends fully; the v33 elbow-only replacement is retained only as an Editor fixture.
 public static class RedboolPvpJab
 {
     public static bool Apply(Fighter3DView view)
