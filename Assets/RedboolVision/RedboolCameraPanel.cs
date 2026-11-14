@@ -31,7 +31,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         hint.horizontalOverflow=HorizontalWrapMode.Wrap;hint.verticalOverflow=VerticalWrapMode.Truncate;
         combatHint=WuxiaTheme.Text("CombatInputFeedback",panel,"",18,TextAnchor.MiddleCenter,WuxiaTheme.Gold);
         combatHint.horizontalOverflow=HorizontalWrapMode.Wrap;combatHint.verticalOverflow=VerticalWrapMode.Truncate;
-        UIFactory.Place(combatHint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,116),new Vector2(288,36));
+        UIFactory.Place(combatHint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,116),new Vector2(288,52));
         var track=UIFactory.CreateImage("CalibrationTrack",panel,new Color(.15f,.18f,.18f,1));
         UIFactory.Place(track.rectTransform,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
         progress=UIFactory.CreateImage("CalibrationProgress",track.transform,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
@@ -49,7 +49,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         int scene=SceneManager.GetActiveScene().handle;
         if(scene!=cachedScene) {cachedScene=scene;tutorial=FindAnyObjectByType<CaveTutorial>()!=null;}
         UIFactory.Place(panel,tutorial?Vector2.one:new Vector2(1,0),tutorial?Vector2.one:new Vector2(1,0),
-            tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?199:420));
+            tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?215:436));
         image.gameObject.SetActive(!compact);
         // Preview is one persistent texture: LoadImage refreshes its pixels at
         // the preview cadence even though this status/layout UI runs at10Hz.

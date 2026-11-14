@@ -171,6 +171,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(runtime.Synthetic&&RedboolCameraRuntime.Packaged,"Bundled runtime explicitly synthetic");
         Check(!runtime.Running,"Menu does not open camera child");
         Check(!RedboolDemoSettings.OperatorMode,"Normal launch has no operator shortcuts");
+        Check(!Debug.developerConsoleEnabled,"Normal play uses game guidance instead of a developer console popup");
         RedboolSettingsPanel.Show();yield return new WaitForEndOfFrame();
         Check(RedboolSettingsPanel.IsOpen&&RedboolPauseMenu.BlocksStoryInput&&!runtime.Running,"Settings modal blocks story input without opening a camera");
         ScreenCapture.CaptureScreenshot(Path.Combine(directory,"00_settings.png"));yield return new WaitForEndOfFrame();
@@ -248,6 +249,19 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(SceneManager.GetActiveScene().name=="UndergroundPit","PvP opens the new dedicated arena");
         Check(runtime.Status.synthetic&&!runtime.Status.camera_connected,"Synthetic backend reports physical camera closed");
         Check(ReceiverOnPort(5065).Bound&&ReceiverOnPort(5066).Bound&&!runtime.InputConnectionBlocked&&runtime.InputConnectionError==null&&runtime.LastInputConnectionError==null,"Both ports recover automatically and clear the conflict without restarting the game");
+        Check(!Debug.developerConsoleVisible,"Expected port-conflict logs do not cover the game with a console");
+        Text feedbackText=null;
+        foreach(var label in FindObjectsByType<Text>(FindObjectsInactive.Include,FindObjectsSortMode.None))
+            if(label.name=="CombatInputFeedback")feedbackText=label;
+        Check(feedbackText!=null,"Combat feedback has a visible dedicated text area");
+        string originalFeedback=feedbackText.text;
+        foreach(RedboolCombatFeedbackCode code in Enum.GetValues(typeof(RedboolCombatFeedbackCode)))
+        {
+            feedbackText.text=RedboolCombatFeedback.Text(code);
+            Canvas.ForceUpdateCanvases();
+            Check(feedbackText.preferredHeight<=feedbackText.rectTransform.rect.height+1,"Combat message fits without vertical clipping: "+code);
+        }
+        feedbackText.text=originalFeedback;
         int first=runtime.ChildId;children.Add(first);Check(first>0,"Host owns one child PID");
         Check((string)typeof(RedboolCameraRuntime).GetField("role",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime)=="P1","Host camera uses P1 role");
         long sequence=runtime.Status.preview_sequence;

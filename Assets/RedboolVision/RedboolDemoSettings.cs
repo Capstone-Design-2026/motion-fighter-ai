@@ -57,7 +57,7 @@ public static class RedboolDemoSettings
     public static bool OperatorMode
     {
         get { return operatorMode; }
-        set { operatorMode = value; Changed?.Invoke(); }
+        set { operatorMode = value; ApplyConsole(); Changed?.Invoke(); }
     }
 
     public static void RequestCameraReconnect() { CameraReconnectRequested?.Invoke(); }
@@ -66,9 +66,12 @@ public static class RedboolDemoSettings
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetSession() { operatorMode = false; CameraReconnectRequested = null; Changed = null; }
 
+    static void ApplyConsole() { if (!Application.isEditor) Debug.developerConsoleEnabled = operatorMode; }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void ApplySaved()
     {
+        ApplyConsole();
         AudioListener.volume = MasterVolume;
         if (!Application.isEditor && PlayerPrefs.HasKey(Prefix + "Fullscreen")) ApplyDisplay(Fullscreen);
     }
