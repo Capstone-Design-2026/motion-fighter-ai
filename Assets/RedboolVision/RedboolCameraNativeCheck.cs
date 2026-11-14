@@ -7,15 +7,19 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using Debug=UnityEngine.Debug;
 
 /// <summary>Explicit development-only packaged lifecycle fixture. Synthetic camera only.</summary>
 public sealed class RedboolCameraNativeCheck : MonoBehaviour
 {
-    [Serializable] sealed class Report {public bool passed;public string error;public List<string> checks;public List<int> children;}
+    [Serializable] sealed class Report {public bool passed;public string error;public List<string> checks;public List<int> children;public double preview_fps;public float render_scale;public int width,height;}
     readonly List<string> checks=new List<string>();
     readonly List<int> children=new List<int>();
     string directory;bool finished;
+    double measuredPreviewFps;
+    float measuredRenderScale;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
@@ -54,6 +58,9 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     }
     IEnumerator Flow()
     {
+        string savedRun=PlayerPrefs.GetString("VisionStriker.Run", "");
+        var pipeline=GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+        float originalRenderScale=pipeline!=null?pipeline.renderScale:1;
         double end=Time.realtimeSinceStartupAsDouble+30;
         while(ButtonNamed("PvpButton")==null||RedboolCameraRuntime.Instance==null)
         {Deadline(end,"menu and integrated runtime");yield return null;}
@@ -85,6 +92,38 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         while(runtime.Status.preview_sequence<=sequence)
         {Deadline(end,"continuing local preview");yield return null;}
         Check(runtime.PreviewFresh,"Preview continues after calibration request");
+        // Exercise the real localhost JPEG path and game scheduling. This is
+        // synthetic visual input; it does not claim camera/recognition accuracy.
+        end=Time.realtimeSinceStartupAsDouble+20;
+        while(runtime.CurrentPreviewTargetFps!=15) {Deadline(end,"healthy preview rate");yield return null;}
+        yield return new WaitForSecondsRealtime(1);
+        long decodedAt=runtime.PreviewDecodedFrames;
+        double measuredAt=Time.realtimeSinceStartupAsDouble;
+        yield return new WaitForSecondsRealtime(5);
+        measuredPreviewFps=(runtime.PreviewDecodedFrames-decodedAt)/(Time.realtimeSinceStartupAsDouble-measuredAt);
+        Check(measuredPreviewFps>=10&&measuredPreviewFps<=16,"Healthy local preview exceeds old 8fps cap without exceeding 15fps target");
+        var budget=FindAnyObjectByType<RedboolCameraRenderBudget>();
+        Check(budget!=null&&pipeline!=null,"Standalone camera render budget installed on real URP pipeline");
+        budget.Refresh();measuredRenderScale=pipeline.renderScale;
+        Check(Mathf.Approximately(pipeline.renderScale,RedboolCameraRenderBudget.ScaleFor(Screen.width,Screen.height,originalRenderScale)),"High-DPI scene rendering respects camera budget");
+        Check(Mathf.Approximately(RedboolCameraRenderBudget.ScaleFor(1280,720,1),1)&&Mathf.Approximately(RedboolCameraRenderBudget.ScaleFor(1280,720,.7f),.7f),"Normal resolution and preexisting lower quality remain unchanged");
+        float retina=RedboolCameraRenderBudget.ScaleFor(3420,2146,1);
+        Check(3420*retina<=1920.1f&&2146*retina<=1200.1f,"Recorded Retina resolution stays within 3D pixel budget");
+        pipeline.renderScale=.3f;budget.Refresh();
+        Check(Mathf.Approximately(pipeline.renderScale,.3f),"Camera budget respects an external lower render setting");
+        pipeline.renderScale=originalRenderScale;budget.Refresh();
+        Check(Mathf.Approximately(pipeline.renderScale,RedboolCameraRenderBudget.ScaleFor(Screen.width,Screen.height,originalRenderScale)),"External quality restoration cannot bypass active Retina budget");
+        var image=ButtonNamed("FoldCamera");Check(image!=null,"Preview fold control exists");
+        image.onClick.Invoke();yield return new WaitForSecondsRealtime(.4f);
+        decodedAt=runtime.PreviewDecodedFrames;yield return new WaitForSecondsRealtime(1);
+        Check(runtime.PreviewDecodedFrames==decodedAt&&runtime.Fresh,"Folded preview stops image work while control channel remains live");
+        image.onClick.Invoke();
+        Application.targetFrameRate=30;end=Time.realtimeSinceStartupAsDouble+12;
+        while(runtime.CurrentPreviewTargetFps!=8) {Deadline(end,"preview sheds load on slow game");yield return null;}
+        Check(runtime.Fresh,"Preview falls back to 8fps during slow game frames without losing control status");
+        Application.targetFrameRate=60;end=Time.realtimeSinceStartupAsDouble+20;
+        while(runtime.CurrentPreviewTargetFps!=15) {Deadline(end,"preview recovers after healthy windows");yield return null;}
+        Check(runtime.Fresh,"Preview restores higher rate after sustained healthy frames");
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_pvp_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
         RedboolPvp.Instance.Leave(true);end=Time.realtimeSinceStartupAsDouble+15;
@@ -92,6 +131,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         {Deadline(end,"return to menu stops owned child");yield return null;}
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
         Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
+        budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale),"Leaving camera gameplay restores authored render scale");
         ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Running||runtime.ChildId==first||!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"story duel synthetic status and preview");yield return null;}
@@ -119,6 +159,18 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         yield return new WaitForSecondsRealtime(.2f);
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"03_story_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
+        var exit=ButtonNamed("DuelExitToMenu");Check(exit!=null&&RedboolDuelTest.Active,"Direct duel exposes menu exit");
+        Time.timeScale=.06f;Time.fixedDeltaTime=.0012f;
+        exit.onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("DuelTestButton")==null)
+        {Deadline(end,"direct duel exit flushes camera diagnostics");yield return null;}
+        Check(!RedboolDuelTest.Active&&Mathf.Approximately(Time.timeScale,1)&&Mathf.Approximately(Time.fixedDeltaTime,.02f),"Direct duel exit restores normal game time and clears test mode");
+        Check(PlayerPrefs.GetString("VisionStriker.Run", "")==savedRun,"Direct duel exit preserves campaign save");
+        Check(!runtime.DiagnosticsPending&&!Alive(second),"Direct duel exit finalizes camera records before export");
+        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+30;
+        while(!runtime.Running||!runtime.Fresh||!runtime.PreviewFresh) {Deadline(end,"direct duel can reopen after exit");yield return null;}
+        second=runtime.ChildId;children.Add(second);
+        Check(second>0&&runtime.Status.synthetic,"Direct duel reopens synthetic camera after menu exit");
         var stop=(IEnumerator)typeof(RedboolCameraRuntime).GetMethod("StopOwned",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(runtime,null);
         runtime.StartCoroutine(stop);
         Check(runtime.ChildId==0&&typeof(RedboolCameraRuntime).GetField("stoppingChild",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime)!=null,"Shutdown retains detached child while coroutine yields");
@@ -130,7 +182,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     void Finish(bool passed,string error)
     {
         if(finished)return;finished=true;
-        File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children},true));
+        File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children,preview_fps=measuredPreviewFps,render_scale=measuredRenderScale,width=Screen.width,height=Screen.height},true));
         Debug.Log("[CAMERA CHECK] "+(passed?"PASS":"FAIL "+error));
         Application.Quit(passed?0:1);
     }

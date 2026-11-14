@@ -1,6 +1,12 @@
-REDBOOL v34.1 — current Unity content and bounded landmark diagnostics
+REDBOOL v34.2 — fullscreen camera preview and diagnostic gameplay
 
-Field patch: the existing story combat warmup renders both real Hero02 punch
+v34.2 retains the byte-identical v34.1 native camera backend/model/recognizer.
+Only Unity local preview pacing, optional high-DPI 3D render budget, Mac permission
+preflight and direct-duel menu exit change. Windows/PvP protocol30 is unchanged.
+Preview polls never overlap and are skipped while folded; two healthy 5s windows
+restore15fps after shedding display work. Camera/inference remains independent.
+
+Earlier field patch: the existing story combat warmup renders both real Hero02 punch
 correction surfaces into its temporary target before input unlocks. Renderer
 flags and controller state are restored on completion or interruption; PvP,
 damage, animation and recognition rules are unchanged. A native fixture passes
@@ -40,7 +46,7 @@ P2:5066, shared game snapshots/discovery:5067. The host remains authoritative.
 No internet server or relay is introduced. The two laptops need local reachability.
 Discovery only fills an address; it never silently pairs with another game.
 Camera JPEG preview is local loopback only: authenticated per-process HTTP,
-320x240, maximum8fps, one latest-frame slot. It is never sent to the other laptop.
+320x240, target15fps (8fps under game/decode/request load), one latest-frame slot. It is never sent to the other laptop.
 Unity status requests run at5Hz, preview decoding is bounded to one request at a
 time. The main recognition loop is not throttled to the preview frame rate.
 

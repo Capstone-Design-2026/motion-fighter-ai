@@ -16,5 +16,6 @@ public static class RedboolDemoFrameBudget
         var metrics = new GameObject("REDBOOL Frame Metrics");
         Object.DontDestroyOnLoad(metrics);
         metrics.AddComponent<RedboolFrameMetrics>();
+        metrics.AddComponent<RedboolCameraRenderBudget>();
     }
 }

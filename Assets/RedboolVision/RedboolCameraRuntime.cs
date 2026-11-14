@@ -40,6 +40,10 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     public int ChildId => Running ? child.Id : 0;
     public bool Fresh => Status!=null && Time.realtimeSinceStartupAsDouble-lastStatus<1.5;
     public bool PreviewFresh => Preview!=null && Time.realtimeSinceStartupAsDouble-lastPreview<1;
+    public const int PreviewTargetFps=15;
+    public int CurrentPreviewTargetFps { get; private set; } = PreviewTargetFps;
+    public long PreviewSequence => previewSequence;
+    public long PreviewDecodedFrames { get; private set; }
     public bool ShowPanel { get; private set; }
     public bool PreviewVisible { get; set; } = true;
     public bool Synthetic { get; private set; }
@@ -49,7 +53,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     bool restartRequested,quitting,commandPending;
     double lastStatus=-100,lastPreview=-100;
     long previewSequence=-1; readonly object logLock=new object();
-    long logBytes; int previewSamples; double decodeTotal,decodeMax,metricAt;
+    long logBytes; int previewSamples,previewRequests,frameSamples,healthyPreviewWindows;
+    double decodeTotal,decodeMax,requestTotal,requestMax,metricStarted,metricAt;
+    double lastFrameAt=-1,frameElapsed;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { Instance=null; }
@@ -83,7 +89,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             if(wanted!=role || host!=address || restartRequested)
             {
                 restartRequested=false;yield return StopOwned();role=wanted;address=host;
-                if(role!=null) StartOwned();
+                if(role!=null) yield return StartAuthorized();
             }
             if(child!=null && Exited(child))
             {
@@ -93,14 +99,60 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             yield return new WaitForSecondsRealtime(.2f);
         }
     }
+    IEnumerator StartAuthorized()
+    {
+        // macOS support was added in Unity2023.1.0a19 (official release notes);
+        // this Unity6 main-thread preflight avoids OpenCV's first-use permission
+        // request from the capture worker. Synthetic checks never request access.
+        if(!Synthetic && !Application.isEditor && Application.platform==RuntimePlatform.OSXPlayer
+            && !Application.HasUserAuthorization(UserAuthorization.WebCam))
+        {
+            Error="카메라 권한 허용 창을 확인해주세요.";
+            yield return Application.RequestUserAuthorization(UserAuthorization.WebCam);
+            if(quitting)yield break;
+            if(!Application.HasUserAuthorization(UserAuthorization.WebCam))
+            {
+                Error="카메라 권한이 필요해요. 시스템 설정의 카메라에서 허용 후 다시 연결을 누르세요.";
+                // role remains selected: no child or automatic prompt/retry loop.
+                // Reconnect is the explicit retry after changing OS permission.
+                yield break;
+            }
+        }
+        string wanted=DesiredRole();
+        string wantedAddress=wanted=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
+        if(quitting || restartRequested || role!=wanted || address!=wantedAddress)yield break;
+        StartOwned();
+    }
     void Update()
     {
         // KeyDown must be read every frame, including while the game is paused.
         if(ShowPanel && Running && Input.GetKeyDown(KeyCode.C)) Calibrate();
-        if(Time.realtimeSinceStartupAsDouble>=metricAt && previewSamples>0)
+        double now=Time.realtimeSinceStartupAsDouble;
+        if(lastFrameAt>=0) {frameElapsed+=now-lastFrameAt;frameSamples++;}
+        lastFrameAt=now;
+        if(now>=metricAt)
         {
-            Debug.Log(FormattableString.Invariant($"[REDBOOL CAMERA PREVIEW] samples={previewSamples} decode_mean_ms={decodeTotal/previewSamples:F3} decode_max_ms={decodeMax:F3} local_only=true"));
-            previewSamples=0;decodeTotal=decodeMax=0;metricAt=Time.realtimeSinceStartupAsDouble+5;
+            double elapsed=now-metricStarted;
+            double meanFrame=frameSamples>0?frameElapsed/frameSamples*1000:0;
+            double meanDecode=previewSamples>0?decodeTotal/previewSamples:0;
+            double meanRequest=previewRequests>0?requestTotal/previewRequests:0;
+            int windowTarget=CurrentPreviewTargetFps;
+            if(Running && frameSamples>0)
+            {
+                if(meanFrame>22 || meanDecode>2 || meanRequest>80)
+                {
+                    CurrentPreviewTargetFps=8;healthyPreviewWindows=0;
+                }
+                else if(CurrentPreviewTargetFps<PreviewTargetFps && ++healthyPreviewWindows>=2)
+                {
+                    CurrentPreviewTargetFps=PreviewTargetFps;healthyPreviewWindows=0;
+                }
+            }
+            if(elapsed>0 && previewRequests>0)
+                Debug.Log(FormattableString.Invariant($"[REDBOOL CAMERA PREVIEW] samples={previewSamples} elapsed_s={elapsed:F3} delivered_fps={previewSamples/elapsed:F2} target_fps={windowTarget} next_target_fps={CurrentPreviewTargetFps} game_mean_frame_ms={meanFrame:F3} requests={previewRequests} request_mean_ms={meanRequest:F3} request_max_ms={requestMax:F3} decode_mean_ms={meanDecode:F3} decode_max_ms={decodeMax:F3} sequence={previewSequence} local_only=true"));
+            previewSamples=previewRequests=0;decodeTotal=decodeMax=requestTotal=requestMax=0;
+            frameSamples=0;frameElapsed=0;
+            metricStarted=now;metricAt=now+5;
         }
     }
     static bool Exited(Process process) { try { return process.HasExited; } catch(InvalidOperationException) { return true; } }
@@ -118,7 +170,11 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     void StartOwned()
     {
-        Error=null;Status=null;lastStatus=lastPreview=-100;previewSequence=-1;generation++;
+        Error=null;Status=null;lastStatus=lastPreview=-100;previewSequence=-1;PreviewDecodedFrames=0;generation++;
+        previewSamples=previewRequests=0;decodeTotal=decodeMax=requestTotal=requestMax=0;
+        metricStarted=Time.realtimeSinceStartupAsDouble;metricAt=metricStarted+5;
+        lastFrameAt=metricStarted;frameSamples=healthyPreviewWindows=0;frameElapsed=0;
+        CurrentPreviewTargetFps=PreviewTargetFps;
         try
         {
         var reservation=new TcpListener(IPAddress.Loopback,0);
@@ -134,7 +190,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         var arguments=new List<string> {"--headless","--bridge-port",port.ToString(),"--bridge-token",token,
             "--parent-pid",Process.GetCurrentProcess().Id.ToString(),"--actor",role,"--host",address,
             "--port",role=="P2"?"5066":"5065","--personal-calibration","--movement","--mirror",
-            "--preview-fps","8","--recording","diagnostics","--seconds","43200","--output",output};
+            "--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
         if(Synthetic) arguments.Add("--synthetic-bridge-check");
         var escaped=new List<string>();foreach(string arg in arguments) escaped.Add(Quote(arg));
         var info=new ProcessStartInfo(BackendPath,string.Join(" ",escaped)) { UseShellExecute=false,CreateNoWindow=true,
@@ -200,25 +256,42 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     IEnumerator PollPreview(int ownedGeneration)
     {
+        double nextRequestAt=Time.realtimeSinceStartupAsDouble;
         while(ownedGeneration==generation && Running)
         {
-            if(PreviewVisible && ShowPanel)
+            if(!PreviewVisible || !ShowPanel)
             {
-                using(var request=Get("/preview.jpg"))
+                // Folding the panel stops HTTP polling; recognition stays full-rate.
+                nextRequestAt=Time.realtimeSinceStartupAsDouble;
+                yield return new WaitForSecondsRealtime(.125f);
+                continue;
+            }
+            double now=Time.realtimeSinceStartupAsDouble;
+            if(now<nextRequestAt) { yield return null;continue; }
+            double interval=1.0/CurrentPreviewTargetFps;
+            nextRequestAt+=interval;
+            if(nextRequestAt<=now)nextRequestAt=now+interval;
+            using(var request=Get("/preview.jpg"))
+            {
+                double requestedAt=Time.realtimeSinceStartupAsDouble;
+                yield return request.SendWebRequest();
+                if(ownedGeneration!=generation)yield break;
+                double requestMs=(Time.realtimeSinceStartupAsDouble-requestedAt)*1000;
+                previewRequests++;requestTotal+=requestMs;requestMax=Math.Max(requestMax,requestMs);
+                byte[] bytes=request.downloadHandler.data;
+                if(request.result==UnityWebRequest.Result.Success && request.responseCode==200 && bytes!=null && bytes.Length<=256*1024
+                    && long.TryParse(request.GetResponseHeader("X-REDBOOL-Sequence"),out long sequence) && sequence>previewSequence)
                 {
-                    yield return request.SendWebRequest();
-                    if(ownedGeneration!=generation)yield break;
-                    byte[] bytes=request.downloadHandler.data;
-                    if(request.result==UnityWebRequest.Result.Success && request.responseCode==200 && bytes!=null && bytes.Length<=256*1024
-                        && long.TryParse(request.GetResponseHeader("X-REDBOOL-Sequence"),out long sequence) && sequence>previewSequence)
-                    {
-                        if(Preview==null)Preview=new Texture2D(320,240,TextureFormat.RGB24,false);
-                        var watch=Stopwatch.StartNew();bool loaded=Preview.LoadImage(bytes,false);watch.Stop();
-                        if(loaded) { previewSequence=sequence;lastPreview=Time.realtimeSinceStartupAsDouble;previewSamples++;decodeTotal+=watch.Elapsed.TotalMilliseconds;decodeMax=Math.Max(decodeMax,watch.Elapsed.TotalMilliseconds); }
-                    }
+                    if(Preview==null)Preview=new Texture2D(320,240,TextureFormat.RGB24,false);
+                    var watch=Stopwatch.StartNew();bool loaded=Preview.LoadImage(bytes,false);watch.Stop();
+                    if(loaded) { previewSequence=sequence;lastPreview=Time.realtimeSinceStartupAsDouble;previewSamples++;PreviewDecodedFrames++;decodeTotal+=watch.Elapsed.TotalMilliseconds;decodeMax=Math.Max(decodeMax,watch.Elapsed.TotalMilliseconds); }
                 }
             }
-            yield return new WaitForSecondsRealtime(.125f);
+            // HTTP and decoding consume this deadline's budget. Never append a
+            // full interval after every response, or issue catch-up requests.
+            double completedAt=Time.realtimeSinceStartupAsDouble;
+            if(completedAt>=nextRequestAt)nextRequestAt=completedAt+interval;
+            yield return null;
         }
     }
     public void Calibrate()

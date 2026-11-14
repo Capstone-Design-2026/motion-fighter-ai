@@ -43,6 +43,8 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         UIFactory.Place(panel,tutorial?Vector2.one:new Vector2(1,0),tutorial?Vector2.one:new Vector2(1,0),
             tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?155:376));
         image.gameObject.SetActive(!compact);
+        // Preview is one persistent texture: LoadImage refreshes its pixels at
+        // the preview cadence even though this status/layout UI runs at10Hz.
         image.texture=cameraRuntime.PreviewFresh?cameraRuntime.Preview:null;
         image.color=image.texture!=null?Color.white:new Color(.08f,.1f,.11f,1);
         placeholder.gameObject.SetActive(image.texture==null);
