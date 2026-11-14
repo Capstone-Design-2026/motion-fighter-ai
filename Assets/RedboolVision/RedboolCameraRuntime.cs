@@ -25,6 +25,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         public float calibration_progress,pose_ms,capture_fps;
         public string phase,calibration_hint,calibration_reason,tracking,error,stream_id,last_command;
         public string inference_mode,inference_warning;
+        public bool camera_slow;
+        public float acquisition_fps;
+        public string camera_profile;
         public long preview_sequence; public Framing framing;
         public RecordingStatus recording;
     }
@@ -36,6 +39,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     public CameraStatus Status { get; private set; }
     public Texture2D Preview { get; private set; }
     public string Error { get; private set; }
+    public string InputConnectionError { get; private set; }
+    public string LastInputConnectionError { get; private set; }
+    public bool InputConnectionBlocked { get; private set; }
     public bool Running => child!=null && !Exited(child);
     public bool DiagnosticsPending => child!=null || stoppingChild!=null;
     public int ChildId => Running ? child.Id : 0;
@@ -57,7 +63,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     long previewSequence=-1; readonly object logLock=new object();
     long logBytes; int previewSamples,previewRequests,frameSamples,healthyPreviewWindows;
     double decodeTotal,decodeMax,requestTotal,requestMax,metricStarted,metricAt;
-    double lastFrameAt=-1,frameElapsed;
+    double lastFrameAt=-1,frameElapsed,nextReceiverRetry;
+    GUIStyle connectionNoticeStyle;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { Instance=null; }
@@ -82,6 +89,62 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         if(FindAnyObjectByType<CaveTutorial>()!=null || FindAnyObjectByType<RedboolBattlePreparation>()!=null) return "DEV01";
         return null;
     }
+    bool LocalReceiversReady(string wanted,bool retainStoryCamera,out string issue,out bool fault)
+    {
+        issue=null;fault=false;
+        if(wanted==null||wanted=="P2")return true; // The guest sends to its chosen remote host.
+        var scene=SceneManager.GetActiveScene();
+        var receivers=FindObjectsByType<RedboolDemoReceiver>(FindObjectsInactive.Include,FindObjectsSortMode.None);
+        int count=wanted=="P1"?2:1;
+        for(int slot=0;slot<count;slot++)
+        {
+            int expectedPort=5065+slot;string actor=wanted=="P1"?"P"+(slot+1):"DEV01";
+            RedboolDemoReceiver failed=null;bool bound=false;
+            foreach(var receiver in receivers)
+            {
+                if(!receiver.gameObject.activeInHierarchy||receiver.gameObject.scene!=scene||receiver.port!=expectedPort||receiver.expectedActorId!=actor)continue;
+                if(receiver.Bound){bound=true;break;}
+                if(!string.IsNullOrEmpty(receiver.BindError))failed=receiver;
+            }
+            if(bound)continue;
+            if(failed!=null)
+            {
+                fault=true;
+                issue=failed.PortConflict ? "다른 게임과 연결이 겹쳤어요\n이전 게임을 닫으면 재연결돼요"
+                    : "게임 입력 연결을 열지 못했어요\n잠시 후 자동으로 다시 연결해요";
+                return false;
+            }
+            // Keep one calibration across ordinary story/map transitions. A
+            // failed receiver is never treated as this harmless scene gap.
+            if(wanted=="DEV01"&&retainStoryCamera&&FindAnyObjectByType<CaveTutorial>()==null&&FindAnyObjectByType<RedboolBattlePreparation>()==null)continue;
+            issue="게임 입력 연결을 준비하고 있어요";return false;
+        }
+        return true;
+    }
+    bool CheckReceiverGate(string wanted,bool retainStoryCamera)
+    {
+        bool ready=LocalReceiversReady(wanted,retainStoryCamera,out string issue,out bool fault);
+        InputConnectionError=issue;
+        if(fault)
+        {
+            if(LastInputConnectionError!=issue)Debug.LogWarning("[REDBOOL CAMERA] local receiver unavailable; own camera withheld. role="+wanted);
+            LastInputConnectionError=issue;
+        }
+        else if(ready&&wanted!=null)LastInputConnectionError=null;
+        return ready;
+    }
+    void RetryLocalReceivers(string wanted)
+    {
+        if(wanted==null||wanted=="P2"||Time.realtimeSinceStartupAsDouble<nextReceiverRetry)return;
+        nextReceiverRetry=Time.realtimeSinceStartupAsDouble+1;
+        var scene=SceneManager.GetActiveScene();
+        foreach(var receiver in FindObjectsByType<RedboolDemoReceiver>(FindObjectsInactive.Include,FindObjectsSortMode.None))
+        {
+            bool owns=wanted=="P1"?receiver.PvpOwned&&(receiver.port==5065||receiver.port==5066)
+                :receiver.expectedActorId=="DEV01"&&receiver.port==5065;
+            if(owns&&receiver.gameObject.activeInHierarchy&&receiver.gameObject.scene==scene&&!receiver.Bound&&!string.IsNullOrEmpty(receiver.BindError))receiver.RetryBinding();
+        }
+    }
     IEnumerator Supervise()
     {
         while(!quitting)
@@ -91,7 +154,22 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             if(wanted!=role || host!=address || restartRequested)
             {
                 restartRequested=false;yield return StopOwned();role=wanted;address=host;
+                InputConnectionBlocked=false;InputConnectionError=null;
                 if(role!=null) yield return StartAuthorized();
+            }
+            if(role!=null)
+            {
+                if(!CheckReceiverGate(role,Running))
+                {
+                    InputConnectionBlocked=true;
+                    if(child!=null)yield return StopOwned();
+                    RetryLocalReceivers(role);
+                }
+                else if(InputConnectionBlocked)
+                {
+                    InputConnectionBlocked=false;
+                    if(child==null)yield return StartAuthorized();
+                }
             }
             if(child!=null && Exited(child))
             {
@@ -101,11 +179,19 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             yield return new WaitForSecondsRealtime(.2f);
         }
     }
+    void OnGUI()
+    {
+        if(SceneManager.GetActiveScene().name!=SceneRoutes.Start||string.IsNullOrEmpty(LastInputConnectionError)||RedboolPauseMenu.IsOpen)return;
+        if(connectionNoticeStyle==null)connectionNoticeStyle=new GUIStyle(GUI.skin.box){font=WuxiaTheme.Font,fontSize=18,wordWrap=true,alignment=TextAnchor.MiddleLeft};
+        GUI.Box(new Rect(20,Screen.height-116,Mathf.Min(620,Screen.width-40),90),
+            LastInputConnectionError+"\n이전에 켠 REDBOOL·Unity가 있다면 종료 후 다시 들어가세요.",connectionNoticeStyle);
+    }
     IEnumerator StartAuthorized()
     {
         string initialRole=DesiredRole();
         string initialAddress=initialRole=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
         if(quitting || restartRequested || role!=initialRole || address!=initialAddress)yield break;
+        if(!CheckReceiverGate(role,false)){InputConnectionBlocked=true;yield break;}
         // macOS support was added in Unity2023.1.0a19 (official release notes);
         // this Unity6 main-thread preflight avoids OpenCV's first-use permission
         // request from the capture worker. Synthetic checks never request access.
@@ -126,7 +212,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         string wanted=DesiredRole();
         string wantedAddress=wanted=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
         if(quitting || restartRequested || role!=wanted || address!=wantedAddress)yield break;
-        StartOwned();
+        if(!CheckReceiverGate(role,false)){InputConnectionBlocked=true;yield break;}
+        InputConnectionBlocked=false;StartOwned();
     }
     void Update()
     {
@@ -310,7 +397,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     {
         if(Running&&Fresh&&!commandPending&&(Synthetic||Status.camera_connected))StartCoroutine(SendCommand("calibrate"));
     }
-    public void Reconnect() { restartRequested=true; }
+    public void Reconnect() { restartRequested=true;nextReceiverRetry=0; }
     IEnumerator SendCommand(string action)
     {
         commandPending=true;int ownedGeneration=generation;

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Net;
+using System.Net.Sockets;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -18,6 +20,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     [Serializable] sealed class Report {public bool passed;public string error;public List<string> checks;public List<int> children;public double preview_fps;public float render_scale;public int width,height;}
     readonly List<string> checks=new List<string>();
     readonly List<int> children=new List<int>();
+    readonly List<UdpClient> portReservations=new List<UdpClient>();
     string directory;bool finished;
     double measuredPreviewFps;
     float measuredRenderScale;
@@ -54,6 +57,28 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     static Button ButtonNamed(string name)
     {
         foreach(var b in FindObjectsByType<Button>(FindObjectsInactive.Include,FindObjectsSortMode.None))if(b.name==name)return b;
+        return null;
+    }
+    UdpClient ReserveInputPort(int port)
+    {
+        var reservation=new UdpClient(AddressFamily.InterNetwork);
+        try
+        {
+            reservation.Client.ExclusiveAddressUse=true;
+            reservation.Client.Bind(new IPEndPoint(IPAddress.Any,port));
+            RedboolSocketOwnership.PreventInheritance(reservation.Client,"synthetic fixture occupied port "+port);
+            portReservations.Add(reservation);return reservation;
+        }
+        catch {reservation.Dispose();throw;}
+    }
+    void ReleaseInputPort(UdpClient reservation)
+    {
+        reservation.Dispose();portReservations.Remove(reservation);
+    }
+    static RedboolDemoReceiver ReceiverOnPort(int port)
+    {
+        foreach(var receiver in FindObjectsByType<RedboolDemoReceiver>(FindObjectsInactive.Include,FindObjectsSortMode.None))
+            if(receiver.port==port&&receiver.gameObject.activeInHierarchy&&receiver.gameObject.scene==SceneManager.GetActiveScene())return receiver;
         return null;
     }
     static bool Alive(int id)
@@ -162,13 +187,25 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(lobby.gameObject.activeSelf&&!RedboolPvp.Active,"PvP menu opens without pairing");
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"01_pvp_lobby.png"));
         yield return new WaitForSecondsRealtime(.3f);
+        var occupiedP1=ReserveInputPort(5065);var occupiedP2=ReserveInputPort(5066);
+        Debug.Log("[CAMERA CHECK EXPECTED PORT CONFLICT] occupying 5065 and 5066 before host start");
         ButtonNamed("Host").onClick.Invoke();
+        end=Time.realtimeSinceStartupAsDouble+15;
+        while(!runtime.InputConnectionBlocked||ReceiverOnPort(5065)==null||ReceiverOnPort(5066)==null)
+        {Deadline(end,"occupied local ports withhold camera");yield return null;}
+        Check(!runtime.Running&&!runtime.DiagnosticsPending&&ReceiverOnPort(5065).PortConflict&&ReceiverOnPort(5066).PortConflict,"Occupied host input ports do not start a camera child or send camera inputs elsewhere");
+        Check(RedboolCameraPanel.Explain(runtime).Contains("다른 게임")&&!string.IsNullOrEmpty(runtime.LastInputConnectionError),"Port conflict overrides ready/synthetic camera guidance and retains a menu notice");
+        ReleaseInputPort(occupiedP1);end=Time.realtimeSinceStartupAsDouble+5;
+        while(!ReceiverOnPort(5065).Bound){Deadline(end,"first host input port automatic retry");yield return null;}
+        Check(runtime.InputConnectionBlocked&&!runtime.Running&&ReceiverOnPort(5066).PortConflict&&occupiedP2.Client.IsBound,"Host requires both own input ports and leaves the other port owner untouched");
+        ReleaseInputPort(occupiedP2);
         end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"host synthetic status and preview");yield return null;}
         Check(RedboolPvp.Active&&!RedboolPvp.IsClient&&RedboolPvp.RequireView,"HostDual starts same-arena two-screen mode");
         Check(SceneManager.GetActiveScene().name=="UndergroundPit","PvP opens the new dedicated arena");
         Check(runtime.Status.synthetic&&!runtime.Status.camera_connected,"Synthetic backend reports physical camera closed");
+        Check(ReceiverOnPort(5065).Bound&&ReceiverOnPort(5066).Bound&&!runtime.InputConnectionBlocked&&runtime.InputConnectionError==null&&runtime.LastInputConnectionError==null,"Both ports recover automatically and clear the conflict without restarting the game");
         int first=runtime.ChildId;children.Add(first);Check(first>0,"Host owns one child PID");
         Check((string)typeof(RedboolCameraRuntime).GetField("role",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime)=="P1","Host camera uses P1 role");
         long sequence=runtime.Status.preview_sequence;
@@ -239,6 +276,12 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             Check(RedboolCameraPanel.Explain(runtime).Contains("처리 지연")&&!RedboolCameraPanel.Explain(runtime).Contains("손을 들"),"Stale frames show processing delay rather than an incorrect pose instruction");
             pressured.framing=null;pressured.calibration_reason="JOINT_HISTORY";
             Check(RedboolCameraPanel.Explain(runtime).Contains("자세를 안정적으로")&&!RedboolCameraPanel.Explain(runtime).Contains("처리 지연"),"Joint-history guidance stays distinct from processing delay");
+            pressured.phase="optimizing_camera";pressured.camera_connected=false;
+            Check(RedboolCameraPanel.Explain(runtime).Contains("카메라 설정"),"Camera profile selection is explained before camera-connected status");
+            pressured.phase="running";pressured.camera_connected=true;pressured.camera_slow=true;pressured.acquisition_fps=9.7f;pressured.camera_profile="DSHOW/YUY2";
+            Check(RedboolCameraPanel.Explain(runtime).Contains("카메라 영상")&&!RedboolCameraPanel.Explain(runtime).Contains("처리 지연"),"Slow camera acquisition is distinguished from model-processing delay");
+            var unknownRate=JsonUtility.FromJson<RedboolCameraRuntime.CameraStatus>("{\"schema\":1,\"acquisition_fps\":null}");
+            Check(unknownRate.schema==1&&unknownRate.acquisition_fps==0,"Unknown acquisition cadence remains readable before camera profiling completes");
         }
         finally
         {
@@ -284,6 +327,24 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(afterReceiver!=null&&afterReceiver!=beforeReceiver&&afterReceiver.isActiveAndEnabled&&
             !afterReceiver.Status.StartsWith("SOCKET ERROR"),"New scene reopens input port while camera child stays alive");
         Check(runtime.ChildId==second&&Alive(second),"Scene change retains the same camera process");
+        // Simulate a different process taking the port during a real scene
+        // transition. Only this fixture's reservation is ever released.
+        afterReceiver.enabled=false;var occupiedStory=ReserveInputPort(5065);
+        Debug.Log("[CAMERA CHECK EXPECTED PORT CONFLICT] occupying 5065 during active-camera scene transition");
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);yield return null;
+        end=Time.realtimeSinceStartupAsDouble+15;
+        while(!runtime.InputConnectionBlocked||runtime.DiagnosticsPending||Alive(second))
+        {Deadline(end,"scene port conflict stops owned camera and flushes diagnostics");yield return null;}
+        Check(!runtime.Running&&ReceiverOnPort(5065)!=null&&ReceiverOnPort(5065).PortConflict&&occupiedStory.Client.IsBound,"A newly blocked scene stops its own child without closing the conflicting port owner");
+        Check(!string.IsNullOrEmpty(runtime.LastInputConnectionError)&&RedboolCameraPanel.Explain(runtime).Contains("다른 게임"),"Active-game port conflict remains visible after camera shutdown");
+        yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"03_story_port_conflict.png"));
+        yield return new WaitForEndOfFrame();
+        ReleaseInputPort(occupiedStory);int stoppedStoryChild=second;
+        end=Time.realtimeSinceStartupAsDouble+60;
+        while(!runtime.Running||!runtime.Fresh||!runtime.PreviewFresh||runtime.ChildId==stoppedStoryChild)
+        {Deadline(end,"story recovers after conflicting port release");yield return null;}
+        second=runtime.ChildId;children.Add(second);
+        Check(ReceiverOnPort(5065).Bound&&!runtime.InputConnectionBlocked&&!Alive(stoppedStoryChild)&&runtime.Synthetic,"Scene conflict release automatically starts one fresh synthetic child after the old child exits");
         yield return new WaitForSecondsRealtime(.2f);
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"03_story_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
@@ -319,6 +380,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     {
         if(finished)return;finished=true;
         RestoreMapFixture();
+        foreach(var reservation in portReservations)reservation.Dispose();portReservations.Clear();
         File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children,preview_fps=measuredPreviewFps,render_scale=measuredRenderScale,width=Screen.width,height=Screen.height},true));
         Debug.Log("[CAMERA CHECK] "+(passed?"PASS":"FAIL "+error));
         Application.Quit(passed?0:1);

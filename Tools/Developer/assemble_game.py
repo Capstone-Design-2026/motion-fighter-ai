@@ -24,8 +24,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     expected = 'Windows' if target == 'windows' else 'Darwin'
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
-    if metadata.get('release') != 'v34.2':
-        raise ValueError('v34.2 requires the calibration sampling/load fix in its native backend.')
+    if metadata.get('release') != 'v34.3':
+        raise ValueError('v34.3 requires the camera profile and stationary-calibration fixes in its native backend.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -84,7 +84,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recognition_recording_schema='redbool.landmarks/1',
                     lan_protocol=30)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v34.2 · 보정·전체 화면·공통 메뉴 보완 시험판\n\n'
+        'REDBOOL v34.3 · 카메라 입력·연결 충돌·보정 보완 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -98,7 +98,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
         '결투 바로가기는 수련을 건너뛰며 기본 보정은 C입니다.\n모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 같은 v34.2 패키지로 테스트하는 것을 권합니다. 화면 통신 규약은 v34·v34.1과 같습니다.\n'
+        '양쪽 모두 같은 v34.3 패키지로 테스트하는 것을 권합니다. 화면 통신 규약은 v34·v34.1과 같습니다.\n'
         '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'
         'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
         '양쪽 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'

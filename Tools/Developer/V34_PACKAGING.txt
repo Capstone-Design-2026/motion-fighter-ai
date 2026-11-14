@@ -1,17 +1,28 @@
-REDBOOL v34.2 — fullscreen camera preview and diagnostic gameplay
+REDBOOL v34.3 — camera acquisition, receiver ownership and stationary calibration
 
-v34.2 uses a new native backend with a calibration-only sampling fix: allow up to
-200ms between samples, retain120ms evidence age,12samples, dwell and guard geometry.
-Only Lite runs while uncalibrated. After calibration, Full VIDEO/IMAGE run with
-current pixels unless sustained auxiliary latency/continuity pressure latches a
-Lite-only mode for this process. Healthy recorded PCs keep the three-model path.
-The primary X detector remains, but occluded X gestures that relied on Full may
-be harder in Lite-only mode. Gameplay gaps/thresholds/expiry stay unchanged.
-Overloaded Unity sessions also cap3D at1280x720 and preview at8fps; UI/window
-resolution stays native. Actual new FPS and accuracy require live verification.
-The failed Windows10.8fps record now calibrates in saved-landmark replay; successful
-Mac and Windows calibration anchors, personal profiles and discrete events stay equal.
-This does not measure live camera FPS or model warm-start latency.
+Current patch: a packaged local story/P1 camera starts only after its own scene
+receiver has bound its input ports (P1 requires5065 and5066). A failed bind displays
+an explicit conflict notice and quietly retries once per second. A newly blocked
+scene stops only its owned child, flushes diagnostics, and reconnects after the
+other game closes. Normal story scene gaps retain calibration. Remote P2 is unchanged.
+Synthetic native coverage reserves/relinquishes both ports and repeats this across
+an actual story scene transition; it never opens a physical camera.
+
+Windows DSHOW startup measures actual acquisition cadence before engine observations.
+Only slow YUY2 tries MJPG on the same device. Retention requires valid640x480BGR,
+>=20% and>=3fps gain and no worse gap tail; otherwise it restores the default format.
+No exposure/gain writes, backend/index switch, extra handle, or mid-game trial occurs.
+Native driver calls can block; budgets and cancellation are checked between reads.
+Probe frames are not engine/journal samples. Healthy Windows and all Mac paths keep
+their capture configuration. Hardware improvement is not yet measured.
+
+Stationary calibration now permits350ms between fresh samples (about3fps) while
+retaining12valid samples, >=0.6s dwell, <=120ms age, and guard/spatial stability gates.
+The failed middle792 record now completes offline; successful550 contiguous prefix,
+Mac and Windows anchors and attack decisions remain identical. The long550 record
+exceeds the128MiB landmark budget; only its contiguous17502frame prefix is replayed.
+Low acquisition FPS can still miss rapid attacks; live100ms gaps and150mswatchdog
+remain unchanged. Calibration completion alone is not playable-camera certification.
 
 Unity improves local preview pacing, high-DPI3D render budget and Mac permission
 preflight. Esc opens the shared navigation menu in every scene; Continue closes it,

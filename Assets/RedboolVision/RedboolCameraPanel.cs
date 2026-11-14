@@ -62,14 +62,17 @@ public sealed class RedboolCameraPanel : MonoBehaviour
     }
     public static string Explain(RedboolCameraRuntime runtime)
     {
+        if(!string.IsNullOrEmpty(runtime.InputConnectionError))return runtime.InputConnectionError;
         if(runtime.Synthetic)return "연결 검사 화면 · 실제 카메라는 꺼져 있어요";
         if(!string.IsNullOrEmpty(runtime.Error))return runtime.Error;
         if(!runtime.Running)return "다시 연결을 눌러 카메라를 켜주세요";
         var s=runtime.Status;
         if(!runtime.Fresh||s==null)return "카메라 준비 중 · 잠시만 기다려주세요";
         if(!string.IsNullOrEmpty(s.error))return "카메라 연결을 확인하고 다시 연결해주세요";
+        if(s.phase=="optimizing_camera")return "카메라 설정을 맞추고 있어요\n처음 연결할 때 잠시 걸릴 수 있어요";
         if(s.phase=="starting"||s.phase=="loading_models")return "동작 인식을 준비하고 있어요\n잠시만 기다려주세요";
         if(!s.camera_connected)return "카메라 연결 중 · 최초 실행이라면\n카메라 사용 권한을 허용해주세요";
+        if(s.camera_slow)return "카메라 영상이 느리게 들어와요\n밝은 조명에서 다시 연결해보세요";
         if((!s.calibrated&&s.calibration_reason=="STALE_FRAME")||s.tracking=="STALE")
             return "영상 처리 지연을 줄이고 있어요\nC 반복 없이 잠시 기다려주세요";
         if(s.framing!=null&&s.framing.code=="OUTSIDE")

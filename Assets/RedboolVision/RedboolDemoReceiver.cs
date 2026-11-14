@@ -62,6 +62,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         return Mathf.Lerp(.65f, 1f, Mathf.InverseLerp(.35f, 1f, strength));
     }
     public string Status { get; private set; } = "WAITING";
+    public bool Bound => isActiveAndEnabled && running && udp!=null;
+    public string BindError { get; private set; }
+    public bool PortConflict { get; private set; }
+    bool quietBindRetry;
+    public bool RetryBinding()
+    {
+        if(Bound || !gameObject.activeInHierarchy || string.IsNullOrEmpty(BindError))return Bound;
+        // The owner calls this at most once per second, never on a socket worker.
+        quietBindRetry=true;
+        try { enabled=true; } finally { quietBindRetry=false; }
+        return Bound;
+    }
     public int AttacksApplied { get; private set; }
     public int AttacksBusy { get; private set; }
     public int GuardsStarted { get; private set; }
@@ -131,6 +143,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             Status="DUPLICATE RECEIVER :"+port;enabled=false;return;
         }
         try {
+            BindError=null;PortConflict=false;
             StreamId=expectedStreamId; sequence=deadline=presenceDeadline=lastLiveNs=0; pairedPeer=null;
             hasState=false;sourceCaptureNs=lastUncertaintyNs=0;
             syncs.Clear();outcomes.Clear();
@@ -138,14 +151,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             RedboolSocketOwnership.PreventInheritance(udp.Client,"UDP "+bindAddress+":"+port);
             udp.Client.ReceiveTimeout=100;
             listeners[port]=this;
-            running=true;worker=new Thread(Receive) { IsBackground=true };worker.Start();
+            running=true;var boundSocket=udp;worker=new Thread(()=>Receive(boundSocket)) { IsBackground=true };worker.Start();
             DisableLegacy();
             Status="WAITING FOR PYTHON :"+port;
+            if(quietBindRetry)UnityEngine.Debug.Log("[REDBOOL RECEIVER] local port recovered :"+port);
         } catch(Exception e) {
             var native=e as System.ComponentModel.Win32Exception;var socketError=e as SocketException;
             string code=native==null?"":" (native "+native.NativeErrorCode+(socketError==null?"":", "+socketError.SocketErrorCode)+")";
             Status="SOCKET ERROR: "+bindAddress+":"+port+code+" "+e.Message;
-            UnityEngine.Debug.LogError(Status);enabled=false;
+            BindError=Status;PortConflict=socketError!=null&&socketError.SocketErrorCode==SocketError.AddressAlreadyInUse;
+            running=false;udp?.Close();udp=null;
+            if(!quietBindRetry)UnityEngine.Debug.LogError(Status);
+            enabled=false;
         }
     }
     private void Start() { DisableLegacy(); }
@@ -154,10 +171,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         foreach(var old in FindObjectsByType<UdpActionReceiver>(FindObjectsSortMode.None))
             if(old.enabled) { oldReceivers.Add(old);old.enabled=false; }
     }
-    private void Receive() {
+    private void Receive(UdpClient boundSocket) {
         while(running) {
             try {
-                var peer=new IPEndPoint(IPAddress.Any,0);var bytes=udp.Receive(ref peer);
+                var peer=new IPEndPoint(IPAddress.Any,0);var bytes=boundSocket.Receive(ref peer);
                 if(bytes.Length>8192) continue;
                 if(inbox.Count>=128) { Received dropped;inbox.TryDequeue(out dropped);QueueDrops++; }
                 inbox.Enqueue(new Received { json=Encoding.UTF8.GetString(bytes),time=NowNs(),peer=peer });
@@ -357,10 +374,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     }
     private void OnDisable() {
         Preparation?.ResetPreparation();
-        Safe();running=false;udp?.Close();
+        Safe();running=false;udp?.Close();udp=null;
         RedboolDemoReceiver owner;
         if(listeners.TryGetValue(port,out owner) && owner==this) listeners.Remove(port);
-        if(worker!=null) worker.Join(300);
+        if(worker!=null) worker.Join(300);worker=null;
         Received discarded;while(inbox.TryDequeue(out discarded)) { }
         if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
         foreach(var old in oldReceivers) if(old!=null) old.enabled=true;
