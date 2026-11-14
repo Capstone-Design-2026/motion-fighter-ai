@@ -54,7 +54,7 @@ def main():
     path.write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result, indent=2)); print(path)
     if result['received'] == 0:
-        raise SystemExit('No v31 host response. Check that the updated host game is open, IP and firewall permit UDP5067.')
+        raise SystemExit('No updated host response. Check that the updated host game is open, IP and firewall permit UDP5067.')
 
 
 if __name__ == '__main__': main()

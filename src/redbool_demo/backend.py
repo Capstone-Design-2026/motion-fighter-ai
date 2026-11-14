@@ -91,6 +91,9 @@ def main(argv=None):
             bridge.update(phase='loading_models')
         from .live import main as live_main
         live_main(defaults+args,bridge_instance=bridge)
+        if '--check' in args:
+            from .backend_provenance import capabilities
+            print(json.dumps(capabilities()),flush=True)
     finally:
         if bridge:bridge.close()
 

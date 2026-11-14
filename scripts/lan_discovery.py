@@ -3,7 +3,7 @@ import json
 import socket
 import time
 
-VERSION = 29
+VERSION = 30
 
 
 def discover(timeout=1.2, targets=None):

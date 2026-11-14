@@ -1,4 +1,4 @@
-"""Packaged-play diagnostics without RGB or stored landmark observations."""
+"""Packaged-play diagnostics without RGB; full-rate observations live in the async landmark journal."""
 import threading
 from session_recording import SessionRecorder
 
@@ -7,8 +7,9 @@ class DiagnosticsRecorder(SessionRecorder):
     """Use the exact normal observation conversion, omitting only disk storage."""
     def __init__(self, *args, **kwargs):
         config = dict(kwargs.get('recording_config', {}))
-        config.update(observation_storage='none', stored_pose_frames=0,
-                      scope='diagnostics only; no RGB or saved poses; recognition cannot be replayed')
+        config.update(observation_storage='external_compressed_journal', stored_pose_frames=0,
+                      observation_index='../../recognition/landmarks.index.json',
+                      scope='no RGB; full-rate observations and engine operations in indexed gzip chunks; replay requires complete coverage')
         kwargs['recording_config'] = config
         super().__init__(*args, **kwargs)
         (self.directory/'frames.jsonl').unlink()  # Newly created empty file only.
