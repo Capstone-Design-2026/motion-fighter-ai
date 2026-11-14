@@ -9,10 +9,13 @@ using UnityEngine.UI;
 public sealed class RedboolRenderWarmup : MonoBehaviour
 {
     public RedboolBattlePreparation preparation;
+    public EnemySpecial[] characterSpecials;
+    static RedboolRenderWarmup renderOwner;
+    readonly List<EnemySpecial.GhostRenderSample> characterSamples = new List<EnemySpecial.GhostRenderSample>();
     readonly List<GameObject> visuals = new List<GameObject>();
     Camera cameraUsed;
     RenderTexture previous, target;
-    bool restored, finished;
+    bool restored, finished, preparedPostFx;
     sealed class PunchSurface
     {
         public SkinnedMeshRenderer renderer;
@@ -60,6 +63,10 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
         if (!isActiveAndEnabled || finished) { Finish(); yield break; }
         cameraUsed = Camera.main;
         if (cameraUsed == null) { Finish(); yield break; }
+        // Only one preparation may own the arena camera. Cancel restores the
+        // previous owner immediately, before this owner saves its target.
+        if (renderOwner != null && renderOwner != this) renderOwner.Cancel();
+        renderOwner = this;
         previous = cameraUsed.targetTexture;
         target = RenderTexture.GetTemporary(Mathf.Max(1, cameraUsed.pixelWidth), Mathf.Max(1, cameraUsed.pixelHeight), 24,
             cameraUsed.allowHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
@@ -95,12 +102,25 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
                     canvas.worldCamera = cameraUsed; canvas.planeDistance = 1f;
                 }
             }
-            QiPostFx.PrepareRenderWeight(1f);
+            // Story preparation has the active scene opponent; PvP passes only
+            // its two selected participants (including guest visual-only ones).
+            var selectedSpecials = characterSpecials ?? FindObjectsByType<EnemySpecial>(FindObjectsSortMode.None);
+            if (selectedSpecials != null)
+                foreach (var special in selectedSpecials)
+                {
+                    if (special == null || !special.isActiveAndEnabled) continue;
+                    var holder = new GameObject("Character warmup sample"); holder.SetActive(false); visuals.Add(holder);
+                    // Centre the full-height selected avatar inside the actual
+                    // arena camera. The sample owns only visual resources.
+                    var sample = special.CreateGhostRenderSample(holder.transform, point - cameraUsed.transform.up * .8f);
+                    if (sample != null) { characterSamples.Add(sample); holder.SetActive(true); }
+                }
+            QiPostFx.PrepareRenderWeight(1f); preparedPostFx = true;
             PreparePunchSurfaces();
             // SRP renders into the temporary target during normal player frames.
             // More than one frame prepares both transient geometry and post effects.
             for (int i = 0; i < 4; i++) yield return null;
-            Debug.Log($"[REDBOOL PREWARM] punch-surfaces={punchSurfaces.Count} offscreen_frames=4 controller_unchanged=true");
+            Debug.Log($"[REDBOOL PREWARM] punch-surfaces={punchSurfaces.Count} character-samples={characterSamples.Count} offscreen_frames=4 controller_unchanged=true");
         }
         finally { Restore(); }
         // Also let the restored backbuffer render before accepting live input.
@@ -120,10 +140,13 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
             saved.renderer.updateWhenOffscreen = saved.updateWhenOffscreen;
         }
         punchSurfaces.Clear();
+        foreach (var sample in characterSamples) sample.Dispose();
+        characterSamples.Clear();
         foreach (var go in visuals) if (go != null) { go.SetActive(false); Destroy(go); }
-        if (cameraUsed != null) cameraUsed.targetTexture = previous;
+        if (cameraUsed != null && cameraUsed.targetTexture == target) cameraUsed.targetTexture = previous;
         if (target != null) RenderTexture.ReleaseTemporary(target);
-        QiPostFx.PrepareRenderWeight(0f);
+        if (preparedPostFx && renderOwner == this) QiPostFx.PrepareRenderWeight(0f);
+        if (renderOwner == this) renderOwner = null;
     }
     void Finish()
     {
@@ -135,5 +158,6 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
         // must not leave a permanently non-null preparation gate behind.
         Destroy(this);
     }
-    void OnDisable() { Finish(); }
+    public void Cancel() { StopAllCoroutines(); Finish(); }
+    void OnDisable() { Cancel(); }
 }

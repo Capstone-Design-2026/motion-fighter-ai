@@ -8,16 +8,15 @@ public sealed class RedboolViewMirror : MonoBehaviour
     readonly Dictionary<int,GameObject> waves=new Dictionary<int,GameObject>();
     readonly QiChargeFx[] chargeFx=new QiChargeFx[2];
     readonly GameObject[,] readyFx=new GameObject[2,2];
-    RedboolRenderWarmup warmup;
     MaterialPropertyBlock tint;
-    public bool Ready => warmup==null;
+    public bool Ready => game != null && game.RenderReady;
     readonly int[] serial={-1,-1};
     readonly Renderer[][] renderers=new Renderer[2][];
     readonly HeroPunchSurfaceVisibility[][] punchSurfaces=new HeroPunchSurfaceVisibility[2][];
     int lastEffect;
     public void Initialize(RedboolPvp owner,Fighter3DView[] presentation,Transform[][] rig)
     {
-        game=owner;tint=new MaterialPropertyBlock();if(RedboolEffectPreparation.Enabled) warmup=gameObject.AddComponent<RedboolRenderWarmup>();views=presentation;bones=rig;assets=QiPalmAssets.Load();
+        game=owner;tint=new MaterialPropertyBlock();views=presentation;bones=rig;assets=QiPalmAssets.Load();
         for(int i=0;i<2;i++)
         {
             var p=game.Players[i];p.ClearExternalInput();p.enabled=false;

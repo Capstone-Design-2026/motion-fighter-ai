@@ -104,6 +104,42 @@ public static class RedboolWarmupLifecycleCheck
         foreach(var go in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
             Check(go.name!="Effect warmup sample","No active temporary effect sample survives completion");
 
+        // Selected-roster preparation shares one target owner on both roles.
+        var pvp=Own("PvP readiness fixture").AddComponent<RedboolPvp>();pvp.enabled=false;
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        typeof(RedboolPvp).GetField("configured",flags).SetValue(pvp,true);
+        var viewFrame=new RedboolViewFrame {world=new RedboolViewWorld()};
+        viewFrame.actors[0]=new RedboolViewActor {character=(byte)pvp.Characters[0]};
+        viewFrame.actors[1]=new RedboolViewActor {character=(byte)pvp.Characters[1]};
+        Check(pvp.CanAcknowledgeView(viewFrame),"An installed and prepared matching roster may acknowledge its snapshot");
+        viewFrame.actors[0].character=10;
+        Check(!pvp.CanAcknowledgeView(viewFrame),"Receiving a new roster before LateUpdate cannot acknowledge old local visuals");
+        pvp.Characters[0]=10;
+        warm=Make(out gate);typeof(RedboolPvp).GetField("warmup",flags).SetValue(pvp,warm);
+        var mirror=Own("Guest readiness fixture").AddComponent<RedboolViewMirror>();
+        typeof(RedboolViewMirror).GetField("game",flags).SetValue(mirror,pvp);
+        Check(!pvp.RenderReady&&!mirror.Ready&&!pvp.CanAcknowledgeView(viewFrame),"Host readiness and guest ACK remain blocked during the same local preparation");
+        for(var wait=UntilTarget(warm);wait.MoveNext();)yield return null;
+        var next=Make(out var nextGate);typeof(RedboolPvp).GetField("warmup",flags).SetValue(pvp,next);
+        for(var wait=UntilTarget(next);wait.MoveNext();)yield return null;
+        Check(warm==null||!gate.EffectsPreparing,"A replacement owner cancels and releases the previous preparation");
+        Check(camera.targetTexture==(RenderTexture)Read(next,"target")&&(RenderTexture)Read(next,"previous")==previous,
+            "Replacement preparation owns one temporary target and saves the original backbuffer target");
+        next.Cancel();
+        Check(camera.targetTexture==previous&&!nextGate.EffectsPreparing,"Explicit roster cancellation restores its target immediately");
+        yield return null;yield return null;
+        Check(pvp.RenderReady&&mirror.Ready&&pvp.CanAcknowledgeView(viewFrame),"Only completed/cancelled local preparation releases the matching-roster ACK gate");
+        var link=Own("Readiness floor fixture").AddComponent<RedboolViewLink>();link.enabled=false;
+        typeof(RedboolViewLink).GetField("sequence",flags).SetValue(link,(ulong)123);
+        typeof(RedboolViewLink).GetField("ack",flags).SetValue(link,(ulong)123);
+        typeof(RedboolViewLink).GetField("lastHeartbeat",flags).SetValue(link,Time.realtimeSinceStartupAsDouble);
+        link.RequireCurrentAvatarReady();
+        Check((ulong)Read(link,"minimumReadySequence")==124&&(ulong)Read(link,"ack")==0&&(double)Read(link,"lastHeartbeat")<0,
+            "Roster replacement invalidates the previous ACK lease and requires a new snapshot sequence");
+        typeof(RedboolViewLink).GetField("client",flags).SetValue(link,true);
+        link.RequireCurrentAvatarReady();
+        Check((ulong)Read(link,"minimumReadySequence")==124,"Guest preparation cannot mutate host readiness sequence ownership");
+
         camera.targetTexture=null;Object.Destroy(camera.gameObject);camera=null;yield return null;
         warm=Make(out gate);yield return null;yield return null;yield return null;
         Check(warm==null&&!gate.EffectsPreparing,"No-camera startup also completes without a permanent warmup gate");

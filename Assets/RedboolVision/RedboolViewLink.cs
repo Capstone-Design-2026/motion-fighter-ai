@@ -24,7 +24,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     readonly HeroPunchSurfaceVisibility[] punchSurfaces=new HeroPunchSurfaceVisibility[2];
     RedboolViewMirror mirror;
     double nextSend,lastHello=-10,lastHeartbeat=-10,lastFrame=-10,echo,lastReport;
-    ulong sequence,ack;
+    ulong sequence,ack,minimumReadySequence;
     int effectId,received,invalid,sentBytes;
     bool client,initialized;
     double nextBindAttempt;
@@ -76,7 +76,13 @@ public sealed class RedboolViewLink : MonoBehaviour
         if(trace==null) return;
         trace.WriteLine(JsonUtility.ToJson(new TraceRow {seq=frame.seq.ToString(),time=frame.time,arrival=Time.realtimeSinceStartupAsDouble,world=frame.world,actors=frame.actors}));
     }
-    public bool PeerReady => Bound && !client && peer!=null && Time.realtimeSinceStartupAsDouble-lastHeartbeat<.25 && ack>0 && sequence>=ack && sequence-ack<=8;
+    public bool PeerReady => Bound && !client && peer!=null && Time.realtimeSinceStartupAsDouble-lastHeartbeat<.25 && ack>0 && ack>=minimumReadySequence && sequence>=ack && sequence-ack<=8;
+    public void RequireCurrentAvatarReady()
+    {
+        if (client) return;
+        minimumReadySequence = sequence + 1;
+        ack = 0; lastHeartbeat = -10;
+    }
     public bool Fresh => Bound && client && assembler.Latest!=null && Time.realtimeSinceStartupAsDouble-lastFrame<.25;
     public double RttMs {get;private set;}
     public RedboolViewFrame Latest => assembler.Latest;
@@ -206,7 +212,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             }
             else if(p.kind==5 &&peer!=null &&from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&PeerReady &&p.seq<=sequence &&sequence-p.seq<=8)
                 game.SkipPractice(1,p.practiceRun.ToString("N"),p.practiceStep);
-            else if(p.kind==4 && peer!=null && from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&p.seq<=sequence &&p.seq>=ack)
+            else if(p.kind==4 && peer!=null && from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&p.seq<=sequence &&p.seq>=ack &&p.seq>=minimumReadySequence)
             {ack=p.seq;lastHeartbeat=lastHello=now;echo=p.time;}
         }
     }
@@ -230,7 +236,7 @@ public sealed class RedboolViewLink : MonoBehaviour
         {
             nextSend=now+.05;
             Send(new RedboolViewPacket {kind=0,session=Guid.Empty,nonce=nonce,time=now});
-            if(ack>0 && mirror.Ready) Send(new RedboolViewPacket {kind=4,session=session,nonce=nonce,seq=ack,time=now});
+            if(ack>0 && mirror.Ready && game.CanAcknowledgeView(assembler.Latest)) Send(new RedboolViewPacket {kind=4,session=session,nonce=nonce,seq=ack,time=now});
         }
         if(client) {Time.timeScale=Fresh && assembler.Latest!=null && (!assembler.Latest.world.paused ||assembler.Latest.world.resolved)?1:0;if(!Fresh) ShowRemoteMeasured(assembler.Latest,false);}
         if(now-lastReport>=5)

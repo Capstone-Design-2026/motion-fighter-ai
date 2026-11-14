@@ -61,6 +61,11 @@ public sealed class RedboolPvp : MonoBehaviour
     public float Countdown => readySince<0?resumeSeconds:Mathf.Max(0,resumeSeconds-(float)(Time.realtimeSinceStartupAsDouble-readySince));
     Canvas canvas;
     RedboolRenderWarmup warmup;
+    public bool RenderReady => warmup == null;
+    // The receive Update precedes roster application in LateUpdate. Do not ACK
+    // a new roster until its actual local visual and render preparation exist.
+    public bool CanAcknowledgeView(RedboolViewFrame frame) => configured && RenderReady && frame != null && frame.Complete
+        && Characters[0] == frame.actors[0].character && Characters[1] == frame.actors[1].character;
     public bool Fighting { get; private set; }
     public bool Resolved { get; private set; }
     public float Remaining { get; private set; } = 120f;
@@ -149,7 +154,7 @@ public sealed class RedboolPvp : MonoBehaviour
         { camera.player=Players[0].transform;camera.enemy=Players[1].transform; }
         foreach(var legacy in FindObjectsByType<UdpActionReceiver>(FindObjectsSortMode.None)) legacy.enabled=false;
         configured=true;
-        if(!IsClient && RedboolEffectPreparation.Enabled) warmup=Receivers[0].gameObject.AddComponent<RedboolRenderWarmup>();
+        if(RedboolEffectPreparation.Enabled) warmup=gameObject.AddComponent<RedboolRenderWarmup>();
         BuildUi();SetPaused(true);
         ViewLink=gameObject.AddComponent<RedboolViewLink>();ViewLink.Initialize(this);
         if(RedboolPvpLobby.Enabled) {Lobby=gameObject.AddComponent<RedboolPvpLobby>();Lobby.Initialize(this);hud=FindAnyObjectByType<CombatHUD>(FindObjectsInactive.Include);LobbyLayout();}
@@ -502,9 +507,22 @@ public sealed class RedboolPvp : MonoBehaviour
             Players[slot].GetComponent<Fighter>().Contacts.ResetHistory();
             ViewLink?.Rebind(slot);
         }
+        bool changed = !keep || Characters[slot] != index;
         Characters[slot]=index;
         ConfigureSpecial(slot);
+        if (changed) RequestCharacterWarmup();
         Debug.Log("[REDBOOL PVP] "+(slot+1)+"P character: "+RedboolPvpRoster.Get(index).name+" special: "+SpecialName(slot));
+    }
+    void RequestCharacterWarmup()
+    {
+        // Reject old-roster acknowledgements even when their lease is still
+        // young. The guest will ACK the new roster only after its own warmup.
+        ViewLink?.RequireCurrentAvatarReady();
+        if (!RedboolEffectPreparation.Enabled) return;
+        if (warmup != null) warmup.Cancel();
+        warmup = gameObject.AddComponent<RedboolRenderWarmup>();
+        warmup.characterSpecials = new[] { Players[0].GetComponent<EnemySpecial>(), Players[1].GetComponent<EnemySpecial>() };
+        if (!IsClient) { readySince = -1; SetPaused(true); }
     }
     // 주인공은 파운장, 적 인물은 그 인물의 기술. 기술 재료를 찾지 못하면 파운장을 그대로 쓴다.
     void ConfigureSpecial(int slot)
@@ -535,6 +553,7 @@ public sealed class RedboolPvp : MonoBehaviour
     }
     void OnDestroy()
     {
+        if (warmup != null) warmup.Cancel();
         SceneManager.sceneLoaded-=SceneLoaded;
         if(Instance==this) {Instance=null;Active=false;Time.timeScale=1;Time.fixedDeltaTime=.02f;}
     }

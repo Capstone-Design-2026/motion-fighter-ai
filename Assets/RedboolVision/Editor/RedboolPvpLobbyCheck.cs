@@ -23,7 +23,8 @@ public static class RedboolPvpLobbyCheck
     const string Active = "RedboolPvpLobbyCheck.Active", SaveKey = "VisionStriker.Run";
     static IEnumerator flow; static int frame = -1;
     static readonly UdpClient[] clients = new UdpClient[2];
-    static readonly long[] sequences = new long[2]; static readonly double[] nextSync = new double[2];
+    static CameraSender producer;
+    static readonly StateTemplate[] published = new StateTemplate[2];
     static readonly bool[] block = { false, false }, send = { true, true };
     static readonly bool[] calibrated = { true, true };
     static readonly int[] generations = { 1, 1 };
@@ -32,11 +33,14 @@ public static class RedboolPvpLobbyCheck
     static string Output => Environment.GetEnvironmentVariable("REDBOOL_LOBBY_CHECK_OUTPUT");
     // 빌드한 게임의 경로를 주면 그 게임을 2P 화면(손님)으로 띄워 두 화면 대전으로 돌린다.
     static string GuestBinary => Environment.GetEnvironmentVariable("REDBOOL_DUAL_CLIENT");
+    // Visual capture is opt-in and separate from timing/whole-damage validation.
+    static bool GuestCaptures => Environment.GetEnvironmentVariable("REDBOOL_LOBBY_GUEST_CAPTURE") == "1";
     static System.Diagnostics.Process guest;
     static void StartGuest()
     {
         var info = new System.Diagnostics.ProcessStartInfo(GuestBinary, "--redbool-external-camera --redbool-pvp-client 127.0.0.1 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -logFile \"" + Path.Combine(Output, "guest.log") + "\"") { UseShellExecute = false };
-        info.EnvironmentVariables["REDBOOL_VIEW_CAPTURE_DIR"] = Output;
+        if (GuestCaptures) info.EnvironmentVariables["REDBOOL_VIEW_CAPTURE_DIR"] = Output;
+        else info.EnvironmentVariables.Remove("REDBOOL_VIEW_CAPTURE_DIR");
         guest = System.Diagnostics.Process.Start(info);
     }
     static void StopGuest() { if (guest != null) { if (!guest.HasExited) { guest.Kill(); guest.WaitForExit(5000); } guest.Dispose(); guest = null; } }
@@ -81,28 +85,102 @@ public static class RedboolPvpLobbyCheck
         if (!ok) throw new Exception(message);
     }
 
-    static void Send(int slot, Packet p)
+    // JsonUtility and mutable fixture state stay on the Editor main thread.
+    // The worker receives immutable JSON templates and uses BCL sockets/clocks only.
+    sealed class StateTemplate
     {
-        p.actor_id = "P" + (slot + 1); p.stream_id = "lobby-test-" + slot; p.capture_epoch = p.stream_id; p.sequence = ++sequences[slot]; p.sent_ns = Now;
-        var bytes = Encoding.UTF8.GetBytes(JsonUtility.ToJson(p)); clients[slot].Send(bytes, bytes.Length);
+        public readonly bool enabled; public readonly string sync, state, key;
+        public StateTemplate(bool enabled, string sync, string state, string key)
+        { this.enabled = enabled; this.sync = sync; this.state = state; this.key = key; }
+    }
+    sealed class CameraSender : IDisposable
+    {
+        readonly UdpClient[] sockets; readonly object gate = new object();
+        readonly System.Threading.ManualResetEvent stop = new System.Threading.ManualResetEvent(false);
+        readonly System.Threading.Thread thread;
+        readonly StateTemplate[] states = new StateTemplate[2];
+        readonly long[] sequence = new long[2], nextSync = new long[2];
+        Exception failure; public int sentStates; public bool Stopped { get; private set; }
+        public CameraSender(UdpClient[] sockets)
+        {
+            this.sockets = sockets;
+            thread = new System.Threading.Thread(Loop) { IsBackground = true, Name = "REDBOOL synthetic cameras" };
+            thread.Start();
+        }
+        public void Publish(int slot, StateTemplate state) { lock (gate) { ThrowFailure(); states[slot] = state; } }
+        public void Send(int slot, string template) { lock (gate) { ThrowFailure(); SendLocked(slot, template); } }
+        void ThrowFailure() { if (failure != null) throw new InvalidOperationException("Synthetic camera producer failed", failure); }
+        public void Check() { lock (gate) ThrowFailure(); }
+        void SendLocked(int slot, string template)
+        {
+            string json = template.Replace("\"sequence\":-1", "\"sequence\":" + (++sequence[slot]).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Replace("\"sent_ns\":-1", "\"sent_ns\":" + Now.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            byte[] bytes = Encoding.UTF8.GetBytes(json); sockets[slot].Send(bytes, bytes.Length);
+        }
+        void Loop()
+        {
+            try
+            {
+                while (!stop.WaitOne(0))
+                {
+                    long start = Now;
+                    lock (gate)
+                    {
+                        for (int slot = 0; slot < 2; slot++)
+                        {
+                            StateTemplate state = states[slot];
+                            if (state != null && state.enabled)
+                            {
+                                if (start >= nextSync[slot]) { SendLocked(slot, state.sync); nextSync[slot] = start + 1000000000L; }
+                                SendLocked(slot, state.state); sentStates++;
+                            }
+                            // Replies are irrelevant to the fixture; drain a bounded number.
+                            for (int n = 0; n < 128 && sockets[slot].Available > 0; n++)
+                            { var peer = new IPEndPoint(IPAddress.Any, 0); sockets[slot].Receive(ref peer); }
+                        }
+                    }
+                    // No catch-up burst after scheduling delays; at most 30 state sends/s.
+                    int waitMs = (int)Math.Max(1, Math.Ceiling((33333334L - (Now - start)) / 1000000.0));
+                    if (stop.WaitOne(waitMs)) break;
+                }
+            }
+            catch (Exception e) { lock (gate) failure = e; }
+        }
+        public void Dispose()
+        {
+            stop.Set();
+            if (!thread.Join(2000)) throw new TimeoutException("Synthetic camera producer did not stop within 2 seconds");
+            Stopped = true; stop.Dispose(); Check();
+        }
+    }
+    static string Template(int slot, Packet p)
+    {
+        p.actor_id = "P" + (slot + 1); p.stream_id = "lobby-test-" + slot; p.capture_epoch = p.stream_id;
+        p.sequence = -1; p.sent_ns = -1;
+        return JsonUtility.ToJson(p);
+    }
+    static void Send(int slot, Packet p) { producer.Send(slot, Template(slot, p)); }
+    static void PublishStates()
+    {
+        producer.Check();
+        for (int i = 0; i < 2; i++)
+        {
+            string key = send[i] + ":" + calibrated[i] + ":" + generations[i] + ":" + block[i] + ":" + movement[i];
+            if (published[i] != null && published[i].key == key) continue;
+            var value = new StateTemplate(send[i], Template(i, new Packet { kind = "SYNC" }),
+                Template(i, new Packet { kind = "STATE", calibrated = calibrated[i], calibration_generation = generations[i],
+                    block_active = block[i], movement = movement[i], movement_strength = movement[i] == "NEUTRAL" ? 0 : .8f }), key);
+            published[i] = value; producer.Publish(i, value);
+        }
     }
 
-    static void Drain() { for (int i = 0; i < 2; i++) while (clients[i] != null && clients[i].Available > 0) { var peer = new IPEndPoint(IPAddress.Any, 0); clients[i].Receive(ref peer); } }
-
-    // 두 사람의 카메라가 보내는 상태를 seconds 동안 매 프레임 흉내 낸다.
+    // Independent 30 Hz fake cameras continue while the Editor renders/collects GC,
+    // like the real external backend. Explicit send[] outages still stop that slot.
     static IEnumerator Pump(float seconds)
     {
         double end = Time.realtimeSinceStartupAsDouble + seconds;
-        do
-        {
-            for (int i = 0; i < 2; i++) if (send[i])
-            {
-                if (Time.realtimeSinceStartupAsDouble >= nextSync[i]) { Send(i, new Packet { kind = "SYNC" }); nextSync[i] = Time.realtimeSinceStartupAsDouble + 1; }
-                Send(i, new Packet { kind = "STATE", calibrated = calibrated[i], calibration_generation = generations[i], block_active = block[i], movement = movement[i], movement_strength = movement[i] == "NEUTRAL" ? 0 : .8f });
-            }
-            Drain(); yield return null;
-        } while (Time.realtimeSinceStartupAsDouble < end);
-        Drain();
+        do { PublishStates(); yield return null; } while (Time.realtimeSinceStartupAsDouble < end);
+        producer.Check();
     }
 
     static void Gesture(int slot, string gesture, string id)
@@ -144,6 +222,50 @@ public static class RedboolPvpLobbyCheck
 
     static IEnumerator Wait(float seconds) { for (var w = Pump(seconds); w.MoveNext();) yield return null; }
 
+    // Successful single-lobby baseline, both sides, same stationary target.
+    // A partially cancelled multi-hit technique must not pass a >0 damage check.
+    static readonly int[] ExpectedDamage = { 0, 28, 26, 34, 24, 30, 30, 32, 27, 32, 30, 38 };
+    [Serializable] sealed class CastResult
+    {
+        public string label, completion;
+        public int damage, expected_damage, serial;
+    }
+    [Serializable] sealed class ResumeResult
+    {
+        public string label; public int pauses; public double waited_seconds;
+        public bool fresh_resumed, hp_timer_frozen, no_replay; public float time_scale;
+    }
+    static IEnumerator AwaitFreshBattle(string label, EnemySpecial own, int serial)
+    {
+        double began = Time.realtimeSinceStartupAsDouble, deadline = began + 5, stable = -1;
+        int pauses = 0, previousHp0 = 0, previousHp1 = 0;
+        bool previousPaused = false; float previousRemaining = 0;
+        while (Time.realtimeSinceStartupAsDouble < deadline)
+        {
+            bool paused = Game.Paused;
+            int hp0 = Game.Players[0].GetComponent<Health>().CurrentHealth;
+            int hp1 = Game.Players[1].GetComponent<Health>().CurrentHealth;
+            if (paused && !previousPaused) pauses++;
+            if (paused && previousPaused && (hp0 != previousHp0 || hp1 != previousHp1 || !Mathf.Approximately(Game.Remaining, previousRemaining)))
+                Check(false, label + ": 보호 정지 중 체력 또는 시간이 변했다");
+            if (own.IsPlaying || own.FireSerial != serial) Check(false, label + ": 연결 회복 중 이전 필살기가 다시 실행됐다");
+            bool fresh = Game.CanFight && Game.BothLive && Game.ViewReady;
+            double now = Time.realtimeSinceStartupAsDouble;
+            if (fresh) { if (stable < 0) stable = now; } else stable = -1;
+            previousPaused = paused; previousHp0 = hp0; previousHp1 = hp1; previousRemaining = Game.Remaining;
+            if (stable >= 0 && now - stable >= .3) break;
+            for (var w = Wait(0f); w.MoveNext();) yield return null;
+        }
+        bool recovered = stable >= 0 && Time.realtimeSinceStartupAsDouble - stable >= .3;
+        File.AppendAllText(Path.Combine(Output, "resume_windows.jsonl"), JsonUtility.ToJson(new ResumeResult {
+            label = label, pauses = pauses, waited_seconds = Time.realtimeSinceStartupAsDouble - began,
+            fresh_resumed = recovered, hp_timer_frozen = true, no_replay = true, time_scale = Time.timeScale
+        }) + "\n");
+        Check(recovered, label + ": 유효 입력과 화면 연결이 5초 안에 안정적으로 복구된다");
+        // Do not include timeScale in the wait predicate: a stuck time owner
+        // must still fail immediately after the actual input/view gates recover.
+    }
+
     static IEnumerator Tests()
     {
         yield return null; yield return null;
@@ -166,6 +288,8 @@ public static class RedboolPvpLobbyCheck
         Check(Game.Gate != 1, "전투 효과 준비가 제한 시간 안에 끝난다");
         for (int i = 0; i < 2; i++) { clients[i] = new UdpClient(); RedboolSocketOwnership.PreventInheritance(clients[i].Client, "lobby-check client"); clients[i].Connect(IPAddress.Loopback, 5065 + i); }
         send[0] = send[1] = false;
+        producer = new CameraSender(clients);
+        File.WriteAllText(Path.Combine(Output, "fixture_policy.txt"), "Independent BCL synthetic camera producer: 30 Hz, same 150 ms event TTL; no Unity APIs on worker.\nDual host omits synchronous per-cast screenshots: single-lobby visual evidence is retained; exact 22-cast damage remains required. Guest screenshots are disabled unless REDBOOL_LOBBY_GUEST_CAPTURE=1 (capture may stall render/ACK even with an asynchronous request).\n");
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         Check(lobby.Current == RedboolPvpLobby.Stage.Room, "카메라가 없으면 대기실에 머문다");
         Shot("1_room");
@@ -315,6 +439,7 @@ public static class RedboolPvpLobbyCheck
             for (var w = Wait(.4f); w.MoveNext();) yield return null;
             var own = Game.Players[0].GetComponent<EnemySpecial>();
             var targetPalm = Game.Players[1].GetComponent<SpecialMove>();
+            for (var w = AwaitFreshBattle("중단·방어 검사 인물 준비", own, own.FireSerial); w.MoveNext();) yield return null;
             own.AddCharge(own.HitsToCharge);
             int serial = own.FireSerial;
             Send(0, new Packet { kind = "GESTURE", gesture = "SPECIAL", side = "BOTH", event_id = "expired-own-special", event_expires_ns = Now - 1 });
@@ -378,6 +503,8 @@ public static class RedboolPvpLobbyCheck
             for (var w = Wait(.4f); w.MoveNext();) yield return null;
             var firstPalm = Game.Players[0].GetComponent<SpecialMove>();
             var secondPalm = Game.Players[1].GetComponent<SpecialMove>();
+            var previousTechnique = Game.Players[0].GetComponent<EnemySpecial>();
+            for (var w = AwaitFreshBattle("청운 동시 파운장 인물 준비", previousTechnique, previousTechnique.FireSerial); w.MoveNext();) yield return null;
             firstPalm.AddCharge(firstPalm.HitsToCharge); secondPalm.AddCharge(secondPalm.HitsToCharge);
             float timeScale = Time.timeScale, fixedDelta = Time.fixedDeltaTime;
             Check(firstPalm.Activate(), "청운 대 청운에서 1P 파운장이 시작된다");
@@ -409,6 +536,7 @@ public static class RedboolPvpLobbyCheck
                 var materialFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
                 Check(typeof(EnemySpecial).GetField("smokeMat", materialFlags).GetValue(own) == null, label + ": 인물을 바꾸면 이전 인물의 연기색 캐시를 재사용하지 않는다");
                 Check(Game.SpecialName(1 - side) == "파운장" && Game.Players[1 - side].GetComponent<SpecialMove>().enabled, label + ": 상대(청운)는 파운장을 쓴다");
+                for (var w = AwaitFreshBattle(label + ": 인물 준비", own, own.FireSerial); w.MoveNext();) yield return null;
                 Gesture(side, "SPECIAL", "sweep-empty-" + index + "-" + side); for (var w = Wait(.3f); w.MoveNext();) yield return null;
                 Check(!own.IsPlaying, label + ": 게이지가 비어 있으면 나가지 않는다");
                 own.AddCharge(own.HitsToCharge);
@@ -418,15 +546,21 @@ public static class RedboolPvpLobbyCheck
                 double until = Time.realtimeSinceStartupAsDouble + 1.5;
                 while (own.FireSerial == serial && Time.realtimeSinceStartupAsDouble < until) for (var w = Wait(0f); w.MoveNext();) yield return null;
                 Check(own.FireSerial == serial + 1 && own.IsPlaying, label + ": 가슴 앞 X자 동작으로 나간다");
-                until = Time.realtimeSinceStartupAsDouble + 16; double actedAt = -1; bool pictured = false;
+                until = Time.realtimeSinceStartupAsDouble + 16; double actedAt = -1; bool pictured = false, safetyCancelled = false;
                 while (own.IsPlaying && Time.realtimeSinceStartupAsDouble < until)
                 {
+                    safetyCancelled |= Game.Paused;
                     if (actedAt < 0 && own.CurrentPhase == EnemySpecial.Phase.Acting) actedAt = Time.realtimeSinceStartupAsDouble;
-                    if (!pictured && actedAt >= 0 && Time.realtimeSinceStartupAsDouble - actedAt > .45) { pictured = true; Shot("special_" + index.ToString("D2") + "_" + (side + 1) + "p", 960, 540); }
+                    if (!dual && !pictured && actedAt >= 0 && Time.realtimeSinceStartupAsDouble - actedAt > .45) { pictured = true; Shot("special_" + index.ToString("D2") + "_" + (side + 1) + "p", 960, 540); }
                     for (var w = Wait(0f); w.MoveNext();) yield return null;
                 }
-                Check(!own.IsPlaying && actedAt >= 0, label + ": 끝까지 진행된다");
-                Check(own.LastDamage > 0 && targetHp.CurrentHealth < targetHp.MaxHealth, label + ": 상대에게 피해가 들어간다 (피해 " + own.LastDamage + ", 상대 체력 " + targetHp.CurrentHealth + ")");
+                safetyCancelled |= Game.Paused;
+                string completion = safetyCancelled ? "safety_cancel_observed" : "natural_end_observed";
+                File.AppendAllText(Path.Combine(Output, "cast_results.jsonl"), JsonUtility.ToJson(new CastResult {
+                    label = label, completion = completion, damage = own.LastDamage, expected_damage = ExpectedDamage[index], serial = own.FireSerial
+                }) + "\n");
+                Check(!own.IsPlaying && actedAt >= 0, label + ": 기술이 종료된다 (" + completion + ")");
+                Check(own.LastDamage == ExpectedDamage[index] && targetHp.CurrentHealth == targetHp.MaxHealth - ExpectedDamage[index], label + ": 단독 검사와 같은 전체 피해가 들어간다 (피해 " + own.LastDamage + ", 기준 " + ExpectedDamage[index] + ")");
                 if (index == 1 && side == 0)
                 {
                     var field = typeof(EnemySpecial).GetField("updaters", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
@@ -442,6 +576,7 @@ public static class RedboolPvpLobbyCheck
                     palm.CancelForPause();
                 }
                 for (var w = Wait(.5f); w.MoveNext();) yield return null;
+                for (var w = AwaitFreshBattle(label, own, serial + 1); w.MoveNext();) yield return null;
                 Check(Mathf.Approximately(Time.timeScale, 1f) && Game.Fighting && !Game.Resolved, label + ": 끝난 뒤 시간과 대전 상태가 그대로다 (timeScale " + Time.timeScale + ")");
                 Check(own.Charge == 0 && !own.Used && Game.Players[side].GetComponent<Fighter>().CanAttack, label + ": 쓰고 나면 게이지가 비고 다시 모을 수 있다");
             }
@@ -453,6 +588,7 @@ public static class RedboolPvpLobbyCheck
             Place(0, start0.x); Place(1, start1.x); remaining.SetValue(Game, 120f);
             for (var w = Wait(.4f); w.MoveNext();) yield return null;
             var thief = Game.Players[0].GetComponent<EnemySpecial>(); var victim = Game.Players[1].GetComponent<EnemySpecial>();
+            for (var w = AwaitFreshBattle("기 흡수 검사 인물 준비", thief, thief.FireSerial); w.MoveNext();) yield return null;
             victim.AddCharge(3); thief.AddCharge(thief.HitsToCharge);
             for (var w = Wait(.25f); w.MoveNext();) yield return null;
             Check(victim.Charge == 3, "철문이 게이지를 3칸 모아 두었다");
@@ -502,8 +638,12 @@ public static class RedboolPvpLobbyCheck
             string log = File.ReadAllText(Path.Combine(Output, "guest.log"));
             Check(log.Contains("1P character: " + RedboolPvpRoster.Get(3).name) && log.Contains("2P character: " + RedboolPvpRoster.Get(4).name), "손님 화면에도 두 사람이 고른 인물이 입혀진다");
             Check(!log.Contains("Exception"), "손님 게임에 실행 오류가 없다");
-            Check(File.Exists(Path.Combine(Output, "guest_lobby_select.png")), "손님 화면에 인물 선택 화면이 떴다 (guest_lobby_select.png)");
-            Check(File.Exists(Path.Combine(Output, "guest_lobby_tutorial.png")), "손님 화면에 수련 설명 카드가 떴다 (guest_lobby_tutorial.png)");
+            if (GuestCaptures)
+            {
+                Check(File.Exists(Path.Combine(Output, "guest_lobby_select.png")), "손님 화면에 인물 선택 화면이 떴다 (guest_lobby_select.png)");
+                Check(File.Exists(Path.Combine(Output, "guest_lobby_tutorial.png")), "손님 화면에 수련 설명 카드가 떴다 (guest_lobby_tutorial.png)");
+            }
+            else Check(Directory.GetFiles(Output, "guest*.png").Length == 0, "시간·피해 검사는 손님 화면 캡처 없이 진행한다 (별도 visual 기록 보존)");
         }
         // 주인공으로 되돌릴 수 있다 (다시 고르기에서 쓰는 경로)
         Game.ApplyCharacter(0, RedboolPvpRoster.Hero); yield return null;
@@ -513,6 +653,11 @@ public static class RedboolPvpLobbyCheck
 
     static void Finish(string failure)
     {
+        try
+        {
+            if (producer != null) { producer.Dispose(); File.WriteAllText(Path.Combine(Output, "producer_cleanup.txt"), "stopped=" + producer.Stopped + " states=" + producer.sentStates); producer = null; }
+        }
+        catch (Exception e) { failure = (failure ?? "") + "\nProducer cleanup: " + e; }
         StopGuest(); SessionState.SetBool(Active, false); EditorApplication.update -= Tick;
         foreach (var c in clients) c?.Close();
         if (SessionState.GetBool(Active + ".HadSave", false)) PlayerPrefs.SetString(SaveKey, SessionState.GetString(Active + ".Save", "")); else PlayerPrefs.DeleteKey(SaveKey);

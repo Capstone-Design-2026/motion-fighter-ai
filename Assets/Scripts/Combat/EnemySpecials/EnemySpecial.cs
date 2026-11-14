@@ -152,6 +152,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
     {
         foeHp.OnDamaged -= OnDamaged;
         foe.AttackLanded -= OnAttackLanded;
+        ClearGhostRenderSamples();
         ClearOwnedEffects();
     }
     void OnDestroy() { ClearVisualMaterialCache(); }

@@ -19,6 +19,20 @@ render policy replay predicts earlier decisions, not measured hardware FPS gains
 Selection context cannot train personal recognition; measured practice and return
 cycles remain the calibration path. No model retraining or new accuracy claim.
 
+A two-screen regression exposed a reproducible 266ms guest frame stall during
+ShadowBite's first dark skinned ghost. The selected visual is now rendered into
+the existing offscreen preparation target on both peers before combat. Story
+preparation also warms the same effect. One owner restores/cancels the target;
+a new roster requires a new matching ready ACK. Damage, special timing and
+camera/view expiry limits are unchanged. Final native comparison is recorded
+in the release report, separate from the earlier failing candidate traces.
+
+The lobby test sends synthetic camera states from an independent bounded BCL
+worker and checks full expected damage for all 22 non-hero casts. Diagnostic
+guest screenshots are opt-in with REDBOOL_LOBBY_GUEST_CAPTURE=1; performance
+runs retain wire traces but omit screenshots. Actual camera capture is never
+started by this fixture. Render-readiness waits have fixed time limits.
+
 Network: view protocol32, camera protocol v2, UDP5065/5066/5067 unchanged.
 Both laptops need v36. Two different pre-integration layouts used31, so accepting
 31 would decode different fields. Packets from either former version must be rejected instead of interpreted.

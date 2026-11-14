@@ -24,7 +24,9 @@ public static class RedboolEnemySpecialPreparationCheck
     static string Output => Environment.GetEnvironmentVariable("REDBOOL_ENEMY_PREPARATION_CHECK_OUTPUT");
 
     static RedboolEnemySpecialPreparationCheck() { if (SessionState.GetBool(Active, false)) Subscribe(); }
-    public static void Run()
+    public static void Run() { Begin(false); }
+    public static void RunGhostWarmup() { Begin(true); }
+    static void Begin(bool ghostOnly)
     {
         if (!Application.isBatchMode || string.IsNullOrEmpty(Output)) throw new Exception("Isolated batch output required");
         Directory.CreateDirectory(Output);
@@ -33,7 +35,8 @@ public static class RedboolEnemySpecialPreparationCheck
         SessionState.SetFloat(Active + ".StartupStart", (float)EditorApplication.timeSinceStartup);
         SessionState.SetBool(Active + ".PlayStarted", false);
         File.WriteAllText(Path.Combine(Output, "phase.txt"), "Opening scene; waiting for Play");
-        EditorSceneManager.OpenScene("Assets/Scenes/ScoutPass.unity");
+        SessionState.SetBool(Active + ".GhostOnly", ghostOnly);
+        EditorSceneManager.OpenScene(ghostOnly ? "Assets/Scenes/StoryStages/BlackCloudEntrance.unity" : "Assets/Scenes/ScoutPass.unity");
         SessionState.SetBool(Active, true); Subscribe();
         EditorApplication.delayCall += () => EditorApplication.EnterPlaymode();
     }
@@ -57,7 +60,7 @@ public static class RedboolEnemySpecialPreparationCheck
         EditorApplication.isPaused = false; EditorApplication.QueuePlayerLoopUpdate();
         if (frame == Time.frameCount) return;
         frame = Time.frameCount;
-        try { if (flow == null) flow = Tests(); if (!flow.MoveNext()) Finish(null); }
+        try { if (flow == null) flow = SessionState.GetBool(Active + ".GhostOnly", false) ? GhostTests() : Tests(); if (!flow.MoveNext()) Finish(null); }
         catch (Exception error) { Finish(error.ToString()); }
     }
     static void Check(bool ok, string label)
@@ -100,6 +103,68 @@ public static class RedboolEnemySpecialPreparationCheck
             yield return null;
         }
         Check(spell.IsPlaying && Get(spell, "routine") != null, target + " reached through actual Run coroutine");
+    }
+    static IEnumerator GhostTests()
+    {
+        yield return null; yield return null;
+        double until = Time.realtimeSinceStartupAsDouble + 40;
+        while (Object.FindAnyObjectByType<RedboolRenderWarmup>() != null)
+        { if (Time.realtimeSinceStartupAsDouble > until) throw new Exception("Initial scene warmup timeout"); yield return null; }
+        foreach (var receiver in Object.FindObjectsByType<RedboolDemoReceiver>(FindObjectsSortMode.None)) receiver.enabled = false;
+        foreach (var receiver in Object.FindObjectsByType<UdpActionReceiver>(FindObjectsSortMode.None)) receiver.enabled = false;
+        foreach (var gate in Object.FindObjectsByType<RedboolBattlePreparation>(FindObjectsSortMode.None)) gate.enabled = false;
+        ai = Object.FindAnyObjectByType<EnemyAI>(); hero = Object.FindAnyObjectByType<PlayerController>().GetComponent<Fighter>();
+        foe = ai.GetComponent<Fighter>(); spell = ai.GetComponent<EnemySpecial>();
+        ai.enabled = false;
+        Check(spell != null && foe.GetComponent<Fighter3DView>().visualRoot != null, "Actual BlackCloudEntrance avatar available");
+        foreach (bool remote in new[] { false, true })
+        {
+            string label = remote ? "guest" : "host";
+            Check(spell.ConfigureForPlayer("entrance", hero, remote), label + " dark Ghost technique configured");
+            var holder = new GameObject("Ghost check inactive holder"); holder.SetActive(false);
+            Time.timeScale = .37f; Time.fixedDeltaTime = .0074f;
+            int hp0 = foe.Health.CurrentHealth, hp1 = hero.Health.CurrentHealth, charge = spell.Charge, serial = spell.FireSerial;
+            var phase = spell.CurrentPhase; int updaters = Updaters.Count;
+            Vector3 sourcePosition = foe.GetComponent<Fighter3DView>().visualRoot.position;
+            var sample = spell.CreateGhostRenderSample(holder.transform, Vector3.up);
+            Check(sample != null && sample.Root != null && !sample.Root.activeInHierarchy && sample.Root.transform.IsChildOf(holder.transform), label + " sample created inactive under caller holder");
+            Check(sample.Root.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length >= 2, label + " actual dark body and rim skin renderers exist");
+            Check(sample.Root.GetComponentsInChildren<MonoBehaviour>(true).Length == 0 && sample.Root.GetComponentsInChildren<Collider>(true).Length == 0
+                && sample.Root.GetComponentsInChildren<Collider2D>(true).Length == 0 && sample.Root.GetComponentsInChildren<AudioSource>(true).Length == 0,
+                label + " sample has no gameplay scripts, colliders or audio");
+            bool physicsSafe = true;
+            foreach (var rb in sample.Root.GetComponentsInChildren<Rigidbody>(true)) physicsSafe &= rb.isKinematic && !rb.detectCollisions;
+            foreach (var rb in sample.Root.GetComponentsInChildren<Rigidbody2D>(true)) physicsSafe &= !rb.simulated;
+            Check(physicsSafe, label + " sample cannot run gameplay physics");
+            Check(foe.Health.CurrentHealth == hp0 && hero.Health.CurrentHealth == hp1 && spell.Charge == charge && spell.FireSerial == serial
+                && spell.CurrentPhase == phase && Updaters.Count == updaters && Get(spell, "routine") == null
+                && Mathf.Approximately(Time.timeScale, .37f) && Mathf.Approximately(Time.fixedDeltaTime, .0074f)
+                && foe.GetComponent<Fighter3DView>().visualRoot.position == sourcePosition,
+                label + " constructing sample changes no health, meter, serial, phase, time, routine or original transform");
+            var root = sample.Root; sample.Dispose(); sample.Dispose();
+            Check(sample.Root == null && !root.activeSelf, label + " disposal is immediate inactive and idempotent");
+            yield return null; Check(root == null, label + " disposed render object is destroyed");
+            var pending = spell.CreateGhostRenderSample(holder.transform, Vector3.up);
+            spell.ConfigureForPlayer("entrance", hero, remote);
+            Check(pending.Root == null, label + " reconfiguration cancels outstanding sample");
+            var disabled = spell.CreateGhostRenderSample(holder.transform, Vector3.up);
+            spell.enabled = false;
+            Check(disabled.Root == null, label + " disabling owner cancels outstanding sample");
+            spell.enabled = true; Object.Destroy(holder); yield return null;
+            var camera = Camera.main; var originalTarget = camera.targetTexture;
+            var renderWarmup = foe.gameObject.AddComponent<RedboolRenderWarmup>(); renderWarmup.characterSpecials = new[] { spell };
+            until = Time.realtimeSinceStartupAsDouble + 10;
+            while (renderWarmup != null) { if (Time.realtimeSinceStartupAsDouble > until) throw new Exception(label + " actual render warmup timeout"); yield return null; }
+            Check(camera.targetTexture == originalTarget && ((IList)Get(spell, "ghostRenderSamples")).Count == 0, label + " actual offscreen preparation ends and restores target/sample ownership");
+            Check(foe.Health.CurrentHealth == hp0 && hero.Health.CurrentHealth == hp1 && spell.Charge == charge && spell.FireSerial == serial
+                && !spell.IsPlaying && Mathf.Approximately(Time.timeScale, .37f) && Mathf.Approximately(Time.fixedDeltaTime, .0074f),
+                label + " actual offscreen preparation preserves gameplay and current time owner");
+        }
+        spell.ConfigureForPlayer("scout", hero, false);
+        var other = new GameObject("Non-dark holder"); other.SetActive(false);
+        Check(spell.CreateGhostRenderSample(other.transform, Vector3.zero) == null, "Other techniques do not allocate an unnecessary dark Ghost");
+        Object.Destroy(other);
+        Check(PlayerPrefs.GetString(SaveKey, "") == SessionState.GetString(Active + ".Save", ""), "Campaign save unchanged");
     }
     static IEnumerator Tests()
     {
