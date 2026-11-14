@@ -32,6 +32,15 @@ public sealed class RedboolViewMirror : MonoBehaviour
         }
         foreach(var c in FindObjectsByType<Battle3DCamera>(FindObjectsSortMode.None)) c.enabled=false;
     }
+    /// <summary>손님 화면에서 인물의 겉모습이 바뀐 뒤: 새 겉모습도 스스로 움직이지 않게 하고 색을 다시 입힌다.</summary>
+    public void Rebind(int i)
+    {
+        views[i].enabled=false;views[i].modelAnimator.enabled=false;
+        renderers[i]=views[i].visualRoot.GetComponentsInChildren<Renderer>();
+        var props=new MaterialPropertyBlock();props.SetColor("_BaseColor",views[i].fighterTint);props.SetColor("_Color",views[i].fighterTint);
+        foreach(var r in renderers[i]) r.SetPropertyBlock(props);
+        serial[i]=-1;
+    }
     public void ClearTransient()
     {
         foreach(var wave in waves.Values) if(wave) Destroy(wave);waves.Clear();

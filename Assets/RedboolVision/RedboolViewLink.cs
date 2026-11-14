@@ -228,6 +228,14 @@ public sealed class RedboolViewLink : MonoBehaviour
         for(byte i=0;i<2;i++) {captured.actors[i]=CaptureActor(i);Send(new RedboolViewPacket {kind=(byte)(2+i),session=session,nonce=peerNonce,seq=sequence,time=now,echo=echo,actor=captured.actors[i]});}
         TraceFrame(captured);
     }
+    /// <summary>인물을 바꾼 뒤 그 겉모습의 뼈대를 다시 잡는다 (호스트는 보낼 뼈대, 손님은 움직일 뼈대).</summary>
+    public void Rebind(int i)
+    {
+        if(!initialized) return;
+        views[i]=game.Players[i].GetComponent<Fighter3DView>();
+        for(int b=0;b<bones[i].Length;b++) bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);
+        if(mirror!=null) mirror.Rebind(i);
+    }
     RedboolViewActor CaptureActor(int i)
     {
         var p=game.Players[i];var h=p.GetComponent<Health>();var s=p.GetComponent<SpecialMove>();var practice=game.Practices[i];
@@ -236,13 +244,17 @@ public sealed class RedboolViewLink : MonoBehaviour
         a.chargeLevel=s.VisualChargeLevel;
         string status=game.Receivers[i].PersonalStatus;a.personal=(byte)(status.Contains("PERSONAL RANGE")?2:status.Contains("CYCLES")?1:0);
         var renderer=views[i].visualRoot.GetComponentInChildren<Renderer>();if(renderer) {var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);a.tint=block.GetColor("_BaseColor");}
+        a.character=(byte)game.Characters[i];
         return a;
     }
     RedboolViewWorld CaptureWorld()
     {
         var cam=Camera.main;var world=new RedboolViewWorld {round=game.Round,gate=game.Gate,countdown=game.Countdown,remaining=game.Remaining,paused=game.Paused,resolved=game.Resolved,fighting=game.Fighting,winner=game.Result.StartsWith("1P")?1:game.Result.StartsWith("2P")?2:0,camera=cam.transform.position,rotation=cam.transform.rotation,fov=cam.fieldOfView};
         foreach(var wave in FindObjectsByType<QiWave>(FindObjectsSortMode.None)) if(wave.isActiveAndEnabled && !wave.Finished &&world.waves.Count<8) world.waves.Add(new RedboolViewWave {id=wave.GetInstanceID(),point=wave.transform.position,rotation=wave.transform.rotation});
-        effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);return world;
+        effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);
+        var lobby=game.Lobby;
+        if(lobby!=null) {world.stage=(byte)lobby.Current;world.cursor0=(byte)lobby.Cursor[0];world.cursor1=(byte)lobby.Cursor[1];world.locked=(byte)((lobby.Locked[0]?1:0)|(lobby.Locked[1]?2:0));world.selectSeconds=(byte)Mathf.Clamp(Mathf.CeilToInt(lobby.SelectRemaining),0,60);}
+        return world;
     }
     void OnDestroy() {socket?.Close();socket=null;trace?.Dispose();trace=null;}
 }

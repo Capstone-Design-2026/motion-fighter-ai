@@ -19,6 +19,12 @@ public sealed class RedboolPvp : MonoBehaviour
     public readonly PlayerController[] Players = new PlayerController[2];
     public readonly RedboolDemoReceiver[] Receivers = new RedboolDemoReceiver[2];
     public readonly RedboolPractice[] Practices = { new RedboolPractice(), new RedboolPractice() };
+    /// <summary>대기실·인물 선택. 꺼져 있으면 null 이고 예전처럼 바로 수련으로 간다.</summary>
+    public RedboolPvpLobby Lobby { get; private set; }
+    /// <summary>두 사람이 고른 인물 번호 (RedboolPvpRoster). 선택을 거치지 않으면 주인공과 철문.</summary>
+    public readonly int[] Characters = { RedboolPvpRoster.Hero, RedboolPvpRoster.DefaultSecond };
+    public bool ViewReady => !RequireView || ViewLink!=null && ViewLink.PeerReady;
+    GameObject heroTemplate;
     readonly Vector3[] positions = new Vector3[2];
     readonly int[] generations = { -1,-1 };
     readonly string[] streams = new string[2];
@@ -87,6 +93,13 @@ public sealed class RedboolPvp : MonoBehaviour
         positions[0]=first.transform.position;positions[1]=enemy.transform.position;
         enemy.gameObject.SetActive(false);
         Players[0]=first;
+        // 인물 선택에서 주인공을 다시 고를 수 있게, 원래 겉모습을 꺼 둔 채로 하나 간직한다.
+        var heroView=first.GetComponent<Fighter3DView>();
+        if(RedboolPvpLobby.Enabled && heroView!=null && heroView.visualRoot!=null)
+        {
+            var holder=new GameObject("PvP hero visual template");holder.transform.SetParent(transform,false);holder.SetActive(false);
+            heroTemplate=Instantiate(heroView.visualRoot.gameObject,holder.transform,false);heroTemplate.name=heroView.visualRoot.name;
+        }
         Players[1]=Instantiate(first.gameObject,positions[1],first.transform.rotation).GetComponent<PlayerController>();
         // Reuse the authored Cheolmun opponent visual; all gameplay stats remain on the cloned player controller.
         var secondVisual=RunState.Instance!=null?RunState.Instance.Config.GetEnemyVisual("gate"):null;
@@ -107,7 +120,9 @@ public sealed class RedboolPvp : MonoBehaviour
             receiver.port=5065+i;receiver.expectedActorId="P"+(i+1);receiver.player=p;
             receiver.PvpOwned=true;receiver.showStatus=false;receiver.Opponent=Players[1-i].GetComponent<Fighter>();
             receiver.ExternalGate=()=>CanFight;
-            receiver.PracticeContext=()=>new RedboolPracticeContext {run=Practices[slot].Run,action=Practices[slot].Action,phase=Practices[slot].Phase,hits=Practices[slot].Hits};
+            receiver.PracticeContext=()=>Lobby!=null && !Lobby.Complete
+                ? new RedboolPracticeContext {run=Practices[slot].Run,action="",phase="SELECT",hits=0}   // 인물을 고르는 중: 수련 동작이 아니다
+                : new RedboolPracticeContext {run=Practices[slot].Run,action=Practices[slot].Action,phase=Practices[slot].Phase,hits=Practices[slot].Hits};
             receiver.PracticeAction+=Practices[i].Observe;
             receiver.CalibrationObserved+=(calibrated,generation)=>OnCalibration(slot,calibrated,generation);
             Receivers[i]=receiver;host.SetActive(true);
@@ -120,6 +135,7 @@ public sealed class RedboolPvp : MonoBehaviour
         if(!IsClient && RedboolEffectPreparation.Enabled) warmup=Receivers[0].gameObject.AddComponent<RedboolRenderWarmup>();
         BuildUi();SetPaused(true);
         ViewLink=gameObject.AddComponent<RedboolViewLink>();ViewLink.Initialize(this);
+        if(RedboolPvpLobby.Enabled) {Lobby=gameObject.AddComponent<RedboolPvpLobby>();Lobby.Initialize(this);}
         Debug.Log("[REDBOOL PVP] ScoutPass, P1 :5065 / P2 :5066, campaign untouched");
     }
     void OnCalibration(int slot,bool calibrated,int generation)
@@ -164,6 +180,8 @@ public sealed class RedboolPvp : MonoBehaviour
         if(IsClient) { if(Input.GetKeyDown(KeyCode.Escape)) Leave(true);return; }
         if(Input.GetKeyDown(KeyCode.Escape)) { Leave(true);return; }
         if(Resolved && Input.GetKeyDown(KeyCode.R)) Rematch();
+        // F8: 같은 두 사람이 인물만 다시 고른다 (수련은 다시 하지 않는다).
+        if(Resolved && Lobby!=null && Input.GetKeyDown(KeyCode.F8)) {Rematch();Lobby.Reopen();}
         if(Input.GetKeyDown(KeyCode.F6)) SkipPractice(0);
         if(Input.GetKeyDown(KeyCode.F7)) SkipPractice(1);
         for(int i=0;i<2;i++)
@@ -171,10 +189,11 @@ public sealed class RedboolPvp : MonoBehaviour
             string stream=Receivers[i].StreamId;
             if(!String.IsNullOrEmpty(stream) && streams[i]!=stream)
             { if(streams[i]!=null) ResetPractice(i);streams[i]=stream; }
+            Practices[i].Suspended=Lobby!=null && !Lobby.Complete;
             Practices[i].Tick();
             if(Practices[i].Complete) Receivers[i].PracticeAction-=Practices[i].Observe;
         }
-        bool ready=BothPresent && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
+        bool ready=BothPresent && (Lobby==null || Lobby.Complete) && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
         double now=Time.realtimeSinceStartupAsDouble;
         if(!ready) {
             if(interruptionSince<0) interruptionSince=now;
@@ -201,7 +220,7 @@ public sealed class RedboolPvp : MonoBehaviour
     }
     public void SkipPractice(int slot,string expectedRun=null,int expectedStep=-1)
     {
-        if(IsClient || !configured || slot<0 || slot>1 || Practices[slot].Complete) return;
+        if(IsClient || !configured || slot<0 || slot>1 || Practices[slot].Complete || Lobby!=null && !Lobby.Complete) return;
         var p=Practices[slot];
         if(expectedRun!=null && (p.Run!=expectedRun || p.Step!=expectedStep)) return;
         Debug.Log("[REDBOOL PRACTICE SKIP] player="+(slot+1)+" action="+p.Action+" baseline_retained=True");
@@ -309,7 +328,8 @@ public sealed class RedboolPvp : MonoBehaviour
             practiceLabels[i].text=(!Receivers[i].LiveReady?"카메라 연결 · C로 중앙 가드 보정\n":"")+Practices[i].Instruction+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
-        banner.text=Resolved?Result+" · R: 재대전 · Esc: 메뉴":GateText(Gate,Countdown);
+        banner.text=Resolved?Result+" · R: 재대전 · "+(Lobby!=null?"F8: 인물 다시 고르기 · ":"")+"Esc: 메뉴":GateText(Gate,Countdown);
+        LobbyUi();
         ShowResult(Resolved,Result,Remaining,Players[0].GetComponent<Health>().CurrentHealth,Players[1].GetComponent<Health>().CurrentHealth,false);
     }
     void ShowResult(bool ended,string winner,float time,int hp1,int hp2,bool remote)
@@ -327,7 +347,7 @@ public sealed class RedboolPvp : MonoBehaviour
         healthTarget[slot]=value;
         if(Time.unscaledTime>=healthTrailUntil[slot]) healthTrail[slot]=Mathf.MoveTowards(healthTrail[slot],value,1.5f*Time.unscaledDeltaTime);
         healthBars[slot].SetValues(value,healthTrail[slot]);
-        playerLabels[slot].text=(slot+1)+"P";
+        playerLabels[slot].text=Lobby==null?(slot+1)+"P":(slot+1)+"P   "+RedboolPvpRoster.Get(Characters[slot]).name;
     }
     void ShowCharge(int slot,int value,int maximum)
     {
@@ -339,7 +359,7 @@ public sealed class RedboolPvp : MonoBehaviour
     public void ShowRemote(RedboolViewFrame frame,bool fresh)
     {
         if(banner==null) return;
-        if(frame==null) { banner.text="호스트 연결 대기 · "+HostAddress+":5067 · Esc: 메뉴";return; }
+        if(frame==null) { banner.text="호스트 연결 대기 · "+HostAddress+":5067 · Esc: 메뉴";Lobby?.ShowRemote(null);return; }
         Remaining=frame.world.remaining;Resolved=frame.world.resolved;Fighting=frame.world.fighting;Round=frame.world.round;
         for(int i=0;i<2;i++)
         {
@@ -351,6 +371,42 @@ public sealed class RedboolPvp : MonoBehaviour
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
         banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?(frame.world.winner==0?"무승부":frame.world.winner+"P 승리")+" · 호스트에서 R: 재대전 · Esc: 메뉴":GateText(frame.world.gate,frame.world.countdown);
         ShowResult(fresh&&Resolved,frame.world.winner==0?"무승부":frame.world.winner+"P 승리",Remaining,frame.actors[0].hp,frame.actors[1].hp,true);
+        // 호스트에서 정해진 인물을 이 화면의 두 사람에게도 입힌다.
+        for(int i=0;i<2;i++) if(frame.actors[i].character!=Characters[i]) ApplyCharacter(i,frame.actors[i].character);
+        if(Lobby!=null) {Lobby.ShowRemote(frame);LobbyUi();}
+    }
+    // 대기실·인물 선택 중에는 수련 그림과 건너뛰기를 감추고, 아래 안내 줄을 그 단계의 글로 바꾼다.
+    void LobbyUi()
+    {
+        bool choosing=Lobby!=null && !Lobby.Complete;
+        // 고르는 화면 뒤로 체력 패널과 시계가 비치지 않게 한다.
+        for(int i=0;i<2;i++) playerPanels[i].gameObject.SetActive(!choosing);
+        clockLabel.gameObject.SetActive(!choosing);
+        if(!choosing) return;
+        for(int i=0;i<2;i++) {diagrams[i].gameObject.SetActive(false);skipButtons[i].gameObject.SetActive(false);}
+        banner.text=Lobby.BannerText??"";
+    }
+    /// <summary>
+    /// 고른 인물의 겉모습을 입힌다. 조작·체력·필살기(파운장)는 그대로이고 겉모습과 그 인물의 동작만 바뀐다.
+    /// 호스트는 인물 선택이 끝날 때, 손님은 호스트가 알려 준 번호가 바뀔 때 부른다.
+    /// </summary>
+    public void ApplyCharacter(int slot,int index)
+    {
+        if(!configured || slot<0 || slot>1) return;
+        index=RedboolPvpRoster.Clamp(index);
+        var view=Players[slot].GetComponent<Fighter3DView>();
+        var prefab=RedboolPvpRoster.Visual(index);
+        if(prefab==null) prefab=heroTemplate;   // 주인공
+        // 주인공이 이미 주인공 모습이면 그대로 둔다. 그 밖에는 새로 입혀서 그 인물 본래의 동작 세트를 쓰게 한다.
+        bool keep=prefab==null || view==null || index==RedboolPvpRoster.Hero && view.visualRoot!=null && view.visualRoot.name==prefab.name;
+        if(!keep)
+        {
+            if(!view.ApplyVisual(prefab)) {Debug.LogWarning("[REDBOOL PVP] character visual unavailable: "+RedboolPvpRoster.Get(index).name);return;}
+            Players[slot].GetComponent<Fighter>().Contacts.ResetHistory();
+            ViewLink?.Rebind(slot);
+        }
+        Characters[slot]=index;
+        Debug.Log("[REDBOOL PVP] "+(slot+1)+"P character: "+RedboolPvpRoster.Get(index).name);
     }
     public void Leave(bool menu)
     {

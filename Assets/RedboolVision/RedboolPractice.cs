@@ -18,6 +18,8 @@ public sealed class RedboolPractice
         : hits>=2 ? (step==4 ? "블락 성공! 팔을 편하게 내려주세요" : step==5 || step==6 ? "이동 성공! 몸을 중앙으로 돌려주세요" : "인식 성공! 다음 동작으로")
         : Instructions[step]+"  "+hits+"/2";
     bool armed;
+    /// <summary>인물 선택이 끝나기 전에는 수련을 세지 않는다 (RedboolPvpLobby).</summary>
+    public bool Suspended;
     double returnSince = -1;
     readonly Func<double> clock;
     public RedboolPractice(Func<double> clock=null) { this.clock=clock??(()=>Time.realtimeSinceStartupAsDouble);Reset(); }
@@ -26,10 +28,10 @@ public sealed class RedboolPractice
     public void Skip() { if(!Complete) {Skipped++;Advance();} }
     // Discrete events already passed v26's onset/return/re-arm checks. Requiring
     // both arms READY again here strands recognized gestures in a second FSM.
-    public void Tick() { if(!Complete && Hits>=2 && (Step<4 || Step==7) && returnSince>=0 && clock()-returnSince>=.25) Advance(); }
+    public void Tick() { if(!Suspended && !Complete && Hits>=2 && (Step<4 || Step==7) && returnSince>=0 && clock()-returnSince>=.25) Advance(); }
     public void Observe(string action, float confidence, string movement, float strength)
     {
-        if (Complete) return;
+        if (Complete || Suspended) return;
         if (action=="UNAVAILABLE") { armed=false; if(Hits<2 || Step>=4 && Step<=6) returnSince=-1; return; }
         bool rest=(Step==4 ? action!="BLOCK" : Step==5 || Step==6 ? movement=="NEUTRAL" : action=="IDLE");
         if (rest)
