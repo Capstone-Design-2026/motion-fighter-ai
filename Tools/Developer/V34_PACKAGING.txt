@@ -1,6 +1,6 @@
 REDBOOL v34 — current Unity content and bounded landmark diagnostics
 
-Reviewed Unity upstream: 1567eba7b09f74f9bca2ca7f9469dbc6df4a08c1.
+Reviewed Unity upstream: 85ea2defc027ce22285466a9da8338d37d5701b7.
 Includes new story arenas, UndergroundPit PvP arena, corrected hero punch meshes,
 enemy special moves and music. Existing camera input and Windows non-inheritable
 socket ownership are retained. Recognition thresholds/models are unchanged.
