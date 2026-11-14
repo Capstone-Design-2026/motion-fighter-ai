@@ -84,6 +84,7 @@ public class CombatHUD : MonoBehaviour
         public Text label, amount, gaugeLabel;
         public Health health;
         public SpecialMove resource;
+        public EnemySpecial foeResource;   // 적 필살기 게이지(적 쪽 막대에만 있다)
         public bool leftSide;
         public float targetRatio, chipRatio, trailUntil;
         public System.Action<int, int> healthChanged, chargeChanged;
@@ -166,6 +167,12 @@ public class CombatHUD : MonoBehaviour
             bar.resource.OnChargeChanged += bar.chargeChanged;
             OnChargeChanged(bar, bar.resource.Charge, bar.resource.HitsToCharge);
         }
+        else if (bar.foeResource != null && bar.foeResource.Available)
+        {
+            bar.chargeChanged = (current, max) => OnFoeChargeChanged(bar, current, max);
+            bar.foeResource.OnChargeChanged += bar.chargeChanged;
+            OnFoeChargeChanged(bar, bar.foeResource.Charge, bar.foeResource.HitsToCharge);
+        }
     }
 
     void OnDestroy()
@@ -182,6 +189,7 @@ public class CombatHUD : MonoBehaviour
             bar.health.OnDeath -= OnDeath;
         }
         if (bar.resource != null) bar.resource.OnChargeChanged -= bar.chargeChanged;
+        if (bar.foeResource != null && bar.chargeChanged != null) bar.foeResource.OnChargeChanged -= bar.chargeChanged;
     }
 
     private void OnChanged(Bar bar, int current, int max)
@@ -263,6 +271,7 @@ public class CombatHUD : MonoBehaviour
 
         if (special != null) special.ResetCharge();
         if (enemyBar != null && enemyBar.resource != null) enemyBar.resource.ResetCharge();
+        if (enemyBar != null && enemyBar.foeResource != null) enemyBar.foeResource.ResetForRound();
         if (battle != null) battle.ResetRoundTimer();
         UpdateTimer();
     }
@@ -280,6 +289,8 @@ public class CombatHUD : MonoBehaviour
     private void BuildSpecialGauge(Bar bar, RectTransform parent)
     {
         bar.resource = bar.health.GetComponent<SpecialMove>();
+        bar.foeResource = bar.resource == null ? bar.health.GetComponent<EnemySpecial>() : null;
+        bool shown = bar.resource != null || (bar.foeResource != null && bar.foeResource.Available);
         bar.gauge = CreateBarGraphic("SpecialGauge", parent, true, !bar.leftSide, gaugeFillColor);
         var r = bar.gauge.rectTransform;
         r.anchorMin = new Vector2(bar.leftSide ? 0 : .13f, 0);
@@ -292,8 +303,24 @@ public class CombatHUD : MonoBehaviour
         l.offsetMin = new Vector2(29,-47); l.offsetMax = new Vector2(-29,-24);
         bar.gaugeLabel.color = new Color(.65f,.76f,.79f);
         AddShadow(bar.gaugeLabel, new Vector2(1,-1));
-        bar.gauge.SetValues(0,0,false,bar.resource != null);
+        bar.gauge.SetValues(0,0,false,shown);
         bar.gaugeLabel.text = "";
+    }
+
+    /// <summary>적 필살기 게이지: 기술 이름과 함께 채워지는 칸, 가득 차면 준비, 쓰는 중이면 발동, 쓰고 나면 사용함.</summary>
+    private void OnFoeChargeChanged(Bar bar, int current, int max)
+    {
+        var s = bar.foeResource;
+        if (s == null || bar.gauge == null) return;
+        bool lit = s.IsReady || s.IsPlaying;
+        float ratio = s.IsPlaying ? 1f : s.Used ? 0f : max > 0 ? (float)current / max : 0f;
+        bar.gauge.fillColor = lit ? gaugeReadyColor : gaugeFillColor;
+        bar.gauge.SetValues(ratio, 0, lit);
+        bar.gaugeLabel.text = s.IsPlaying ? s.MoveName + "  발동"
+            : s.Used ? s.MoveName + "  사용함"
+            : s.IsReady ? s.MoveName + "  준비"
+            : s.MoveName + "  " + current + " / " + max;
+        bar.gaugeLabel.color = lit ? new Color(1f,.84f,.62f) : s.Used ? new Color(.6f,.62f,.62f) : new Color(.83f,.88f,.88f);
     }
 
     private void OnChargeChanged(Bar bar, int current, int max)

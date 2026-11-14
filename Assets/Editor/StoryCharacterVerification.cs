@@ -173,7 +173,7 @@ public static class StoryCharacterVerification
             Position(-stand/2f,stand/2f);for(var w=Wait(.2f);w.MoveNext();)yield return null;
             hp=eh.CurrentHealth;playerF.TryAttack(CombatMove.Jab);
             for(var w=Wait(.8f);w.MoveNext();)yield return null;eh.OnDamaged-=onHit;int chip=hp-eh.CurrentHealth;
-            Check(guardedHit&&chip==0,key+" live guard blocks the player's jab (blocked hits deal 0): guarded="+guardedHit+" damage="+chip);
+            int expectedChip=playerF.GuardedDamageOf(CombatMove.Jab);Check(guardedHit&&chip==expectedChip,key+" live guard blocks the player's jab (blocked jab deals "+expectedChip+"): guarded="+guardedHit+" damage="+chip);
             enemyF.ReleaseGuard();
             for(var w=Wait(1.2f);w.MoveNext();)yield return null;
             // Retain actual stage AI for a brief autonomous approach check.

@@ -10,7 +10,7 @@ using UnityEngine.Rendering;
 public sealed class QiCameraFx : MonoBehaviour
 {
     Camera cam;
-    float fovMul = 1f, fovTarget = 1f, fovVelocity, shake, shakeDecay = 6f;
+    float fovMul = 1f, fovTarget = 1f, fovVelocity, shake, shakeDecay = 6f, pull, pullTarget, pullVelocity;
     Vector3 savedPosition; float savedFov; bool applied;
 
     static QiCameraFx Ensure()
@@ -32,8 +32,11 @@ public sealed class QiCameraFx : MonoBehaviour
         fx.shake = Mathf.Max(fx.shake, amplitude); fx.shakeDecay = decay;
     }
 
+    /// <summary>카메라를 뒤로 물린다(월드 미터, 0 이 원래 자리). 크게 뛰거나 넓게 퍼지는 적 필살기를 한 화면에 담을 때 쓴다.</summary>
+    public static void Pull(float distance) { var fx = Ensure(); if (fx) fx.pullTarget = Mathf.Clamp(distance, 0f, 4f); }
+
     /// <summary>연출을 즉시 원래대로.</summary>
-    public static void ResetAll() { var c = Camera.main; var fx = c ? c.GetComponent<QiCameraFx>() : null; if (fx) { fx.fovTarget = 1f; fx.shake = 0f; } }
+    public static void ResetAll() { var c = Camera.main; var fx = c ? c.GetComponent<QiCameraFx>() : null; if (fx) { fx.fovTarget = 1f; fx.shake = 0f; fx.pullTarget = 0f; } }
 
     void OnEnable()
     {
@@ -51,12 +54,14 @@ public sealed class QiCameraFx : MonoBehaviour
         float dt = Time.unscaledDeltaTime;
         fovMul = Mathf.SmoothDamp(fovMul, fovTarget, ref fovVelocity, .14f, Mathf.Infinity, dt);
         shake = Mathf.Max(0f, shake - shake * shakeDecay * dt - .002f * dt);
+        pull = Mathf.SmoothDamp(pull, pullTarget, ref pullVelocity, .1f, Mathf.Infinity, dt);
     }
     void Begin(ScriptableRenderContext context, Camera c)
     {
         if (c != cam) return;
         savedPosition = c.transform.position; savedFov = c.fieldOfView; applied = true;
         if (!c.orthographic) c.fieldOfView = savedFov * fovMul;
+        if (pull > .001f) c.transform.position += -c.transform.forward * pull + c.transform.up * (pull * .17f);
         if (shake > .0005f)
         {
             float t = Time.unscaledTime * 41f;
