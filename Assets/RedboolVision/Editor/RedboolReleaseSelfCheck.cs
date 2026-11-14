@@ -11,6 +11,7 @@ public static class RedboolReleaseSelfCheck
         RedboolViewBindingSelfCheck.Run();
         RedboolSettingsSelfCheck.Run();
         RedboolCombatFeedbackSelfCheck.Run();
+        RedboolCombatPresentationSelfCheck.Run();
         Debug.Log("[REDBOOL V35 CHECK] All release self-checks passed");
     }
 }

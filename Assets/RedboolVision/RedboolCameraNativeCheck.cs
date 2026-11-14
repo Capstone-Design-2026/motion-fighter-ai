@@ -83,6 +83,67 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         foreach(var b in FindObjectsByType<Button>(FindObjectsInactive.Include,FindObjectsSortMode.None))if(b.name==name)return b;
         return null;
     }
+    IEnumerator CheckCameraPresentation(RedboolCameraRuntime runtime)
+    {
+        var panel=runtime.GetComponent<RedboolCameraPanel>();
+        Check(panel!=null,"Camera presentation panel exists on the owned runtime");
+        var refresh=typeof(RedboolCameraPanel).GetMethod("RefreshDisplay",BindingFlags.NonPublic|BindingFlags.Instance);
+        var status=typeof(RedboolCameraRuntime).GetProperty("Status");
+        var saved=runtime.Status;bool savedOperator=RedboolDemoSettings.OperatorMode;bool savedPanelEnabled=panel.enabled;
+        // Freeze only automatic display refresh during UI-state injection, so
+        // synthetic backend status cannot change the screenshot between frames.
+        panel.enabled=false;
+        var fixture=JsonUtility.FromJson<RedboolCameraRuntime.CameraStatus>("{\"schema\":1,\"synthetic\":true,\"phase\":\"test\",\"calibrated\":false,\"tracking\":\"VALID\"}");
+        int child=runtime.ChildId;
+        try
+        {
+            status.SetValue(runtime,fixture);RedboolDemoSettings.OperatorMode=false;refresh.Invoke(panel,null);
+            Check(!panel.SmallPreview&&!panel.DetailedGuidance,"Before calibration story keeps the full setup panel");
+            fixture.calibrated=true;refresh.Invoke(panel,null);
+            Check(panel.SmallPreview&&!panel.DetailedGuidance&&runtime.PreviewVisible,"Calibration automatically shrinks preview without pausing its images");
+            var frame=GameObject.Find("CameraFrame").GetComponent<RectTransform>();
+            Check(frame.rect.width==240&&frame.rect.height==257,"Normal combat preview occupies the compact 240 by 257 layout");
+            Check(!ButtonNamed("CameraCalibrate").transform.Find("MenuMark").gameObject.activeSelf,"Compact controls hide oversized decorative marks");
+            Check(string.IsNullOrEmpty(panel.DisplayedFeedbackText),"Normal ready combat does not display routine action or recovery text");
+            Text shortText=null;
+            foreach(var label in panel.GetComponentsInChildren<Text>(true))if(label.name=="CombatInputFeedback")shortText=label;
+            foreach(var code in new[]{RedboolCombatFeedbackCode.Interrupted,RedboolCombatFeedbackCode.NotCharged})
+            {
+                shortText.text=new RedboolCombatPresentation().Present(code,false,0);
+                Check(shortText.preferredHeight<=24,"Compact combat notice fits one line: "+code);
+            }
+            refresh.Invoke(panel,null);
+
+            yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"04_calibrated_compact.png"));
+            yield return new WaitForEndOfFrame();
+            status.SetValue(runtime,fixture);ButtonNamed("ResizeCamera").onClick.Invoke();refresh.Invoke(panel,null);
+            Check(!panel.SmallPreview&&!panel.DetailedGuidance&&runtime.PreviewVisible,"Manual large preview keeps combat notices minimal");
+            refresh.Invoke(panel,null);Check(!panel.SmallPreview,"User enlargement persists through a status refresh");
+            ButtonNamed("ResizeCamera").onClick.Invoke();refresh.Invoke(panel,null);
+            Check(panel.SmallPreview,"Manual small preview restores the compact layout");
+            fixture.error="fixture connection error";refresh.Invoke(panel,null);
+            var cameraHint=GameObject.Find("CameraHint").GetComponent<Text>();
+            Check(cameraHint.gameObject.activeInHierarchy&&cameraHint.text.Contains("연결")&&cameraHint.preferredHeight<=44,"Compact connection problem remains readable in two lines");
+            refresh.Invoke(panel,null);
+            Check(cameraHint.gameObject.activeInHierarchy,"Connection guidance persists instead of expiring like a combat notice");
+            fixture.error=null;refresh.Invoke(panel,null);
+
+            ButtonNamed("FoldCamera").onClick.Invoke();refresh.Invoke(panel,null);
+            Check(!runtime.PreviewVisible&&frame.rect.height==98,"Explicit fold hides image work while retaining necessary controls");
+            fixture.calibrated=false;refresh.Invoke(panel,null);
+            Check(!panel.SmallPreview&&runtime.PreviewVisible,"New calibration expands and unfolds the camera guidance");
+            fixture.calibrated=true;refresh.Invoke(panel,null);
+            Check(panel.SmallPreview,"Completing recalibration automatically returns to compact combat");
+            RedboolDemoSettings.OperatorMode=true;refresh.Invoke(panel,null);
+            Check(panel.DetailedGuidance&&!panel.SmallPreview,"Operator mode retains the full detailed panel");
+            yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"05_operator_expanded.png"));
+            yield return new WaitForEndOfFrame();
+            Check(runtime.ChildId==child,"Changing camera presentation never replaces the recognition child");
+        }
+        finally
+        {status.SetValue(runtime,saved);RedboolDemoSettings.OperatorMode=savedOperator;panel.enabled=savedPanelEnabled;refresh.Invoke(panel,null);}
+        Check(runtime.Synthetic&&!runtime.Status.camera_connected,"Presentation fixture keeps the physical camera closed");
+    }
     UdpClient ReserveInputPort(int port)
     {
         var reservation=new UdpClient(AddressFamily.InterNetwork);
@@ -250,6 +311,16 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(runtime.Status.synthetic&&!runtime.Status.camera_connected,"Synthetic backend reports physical camera closed");
         Check(ReceiverOnPort(5065).Bound&&ReceiverOnPort(5066).Bound&&!runtime.InputConnectionBlocked&&runtime.InputConnectionError==null&&runtime.LastInputConnectionError==null,"Both ports recover automatically and clear the conflict without restarting the game");
         Check(!Debug.developerConsoleVisible,"Expected port-conflict logs do not cover the game with a console");
+        var practicePanel=runtime.GetComponent<RedboolCameraPanel>();
+        var practiceStatus=runtime.Status;bool priorCalibrated=practiceStatus.calibrated;
+        try
+        {
+            practiceStatus.calibrated=true;
+            typeof(RedboolCameraPanel).GetMethod("RefreshDisplay",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(practicePanel,null);
+            Check(practicePanel.DetailedGuidance&&!practicePanel.SmallPreview,"PvP local practice keeps detailed guidance after calibration");
+        }
+        finally {practiceStatus.calibrated=priorCalibrated;}
+
         Text feedbackText=null;
         foreach(var label in FindObjectsByType<Text>(FindObjectsInactive.Include,FindObjectsSortMode.None))
             if(label.name=="CombatInputFeedback")feedbackText=label;
@@ -370,6 +441,8 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         end=Time.realtimeSinceStartupAsDouble+10;
         while(!runtime.PreviewFresh) {Deadline(end,"first story preview JPEG");yield return null;}
         Check(runtime.PreviewFresh,"Story preview arrives from the new child");
+        var presentationCheck=CheckCameraPresentation(runtime);
+        while(presentationCheck.MoveNext())yield return presentationCheck.Current;
         CaptureCameraPreference();
         try
         {

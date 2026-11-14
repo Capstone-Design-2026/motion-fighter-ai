@@ -25,7 +25,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
     if metadata.get('release') != 'v34.3':
-        raise ValueError('v35 retains the verified v34.3 recognition backend.')
+        raise ValueError('v35.1 retains the verified v34.3 recognition backend.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -84,24 +84,24 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recognition_recording_schema='redbool.landmarks/1',
                     lan_protocol=31)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v35 · 전투 피드백·연결 복구·설정 통합 시험판\n\n'
+        'REDBOOL v35.1 · 간결한 전투 안내·자동 축소 카메라 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
         '스토리/빠른 대전/수련에 들어가면 내 동작 패널과 카메라가 켜집니다.\n'
         '설정에서 소리·전체 화면·속도 우선 화면·카메라 번호를 선택할 수 있습니다.\n'
         '다른 카메라는 번호 선택 후 적용·다시 연결을 누르세요.\n'
-        '전투 안내는 기술 시작·피격 중단·회복 대기·충전 부족을 구분합니다. 명중 판정과는 별개입니다.\n'
+        '전투에서는 피격 중단·기 부족만 짧게 보여줍니다. 수련과 운영자 모드에서는 자세히 안내합니다.\n'
         '양손과 팔꿈치가 보이도록 앉아 보정 버튼 또는 C를 누르세요.\n'
         '사람을 바꾸면 C로 다시 보정합니다. 게임을 종료하면 카메라도 종료됩니다.\n'
-        '접기를 누르면 영상 표시를 쉬며 동작 인식은 계속됩니다.\n\n'
+        '보정이 끝나면 전투 카메라가 작아집니다. 크게/작게로 크기를 바꾸고, 접기로 영상만 숨길 수 있습니다.\n\n'
         '내 동작 미리보기는 최대 15fps이며 게임 처리에 부담이 생기면 8fps로 낮춥니다.\n'
         '전체 화면 크기는 유지하고 카메라와 함께 실행하는 3D 화면의 처리량을 조절합니다.\n'
         '느린 PC는 자동으로 속도 우선 인식과 720p 3D 화면으로 전환합니다.\n'
         '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
         '결투 바로가기는 수련을 건너뛰며 기본 보정은 C입니다.\n모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 v35를 사용하세요. 화면 통신 규약 31은 이전 버전과 호환되지 않습니다.\n'
+        '양쪽 모두 v35.1을 권장합니다. 화면 통신 규약 31은 v35와 같으며 v34 계열과는 혼용할 수 없습니다.\n'
         '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'
         'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
         '양쪽 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'

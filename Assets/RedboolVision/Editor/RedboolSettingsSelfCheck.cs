@@ -68,7 +68,7 @@ public static class RedboolSettingsSelfCheck
             Transform canvas = menuRoot.transform.Find("StartCanvas");
             Check(canvas.Find("DuelTestButton").GetComponentInChildren<Text>().text == "빠른 대전", "Quick match has a player-facing label");
             Check(canvas.Find("QuickDuelHelp").GetComponent<Text>().text.Contains("혼자"), "Quick match distinguishes solo from PvP");
-            Check(canvas.Find("ReleaseVersion").GetComponent<Text>().text.Contains("v35"), "Menu displays release version");
+            Check(canvas.Find("ReleaseVersion").GetComponent<Text>().text.Contains(RedboolDemoSettings.Release), "Menu displays release version");
             canvas.Find("NewGameButton").GetComponent<Button>().onClick.Invoke();
             Check(RedboolNewGameConfirmation.IsOpen, "Saved campaign opens new-game confirmation");
             Check(PlayerPrefs.GetString(SaveKey) == sentinel && ReferenceEquals(RunState.Instance.Data, originalData), "Opening confirmation preserves saved bytes and in-memory run");
@@ -92,7 +92,7 @@ public static class RedboolSettingsSelfCheck
             Transform panel = settings.transform.Find("SettingsCanvas/SettingsModal/SettingsPanel");
             panel.Find("ApplyCamera").GetComponent<Button>().onClick.Invoke();
             Check(requested == before + 1, "UI camera apply issues exactly one request");
-            Check(panel.Find("Version").GetComponent<Text>().text.Contains("v35"), "Settings displays matching release");
+            Check(panel.Find("Version").GetComponent<Text>().text.Contains(RedboolDemoSettings.Release), "Settings displays matching release");
             panel.Find("CloseSettings").GetComponent<Button>().onClick.Invoke();
             Check(!RedboolSettingsPanel.IsOpen, "Settings closes without a scene change");
             if (settings != null) UnityEngine.Object.DestroyImmediate(settings.gameObject);

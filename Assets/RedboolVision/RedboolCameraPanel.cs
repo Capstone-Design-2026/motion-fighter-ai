@@ -8,8 +8,13 @@ public sealed class RedboolCameraPanel : MonoBehaviour
     RedboolCameraRuntime cameraRuntime;
     Canvas canvas;RectTransform panel;
     RawImage image;Text heading,hint,placeholder,combatHint;
-    Image progress;Button calibrate,reconnect,fold;
-    bool compact,tutorial;float nextUi;
+    Image progress;RectTransform track;Button calibrate,reconnect,fold,resize;
+    Transform calibrateMark,reconnectMark;
+    bool folded,tutorial,manualExpanded,wasCalibrated;float nextUi,nextTutorialCheck;
+    CaveTutorial cave;
+    readonly RedboolCombatPresentation presentation=new RedboolCombatPresentation();
+    public bool SmallPreview { get; private set; }
+    public bool DetailedGuidance { get; private set; }
     int cachedScene=-1;
     public RedboolCombatFeedbackCode DisplayedFeedback { get; private set; }
     public string DisplayedFeedbackText => combatHint!=null?combatHint.text:"";
@@ -22,8 +27,9 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         var border=background.gameObject.AddComponent<Outline>();border.effectColor=new Color(.65f,.51f,.28f,.8f);border.effectDistance=new Vector2(1,-1);
         heading=WuxiaTheme.Text("CameraHeading",panel,"내 동작",22,TextAnchor.MiddleLeft,WuxiaTheme.Gold);
         UIFactory.Place(heading.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-8),new Vector2(210,30));
-        fold=UIFactory.CreateButton("FoldCamera",panel,"접기",18,WuxiaTheme.Ink,()=> {compact=!compact;cameraRuntime.PreviewVisible=!compact;});
+        fold=UIFactory.CreateButton("FoldCamera",panel,"접기",18,WuxiaTheme.Ink,()=> {folded=!folded;cameraRuntime.PreviewVisible=!folded;});
         UIFactory.Place(fold.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-10,-8),new Vector2(60,30));
+        resize=UIFactory.CreateButton("ResizeCamera",panel,"크게",18,WuxiaTheme.Ink,()=>manualExpanded=!manualExpanded);
         var display=UIFactory.CreateRect("LocalCameraImage",panel);image=display.gameObject.AddComponent<RawImage>();image.raycastTarget=false;
         UIFactory.Place(display,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-46),new Vector2(288,216));
         placeholder=WuxiaTheme.Text("CameraPlaceholder",display,"카메라 연결 중",20,TextAnchor.MiddleCenter,WuxiaTheme.Paper);UIFactory.Stretch(placeholder.rectTransform);
@@ -32,43 +38,114 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         combatHint=WuxiaTheme.Text("CombatInputFeedback",panel,"",18,TextAnchor.MiddleCenter,WuxiaTheme.Gold);
         combatHint.horizontalOverflow=HorizontalWrapMode.Wrap;combatHint.verticalOverflow=VerticalWrapMode.Truncate;
         UIFactory.Place(combatHint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,116),new Vector2(288,52));
-        var track=UIFactory.CreateImage("CalibrationTrack",panel,new Color(.15f,.18f,.18f,1));
-        UIFactory.Place(track.rectTransform,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
-        progress=UIFactory.CreateImage("CalibrationProgress",track.transform,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
+        var trackImage=UIFactory.CreateImage("CalibrationTrack",panel,new Color(.15f,.18f,.18f,1));track=trackImage.rectTransform;
+        UIFactory.Place(track,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
+        progress=UIFactory.CreateImage("CalibrationProgress",track,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
         calibrate=UIFactory.CreateButton("CameraCalibrate",panel,"보정 · C",20,WuxiaTheme.Ink,()=>cameraRuntime.Calibrate());
         UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));WuxiaTheme.StyleButton(calibrate);
         reconnect=UIFactory.CreateButton("CameraReconnect",panel,"다시 연결",18,WuxiaTheme.Ink,()=>cameraRuntime.Reconnect());
         UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));WuxiaTheme.StyleButton(reconnect);
+        calibrateMark=calibrate.transform.Find("MenuMark");reconnectMark=reconnect.transform.Find("MenuMark");
     }
     void Update()
     {
         if(cameraRuntime==null || canvas==null)return;
         canvas.enabled=cameraRuntime.ShowPanel;
         if(!canvas.enabled || Time.unscaledTime<nextUi)return;
+        RefreshDisplay();
+    }
+    // Runs at 10Hz. Presentation only: no recognition or game-state changes.
+    void RefreshDisplay()
+    {
         nextUi=Time.unscaledTime+.1f;
         int scene=SceneManager.GetActiveScene().handle;
-        if(scene!=cachedScene) {cachedScene=scene;tutorial=FindAnyObjectByType<CaveTutorial>()!=null;}
-        UIFactory.Place(panel,tutorial?Vector2.one:new Vector2(1,0),tutorial?Vector2.one:new Vector2(1,0),
-            tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?215:436));
-        image.gameObject.SetActive(!compact);
-        // Preview is one persistent texture: LoadImage refreshes its pixels at
-        // the preview cadence even though this status/layout UI runs at10Hz.
+        if(scene!=cachedScene)
+        {cachedScene=scene;cave=null;nextTutorialCheck=0;manualExpanded=false;presentation.Reset();}
+        if(cave==null&&Time.unscaledTime>=nextTutorialCheck)
+        {cave=FindAnyObjectByType<CaveTutorial>();nextTutorialCheck=Time.unscaledTime+.5f;}
+        tutorial=cave!=null&&cave.isActiveAndEnabled||LocalPracticeActive();
+        DetailedGuidance=tutorial||RedboolDemoSettings.OperatorMode;
+        var state=cameraRuntime.Status;
+        bool calibrated=state!=null&&state.calibrated;
+        if(wasCalibrated&&!calibrated)
+        {manualExpanded=false;folded=false;cameraRuntime.PreviewVisible=true;presentation.Reset();}
+        wasCalibrated=calibrated;
+        SmallPreview=calibrated&&!DetailedGuidance&&!manualExpanded;
+        bool attention=NeedsAttention(cameraRuntime);
+        string guidance=!SmallPreview?Explain(cameraRuntime):attention?CompactGuidance(cameraRuntime):"";
+        float width=SmallPreview?240:316,inner=width-28;
+        float previewHeight=SmallPreview?159:216;
+        float footer=SmallPreview?(string.IsNullOrEmpty(guidance)?52:104):174;
+        float height=folded?footer+46:previewHeight+46+footer;
+        // Keep the detailed story guide clear; PvP practice already has its own
+        // top-of-screen participant cards, so its camera stays at the bottom.
+        bool top=cave!=null&&cave.isActiveAndEnabled;
+        UIFactory.Place(panel,top?Vector2.one:new Vector2(1,0),top?Vector2.one:new Vector2(1,0),
+            top?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(width,height));
+        UIFactory.Place(heading.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-8),new Vector2(inner-110,30));
+        heading.fontSize=SmallPreview?18:22;
+        UIFactory.Place(fold.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-10,-8),new Vector2(52,30));
+        UIFactory.Place(resize.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-66,-8),new Vector2(52,30));
+        resize.gameObject.SetActive(calibrated&&!DetailedGuidance);
+        resize.GetComponentInChildren<Text>().text=SmallPreview?"크게":"작게";
+        image.gameObject.SetActive(!folded);
+        UIFactory.Place(image.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-46),new Vector2(inner,previewHeight));
+        // The same persistent preview texture and existing adaptive cadence.
         image.texture=cameraRuntime.PreviewFresh?cameraRuntime.Preview:null;
         image.color=image.texture!=null?Color.white:new Color(.08f,.1f,.11f,1);
         placeholder.gameObject.SetActive(image.texture==null);
         placeholder.text=cameraRuntime.Running?"카메라 연결 중":"카메라 연결 대기";
-        fold.GetComponentInChildren<Text>().text=compact?"펼치기":"접기";
-        heading.text=cameraRuntime.Synthetic?"카메라 연결 검사":RedboolPvp.Active?(RedboolPvp.IsClient?"2P · 내 동작":"1P · 내 동작"):"내 동작";
-        UIFactory.Place(hint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,68),new Vector2(288,44));
-        hint.text=Explain(cameraRuntime);
-        var state=cameraRuntime.Status;
+        fold.GetComponentInChildren<Text>().text=folded?"펼치기":"접기";
+        heading.text=RedboolPvp.Active?(RedboolPvp.IsClient?"2P · 내 동작":"1P · 내 동작"):"내 동작";
+        UIFactory.Place(hint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,SmallPreview?56:68),new Vector2(inner,44));
+        hint.text=guidance;hint.gameObject.SetActive(!string.IsNullOrEmpty(guidance));
         DisplayedFeedback=LocalFeedback();
-        combatHint.text=RedboolCombatFeedback.Text(DisplayedFeedback);
+        combatHint.text=presentation.Present(DisplayedFeedback,DetailedGuidance,Time.unscaledTimeAsDouble);
+        UIFactory.Place(combatHint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,SmallPreview?28:116),new Vector2(inner,SmallPreview?24:52));
+        combatHint.gameObject.SetActive(!string.IsNullOrEmpty(combatHint.text));
+        track.gameObject.SetActive(!SmallPreview);
         float amount=state!=null?Mathf.Clamp01(state.calibration_progress):0;
         if(float.IsNaN(amount)||float.IsInfinity(amount))amount=0;
         progress.rectTransform.anchorMin=Vector2.zero;progress.rectTransform.anchorMax=new Vector2(amount,1);
         progress.rectTransform.offsetMin=progress.rectTransform.offsetMax=Vector2.zero;
+        UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,SmallPreview?4:12),new Vector2(SmallPreview?96:136,SmallPreview?24:34));
+        calibrate.GetComponentInChildren<Text>().text=SmallPreview?"재보정 · C":"보정 · C";
+        calibrate.GetComponentInChildren<Text>().fontSize=SmallPreview?16:20;
         calibrate.interactable=cameraRuntime.Running&&cameraRuntime.Fresh&&(cameraRuntime.Synthetic||(state!=null&&state.camera_connected));
+        if(calibrateMark!=null)calibrateMark.gameObject.SetActive(!SmallPreview);
+        if(reconnectMark!=null)reconnectMark.gameObject.SetActive(!SmallPreview);
+        reconnect.gameObject.SetActive(!SmallPreview||attention);
+        UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,SmallPreview?4:12),new Vector2(SmallPreview?100:136,SmallPreview?24:34));
+    }
+    bool LocalPracticeActive()
+    {
+        if(!RedboolPvp.Active)return false;
+        var game=RedboolPvp.Instance;
+        if(game==null)return true;
+        if(!RedboolPvp.IsClient)return !game.Practices[0].Complete;
+        var frame=game.ViewLink!=null?game.ViewLink.Latest:null;
+        return frame==null||!frame.Complete||frame.actors[1].step<RedboolPractice.Actions.Length;
+    }
+    static string CompactGuidance(RedboolCameraRuntime runtime)
+    {
+        if(!string.IsNullOrEmpty(runtime.InputConnectionError))return "다른 게임을 닫아주세요\n자동으로 다시 연결합니다";
+        if(!string.IsNullOrEmpty(runtime.Error)||runtime.Status!=null&&!string.IsNullOrEmpty(runtime.Status.error))
+            return "카메라 연결 확인\n다시 연결을 눌러주세요";
+        if(!runtime.Running)return "카메라 연결 대기\n다시 연결을 눌러주세요";
+        if(!runtime.Fresh||runtime.Status==null)return "카메라 응답 대기\n자동으로 연결 확인 중";
+        var s=runtime.Status;
+        if(!s.camera_connected&&!runtime.Synthetic)return "카메라 연결 대기\n카메라 권한을 확인하세요";
+        if(s.camera_slow)return "카메라 영상 지연\n조명을 밝게 해주세요";
+        if(s.tracking=="STALE")return "영상 처리 지연\n잠시 기다려주세요";
+        if(s.framing!=null&&s.framing.code=="OUTSIDE")return "양팔이 화면 안에\n들어오게 앉아주세요";
+        return "양손과 팔꿈치를\n카메라에 보여주세요";
+    }
+    static bool NeedsAttention(RedboolCameraRuntime runtime)
+    {
+        if(!runtime.Running||!runtime.Fresh||!string.IsNullOrEmpty(runtime.InputConnectionError)||!string.IsNullOrEmpty(runtime.Error))return true;
+        var s=runtime.Status;
+        return s==null||!string.IsNullOrEmpty(s.error)||!s.calibrated||(!runtime.Synthetic&&
+            (!s.camera_connected||s.camera_slow||s.tracking!="VALID"||s.framing!=null&&s.framing.code=="OUTSIDE"));
     }
     RedboolCombatFeedbackCode LocalFeedback()
     {
