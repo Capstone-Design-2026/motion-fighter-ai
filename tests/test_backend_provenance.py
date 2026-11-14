@@ -44,7 +44,7 @@ class BackendProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);(root/'assets').mkdir()
             path=root/'assets'/PROVENANCE_FILE
-            data={'release':'v34.1','recording_schema':'redbool.landmarks/1','source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
+            data={'release':'v34.2','recording_schema':'redbool.landmarks/1','source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
             path.write_text(json.dumps(data),encoding='utf-8')
             with patch('redbool_demo.backend_provenance.sys.frozen',True,create=True),patch('redbool_demo.backend_provenance.sys._MEIPASS',folder,create=True):
                 self.assertTrue(capabilities()['frozen']);self.assertEqual(capabilities()['source_commit'],'b'*40)
@@ -52,12 +52,24 @@ class BackendProvenanceTests(unittest.TestCase):
                 capabilities.cache_clear();data['recording_schema']='redbool.landmarks/0';path.write_text(json.dumps(data))
                 with self.assertRaisesRegex(ValueError,'schema mismatch'):capabilities()
 
+    def test_previous_release_cannot_masquerade_as_current_frozen_backend(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);(root/'assets').mkdir()
+            # Same schema/hash shape is insufficient: this release changes the
+            # actual live inference policy and must ship its own executable.
+            data={'release':'v34.1','recording_schema':'redbool.landmarks/1',
+                  'source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
+            (root/'assets'/PROVENANCE_FILE).write_text(json.dumps(data),encoding='utf-8')
+            with patch('redbool_demo.backend_provenance.sys.frozen',True,create=True),patch('redbool_demo.backend_provenance.sys._MEIPASS',folder,create=True):
+                with self.assertRaisesRegex(ValueError,'provenance/schema mismatch'):capabilities()
+
     def test_check_reports_capability_after_import_check_without_bridge(self):
         from redbool_demo.backend import main
         with patch('redbool_demo.live.main') as live,patch('redbool_demo.local_bridge.LocalBridge',side_effect=AssertionError('opened bridge')),contextlib.redirect_stdout(io.StringIO()) as out:
             main(['--check'])
         self.assertTrue(live.called)
         data=json.loads(out.getvalue().strip().splitlines()[-1])
+        self.assertEqual(data['release'],'v34.2')
         self.assertEqual(data['recording_schema'],'redbool.landmarks/1');self.assertFalse(data['camera_opened'])
 
 

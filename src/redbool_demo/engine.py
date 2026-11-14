@@ -54,7 +54,10 @@ class DemoEngine(DevelopmentEngine):
     def _components(self):
         super()._components()
         self.attack.units = {s:DemoAttack(self.config) for s in ('LEFT','RIGHT')}
-        self.calibration_signals = ChannelSignals(self.config)
+        # A stationary guard can span slower camera samples. Keep this bound
+        # separate from live attack timing; freshness and pose checks stay strict.
+        self.calibration_signals = ChannelSignals(replace(self.config,
+            max_gap_ms=max(self.config.max_gap_ms, 200)))
         self.samples.clear()
         self.calibration_observations.clear()
         self.calibrated = False
@@ -109,7 +112,7 @@ class DemoEngine(DevelopmentEngine):
                         self.samples.append((obs.capture_ns,arms))
                         self.calibration_observations.append(obs)
                         elapsed=(obs.capture_ns-self.samples[0][0])/1e9
-                        self.calibration_progress=min(1.,elapsed/.6)
+                        self.calibration_progress=min(1.,elapsed/.6,len(self.samples)/12.)
                         if elapsed>=.6 and len(self.samples)>=12:
                             for side,unit in self.attack.units.items():
                                 anchor={k:np.median([a[side][k] for _,a in self.samples],axis=0)

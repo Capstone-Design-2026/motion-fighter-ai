@@ -20,6 +20,7 @@ from .transport import DemoSender
 from realtime_vision.clock import now_ns, metadata as clock_metadata
 from .camera_diagnostics import CaptureCadence, camera_properties
 from .key_input import CalibrationKeyGate
+from .performance_policy import InferencePolicy
 from .guided import GuidedCheck
 from .framing import framing_status
 from collections import Counter
@@ -69,6 +70,8 @@ def run(a):
     verify_pose_asset(a.pose,variant)
     cross_path=getattr(a,"cross_pose",None)
     if cross_path:verify_pose_asset(cross_path,"Full")
+    inference_runtime=InferencePolicy(bool(cross_path))
+    inference_policy=inference_runtime.description()
     if getattr(a,'guard_model',None):
         from .learned import LearnedGuardEngine
         engine=LearnedGuardEngine(a.guard_model,movement=a.movement,clock=engine_clock)
@@ -107,7 +110,7 @@ def run(a):
             actor_id=a.actor,capture_epoch=stream,runtime_clock=runtime_clock,
             primary_model=dict(variant=variant,sha256=hashlib.sha256(a.pose.read_bytes()).hexdigest()),
             auxiliary_model=dict(variant='Full',sha256=hashlib.sha256(cross_path.read_bytes()).hexdigest()) if cross_path else None,
-            source_mirrored=False,raw_rgb_saved=False,
+            source_mirrored=False,raw_rgb_saved=False,inference_policy=inference_policy,
             implementation={k:capability[k] for k in ('release','recording_schema','source_commit',
                 'source_sha256','source_dirty','source_file_count')})
     acquisition=CaptureCadence();camera_info={};calibration_keys=CalibrationKeyGate()
@@ -196,6 +199,7 @@ def run(a):
     _print_status(f'Output: {out}\nUDP destination: {a.host}:{a.port}\nStream: {stream}\nC calibrate | M movement | X pause/reset | Q finish',flush=True)
     started=time.monotonic();last_stamp=None;origin=None;last_ms=-1;pose_ms=0.
     next_preview_ns=0;cross_samples=[];recovery_samples=[];pose_samples=[];age_samples=[];framing_counts=Counter()
+    auxiliary_calibration_skipped_frames=0;auxiliary_overload_skipped_frames=0
     prior_cv_threads=cv.getNumThreads()
     try:
         if headless and bridge is None:
@@ -249,6 +253,7 @@ def run(a):
                         'cross_pose':{'variant':'Full','sha256':hashlib.sha256(cross_path.read_bytes()).hexdigest(),'scope':'same-frame auxiliary X only'} if cross_path else None,
                         'cross_redetect':{'mode':'IMAGE','variant':'Full','scope':'same-frame X recovery only'} if recovery_pose else None,
                         'camera_requested_fps':30,'preview_target_fps':preview_fps,'opencv_threads':1,
+                        'inference_policy':inference_policy,
                         'guard_model':engine.posture_model.meta if getattr(a,'guard_model',None) else None,
                         'stream_id':stream,'recording_mode':recording,'scope':'full-rate Pose + FSM; optional RGB; not human ground truth',
                         'all_successful_captures_saved':False,'frame_policy':'full-rate pose; review RGB 15fps, lossless RGB full-rate, logs no RGB'})
@@ -264,13 +269,20 @@ def run(a):
                         raw=CompactVideo(cv,recorder,(bgr.shape[1],bgr.shape[0]),15)
                     video=AsyncPilotVideo(raw,32)
                     recorder.update_manifest(video=raw.metadata)
-            # One immutable RGB sample goes to independent model instances.
-            # Await this frame before publishing; no auxiliary backlog or stale reuse.
+            # Guard calibration consumes the primary observation only; no X
+            # action can fire yet. Keep its critical path free of auxiliary
+            # models. Configured auxiliaries resume after calibration unless
+            # sustained overload latched them off; never reuse old observations.
+            with engine.lock:calibrated_at_frame_start=engine.calibrated
+            run_auxiliary=inference_runtime.run_auxiliary(calibrated_at_frame_start)
+            if cross_pose is not None and not run_auxiliary:
+                if inference_runtime.lite_only:auxiliary_overload_skipped_frames+=1
+                else:auxiliary_calibration_skipped_frames+=1
             image=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
-            recovery_future=recovery_pool.submit(redetect,image) if recovery_pool else None
+            recovery_future=recovery_pool.submit(redetect,image) if recovery_pool and run_auxiliary else None
             start=now_ns();result=pose.detect_for_video(image,ms);end=now_ns()
             cross=None;cross_data=None
-            if cross_pose is not None:
+            if cross_pose is not None and run_auxiliary:
                 cross_start=now_ns()
                 cross=cross_pose.detect_for_video(image,ms)
                 cross_end=now_ns();cross_samples.append((cross_end-cross_start)/1e6)
@@ -318,6 +330,12 @@ def run(a):
             framing=framing_status(obs,engine.config.visibility);framing_counts[framing['code']]+=1
             counts['processed']+=1;pose_ms=(end-start)/1e6
             engine_end=now_ns();pose_samples.append(pose_ms);age_samples.append((engine_end-stamp)/1e6)
+            auxiliary_end=max([end]+[m['end_ns'] for m in (cross_data,recovery_data) if m is not None])
+            transition=inference_runtime.observe(auxiliary_ran=run_auxiliary,
+                capture_ns=stamp,primary_end_ns=end,auxiliary_end_ns=auxiliary_end,processing_end_ns=engine_end)
+            if transition:
+                log.write({'type':'inference_policy','frame_id':frame['frame_id'],
+                    'capture_ns':stamp,'timestamp_ns':engine_end,**transition})
             log.write({'type':'frame','frame_id':frame['frame_id'],'camera_frame_id':fid,'capture_ns':stamp,
                 'pose_end_ns':end,'engine_end_ns':engine_end,'state':asdict(state),'framing':framing})
             with engine.lock:
@@ -343,7 +361,9 @@ def run(a):
                     special_progress=cross_progress,special_owned=cross_owned,special_sent=cross_sent,
                     personal_status=engine.trainer.status if hasattr(engine,'trainer') else 'BASELINE V26',
                     udp_synced=bool(sender.clock),last_status=sender.last_status,
-                    recording=journal.health() if journal else None)
+                    recording=journal.health() if journal else None,
+                    inference_mode=inference_runtime.snapshot(armed)['inference_mode'],
+                    inference_warning=inference_runtime.snapshot(armed)['inference_warning'])
                 landmarks=tuple((p.x,p.y,p.visibility) for p in result.pose_landmarks[0]) if result.pose_landmarks else None
                 bridge.offer_preview(bgr,stamp,mirror=a.mirror,landmarks=landmarks)
             if not headless and preview_now>=next_preview_ns:
@@ -429,6 +449,10 @@ def run(a):
             bridge.close()
         performance={'camera_requested_fps':30,'preview_target_fps':preview_fps,
             'headless':headless,'local_preview':bridge.snapshot() if bridge else None,
+            'inference_policy':inference_policy,'auxiliary_frames':len(cross_samples),
+            'auxiliary_calibration_skipped_frames':auxiliary_calibration_skipped_frames,
+            'auxiliary_overload_skipped_frames':auxiliary_overload_skipped_frames,
+            'inference_runtime':inference_runtime.snapshot(engine.calibrated),
             'runtime_clock':runtime_clock,'acquisition':acquisition.summary(),'camera_properties':camera_info,
             'processed_fps':(counts['processed']-1)*1e9/(last_stamp-origin) if last_stamp is not None and last_stamp>origin else 0.,
             'cross_redetect_ms_p50_p95':np.percentile(recovery_samples,[50,95]).tolist() if recovery_samples else [],
