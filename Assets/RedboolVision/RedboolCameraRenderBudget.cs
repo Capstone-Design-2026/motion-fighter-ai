@@ -43,7 +43,7 @@ public sealed class RedboolCameraRenderBudget : MonoBehaviour
         }
         // Respect a lower scale selected by another game setting while active.
         if (!Mathf.Approximately(owned.renderScale, appliedScale)) originalScale = owned.renderScale;
-        bool inferencePressure = runtime.InferencePressure;
+        bool inferencePressure = runtime.InferencePressure || RedboolDemoSettings.LowQuality;
         float desired = ScaleFor(Screen.width, Screen.height, originalScale, inferencePressure);
         if (Mathf.Approximately(desired, owned.renderScale)) { appliedScale = desired; return; }
         owned.renderScale = desired; appliedScale = desired;

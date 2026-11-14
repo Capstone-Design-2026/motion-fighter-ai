@@ -66,7 +66,7 @@ public sealed class RedboolDuelTest : MonoBehaviour
             new Vector2(24, -124), new Vector2(180, 42));
         WuxiaTheme.StyleButton(exit);
         var label = WuxiaTheme.Text("Help", canvas.transform,
-            "결투 테스트 · 진행 저장 안 함  |  F5: 다시 시작  |  I: 필살기 충전  |  Esc: 메뉴", 18,
+            "빠른 대전 · 스토리 진행은 저장되지 않아요  |  Esc: 게임 메뉴", 18,
             TextAnchor.MiddleCenter, WuxiaTheme.Paper);
         UIFactory.Place(label.rectTransform, new Vector2(.5f, 0), new Vector2(.5f, 0),
             new Vector2(0, 24), new Vector2(1100, 40));
@@ -75,6 +75,6 @@ public sealed class RedboolDuelTest : MonoBehaviour
     void Update()
     {
         if (!Active) return;
-        if (!RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyCode.F5)) Restart();
+        if (RedboolDemoSettings.OperatorMode && !RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyCode.F5)) Restart();
     }
 }

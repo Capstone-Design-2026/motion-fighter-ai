@@ -3,7 +3,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>Seven responsive practice steps. Vision and explicitly selected keyboard tests stay separate.</summary>
+/// <summary>Eight responsive practice steps. Vision and explicitly selected keyboard tests stay separate.</summary>
 public class CaveTutorial : MonoBehaviour {
  public static readonly string[] Actions={"JAB","STRAIGHT","HIGH_KICK","LOW_KICK","BLOCK","MOVE_LEFT","MOVE_RIGHT","SPECIAL"};
  static readonly string[] Names={"잽","스트레이트","하이킥","로우킥","막기","왼쪽 이동","오른쪽 이동","파운장"};
@@ -14,7 +14,7 @@ public class CaveTutorial : MonoBehaviour {
  public static RedboolPracticeContext TeachingContext => active==null || active.keyboard || active.exit ? null : new RedboolPracticeContext {
   run=active.teachingRun,action=Actions[active.CurrentStep],phase=active.IsDemonstrating?"DEMO":active.advancing?"RETURN":"PRACTICE",hits=active.hits};
  RunState run;Transform frame;Text title,instruction,progress,status,modeLabel,inputHint,signal,phaseLabel;TrainingPoseGraphic inputPose,resultPose;
- RectTransform focus;Image flash;bool keyboard,armed,exit,advancing;int hits,mistakes;float lastPacket=-100,nextStepAt,demoUntil,stepStarted,feedbackUntil,successPulse;string lastSignal="";
+ RectTransform focus;Image flash;bool keyboard,armed,exit,advancing,operatorEnabled;int hits,mistakes;float lastPacket=-100,nextStepAt,demoUntil,stepStarted,feedbackUntil,successPulse;string lastSignal="";
  public int CurrentStep=>run==null?0:Mathf.Clamp(run.Data.tutorialStep,0,Actions.Length-1);
  public int SuccessfulAttempts=>hits;
  public bool IsDemonstrating=>Time.unscaledTime<demoUntil;
@@ -28,8 +28,9 @@ public class CaveTutorial : MonoBehaviour {
   if(Object.FindAnyObjectByType<RedboolDemoReceiver>()==null){var receiver=new GameObject("TutorialVisionReceiver");receiver.transform.SetParent(canvas.transform);receiver.AddComponent<RedboolDemoReceiver>();}
   try{while(!tutorial.exit)yield return null;}finally{RedboolDemoReceiver.TutorialAction-=tutorial.OnVision;if(canvas!=null)Destroy(canvas.gameObject);}
  }
- void OnDestroy(){if(active==this)active=null;RedboolDemoReceiver.TutorialAction-=OnVision;}
+ void OnDestroy(){if(active==this)active=null;RedboolDemoReceiver.TutorialAction-=OnVision;RedboolDemoSettings.Changed-=OnSettingsChanged;}
  void Build(){
+  operatorEnabled=RedboolDemoSettings.OperatorMode;RedboolDemoSettings.Changed-=OnSettingsChanged;RedboolDemoSettings.Changed+=OnSettingsChanged;
   var backdrop=UIFactory.CreateImage("BlockMapInput",transform,Color.black,true);UIFactory.Stretch(backdrop.rectTransform);
   var logical=UIFactory.CreateRect("TrainingFrame",transform);logical.gameObject.AddComponent<CinematicFrame>().Fit();frame=logical;
   var rect=UIFactory.CreateRect("CaveBackground",frame);UIFactory.Stretch(rect);var bg=rect.gameObject.AddComponent<RawImage>();bg.texture=Resources.Load<Texture2D>("UI/Wuxia/TrainingCaveMurals");bg.raycastTarget=false;
@@ -45,7 +46,7 @@ public class CaveTutorial : MonoBehaviour {
   phaseLabel=Label("TrainingPhase","",25,680,350,560,52);
   status=Label("TrainingStatus","",26,180,65,1560,55);progress=Label("TrainingProgress","",22,740,8,440,45);
   inputHint=Label("TrainingInputHint","",20,160,865,1600,45);signal=Label("LiveSignal","",21,450,810,1020,45);
-  var mode=Button("TutorialInputMode","키보드 테스트",ToggleInputMode,1640,1010,245);modeLabel=mode.GetComponentInChildren<Text>();
+  var mode=Button("TutorialInputMode","키보드 테스트",ToggleInputMode,1640,1010,245);modeLabel=mode.GetComponentInChildren<Text>();mode.gameObject.SetActive(RedboolDemoSettings.OperatorMode);
   Button("LeaveTraining","수련 중단",()=>{run.Save();exit=true;},28,1010,180);
   Button("ReplayDemonstration","시범 다시 보기",ReplayDemonstration,1640,340,245);
   var pulse=UIFactory.CreateImage("SuccessPulse",frame,new Color(.84f,1,.66f,0));Box(pulse.rectTransform,0,316,1920,4);flash=pulse;
@@ -60,6 +61,14 @@ public class CaveTutorial : MonoBehaviour {
  }
  public void ReplayDemonstration(){armed=false;demoUntil=Time.unscaledTime+2.6f;feedbackUntil=0;status.text="먼저 벽화와 아래 시범을 보세요. 곧 따라 할 차례예요.";}
  public void ToggleInputMode(){keyboard=!keyboard;hits=0;armed=false;advancing=false;mistakes=0;modeLabel.text=keyboard?"비전 인식으로 전환":"키보드 테스트";RefreshStep();}
+ void OnSettingsChanged(){
+  bool enabled=RedboolDemoSettings.OperatorMode;
+  // Only the user's explicit operator-off transition exits keyboard practice.
+  // Direct fixture input remains available; ordinary Update never changes modes.
+  if(operatorEnabled&&!enabled&&keyboard&&!exit)ToggleInputMode();
+  operatorEnabled=enabled;
+  if(modeLabel!=null)modeLabel.transform.parent.gameObject.SetActive(enabled);
+ }
  void RefreshStep(){int step=CurrentStep;title.text="마른 폭포 동굴   ·   "+(step+1)+" / "+Actions.Length+"   "+Names[step];instruction.text=Gestures[step];inputPose.step=resultPose.step=step;stepStarted=Time.unscaledTime;mistakes=0;lastSignal="";
   float[] xs={505,790,1410,1100};if(step<4){focus.gameObject.SetActive(true);Box(focus,xs[step],390,275,380);}else focus.gameObject.SetActive(false);
   frame.Find("InputPoseExplanation").GetComponent<Text>().text=Gestures[step]+(step<5?"\n내 왼손·오른손 기준으로 움직이세요":"\n이동 후 중앙으로 돌아오기");
@@ -69,13 +78,14 @@ public class CaveTutorial : MonoBehaviour {
  }
  void Feedback(string message){status.text=message;feedbackUntil=Time.unscaledTime+2.2f;}
  void Update(){if(run==null||exit)return;
+  if(modeLabel!=null)modeLabel.transform.parent.gameObject.SetActive(RedboolDemoSettings.OperatorMode);
   successPulse=Mathf.MoveTowards(successPulse,0,Time.unscaledDeltaTime);if(flash!=null)flash.color=new Color(.84f,1,.66f,successPulse);
   if(advancing){if(Time.unscaledTime<nextStepAt)return;advancing=false;run.Data.tutorialStep++;run.Save();hits=0;armed=false;
    if(run.Data.tutorialStep>=Actions.Length){run.CompleteTutorial();exit=true;return;}RefreshStep();}
   phaseLabel.text=advancing?"확인 완료":IsDemonstrating?"① 시범 보기":armed||DiscreteVisionStep?"② 따라 해보세요":"③ 팔을 내리거나 중앙으로 돌아오기";
   if(IsDemonstrating)return;
-  if(keyboard){if(!RedboolPauseMenu.BlocksStoryInput){if(Input.GetKeyDown(KeyCode.Space))Accept("IDLE",1);for(int i=0;i<Actions.Length;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))Accept(Actions[i],1);}}
-  else if(Time.unscaledTime-lastPacket>3){armed=false;signal.text="카메라 신호 없음";if(Time.unscaledTime>feedbackUntil)status.text="비전 신호를 기다려요. 백엔드를 켜거나 우측 위에서 키보드 테스트를 선택하세요.";return;}
+  if(keyboard){if(RedboolDemoSettings.OperatorMode&&!RedboolPauseMenu.BlocksStoryInput){if(Input.GetKeyDown(KeyCode.Space))Accept("IDLE",1);for(int i=0;i<Actions.Length;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))Accept(Actions[i],1);}}
+  else if(Time.unscaledTime-lastPacket>3){armed=false;signal.text="카메라 신호 없음";if(Time.unscaledTime>feedbackUntil)status.text="내 동작 화면에서 카메라 연결과 보정을 확인해주세요.";return;}
   if(Time.unscaledTime>feedbackUntil&&!advancing)status.text=Time.unscaledTime-stepStarted>12||mistakes>=3?Tips[CurrentStep]:armed||DiscreteVisionStep?Gestures[CurrentStep]:"팔을 내리거나 몸을 중앙으로 돌리면 다음 동작을 받을게요.";
  }
  void OnVision(string action,float confidence,string movement,float strength){
@@ -105,7 +115,7 @@ public class CaveTutorial : MonoBehaviour {
   if(float.IsNaN(confidence)||float.IsInfinity(confidence)||confidence<.7f){Feedback("자세가 불분명해요. 양손이 카메라에 보이도록 다시 준비해보세요.");return;}
   if(action=="IDLE"||action=="NONE"){armed=true;if(Time.unscaledTime>feedbackUntil)Feedback("준비됐어요. "+Gestures[CurrentStep]);signal.text="기본 자세 확인";lastSignal=action;return;}
   int detected=System.Array.IndexOf(Actions,action);signal.text="받은 동작: "+(detected>=0?Names[detected]:action);
-  if(action=="ATTACK"){Feedback("공격은 들어왔지만 잽/스트레이트 구분 신호가 없어요. 동작별 백엔드 또는 키보드 테스트를 사용하세요.");return;}
+  if(action=="ATTACK"){Feedback("공격을 구분하지 못했어요. 안내한 손만 한 번 뻗고 되돌려주세요.");return;}
   if(action==lastSignal&&!armed&&!oneShot)return;lastSignal=action;
   if(!armed&&!oneShot){Feedback("좋아요. 다음 시도 전에 손과 어깨를 기본 자세로 되돌려주세요.");return;}
   if(action!=Actions[CurrentStep]){mistakes++;armed=false;Feedback("지금은 "+Names[CurrentStep]+" 차례예요. "+Tips[CurrentStep]);return;}

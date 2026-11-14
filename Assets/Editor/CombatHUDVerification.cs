@@ -127,14 +127,22 @@ public static class CombatHUDVerification
         // Equal exact ratios, including different maximum HP.
         player.SetCurrentHealth(player.MaxHealth);enemy.SetCurrentHealth(enemy.MaxHealth);
         TimeLeft(.001f);for(var w=Wait(.15f);w.MoveNext();)yield return null;
-        Check(battle.IsResolved&&canvas.transform.Find("KOText").GetComponent<Text>().text.Contains("YOU LOSE"),"Equal HP ratio at timeout is a player loss");
+        Check(battle.IsResolved&&canvas.transform.Find("BattleResult/KOText").GetComponent<Text>().text.Contains("YOU LOSE"),"Equal HP ratio at timeout is a player loss");
+        var headline=canvas.transform.Find("BattleResult/KOText").GetComponent<Text>();
+        var caption=canvas.transform.Find("BattleResult/ResultCaption").GetComponent<Text>();
+        var restart=canvas.transform.Find("BattleResult/RestartHint").GetComponent<Text>();
+        Check(caption.text=="TIME UP" &&restart.text.Contains("다시 시작")&&restart.gameObject.activeSelf,"Result keeps timeout cause and the Korean restart instruction separate from decorative lettering");
+        Check(headline.font==Resources.Load<Font>("UI/Fonts/TradeWinds-Regular") &&headline.GetComponents<CombatAnnouncementStyle>().Length==1,"Result uses the bundled announcement font and one bounded mesh effect");
+        Check(restart.font!=headline.font&&!restart.raycastTarget&&!headline.raycastTarget,"Korean restart text retains the regular HUD font and does not intercept input");
         for(var c=Capture("07_timeout",1920,1080);c.MoveNext();)yield return null;
-        Invoke(hud,"RestartRound");player.SetCurrentHealth(player.MaxHealth);enemy.SetCurrentHealth(1);TimeLeft(.001f);
+        Invoke(hud,"RestartRound");
+        Check(!canvas.transform.Find("BattleResult").gameObject.activeSelf,"Restart clears the entire result panel, including caption and restart hint");
+        player.SetCurrentHealth(player.MaxHealth);enemy.SetCurrentHealth(1);TimeLeft(.001f);
         for(var w=Wait(.15f);w.MoveNext();)yield return null;
-        Check(battle.IsResolved&&canvas.transform.Find("KOText").GetComponent<Text>().text.Contains("YOU WIN"),"Higher HP ratio at timeout wins");
+        Check(battle.IsResolved&&canvas.transform.Find("BattleResult/KOText").GetComponent<Text>().text.Contains("YOU WIN"),"Higher HP ratio at timeout wins");
         Invoke(hud,"RestartRound");battle.enabled=false;
         enemy.TakeDamage(10000,Vector2.zero);yield return null;
-        Check(enemyHP.FillRatio==0&&canvas.transform.Find("KOText").gameObject.activeSelf,"KO empties health and preserves result overlay");
+        Check(enemyHP.FillRatio==0&&canvas.transform.Find("BattleResult").gameObject.activeSelf,"KO empties health and preserves result overlay");
         for(var c=Capture("08_ko",1920,1080);c.MoveNext();)yield return null;
         UnityEngine.Object.Destroy(hud.gameObject);yield return null;
         player.Heal(1);special.AddCharge();yield return null;

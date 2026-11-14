@@ -49,6 +49,35 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         else TutorialAction?.Invoke(action,confidence,movement,strength);
     }
     private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
+    public static RedboolDemoReceiver ListeningOn(int listenPort) {
+        RedboolDemoReceiver receiver;
+        return listeners.TryGetValue(listenPort,out receiver) && receiver!=null && receiver.Bound ? receiver : null;
+    }
+    readonly RedboolCombatFeedback combatFeedback = new RedboolCombatFeedback();
+    Fighter feedbackFighter;
+    void BindFeedbackFighter() {
+        var next=player!=null?player.GetComponent<Fighter>():null;
+        if(next==feedbackFighter)return;
+        if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage-=OnFeedbackInterrupted;
+        feedbackFighter=next;combatFeedback.Reset();
+        if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage+=OnFeedbackInterrupted;
+    }
+    void OnFeedbackInterrupted() { combatFeedback.AttackInterrupted(Time.unscaledTimeAsDouble); }
+    public RedboolCombatFeedbackCode FeedbackCode {
+        get {
+            BindFeedbackFighter();
+            var f=feedbackFighter;var h=f!=null?f.Health:null;
+            return combatFeedback.Resolve(new RedboolCombatFeedbackContext {
+                Available=hasState && (f!=null || Practicing),Calibrated=lastCalibrated,
+                TrackingValid=LiveReady,InputDelayed=lastTracking=="STALE" || lastTracking=="VALID" && !LiveReady,
+                Preparing=!AllowsInput || f!=null && f.VisionPreparationLocked,Practicing=Practicing,
+                Dead=h!=null && h.IsDead,HitStunned=h!=null && h.IsHitStunned,
+                Recovering=f!=null && f.IsInRecovery,Attacking=f!=null && f.IsAttacking,
+                SpecialActive=f!=null && f.IsSpecialActive,Guarding=f!=null && f.IsGuarding,
+                CanAttack=f!=null && f.CanAttack && !f.IsAttackSealed && AllowsInput
+            },Time.unscaledTimeAsDouble);
+        }
+    }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
     public bool showStatus = true;
@@ -146,6 +175,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             BindError=null;PortConflict=false;
             StreamId=expectedStreamId; sequence=deadline=presenceDeadline=lastLiveNs=0; pairedPeer=null;
             hasState=false;sourceCaptureNs=lastUncertaintyNs=0;
+            combatFeedback.Reset();
             syncs.Clear();outcomes.Clear();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
             RedboolSocketOwnership.PreventInheritance(udp.Client,"UDP "+bindAddress+":"+port);
@@ -188,6 +218,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
             configuredPlayer=player;oldKeyboard=player.useKeyboard;player.useKeyboard=false;
             diagnosticsEnemy=FindAnyObjectByType<EnemyAI>();
+            BindFeedbackFighter();
         }
         // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
         if(player!=null && player==configuredPlayer) player.useKeyboard=!PvpOwned && RedboolBattlePreparation.KeyboardTest;
@@ -221,7 +252,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(p.kind=="SYNC" && !String.IsNullOrEmpty(p.sync_id) && p.sync_id.Length<=100) {
             bool newRun=p.stream_id!=StreamId;
             if(newRun && (String.IsNullOrEmpty(expectedStreamId) && now-lastLiveNs>500000000L)) {
-                Safe();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
+                Safe();combatFeedback.Reset();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
             }
             if(p.stream_id!=StreamId) return;
             if(pairedPeer==null) pairedPeer=item.peer;
@@ -271,6 +302,9 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                     if(status=="APPLIED") { AttacksApplied++; } else AttacksBusy++;
                 }
                 outcomes[p.event_id]=status;
+                // The ACK outcome is a start/denial, never proof of a landed hit.
+                // Cached duplicate outcomes do not refresh this short notice.
+                combatFeedback.Acknowledge(status,action,Time.unscaledTimeAsDouble);
             }
         } else if((p.movement!="LEFT" && p.movement!="RIGHT" && p.movement!="NEUTRAL")
             || Single.IsNaN(p.movement_strength) || Single.IsInfinity(p.movement_strength)
@@ -284,6 +318,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             tutorialInputValid=lastCalibrated && p.tracking=="VALID";
             presenceDeadline=tutorialInputValid ? deadline+100000000L : 0;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
+            if(CalibrationGeneration!=p.calibration_generation)combatFeedback.Reset();
             CalibrationGeneration=p.calibration_generation;
             CalibrationObserved?.Invoke(p.calibration_version==1 && p.calibrated,p.calibration_generation);
             lastPhase=p.fsm_state;
@@ -373,6 +408,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(Time.unscaledTime<feedbackUntil) GUI.Label(new Rect(22,110,450,25),inputFeedback);
     }
     private void OnDisable() {
+        if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage-=OnFeedbackInterrupted;
+        feedbackFighter=null;combatFeedback.Reset();
         Preparation?.ResetPreparation();
         Safe();running=false;udp?.Close();udp=null;
         RedboolDemoReceiver owner;

@@ -28,6 +28,30 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     RunData mapOriginalData;
     string mapOriginalMessage;
     bool mapFixtureActive;
+    const string CameraPreferenceKey="REDBOOL.Settings.CameraIndex";
+    bool cameraPreferenceCaptured,cameraPreferencePresent;
+    int cameraPreferenceValue;
+    void CaptureCameraPreference()
+    {
+        if(cameraPreferenceCaptured)return;
+        cameraPreferencePresent=PlayerPrefs.HasKey(CameraPreferenceKey);
+        cameraPreferenceValue=PlayerPrefs.GetInt(CameraPreferenceKey);
+        cameraPreferenceCaptured=true;
+    }
+    void RestoreCameraPreference()
+    {
+        if(!cameraPreferenceCaptured)return;
+        if(cameraPreferencePresent)PlayerPrefs.SetInt(CameraPreferenceKey,cameraPreferenceValue);
+        else PlayerPrefs.DeleteKey(CameraPreferenceKey);
+        PlayerPrefs.Save();cameraPreferenceCaptured=false;
+    }
+    static bool ChildCameraArgument(RedboolCameraRuntime runtime,int cameraIndex)
+    {
+        var process=typeof(RedboolCameraRuntime).GetField("child",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime) as Process;
+        // Inspect the real ProcessStartInfo, but never print arguments (bridge
+        // credentials are present). This fixture is explicitly synthetic only.
+        return process!=null&&process.StartInfo.Arguments.Contains("\"--camera\" \""+cameraIndex+"\"");
+    }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
@@ -146,6 +170,24 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         var runtime=RedboolCameraRuntime.Instance;
         Check(runtime.Synthetic&&RedboolCameraRuntime.Packaged,"Bundled runtime explicitly synthetic");
         Check(!runtime.Running,"Menu does not open camera child");
+        Check(!RedboolDemoSettings.OperatorMode,"Normal launch has no operator shortcuts");
+        RedboolSettingsPanel.Show();yield return new WaitForEndOfFrame();
+        Check(RedboolSettingsPanel.IsOpen&&RedboolPauseMenu.BlocksStoryInput&&!runtime.Running,"Settings modal blocks story input without opening a camera");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory,"00_settings.png"));yield return new WaitForEndOfFrame();
+        ButtonNamed("CloseSettings").onClick.Invoke();
+        Check(!RedboolSettingsPanel.IsOpen&&RedboolPauseMenu.BlocksStoryInput,"Settings close button consumes its closing-frame story input");
+        yield return null;
+        Check(!RedboolPauseMenu.BlocksStoryInput&&!runtime.Running,"Settings close releases input next frame without camera work");
+        int confirmed=0;RedboolNewGameConfirmation.Show(()=>confirmed++);yield return null;
+        ButtonNamed("CancelNewGame").onClick.Invoke();
+        Check(!RedboolNewGameConfirmation.IsOpen&&RedboolPauseMenu.BlocksStoryInput&&confirmed==0,"New-game cancel consumes closing input without invoking confirmation");
+        yield return null;
+        Check(!RedboolPauseMenu.BlocksStoryInput,"New-game cancel releases story input next frame");
+        RedboolNewGameConfirmation.Show(()=>confirmed++);yield return null;
+        ButtonNamed("ConfirmNewGame").onClick.Invoke();
+        Check(!RedboolNewGameConfirmation.IsOpen&&RedboolPauseMenu.BlocksStoryInput&&confirmed==1,"New-game confirmation consumes closing input before the harmless fixture callback");
+        yield return null;
+        Check(!RedboolPauseMenu.BlocksStoryInput,"New-game confirmation releases story input next frame");
         float menuTime=Time.timeScale,menuStep=Time.fixedDeltaTime;
         RedboolPauseMenu.Open();
         // Canvas depth/raycast registration is populated on its first displayed
@@ -314,6 +356,34 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         end=Time.realtimeSinceStartupAsDouble+10;
         while(!runtime.PreviewFresh) {Deadline(end,"first story preview JPEG");yield return null;}
         Check(runtime.PreviewFresh,"Story preview arrives from the new child");
+        CaptureCameraPreference();
+        try
+        {
+            int originalCamera=RedboolDemoSettings.CameraIndex;
+            Check(ChildCameraArgument(runtime,originalCamera),"Original story child receives the selected camera argument");
+            int selectedCamera=(originalCamera+1)%5;
+            RedboolDemoSettings.CameraIndex=selectedCamera;
+            yield return new WaitForSecondsRealtime(1);
+            Check(runtime.ChildId==second&&Alive(second)&&runtime.Fresh&&ChildCameraArgument(runtime,originalCamera),
+                "Selecting another camera leaves the running child and its camera argument unchanged");
+            Check(!(bool)typeof(RedboolCameraRuntime).GetField("restartRequested",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime),
+                "Camera selection alone does not request a restart");
+            int previousCameraChild=second;
+            RedboolDemoSettings.RequestCameraReconnect();
+            end=Time.realtimeSinceStartupAsDouble+60;
+            while(!runtime.Running||runtime.ChildId==previousCameraChild||!runtime.Fresh||!runtime.PreviewFresh
+                ||runtime.Status==null||runtime.Status.phase!="test"||Alive(previousCameraChild))
+            {Deadline(end,"explicit camera apply starts replacement synthetic child");yield return null;}
+            second=runtime.ChildId;children.Add(second);
+            Check(second>0&&second!=previousCameraChild&&!Alive(previousCameraChild)&&ChildCameraArgument(runtime,selectedCamera),
+                "Explicit apply replaces only the owned child and forwards the actual selected --camera argument");
+            Check(runtime.Synthetic&&runtime.Status.synthetic&&!runtime.Status.camera_connected,
+                "Changing camera selection in the fixture never opens a physical camera");
+        }
+        finally {RestoreCameraPreference();}
+        Check(PlayerPrefs.HasKey(CameraPreferenceKey)==cameraPreferencePresent
+            &&(!cameraPreferencePresent||PlayerPrefs.GetInt(CameraPreferenceKey)==cameraPreferenceValue),
+            "Camera preference value and original key presence are restored exactly");
         // A Windows child must not retain a scene receiver's socket. Keep the
         // same DEV01 child alive while the old scene closes and reopens 5065.
         var beforeReceiver=FindAnyObjectByType<RedboolDemoReceiver>();
@@ -380,6 +450,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     {
         if(finished)return;finished=true;
         RestoreMapFixture();
+        RestoreCameraPreference();
         foreach(var reservation in portReservations)reservation.Dispose();portReservations.Clear();
         File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children,preview_fps=measuredPreviewFps,render_scale=measuredRenderScale,width=Screen.width,height=Screen.height},true));
         Debug.Log("[CAMERA CHECK] "+(passed?"PASS":"FAIL "+error));

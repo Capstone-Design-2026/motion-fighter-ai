@@ -80,7 +80,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         Instance.Synthetic=Debug.isDebugBuild && Array.IndexOf(Environment.GetCommandLineArgs(),"--redbool-camera-synthetic")>=0;
         go.AddComponent<RedboolCameraPanel>();
     }
-    void Start() { StartCoroutine(Supervise()); }
+    void Start() { RedboolDemoSettings.CameraReconnectRequested += Reconnect; StartCoroutine(Supervise()); }
     string DesiredRole()
     {
         if(RedboolPvp.Active) return RedboolPvp.IsClient ? "P2" : "P1";
@@ -218,7 +218,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     void Update()
     {
         // KeyDown must be read every frame, including while the game is paused.
-        if(ShowPanel && Running && Input.GetKeyDown(KeyCode.C)) Calibrate();
+        if(ShowPanel && Running && !RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyCode.C)) Calibrate();
         // The backend warning stays latched until this camera session ends.
         // Recalibration must not raise preview work while inference is overloaded.
         ApplyInferencePressure();
@@ -289,7 +289,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         var arguments=new List<string> {"--headless","--bridge-port",port.ToString(),"--bridge-token",token,
             "--parent-pid",Process.GetCurrentProcess().Id.ToString(),"--actor",role,"--host",address,
             "--port",role=="P2"?"5066":"5065","--personal-calibration","--movement","--mirror",
-            "--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
+            "--camera",RedboolDemoSettings.CameraIndex.ToString(),"--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
         if(Synthetic) arguments.Add("--synthetic-bridge-check");
         var escaped=new List<string>();foreach(string arg in arguments) escaped.Add(Quote(arg));
         var info=new ProcessStartInfo(BackendPath,string.Join(" ",escaped)) { UseShellExecute=false,CreateNoWindow=true,
@@ -475,6 +475,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     void OnDestroy()
     {
+        RedboolDemoSettings.CameraReconnectRequested -= Reconnect;
         // Scene teardown or removal is distinct from application exit: the
         // parent PID remains alive, so its watchdog cannot clean up this child.
         if(child!=null||stoppingChild!=null)OnApplicationQuit();

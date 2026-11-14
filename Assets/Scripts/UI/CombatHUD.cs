@@ -56,6 +56,9 @@ public class CombatHUD : MonoBehaviour
     private Bar playerBar;
     private Bar enemyBar;
     private Text koText;
+    private RectTransform resultPanel;
+    private Text resultCaption;
+    private Text restartHint;
     private Text timerText;
     private BattleSceneBridge battle;
 
@@ -220,19 +223,27 @@ public class CombatHUD : MonoBehaviour
     {
         matchOver = true;
         bool playerLost = (dead == playerHealth);
-        koText.text = (playerLost ? "YOU LOSE" : "K.O.  YOU WIN")
-                    + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
-        koText.color = playerLost ? new Color(1f, 0.45f, 0.45f) : new Color(1f, 0.9f, 0.4f);
-        koText.gameObject.SetActive(true);
+        ShowResult(playerLost ? "YOU LOSE" : "K.O.", playerLost ? "" : "YOU WIN", !playerLost);
     }
 
     public void ShowTimeOut(bool won)
     {
         matchOver = true;
-        koText.text = "TIME UP\n" + (won ? "YOU WIN" : "YOU LOSE")
-                    + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
-        koText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.45f, 0.45f);
-        koText.gameObject.SetActive(true);
+        ShowResult(won ? "YOU WIN" : "YOU LOSE", "TIME UP", won);
+    }
+
+    private void ShowResult(string headline, string caption, bool won)
+    {
+        koText.text = headline;
+        koText.fontSize = headline == "K.O." ? 232 : 164;
+        koText.resizeTextMaxSize = koText.fontSize;
+        CombatAnnouncementStyle.Apply(koText, won
+            ? CombatAnnouncementStyle.Palette.Victory : CombatAnnouncementStyle.Palette.Defeat);
+        resultCaption.text = caption;
+        resultCaption.gameObject.SetActive(!string.IsNullOrEmpty(caption));
+        restartHint.text = "[" + restartKey + "] 키로 다시 시작";
+        restartHint.gameObject.SetActive(allowRestart);
+        resultPanel.gameObject.SetActive(true);
     }
 
     private void BuildTimer()
@@ -261,7 +272,7 @@ public class CombatHUD : MonoBehaviour
     private void RestartRound()
     {
         matchOver = false;
-        koText.gameObject.SetActive(false);
+        resultPanel.gameObject.SetActive(false);
 
         RestoreFighter(playerHealth, playerStartPos);
         RestoreFighter(enemyHealth, enemyStartPos);
@@ -394,7 +405,7 @@ public class CombatHUD : MonoBehaviour
         bool keyboard = player == null || player.useKeyboard;
         bool external = player != null && player.externalControl;
 
-        string signature = keyboard + "|" + external + "|" + allowRestart + "|" + (special != null);
+        string signature = keyboard + "|" + external + "|" + allowRestart + "|" + (special != null) + "|" + RedboolDemoSettings.OperatorMode;
         if (signature == guideSignature) return;
         guideSignature = signature;
 
@@ -434,8 +445,8 @@ public class CombatHUD : MonoBehaviour
             AddGuideRow(i++, "웹캠", "키보드 입력이 꺼져 있다 (인식 전용)");
         }
 
-        // 게이지 채우기는 useKeyboard 와 무관하게 먹으므로 키보드 분기 밖에 둔다.
-        if (special != null && special.ChargeKey != KeyCode.None)
+        // 충전 시험 키는 운영자 설정을 켰을 때만 실제로 작동한다.
+        if (RedboolDemoSettings.OperatorMode && special != null && special.ChargeKey != KeyCode.None)
             AddGuideRow(i++, special.ChargeKey.ToString(), "파운장 게이지 채우기 (테스트용)");
 
         if (allowRestart)
@@ -520,14 +531,41 @@ public class CombatHUD : MonoBehaviour
         shade.raycastTarget = false;
         Stretch(shade.rectTransform);
 
-        koText = CreateText("KOText", canvas.transform, 72, TextAnchor.MiddleCenter);
+        resultPanel = CreateRect("BattleResult", canvas.transform);
+        resultPanel.anchorMin = new Vector2(.04f, .5f);
+        resultPanel.anchorMax = new Vector2(.96f, .5f);
+        resultPanel.sizeDelta = new Vector2(0f, 360f);
+        resultPanel.anchoredPosition = new Vector2(0f, 30f);
+        koText = CreateText("KOText", resultPanel, 232, TextAnchor.MiddleCenter);
+        CombatAnnouncementStyle.Apply(koText, CombatAnnouncementStyle.Palette.Victory);
+        koText.resizeTextForBestFit = true;
+        koText.resizeTextMinSize = 48;
+        koText.resizeTextMaxSize = 232;
+        koText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        koText.verticalOverflow = VerticalWrapMode.Truncate;
         var koRect = koText.rectTransform;
-        koRect.anchorMin = new Vector2(0.5f, 0.5f);
-        koRect.anchorMax = new Vector2(0.5f, 0.5f);
+        koRect.anchorMin = new Vector2(0f, 0.5f);
+        koRect.anchorMax = new Vector2(1f, 0.5f);
         koRect.pivot = new Vector2(0.5f, 0.5f);
-        koRect.anchoredPosition = new Vector2(0f, 60f);
-        koRect.sizeDelta = new Vector2(1200f, 300f);
-        koText.gameObject.SetActive(false);
+        koRect.anchoredPosition = new Vector2(0f, 40f);
+        koRect.sizeDelta = new Vector2(0f, 290f);
+
+        resultCaption = CreateText("ResultCaption", resultPanel, 34, TextAnchor.MiddleCenter);
+        resultCaption.color = new Color(1f, .94f, .78f);
+        PlaceResultLine(resultCaption, -102f);
+        restartHint = CreateText("RestartHint", resultPanel, 26, TextAnchor.MiddleCenter);
+        PlaceResultLine(restartHint, -148f);
+        resultPanel.gameObject.SetActive(false);
+    }
+
+    private static void PlaceResultLine(Text text, float y)
+    {
+        var rect = text.rectTransform;
+        rect.anchorMin = new Vector2(0f, .5f);
+        rect.anchorMax = new Vector2(1f, .5f);
+        rect.anchoredPosition = new Vector2(0f, y);
+        rect.sizeDelta = new Vector2(0f, 44f);
+        AddShadow(text, new Vector2(1f, -2f));
     }
 
     private Bar BuildBar(Health health, Color color, bool leftSide)

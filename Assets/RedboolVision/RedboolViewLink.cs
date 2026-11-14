@@ -27,6 +27,13 @@ public sealed class RedboolViewLink : MonoBehaviour
     ulong sequence,ack;
     int effectId,received,invalid,sentBytes;
     bool client,initialized;
+    double nextBindAttempt;
+    public bool Bound => initialized && socket!=null;
+    public string BindError { get; private set; }
+    public bool PortConflict { get; private set; }
+    public string ConnectionIssue => string.IsNullOrEmpty(BindError) ? null : PortConflict
+        ? "화면 연결을 다른 게임이 사용 중이에요 · 이전 게임을 닫으면 자동 재연결됩니다"
+        : "화면 연결을 열지 못했어요 · 자동 재시도 중 · 계속되면 메뉴에서 다시 참가해주세요";
     string traceFile,captureDirectory;
     int captureCount;
     double lastCapture;
@@ -69,8 +76,8 @@ public sealed class RedboolViewLink : MonoBehaviour
         if(trace==null) return;
         trace.WriteLine(JsonUtility.ToJson(new TraceRow {seq=frame.seq.ToString(),time=frame.time,arrival=Time.realtimeSinceStartupAsDouble,world=frame.world,actors=frame.actors}));
     }
-    public bool PeerReady => !client && peer!=null && Time.realtimeSinceStartupAsDouble-lastHeartbeat<.25 && ack>0 && sequence>=ack && sequence-ack<=8;
-    public bool Fresh => client && assembler.Latest!=null && Time.realtimeSinceStartupAsDouble-lastFrame<.25;
+    public bool PeerReady => Bound && !client && peer!=null && Time.realtimeSinceStartupAsDouble-lastHeartbeat<.25 && ack>0 && sequence>=ack && sequence-ack<=8;
+    public bool Fresh => Bound && client && assembler.Latest!=null && Time.realtimeSinceStartupAsDouble-lastFrame<.25;
     public double RttMs {get;private set;}
     public RedboolViewFrame Latest => assembler.Latest;
     public void Initialize(RedboolPvp owner)
@@ -79,28 +86,52 @@ public sealed class RedboolViewLink : MonoBehaviour
         traceFile=Environment.GetEnvironmentVariable("REDBOOL_VIEW_TRACE_FILE");captureDirectory=Environment.GetEnvironmentVariable("REDBOOL_VIEW_CAPTURE_DIR");
         if(!String.IsNullOrEmpty(traceFile)) trace=new StreamWriter(traceFile,false);
         if(!String.IsNullOrEmpty(captureDirectory)) Directory.CreateDirectory(captureDirectory);
+        if(client) {
+            int port=RedboolViewProtocol.Port;var args=Environment.GetCommandLineArgs();int index=Array.IndexOf(args,"--redbool-view-port");
+            if(index>=0 && index+1<args.Length &&int.TryParse(args[index+1],out var parsed) &&parsed>0 &&parsed<=65535) port=parsed;
+            peer=new IPEndPoint(IPAddress.Parse(RedboolPvp.HostAddress),port);
+        }
+        for(int i=0;i<2;i++)
+        {
+            views[i]=game.Players[i].GetComponent<Fighter3DView>();
+            punchSurfaces[i]=views[i].visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);
+            for(int b=0;b<bones[i].Length;b++) {bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);if(bones[i][b]) replicaBoneCount++;}
+        }
+        // Visual setup is one-time. Retrying a local socket must not clone mirrors,
+        // reset practice, or reopen the game's camera-input receivers.
+        if(client) {mirror=gameObject.AddComponent<RedboolViewMirror>();mirror.Initialize(game,views,bones);Time.timeScale=1;}
+        initialized=true;
+        TryOpenSocket(Time.realtimeSinceStartupAsDouble);
+    }
+    void TryOpenSocket(double now)
+    {
+        if(!initialized || socket!=null || now<nextBindAttempt)return;
+        nextBindAttempt=now+1; // unscaled: the match is intentionally paused while disconnected
+        UdpClient candidate=null;
         try
         {
-            socket=new UdpClient(new IPEndPoint(IPAddress.Any,client?0:RedboolViewProtocol.Port));
-            RedboolSocketOwnership.PreventInheritance(socket.Client,"UDP display "+socket.Client.LocalEndPoint);
-            socket.Client.Blocking=false;socket.Client.ReceiveBufferSize=128*1024;
-            if(client) {
-                int port=RedboolViewProtocol.Port;var args=Environment.GetCommandLineArgs();int index=Array.IndexOf(args,"--redbool-view-port");
-                if(index>=0 && index+1<args.Length &&int.TryParse(args[index+1],out var parsed) &&parsed>0 &&parsed<=65535) port=parsed;
-                peer=new IPEndPoint(IPAddress.Parse(RedboolPvp.HostAddress),port);
-            }
-            for(int i=0;i<2;i++)
-            {
-                views[i]=game.Players[i].GetComponent<Fighter3DView>();
-                punchSurfaces[i]=views[i].visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);
-                for(int b=0;b<bones[i].Length;b++) {bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);if(bones[i][b]) replicaBoneCount++;}
-            }
-            if(client) {mirror=gameObject.AddComponent<RedboolViewMirror>();mirror.Initialize(game,views,bones);Time.timeScale=1;}
-            initialized=true;Debug.Log("[REDBOOL VIEW] "+(client?"guest "+peer:"host :5067")+" protocol="+RedboolViewProtocol.Version);
+            candidate=new UdpClient(AddressFamily.InterNetwork);
+            candidate.ExclusiveAddressUse=true;
+            candidate.Client.Bind(new IPEndPoint(IPAddress.Any,client?0:RedboolViewProtocol.Port));
+            RedboolSocketOwnership.PreventInheritance(candidate.Client,"UDP display "+candidate.Client.LocalEndPoint);
+            candidate.Client.Blocking=false;candidate.Client.ReceiveBufferSize=128*1024;
+            bool recovered=!string.IsNullOrEmpty(BindError);
+            socket=candidate;candidate=null;BindError=null;PortConflict=false;
+            // Opening a socket is not evidence of a connected peer. No previous
+            // lease, ACK or snapshot can authorize play after local recovery.
+            ack=0;lastHeartbeat=lastFrame=-10;nextSend=now;
+            if(!client) {peer=null;peerNonce=Guid.Empty;lastHello=-10;}
+            Debug.Log("[REDBOOL VIEW] "+(recovered?"local channel recovered ":"")+(client?"guest "+peer:"host :5067")+" protocol="+RedboolViewProtocol.Version);
         }
-        catch(Exception e) when(e is SocketException || e is FormatException || e is System.ComponentModel.Win32Exception)
-        {socket?.Close();socket=null;Debug.LogError("[REDBOOL VIEW] Cannot open display channel: "+e.Message);}
+        catch(Exception e) when(e is SocketException || e is System.ComponentModel.Win32Exception || e is System.Security.SecurityException)
+        {
+            string error=e.GetType().Name+": "+e.Message;
+            if(BindError!=error)Debug.LogWarning("[REDBOOL VIEW] Cannot open local display channel; retrying: "+error);
+            BindError=error;PortConflict=!client &&e is SocketException se &&se.SocketErrorCode==SocketError.AddressAlreadyInUse;
+        }
+        finally {candidate?.Close();}
     }
+
     public static void RecordEffect(Vector3 point,int kind)
     {
         var link=RedboolPvp.Instance?.ViewLink;
@@ -188,6 +219,10 @@ public sealed class RedboolViewLink : MonoBehaviour
     {
         if(!initialized) return;
         double now=Time.realtimeSinceStartupAsDouble;
+        if(socket==null) {
+            TryOpenSocket(now);
+            if(socket==null) {if(client) {Time.timeScale=0;ShowRemoteMeasured(null,false);}return;}
+        }
         if(client) {frameUiTicks=0;long start=TimingNow;Receive(now);frameReceiveTicks=TimingNow-start;}
         else Receive(now);
         if(client && now>=nextSend)
@@ -205,7 +240,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     }
     void LateUpdate()
     {
-        if(!initialized) return;
+        if(!Bound) return;
         double now=Time.realtimeSinceStartupAsDouble;
         if(!String.IsNullOrEmpty(captureDirectory) &&game.Fighting &&now-lastCapture>8 &&captureCount<3)
         {lastCapture=now;ScreenCapture.CaptureScreenshot(Path.Combine(captureDirectory,(client?"guest":"host")+(captureCount++)+".png"));}
@@ -236,6 +271,7 @@ public sealed class RedboolViewLink : MonoBehaviour
         var a=new RedboolViewActor {root=p.transform.position,visual=views[i].visualRoot.position,rotation=views[i].visualRoot.rotation,scale=views[i].visualRoot.localScale,hips=bones[i][0]?bones[i][0].localPosition:Vector3.zero,hp=h.CurrentHealth,maxHp=h.MaxHealth,charge=s.Charge,maxCharge=s.HitsToCharge,phase=(int)s.CurrentPhase,step=practice.Step,hits=practice.Hits,practiceRun=Guid.Parse(practice.Run),live=game.Receivers[i].LiveReady,attackSerial=p.GetComponent<Fighter>().AttackSerial};
         for(int b=0;b<a.bones.Length;b++) a.bones[b]=bones[i][b]?bones[i][b].localRotation:Quaternion.identity;
         a.chargeLevel=s.VisualChargeLevel;
+        a.feedback=(byte)game.Receivers[i].FeedbackCode;
         a.punchSurface=punchSurfaces[i]!=null?punchSurfaces[i].CurrentSurface:(byte)0;
         string status=game.Receivers[i].PersonalStatus;a.personal=(byte)(status.Contains("PERSONAL RANGE")?2:status.Contains("CYCLES")?1:0);
         var renderer=views[i].visualRoot.GetComponentInChildren<Renderer>();if(renderer) {var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);a.tint=block.GetColor("_BaseColor");}
@@ -247,5 +283,5 @@ public sealed class RedboolViewLink : MonoBehaviour
         foreach(var wave in FindObjectsByType<QiWave>(FindObjectsSortMode.None)) if(wave.isActiveAndEnabled && !wave.Finished &&world.waves.Count<8) world.waves.Add(new RedboolViewWave {id=wave.GetInstanceID(),point=wave.transform.position,rotation=wave.transform.rotation});
         effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);return world;
     }
-    void OnDestroy() {socket?.Close();socket=null;trace?.Dispose();trace=null;}
+    void OnDestroy() {initialized=false;socket?.Close();socket=null;trace?.Dispose();trace=null;}
 }

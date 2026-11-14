@@ -79,6 +79,9 @@ public class MapSceneUI : MonoBehaviour
         }
         if (Run != null) Run.RefreshStatus();
 
+        // 스토리·튜토리얼·지도는 모두 이 씬에서 진행되므로 같은 음악을 계속 튼다.
+        if (Run != null && Run.Config != null) LoopingMusic.Play(gameObject, Run.Config.mapMusic, 0.4f);
+
         if (Run != null && Run.IsStoryMap)
         {
             rowSpacing = 225; columnSpacing = 280; nodeSize = 92;

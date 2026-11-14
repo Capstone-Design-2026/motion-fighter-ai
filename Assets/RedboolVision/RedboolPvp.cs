@@ -164,8 +164,10 @@ public sealed class RedboolPvp : MonoBehaviour
         if(!configured) return;
         if(IsClient) return;
         if(Resolved && Input.GetKeyDown(KeyCode.R)) Rematch();
-        if(Input.GetKeyDown(KeyCode.F6)) SkipPractice(0);
-        if(Input.GetKeyDown(KeyCode.F7)) SkipPractice(1);
+        if(RedboolDemoSettings.OperatorMode && !RedboolPauseMenu.BlocksStoryInput) {
+            if(Input.GetKeyDown(KeyCode.F6)) SkipPractice(0);
+            if(Input.GetKeyDown(KeyCode.F7)) SkipPractice(1);
+        }
         for(int i=0;i<2;i++)
         {
             string stream=Receivers[i].StreamId;
@@ -309,7 +311,7 @@ public sealed class RedboolPvp : MonoBehaviour
             practiceLabels[i].text=(!Receivers[i].LiveReady?"카메라 연결 · C로 중앙 가드 보정\n":"")+Practices[i].Instruction+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
-        banner.text=Resolved?Result+" · R: 재대전 · Esc: 메뉴":GateText(Gate,Countdown);
+        banner.text=!string.IsNullOrEmpty(ViewLink?.ConnectionIssue)?ViewLink.ConnectionIssue:Resolved?Result+" · R: 재대전 · Esc: 메뉴":GateText(Gate,Countdown);
         ShowResult(Resolved,Result,Remaining,Players[0].GetComponent<Health>().CurrentHealth,Players[1].GetComponent<Health>().CurrentHealth,false);
     }
     void ShowResult(bool ended,string winner,float time,int hp1,int hp2,bool remote)
@@ -339,7 +341,8 @@ public sealed class RedboolPvp : MonoBehaviour
     public void ShowRemote(RedboolViewFrame frame,bool fresh)
     {
         if(banner==null) return;
-        if(frame==null) { banner.text="호스트 연결 대기 · "+HostAddress+":5067 · Esc: 메뉴";return; }
+        if(!string.IsNullOrEmpty(ViewLink?.ConnectionIssue)) {banner.text=ViewLink.ConnectionIssue;resultPanel.SetActive(false);return;}
+        if(frame==null) { banner.text="호스트 연결 대기 · "+HostAddress+" · 방이 열려 있는지 확인하세요 · Esc: 메뉴";return; }
         Remaining=frame.world.remaining;Resolved=frame.world.resolved;Fighting=frame.world.fighting;Round=frame.world.round;
         for(int i=0;i<2;i++)
         {

@@ -1,14 +1,18 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>Own-camera preview and calibration controls; no video crosses the LAN.</summary>
 public sealed class RedboolCameraPanel : MonoBehaviour
 {
     RedboolCameraRuntime cameraRuntime;
     Canvas canvas;RectTransform panel;
-    RawImage image;Text heading,hint,placeholder;
+    RawImage image;Text heading,hint,placeholder,combatHint;
     Image progress;Button calibrate,reconnect,fold;
-    bool compact;float nextUi;
+    bool compact,tutorial;float nextUi;
+    int cachedScene=-1;
+    public RedboolCombatFeedbackCode DisplayedFeedback { get; private set; }
+    public string DisplayedFeedbackText => combatHint!=null?combatHint.text:"";
     void Start()
     {
         cameraRuntime=GetComponent<RedboolCameraRuntime>();
@@ -25,6 +29,9 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         placeholder=WuxiaTheme.Text("CameraPlaceholder",display,"카메라 연결 중",20,TextAnchor.MiddleCenter,WuxiaTheme.Paper);UIFactory.Stretch(placeholder.rectTransform);
         hint=WuxiaTheme.Text("CameraHint",panel,"중앙에서 가드를 잡고 보정하세요",18,TextAnchor.MiddleCenter,WuxiaTheme.Paper);
         hint.horizontalOverflow=HorizontalWrapMode.Wrap;hint.verticalOverflow=VerticalWrapMode.Truncate;
+        combatHint=WuxiaTheme.Text("CombatInputFeedback",panel,"",18,TextAnchor.MiddleCenter,WuxiaTheme.Gold);
+        combatHint.horizontalOverflow=HorizontalWrapMode.Wrap;combatHint.verticalOverflow=VerticalWrapMode.Truncate;
+        UIFactory.Place(combatHint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,116),new Vector2(288,36));
         var track=UIFactory.CreateImage("CalibrationTrack",panel,new Color(.15f,.18f,.18f,1));
         UIFactory.Place(track.rectTransform,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
         progress=UIFactory.CreateImage("CalibrationProgress",track.transform,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
@@ -39,9 +46,10 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         canvas.enabled=cameraRuntime.ShowPanel;
         if(!canvas.enabled || Time.unscaledTime<nextUi)return;
         nextUi=Time.unscaledTime+.1f;
-        bool tutorial=FindAnyObjectByType<CaveTutorial>()!=null;
+        int scene=SceneManager.GetActiveScene().handle;
+        if(scene!=cachedScene) {cachedScene=scene;tutorial=FindAnyObjectByType<CaveTutorial>()!=null;}
         UIFactory.Place(panel,tutorial?Vector2.one:new Vector2(1,0),tutorial?Vector2.one:new Vector2(1,0),
-            tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?155:376));
+            tutorial?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(316,compact?199:420));
         image.gameObject.SetActive(!compact);
         // Preview is one persistent texture: LoadImage refreshes its pixels at
         // the preview cadence even though this status/layout UI runs at10Hz.
@@ -54,11 +62,38 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         UIFactory.Place(hint.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,68),new Vector2(288,44));
         hint.text=Explain(cameraRuntime);
         var state=cameraRuntime.Status;
+        DisplayedFeedback=LocalFeedback();
+        combatHint.text=RedboolCombatFeedback.Text(DisplayedFeedback);
         float amount=state!=null?Mathf.Clamp01(state.calibration_progress):0;
         if(float.IsNaN(amount)||float.IsInfinity(amount))amount=0;
         progress.rectTransform.anchorMin=Vector2.zero;progress.rectTransform.anchorMax=new Vector2(amount,1);
         progress.rectTransform.offsetMin=progress.rectTransform.offsetMax=Vector2.zero;
         calibrate.interactable=cameraRuntime.Running&&cameraRuntime.Fresh&&(cameraRuntime.Synthetic||(state!=null&&state.camera_connected));
+    }
+    RedboolCombatFeedbackCode LocalFeedback()
+    {
+        // Keep the existing connection/calibration explanation visible. Never
+        // leave a previous success beside a stopped or newly calibrated camera.
+        var state=cameraRuntime.Status;
+        if(!cameraRuntime.Running || !cameraRuntime.Fresh || state==null || !state.calibrated
+            || !string.IsNullOrEmpty(cameraRuntime.Error) || !string.IsNullOrEmpty(cameraRuntime.InputConnectionError)
+            || !string.IsNullOrEmpty(state.error))return RedboolCombatFeedbackCode.None;
+        var game=RedboolPvp.Instance;
+        var receiver=RedboolDemoReceiver.ListeningOn(5065);
+        return SelectFeedback(RedboolPvp.Active&&RedboolPvp.IsClient,
+            game!=null&&game.ViewLink!=null?game.ViewLink.Latest:null,
+            game!=null&&game.ViewLink!=null&&game.ViewLink.Fresh,
+            receiver!=null?receiver.FeedbackCode:RedboolCombatFeedbackCode.None);
+    }
+    // Public deterministic seam for native fixtures. P2 never reads a local
+    // replica's Fighter/Health or the host's P1 input outcome.
+    public static RedboolCombatFeedbackCode SelectFeedback(bool client,RedboolViewFrame frame,bool fresh,RedboolCombatFeedbackCode local)
+    {
+        if(!client)return local;
+        if(!fresh || frame==null || !frame.Complete)return RedboolCombatFeedbackCode.ViewLost;
+        if(frame.world.resolved)return RedboolCombatFeedbackCode.RoundOver;
+        byte code=frame.actors[1].feedback;
+        return RedboolCombatFeedback.Valid(code)?(RedboolCombatFeedbackCode)code:RedboolCombatFeedbackCode.ViewLost;
     }
     public static string Explain(RedboolCameraRuntime runtime)
     {
@@ -83,7 +118,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         }
         if(!s.calibrated)
         {
-            if(s.calibration_reason=="ARMS_MOVING"||s.calibration_reason=="GUARD_SHIFTED")return "팔이 잘 보이도록 중앙에서\n편안한 가드를 잠시 유지하세요";
+            if(s.calibration_reason=="ARMS_MOVING"||s.calibration_reason=="GUARD_SHIFTED")return "팔을 잠시 멈추면 보정이 이어져요\nC를 다시 누를 필요는 없어요";
             if(s.calibration_reason=="FISTS_LOW")return "주먹을 턱 근처로 올리고\n편안한 가드를 유지하세요";
             if(s.calibration_reason=="FISTS_HIGH")return "주먹을 턱 근처로 조금 내려주세요";
             if(s.calibration_reason=="ARMS_EXTENDED")return "팔꿈치를 굽혀 가드를 잡아주세요";

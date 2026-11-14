@@ -320,7 +320,14 @@ public class Fighter : MonoBehaviour
     }
 
     // 공격 도중 맞으면(막혀도) 공격은 끊긴다.
-    void InterruptAttack(bool guarded) { if (IsAttacking) CancelAttack(); }
+    // Presentation observers receive the real cancellation edge, not a guess
+    // from HP changes or event subscription order. Combat behaviour is unchanged.
+    public event Action AttackInterruptedByDamage;
+    void InterruptAttack(bool guarded) {
+        if (!IsAttacking) return;
+        CancelAttack();
+        AttackInterruptedByDamage?.Invoke();
+    }
 
     /// <summary>진행 중인 공격을 접는다. 상대에게 알린 공격 예고도 거둔다.</summary>
     public void CancelAttack()

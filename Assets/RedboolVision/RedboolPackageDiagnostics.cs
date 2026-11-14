@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -34,6 +35,22 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
         public List<string> warnings=new List<string>();
     }
     Task<string> export; string message="";
+    static Task<string> activeExport;
+    // Completion includes faults/cancellation; never leave the menu locked
+    // waiting for this component's next Update or a success-only callback.
+    public static bool IsExporting => activeExport!=null&&!activeExport.IsCompleted;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetExportState(){activeExport=null;}
+    Task<StorageUsage> storageScan;
+    CancellationTokenSource storageCancellation;
+    StorageUsage storageUsage;
+    bool storagePanel;
+    public sealed class StorageUsage
+    {
+        public long camera_bytes, export_bytes;
+        public int files, skipped_links;
+        public bool partial, cancelled;
+    }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
@@ -43,23 +60,110 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
     void OnGUI()
     {
         if(SceneManager.GetActiveScene().name!=SceneRoutes.Start)return;
+        if(RedboolSettingsPanel.IsOpen||RedboolNewGameConfirmation.IsOpen||RedboolPauseMenu.IsOpen)return;
         bool pending=RedboolCameraRuntime.Instance!=null&&RedboolCameraRuntime.Instance.DiagnosticsPending;
-        GUI.enabled=export==null&&!pending;
+        GUI.enabled=export==null&&!IsExporting&&!pending;
         string label=pending?"기록 마무리 중…":export==null?"진단 기록 저장":"기록 저장 중…";
         if(GUI.Button(new Rect(Screen.width-190,Screen.height-46,174,30),label))
         {
             string root=Application.persistentDataPath,log=Application.consoleLogPath;
-            export=Task.Run(()=>BuildExport(root,log));message="";
+            export=Task.Run(()=>BuildExport(root,log));activeExport=export;message="";
         }
         GUI.enabled=true;
+        if(GUI.Button(new Rect(Screen.width-380,Screen.height-46,174,30),"기록 관리"))
+        {
+            storagePanel=!storagePanel;
+            if(storagePanel&&!pending)StartStorageScan();else CancelStorageScan();
+        }
+        if(storagePanel)
+        {
+            var area=new Rect(Mathf.Max(10,Screen.width-510),Screen.height-275,495,190);
+            GUI.Box(area,"");
+            string size=storageScan!=null?"기록 용량 확인 중…":storageUsage==null?"기록 마무리 후 용량을 확인할 수 있어요.":
+                "카메라 기록 "+SizeText(storageUsage.camera_bytes)+"  ·  내보낸 ZIP "+SizeText(storageUsage.export_bytes)
+                +(storageUsage.partial?" (일부만 확인)":"");
+            GUI.Label(new Rect(area.x+16,area.y+12,465,28),size);
+            GUI.Label(new Rect(area.x+16,area.y+44,465,48),"원본 영상은 저장하지 않습니다. 기록은 자동 삭제되지 않아요.\n필요한 ZIP을 보관한 뒤 폴더에서 이전 기록을 확인하세요.");
+            GUI.enabled=!pending;
+            if(GUI.Button(new Rect(area.x+16,area.y+110,220,34),"기록 폴더 열기"))OpenRecordingFolder();
+            GUI.enabled=!pending&&storageScan==null;
+            if(GUI.Button(new Rect(area.x+252,area.y+110,220,34),"용량 새로 확인"))StartStorageScan();
+            GUI.enabled=true;
+            GUI.Label(new Rect(area.x+16,area.y+150,465,26),"관절 기록은 카메라 실행마다 최대 128MiB입니다.");
+        }
         if(!string.IsNullOrEmpty(message))GUI.Label(new Rect(Screen.width-370,Screen.height-76,354,28),message);
     }
     void Update()
     {
-        if(export==null || !export.IsCompleted)return;
-        if(export.IsFaulted) {message="기록 저장에 실패했어요. 다시 시도해주세요.";Debug.LogWarning(export.Exception?.GetBaseException().Message);}
-        else {message="진단 ZIP을 저장했어요. 열린 폴더에서 확인하세요.";Application.OpenURL(new Uri(Path.GetDirectoryName(export.Result)).AbsoluteUri);}
-        export=null;
+        bool atMenu=SceneManager.GetActiveScene().name==SceneRoutes.Start;
+        if(!atMenu&&storagePanel){storagePanel=false;CancelStorageScan();}
+        if(storageScan!=null&&storageScan.IsCompleted)
+        {
+            if(storageScan.IsFaulted){storageUsage=new StorageUsage {partial=true};message="기록 용량을 확인하지 못했어요. 폴더에서 확인해주세요.";}
+            else if(!storageScan.IsCanceled&&!storageScan.Result.cancelled)storageUsage=storageScan.Result;
+            storageScan=null;storageCancellation?.Dispose();storageCancellation=null;
+        }
+        if(export!=null&&export.IsCompleted)
+        {
+            if(export.IsFaulted) {message="기록 저장에 실패했어요. 다시 시도해주세요.";Debug.LogWarning(export.Exception?.GetBaseException().Message);}
+            else {message="진단 ZIP을 저장했어요. 열린 폴더에서 확인하세요.";if(atMenu)Application.OpenURL(new Uri(Path.GetDirectoryName(export.Result)).AbsoluteUri);}
+            if(ReferenceEquals(activeExport,export))activeExport=null;
+            export=null;
+        }
+    }
+    static string SizeText(long bytes)=>bytes>=1024L*1024*1024?(bytes/(1024d*1024*1024)).ToString("F2")+" GiB":(bytes/(1024d*1024)).ToString("F1")+" MiB";
+    void StartStorageScan()
+    {
+        if(storageScan!=null||SceneManager.GetActiveScene().name!=SceneRoutes.Start)return;
+        if(RedboolCameraRuntime.Instance!=null&&RedboolCameraRuntime.Instance.DiagnosticsPending)return;
+        string root=Application.persistentDataPath;
+        storageCancellation=new CancellationTokenSource();var token=storageCancellation.Token;
+        storageScan=Task.Run(()=>MeasureStorage(root,token));
+    }
+    void CancelStorageScan(){storageCancellation?.Cancel();}
+    void OnDestroy(){CancelStorageScan();if(activeExport!=null&&activeExport.IsCompleted)activeExport=null;}
+    void OpenRecordingFolder()
+    {
+        try
+        {
+            string folder=Path.Combine(Application.persistentDataPath,"CameraDiagnostics");
+            if(Directory.Exists(folder)&&IsLink(folder)){message="연결된 폴더는 열지 않습니다. 저장 위치를 직접 확인해주세요.";return;}
+            Directory.CreateDirectory(folder);Application.OpenURL(new Uri(folder).AbsoluteUri);
+        }
+        catch(Exception e)when(e is IOException||e is UnauthorizedAccessException){message="기록 폴더를 열지 못했어요.";Debug.LogWarning(e.Message);}
+    }
+    /// <summary>Metadata-only bounded walk. Never reads payloads or removes files.</summary>
+    public static StorageUsage MeasureStorage(string root,CancellationToken cancellation=default(CancellationToken))
+    {
+        var usage=new StorageUsage();var watch=System.Diagnostics.Stopwatch.StartNew();
+        foreach(string leaf in new[]{"CameraDiagnostics","DiagnosticsExports"})
+        {
+            var pending=new Stack<string>();pending.Push(Path.Combine(root,leaf));
+            while(pending.Count>0)
+            {
+                if(cancellation.IsCancellationRequested){usage.cancelled=true;return usage;}
+                if(usage.files>=50000||watch.Elapsed.TotalSeconds>=5){usage.partial=true;return usage;}
+                string directory=pending.Pop();
+                try
+                {
+                    if(!Directory.Exists(directory))continue;
+                    if(IsLink(directory)){usage.skipped_links++;usage.partial=true;continue;}
+                    foreach(string path in Directory.EnumerateFileSystemEntries(directory))
+                    {
+                        if(cancellation.IsCancellationRequested){usage.cancelled=true;return usage;}
+                        if(usage.files>=50000||watch.Elapsed.TotalSeconds>=5){usage.partial=true;return usage;}
+                        var attributes=File.GetAttributes(path);
+                        if((attributes&FileAttributes.ReparsePoint)!=0){usage.skipped_links++;usage.partial=true;continue;}
+                        if((attributes&FileAttributes.Directory)!=0){pending.Push(path);continue;}
+                        long bytes=new FileInfo(path).Length;
+                        if(leaf=="CameraDiagnostics")usage.camera_bytes+=bytes;else usage.export_bytes+=bytes;
+                        usage.files++;
+                    }
+                }
+                catch(Exception e)when(e is IOException||e is UnauthorizedAccessException){usage.partial=true;}
+            }
+        }
+        return usage;
     }
     public static string BuildExport(string root,string gameLog)
     {

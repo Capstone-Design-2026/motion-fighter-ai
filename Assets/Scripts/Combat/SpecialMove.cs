@@ -152,7 +152,7 @@ public class SpecialMove : MonoBehaviour
     void Update()
     {
         // 게이지 채우기는 연출 확인용 단축키. 웹캠 테스트 중에도 쓰므로 useKeyboard 와 상관없이 받는다.
-        if (!RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
+        if (RedboolDemoSettings.OperatorMode && !RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
 
         if (controller == null || controller.useKeyboard)
         {
