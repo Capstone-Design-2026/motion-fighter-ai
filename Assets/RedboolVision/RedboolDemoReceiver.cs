@@ -58,7 +58,6 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
-    public bool showStatus = true;
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
     [Range(0f, .15f)] public float movementSmoothingSeconds = .06f;
@@ -355,17 +354,6 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(controlling && player!=null) player.ClearExternalInput();
         if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f);
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
-    }
-    private void OnGUI() {
-        // Packaged play uses the camera panel and game HUD. Keep this technical
-        // overlay available only in the existing manual development workflow.
-        if(!showStatus || RedboolCameraRuntime.Instance!=null) return;
-        GUI.Box(new Rect(12,12,470,130),"REDBOOL VISION :"+port);
-        GUI.Label(new Rect(22,35,450,25),Status+" | "+LastGesture+" | attacks "+AttacksApplied+" | busy "+AttacksBusy);
-        GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
-        var special=player!=null ? player.GetComponent<SpecialMove>() : null;
-        if(special!=null) GUI.Label(new Rect(22,85,450,25),special.IsReady ? "SPECIAL READY: cross arms at chest for 0.7s" : "SPECIAL: charging");
-        if(Time.unscaledTime<feedbackUntil) GUI.Label(new Rect(22,110,450,25),inputFeedback);
     }
     private void OnDisable() {
         Preparation?.ResetPreparation();

@@ -130,7 +130,7 @@ public sealed class RedboolPvp : MonoBehaviour
             var host=new GameObject("REDBOOL Player "+(i+1)+" Input");host.SetActive(false);
             var receiver=host.AddComponent<RedboolDemoReceiver>();
             receiver.port=5065+i;receiver.expectedActorId="P"+(i+1);receiver.player=p;
-            receiver.PvpOwned=true;receiver.showStatus=false;receiver.Opponent=Players[1-i].GetComponent<Fighter>();
+            receiver.PvpOwned=true;receiver.Opponent=Players[1-i].GetComponent<Fighter>();
             receiver.ExternalGate=()=>CanFight;
             receiver.PracticeContext=()=>Lobby!=null && !Lobby.Complete
                 ? new RedboolPracticeContext {run=Practices[slot].Run,action="",phase="SELECT",hits=0}   // 인물을 고르는 중: 수련 동작이 아니다

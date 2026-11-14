@@ -25,16 +25,6 @@ public class CombatHUD : MonoBehaviour
     [SerializeField] private bool allowRestart = true;
     [SerializeField] private KeyCode restartKey = KeyCode.R;
 
-    [Header("조작 안내")]
-    [Tooltip("플레이 모드에 들어가면 좌측 하단에 키 안내를 띄운다.")]
-    [SerializeField] private bool showKeyGuide = true;
-    [Tooltip("안내를 켜고 끄는 키.")]
-    [SerializeField] private KeyCode keyGuideToggleKey = KeyCode.F1;
-    [Tooltip("0 보다 크면 이 시간(초, 실제 시간)이 지난 뒤 안내가 저절로 사라진다. 0 이면 계속 표시.")]
-    [SerializeField] private float keyGuideAutoHideTime = 0f;
-    [SerializeField] private float keyGuideWidth = 470f;
-    [SerializeField] private Vector2 keyGuideMargin = new Vector2(60f, 40f);
-
     [Header("필살기 게이지")]
     [SerializeField] private Color gaugeFillColor = new Color(.17f, .59f, .77f);
     [SerializeField] private Color gaugeReadyColor = new Color(.32f, .81f, 1f);
@@ -63,19 +53,7 @@ public class CombatHUD : MonoBehaviour
     private Vector3 enemyStartPos;
     private bool matchOver;
 
-    // 조작 안내
-    private const float GuidePad = 16f;      // 패널 안쪽 여백
-    private const float GuideRow = 32f;      // 한 줄 높이
-    private const float GuideTop = GuidePad + GuideRow + 8f;   // 제목 아래, 첫 줄이 시작되는 y
-    private const float GuideKeyCol = 140f;  // 키 이름이 들어가는 왼쪽 칸 너비
-
     private PlayerController player;
-    private RectTransform keyGuidePanel;
-    private readonly List<GameObject> guideRows = new List<GameObject>();
-    private string guideSignature;           // 안내 내용이 바뀌었는지 판단하는 값
-    private bool guideVisible;
-    private float guideShownAt;              // 자동 숨김 기준 시각 (실제 시간)
-
     private SpecialMove special;
 
     private class Bar
@@ -116,7 +94,6 @@ public class CombatHUD : MonoBehaviour
         BuildCanvas();
         battle = FindAnyObjectByType<BattleSceneBridge>();
         BuildTimer();
-        BuildKeyGuide();
 
         if (playerHealth != null)
         {
@@ -140,7 +117,6 @@ public class CombatHUD : MonoBehaviour
         UpdateChip(playerBar);
         UpdateChip(enemyBar);
         if (external) return;
-        UpdateKeyGuide();
         UpdateTimer();
 
         if (matchOver && allowRestart && Input.GetKeyDown(restartKey))
@@ -399,167 +375,6 @@ public class CombatHUD : MonoBehaviour
         bar.gaugeLabel.color = ready ? new Color(.66f,.93f,1f) : new Color(.83f,.88f,.88f);
     }
 
-    // ─────────────────────── 조작 안내 ───────────────────────
-
-    /// <summary>
-    /// 좌측 하단 키 안내 패널의 껍데기만 만든다. 줄 내용은 첫 Update 에서 채운다.
-    /// 표시할 키는 PlayerController 에서 그대로 읽으므로 인스펙터에서 키를 바꾸면 안내도 따라간다.
-    /// </summary>
-    private void BuildKeyGuide()
-    {
-        if (!showKeyGuide) return;
-
-        var bg = CreateImage("KeyGuide", canvas.transform, new Color(0f, 0f, 0f, 0.62f));
-        keyGuidePanel = bg.rectTransform;
-        keyGuidePanel.anchorMin = Vector2.zero;
-        keyGuidePanel.anchorMax = Vector2.zero;
-        keyGuidePanel.pivot = Vector2.zero;
-        keyGuidePanel.anchoredPosition = keyGuideMargin;
-        keyGuidePanel.sizeDelta = new Vector2(keyGuideWidth, GuideTop + GuidePad);
-
-        var title = CreateText("Title", keyGuidePanel, 24, TextAnchor.UpperLeft);
-        title.color = new Color(1f, 0.9f, 0.4f);
-        title.text = "조작";
-        PlaceTopLeft(title.rectTransform, GuidePad, GuidePad, keyGuideWidth - GuidePad * 2f, GuideRow);
-
-        guideVisible = true;
-        guideShownAt = Time.unscaledTime;
-    }
-
-    private void UpdateKeyGuide()
-    {
-        if (keyGuidePanel == null) return;
-
-        if (Input.GetKeyDown(keyGuideToggleKey))
-        {
-            guideVisible = !guideVisible;
-            keyGuidePanel.gameObject.SetActive(guideVisible);
-            guideShownAt = Time.unscaledTime;   // 다시 켰으면 자동 숨김 시간도 다시 잰다
-        }
-
-        if (!guideVisible) return;
-
-        RefreshGuide();
-
-        // 자동 숨김은 실제 시간 기준. 히트스톱으로 timeScale 이 흔들려도 영향받지 않는다.
-        if (keyGuideAutoHideTime > 0f && Time.unscaledTime - guideShownAt >= keyGuideAutoHideTime)
-        {
-            guideVisible = false;
-            keyGuidePanel.gameObject.SetActive(false);
-        }
-    }
-
-    /// <summary>
-    /// 안내 줄을 다시 만든다. 내용이 바뀔 때만 실제로 다시 그린다.
-    /// allowRestart 는 BattleSceneBridge 가 Start 에서 꺼버릴 수 있고, externalControl 은
-    /// 웹캠 패킷이 처음 들어오는 순간 켜지므로 Awake 한 번으로는 최신 상태를 알 수 없다.
-    /// </summary>
-    private void RefreshGuide()
-    {
-        bool keyboard = player == null || player.useKeyboard;
-        bool external = player != null && player.externalControl;
-
-        string signature = keyboard + "|" + external + "|" + allowRestart + "|" + (special != null);
-        if (signature == guideSignature) return;
-        guideSignature = signature;
-
-        foreach (var row in guideRows) Destroy(row);
-        guideRows.Clear();
-
-        int i = 0;
-        if (keyboard)
-        {
-            // 인식이 들어오면 앉기/막기는 키보드가 아니라 인식이 정한다.
-            // (PlayerController.HandleKeyInput 의 externalControl 분기)
-            string posture = external ? "   (지금은 웹캠이 결정)" : "";
-
-            AddGuideRow(i++, Key(PlayerKey.Left) + " / " + Key(PlayerKey.Right), "이동 · 뒤로는 조금 느리다");
-            bool boxing = player != null && player.GetComponent<Fighter3DView>() != null;
-            // 3D 복싱에는 점프·앉기가 없다.
-            if (!boxing)
-            {
-                AddGuideRow(i++, Key(PlayerKey.Jump), "점프");
-                AddGuideRow(i++, Key(PlayerKey.Crouch), "앉기" + posture);
-            }
-            // 막기는 웹캠 제어 중에도 키로 쓸 수 있다. 3D 에서는 높이(상단/하단)를 상대 공격에 맞춰 자동으로 고른다.
-            AddGuideRow(i++, Key(PlayerKey.Block), "막기 · 누르는 동안 유지"
-                + (boxing ? " · 높이 자동" : ""));
-            AddGuideRow(i++, Key(PlayerKey.Attack), boxing ? "스트레이트" : "기본 공격 · 앉아서 로우킥 / 공중 하이킥");
-            if (player != null && player.GetComponent<Fighter3DView>() != null)
-            {
-                AddGuideRow(i++, player.jabKey + " / " + player.straightKey, "잽 / 스트레이트");
-                AddGuideRow(i++, player.highKickKey + " / " + player.lowKickKey, "하이킥 / 로우킥");
-            }
-            if (special != null)
-                AddGuideRow(i++, special.ActivateKey.ToString(),
-                            "파운장 · 바로 발사 · 일반 공격 " + special.HitsToCharge + "회 적중으로 충전 · " + special.Damage + " 피해");
-        }
-        else
-        {
-            AddGuideRow(i++, "웹캠", "키보드 입력이 꺼져 있다 (인식 전용)");
-        }
-
-        // 게이지 채우기는 useKeyboard 와 무관하게 먹으므로 키보드 분기 밖에 둔다.
-        if (special != null && special.ChargeKey != KeyCode.None)
-            AddGuideRow(i++, special.ChargeKey.ToString(), "파운장 게이지 채우기 (테스트용)");
-
-        if (allowRestart)
-            AddGuideRow(i++, restartKey.ToString(), "전투 종료 후 다시 시작");
-
-        AddGuideRow(i++, keyGuideToggleKey.ToString(), "이 안내 켜기 / 끄기");
-
-        keyGuidePanel.sizeDelta = new Vector2(keyGuideWidth, GuideTop + i * GuideRow + GuidePad);
-    }
-
-    /// <summary>
-    /// 한 줄을 키 칸 / 설명 칸 두 개의 텍스트로 만든다.
-    /// 여러 줄짜리 텍스트 두 개로 칸을 나누면 한글 폰트 폴백 때문에 줄 높이가 서로 달라져
-    /// 아래로 갈수록 두 칸이 어긋난다. 줄마다 y 를 직접 잡아야 정확히 맞는다.
-    /// </summary>
-    private void AddGuideRow(int index, string key, string desc)
-    {
-        float y = GuideTop + index * GuideRow;
-
-        var k = CreateText("Key" + index, keyGuidePanel, 22, TextAnchor.MiddleLeft);
-        k.text = key;
-        PlaceTopLeft(k.rectTransform, GuidePad, y, GuideKeyCol, GuideRow);
-
-        var d = CreateText("Desc" + index, keyGuidePanel, 22, TextAnchor.MiddleLeft);
-        d.text = desc;
-        d.color = new Color(0.85f, 0.9f, 1f);
-        PlaceTopLeft(d.rectTransform, GuidePad + GuideKeyCol, y,
-                     keyGuideWidth - GuidePad * 2f - GuideKeyCol, GuideRow);
-
-        guideRows.Add(k.gameObject);
-        guideRows.Add(d.gameObject);
-    }
-
-    private enum PlayerKey { Left, Right, Jump, Crouch, Block, Attack }
-
-    /// <summary>PlayerController 에 설정된 키 이름. 플레이어가 없으면 기본값을 쓴다.</summary>
-    private string Key(PlayerKey which)
-    {
-        switch (which)
-        {
-            case PlayerKey.Left:   return (player != null ? player.moveLeftKey  : KeyCode.A).ToString();
-            case PlayerKey.Right:  return (player != null ? player.moveRightKey : KeyCode.D).ToString();
-            case PlayerKey.Jump:   return (player != null ? player.jumpKey      : KeyCode.W).ToString();
-            case PlayerKey.Crouch: return (player != null ? player.crouchKey    : KeyCode.S).ToString();
-            case PlayerKey.Block:  return (player != null ? player.blockKey     : KeyCode.U).ToString();
-            default:               return (player != null ? player.attackKey    : KeyCode.P).ToString();
-        }
-    }
-
-    /// <summary>부모의 왼쪽 위를 기준으로 배치한다. (x, y 는 왼쪽 위에서의 거리)</summary>
-    private static void PlaceTopLeft(RectTransform rect, float x, float y, float width, float height)
-    {
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = new Vector2(x, -y);
-        rect.sizeDelta = new Vector2(width, height);
-    }
-
     // ────────────────────────── UI 생성 ──────────────────────────
 
     private void BuildCanvas()
@@ -653,16 +468,6 @@ public class CombatHUD : MonoBehaviour
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         return go.GetComponent<RectTransform>();
-    }
-
-    private Image CreateImage(string name, Transform parent, Color color)
-    {
-        var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        go.transform.SetParent(parent, false);
-        var img = go.GetComponent<Image>();
-        img.color = color;
-        img.raycastTarget = false;
-        return img;
     }
 
     private Text CreateText(string name, Transform parent, int size, TextAnchor anchor)

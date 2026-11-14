@@ -114,18 +114,14 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
         // with a misleading camera prompt after the recording is closed.
         foreach (var fighter in fighters)
             if (fighter != null && fighter.Health != null && fighter.Health.IsDead) return;
-        if (KeyboardTest)
-        {
-            GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 26), "KEYBOARD TEST MODE — F8: camera mode");
-            return;
-        }
+        if (KeyboardTest) return;   // 키보드로 시험하는 중에는 화면에 아무것도 띄우지 않는다 (F8 로 켜고 끄는 것은 그대로)
         if (EffectsPreparing) { GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 30), "PREPARING COMBAT EFFECTS"); return; }
         if (State.Running) return;
         bool integrated=RedboolCameraRuntime.Instance!=null;
         string text = State.Rehearsal ? "CONNECTION TEST — enemy and round timer held"
             : integrated&&!State.Connected ? "카메라 준비 중 · 오른쪽 내 동작 화면을 확인해주세요"
             : integrated&&!State.Calibrated ? "중앙에서 가드를 잡고 보정 버튼 또는 C를 누르세요"
-            : !State.Connected ? "WAITING FOR CAMERA — start Python  (F8: keyboard test)"
+            : !State.Connected ? "WAITING FOR CAMERA — start Python"
             : !State.Calibrated ? "CALIBRATE — focus camera window and press C"
             : "TRACKING PAUSED — keep both arms and shoulders visible";
         GUI.Box(new Rect(Screen.width / 2f - 300, 110, 600, 50), text);

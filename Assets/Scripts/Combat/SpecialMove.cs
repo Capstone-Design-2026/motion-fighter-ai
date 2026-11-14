@@ -64,11 +64,6 @@ public class SpecialMove : MonoBehaviour
     [SerializeField] private float cutInDuration = .32f;
     [Range(.5f, 1f)] [SerializeField] private float chargeZoom = .86f;
 
-    [Header("게이지 채우기 (테스트용)")]
-    [Tooltip("맞지 않고도 게이지를 채우는 키. None 이면 꺼진다.")]
-    [SerializeField] private KeyCode chargeKey = KeyCode.I;
-    [SerializeField] private int chargeKeyAmount = 1;
-
     [Header("발동 키")]
     [Tooltip("누르고 있으면 기를 모으고, 떼면 발사한다. PlayerController 의 useKeyboard 가 꺼져 있으면 무시된다.")]
     [SerializeField] private KeyCode activateKey = KeyCode.O;
@@ -88,7 +83,6 @@ public class SpecialMove : MonoBehaviour
     public int LastDamage { get; private set; }
     public QiWave LastWave { get; private set; }
     public KeyCode ActivateKey => activateKey;
-    public KeyCode ChargeKey => chargeKey;
     public int Damage => damage;
     public float MinCharge => minCharge;
     public float MaxCharge => maxCharge;
@@ -151,9 +145,6 @@ public class SpecialMove : MonoBehaviour
 
     void Update()
     {
-        // 게이지 채우기는 연출 확인용 단축키. 웹캠 테스트 중에도 쓰므로 useKeyboard 와 상관없이 받는다.
-        if (!RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
-
         if (controller == null || controller.useKeyboard)
         {
             // 방어 중에 누르면 공격처럼 방어를 풀고 기를 모으기 시작한다(Fighter.BeginSpecial).

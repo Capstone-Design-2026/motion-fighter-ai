@@ -1,9 +1,9 @@
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
-/// <summary>Explicit, unsaved combat rehearsal. Normal campaign routing is unchanged.</summary>
+/// <summary>Explicit, unsaved combat rehearsal. Normal campaign routing is unchanged.
+/// 시작 화면의 단추는 없앴다. 자동 검사(Begin)와 실행 인자 --redbool-duel-test 로만 들어온다. 이 모드에서 F5 는 처음부터 다시.</summary>
 public sealed class RedboolDuelTest : MonoBehaviour
 {
     public static bool Active { get; private set; }
@@ -43,16 +43,6 @@ public sealed class RedboolDuelTest : MonoBehaviour
             throw new InvalidOperationException("Direct duel arena missing from build: " + ArenaScene);
         SceneManager.LoadScene(ArenaScene);
         Debug.Log("[REDBOOL DUEL TEST] Direct combat; campaign save is protected.");
-    }
-
-    void Start()
-    {
-        var canvas = UIFactory.CreateCanvas("DuelTestHelp", transform, 210);
-        var label = WuxiaTheme.Text("Help", canvas.transform,
-            "결투 테스트 · 진행 저장 안 함  |  F5: 처음부터 다시  |  I: 필살기 충전", 18,
-            TextAnchor.MiddleCenter, WuxiaTheme.Paper);
-        UIFactory.Place(label.rectTransform, new Vector2(.5f, 0), new Vector2(.5f, 0),
-            new Vector2(0, 24), new Vector2(1100, 40));
     }
 
     void Update()
