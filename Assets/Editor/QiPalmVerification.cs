@@ -130,7 +130,6 @@ public static class QiPalmVerification
         foreach (var p in Object.FindObjectsByType<Pushbox>(FindObjectsSortMode.None)) p.enabled = false;
         cam = Camera.main; var rig = cam.GetComponent<Battle3DCamera>(); rig.allowMouseOrbit = false; rig.automaticCombatFraming = false; rig.SetOrbit(-24, 9, true);
         hud = Object.FindAnyObjectByType<CombatHUD>()?.GetComponentInChildren<Canvas>(); if (hud) hud.transform.Find("KeyGuide")?.gameObject.SetActive(false);
-        var webcamUi = GameObject.Find("WebcamUI"); if (webcamUi) webcamUi.SetActive(false);
         File.WriteAllText(Out + "/events.txt", "");
         Check(special != null && QiPalmAssets.Load() != null, "SpecialMove and QiPalmAssets present in " + SceneManager.GetActiveScene().name);
         Check(view.modelAnimator.runtimeAnimatorController != null && view.modelAnimator.HasState(0, Animator.StringToHash(QiPalmTiming.ChargeState)) && view.modelAnimator.HasState(0, Animator.StringToHash(QiPalmTiming.ReleaseState)), "player animator has SPECIAL_CHARGE / SPECIAL_RELEASE");
