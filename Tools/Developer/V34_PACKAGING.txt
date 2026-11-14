@@ -1,10 +1,18 @@
 REDBOOL v34.2 — fullscreen camera preview and diagnostic gameplay
 
-v34.2 retains the byte-identical v34.1 native camera backend/model/recognizer.
-Only Unity local preview pacing, optional high-DPI 3D render budget, Mac permission
-preflight and direct-duel menu exit change. Windows/PvP protocol30 is unchanged.
-Preview polls never overlap and are skipped while folded; two healthy 5s windows
-restore15fps after shedding display work. Camera/inference remains independent.
+v34.2 uses a new native backend with a calibration-only sampling fix: allow up to
+200ms between samples, retain120ms evidence age,12samples, dwell and guard geometry.
+Only Lite runs while uncalibrated; configured Full VIDEO/IMAGE resume with current
+pixels on the next calibrated frame. Gameplay gaps/thresholds/models stay unchanged.
+The failed Windows10.8fps record now calibrates in saved-landmark replay; successful
+Mac and Windows calibration anchors, personal profiles and discrete events stay equal.
+This does not measure live camera FPS or model warm-start latency.
+
+Unity improves local preview pacing, high-DPI3D render budget and Mac permission
+preflight. Esc opens the shared navigation menu in every scene; Continue closes it,
+Main Menu uses existing scene/PvP cleanup. The simulation continues while it is open.
+Windows/PvP protocol30 is unchanged. Preview requests never overlap and are skipped
+while folded; two healthy5s windows restore15fps after shedding display work.
 
 Earlier field patch: the existing story combat warmup renders both real Hero02 punch
 correction surfaces into its temporary target before input unlocks. Renderer

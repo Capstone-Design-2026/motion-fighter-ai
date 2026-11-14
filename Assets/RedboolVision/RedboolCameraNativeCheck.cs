@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.EventSystems;
 using Debug=UnityEngine.Debug;
 
 /// <summary>Explicit development-only packaged lifecycle fixture. Synthetic camera only.</summary>
@@ -20,6 +21,10 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     string directory;bool finished;
     double measuredPreviewFps;
     float measuredRenderScale;
+    RunState mapFixtureRun;
+    RunData mapOriginalData;
+    string mapOriginalMessage;
+    bool mapFixtureActive;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
@@ -56,9 +61,43 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         try {using(var p=Process.GetProcessById(id))return !p.HasExited;}
         catch(ArgumentException){return false;}catch(InvalidOperationException){return false;}
     }
+    static bool ModalBlocksScreenPoint(Vector2 point)
+    {
+        if(EventSystem.current==null)return false;
+        var hits=new List<RaycastResult>();
+        EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current){position=point},hits);
+        return hits.Count>0&&hits[0].gameObject.GetComponentInParent<Canvas>()?.name=="GameMenuCanvas";
+    }
+    void InstallUnsavedMapFixture()
+    {
+        mapFixtureRun=RunState.Instance;
+        if(mapFixtureRun==null||mapFixtureRun.Config==null)throw new Exception("Map fixture needs RunState config");
+        mapOriginalData=mapFixtureRun.Data;mapOriginalMessage=mapFixtureRun.LastMessage;
+        var data=new RunData{seed=20261115,storyPresentationVersion=1,tutorialVersion=1,tutorialCompleted=true};
+        data.map=MapGenerator.Generate(mapFixtureRun.Config.map,mapFixtureRun.Config,data.seed);
+        data.currentNodeId=data.map.storyVersion>0?"cave":data.map.nodes[0].id;
+        data.clearedNodeIds.Add(data.currentNodeId);data.discoveredNodeIds.Add(data.currentNodeId);
+        // Prevent automatic story presentation/autosave; do not call StartNewRun,
+        // LoadRun or Save, and never write a fixture into the user's PlayerPrefs.
+        foreach(var node in data.map.nodes){data.seenStoryIds.Add(node.id+"_visit");data.seenStoryIds.Add(node.id+"_after");}
+        data.seenStoryIds.Add("cave_prologue");
+        mapFixtureActive=true;
+        typeof(RunState).GetProperty("Data").SetValue(mapFixtureRun,data);
+    }
+    void RestoreMapFixture()
+    {
+        if(!mapFixtureActive)return;
+        if(mapFixtureRun!=null)
+        {
+            typeof(RunState).GetProperty("Data").SetValue(mapFixtureRun,mapOriginalData);
+            mapFixtureRun.LastMessage=mapOriginalMessage;
+        }
+        mapFixtureActive=false;
+    }
     IEnumerator Flow()
     {
         string savedRun=PlayerPrefs.GetString("VisionStriker.Run", "");
+        bool savedRunPresent=PlayerPrefs.HasKey("VisionStriker.Run");
         var pipeline=GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
         float originalRenderScale=pipeline!=null?pipeline.renderScale:1;
         double end=Time.realtimeSinceStartupAsDouble+30;
@@ -67,6 +106,36 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         var runtime=RedboolCameraRuntime.Instance;
         Check(runtime.Synthetic&&RedboolCameraRuntime.Packaged,"Bundled runtime explicitly synthetic");
         Check(!runtime.Running,"Menu does not open camera child");
+        float menuTime=Time.timeScale,menuStep=Time.fixedDeltaTime;
+        RedboolPauseMenu.Open();Canvas.ForceUpdateCanvases();
+        Check(RedboolPauseMenu.IsOpen&&ButtonNamed("GameMenuContinue")!=null&&ButtonNamed("GameMenuReturn")!=null,"Universal game menu opens with Continue and Return choices");
+        Check(!runtime.Running&&!runtime.DiagnosticsPending,"Opening main-menu overlay does not start a camera child");
+        Check(ModalBlocksScreenPoint(new Vector2(12,12)),"Fullscreen modal prevents pointer clicks reaching the underlying scene");
+        ButtonNamed("GameMenuContinue").onClick.Invoke();
+        Check(!RedboolPauseMenu.IsOpen&&RedboolPauseMenu.BlocksStoryInput,"Continue closes overlay and consumes its closing-frame story input");
+        Check(!ModalBlocksScreenPoint(new Vector2(12,12)),"Closed menu no longer blocks pointer input to the scene");
+        Check(Mathf.Approximately(Time.timeScale,menuTime)&&Mathf.Approximately(Time.fixedDeltaTime,menuStep),"Opening and continuing menu never takes ownership of simulation time");
+        yield return null;
+        Check(!RedboolPauseMenu.BlocksStoryInput&&!runtime.Running,"Story keyboard input resumes next frame without opening a camera");
+        InstallUnsavedMapFixture();RedboolPauseMenu.Open();SceneRoutes.LoadMap();yield return null;
+        end=Time.realtimeSinceStartupAsDouble+30;
+        while(FindAnyObjectByType<MapSceneUI>()==null||ButtonNamed("MenuButton")==null)
+        {Deadline(end,"unsaved map menu fixture");yield return null;}
+        Check(SceneManager.GetActiveScene().name==SceneRoutes.Map&&!StoryCutscene.IsOpen&&!runtime.Running,"Real map scene opens from in-memory fixture without story or camera side effects");
+        Check(RedboolPauseMenu.IsOpen&&EventSystem.current!=null&&EventSystem.current.currentSelectedGameObject==ButtonNamed("GameMenuContinue").gameObject,"Scene transition under an open overlay retains Continue keyboard focus");
+        Check(ButtonNamed("GameMenuReturn").interactable,"Scene transition refreshes main-menu return availability");
+        ButtonNamed("GameMenuContinue").onClick.Invoke();yield return null;
+        ButtonNamed("MenuButton").onClick.Invoke();
+        Check(RedboolPauseMenu.IsOpen&&SceneManager.GetActiveScene().name==SceneRoutes.Map,"Map menu button opens the same overlay without leaving the map");
+        yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"00_map_game_menu.png"));
+        ButtonNamed("GameMenuContinue").onClick.Invoke();
+        Check(!RedboolPauseMenu.IsOpen&&SceneManager.GetActiveScene().name==SceneRoutes.Map,"Continue returns to the current map");
+        RedboolPauseMenu.Open();ButtonNamed("GameMenuReturn").onClick.Invoke();yield return null;
+        end=Time.realtimeSinceStartupAsDouble+15;
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||ButtonNamed("PvpButton")==null)
+        {Deadline(end,"map return to main menu");yield return null;}
+        RestoreMapFixture();
+        Check(!RedboolPauseMenu.IsOpen&&!runtime.Running&&PlayerPrefs.GetString("VisionStriker.Run","")==savedRun&&PlayerPrefs.HasKey("VisionStriker.Run")==savedRunPresent,"Map return preserves campaign save bytes and presence while leaving the camera closed");
         var menu=FindAnyObjectByType<StartSceneUI>();var lobby=menu.transform.Find("StartCanvas/TwoScreenMenu");
         Check(lobby!=null&&!lobby.gameObject.activeSelf,"Lobby hidden by default");
         ButtonNamed("PvpButton").onClick.Invoke();yield return null;
@@ -126,10 +195,14 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(runtime.Fresh,"Preview restores higher rate after sustained healthy frames");
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_pvp_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
-        RedboolPvp.Instance.Leave(true);end=Time.realtimeSinceStartupAsDouble+15;
+        float pvpTime=Time.timeScale,pvpStep=Time.fixedDeltaTime;
+        RedboolPauseMenu.Open();
+        Check(RedboolPauseMenu.IsOpen&&RedboolPvp.Active&&runtime.ChildId==first&&Mathf.Approximately(Time.timeScale,pvpTime)&&Mathf.Approximately(Time.fixedDeltaTime,pvpStep),"PvP game menu leaves match time and owned camera unchanged until confirmation");
+        ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
         while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("DuelTestButton")==null)
         {Deadline(end,"return to menu stops owned child");yield return null;}
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
+        Check(!RedboolPauseMenu.IsOpen&&!RedboolPvp.Active,"Common menu confirmation uses the normal PvP disconnect route");
         Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
         budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale),"Leaving camera gameplay restores authored render scale");
         ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
@@ -159,9 +232,17 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         yield return new WaitForSecondsRealtime(.2f);
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"03_story_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
-        var exit=ButtonNamed("DuelExitToMenu");Check(exit!=null&&RedboolDuelTest.Active,"Direct duel exposes menu exit");
+        var exit=ButtonNamed("DuelExitToMenu");Check(exit!=null&&RedboolDuelTest.Active,"Direct duel exposes the shared game menu");
         Time.timeScale=.06f;Time.fixedDeltaTime=.0012f;
-        exit.onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
+        exit.onClick.Invoke();
+        Check(RedboolPauseMenu.IsOpen&&RedboolDuelTest.Active&&SceneManager.GetActiveScene().name=="ScoutPass"&&runtime.ChildId==second,"Direct duel menu opens without immediately leaving combat or stopping camera");
+        Check(Mathf.Approximately(Time.timeScale,.06f)&&Mathf.Approximately(Time.fixedDeltaTime,.0012f),"Direct duel menu preserves an existing slow-time owner");
+        ButtonNamed("GameMenuContinue").onClick.Invoke();
+        Check(!RedboolPauseMenu.IsOpen&&RedboolPauseMenu.BlocksStoryInput&&RedboolDuelTest.Active&&Alive(second),"Direct duel Continue keeps the same fight and camera while consuming closing input");
+        Check(Mathf.Approximately(Time.timeScale,.06f)&&Mathf.Approximately(Time.fixedDeltaTime,.0012f),"Continuing does not restore or overwrite a special slow-time value");
+        exit.onClick.Invoke();
+        Check(RedboolPauseMenu.IsOpen,"Direct duel menu can reopen before return confirmation");
+        ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
         while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("DuelTestButton")==null)
         {Deadline(end,"direct duel exit flushes camera diagnostics");yield return null;}
         Check(!RedboolDuelTest.Active&&Mathf.Approximately(Time.timeScale,1)&&Mathf.Approximately(Time.fixedDeltaTime,.02f),"Direct duel exit restores normal game time and clears test mode");
@@ -182,6 +263,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     void Finish(bool passed,string error)
     {
         if(finished)return;finished=true;
+        RestoreMapFixture();
         File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children,preview_fps=measuredPreviewFps,render_scale=measuredRenderScale,width=Screen.width,height=Screen.height},true));
         Debug.Log("[CAMERA CHECK] "+(passed?"PASS":"FAIL "+error));
         Application.Quit(passed?0:1);

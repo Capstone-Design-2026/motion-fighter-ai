@@ -126,8 +126,7 @@ public class MapSceneUI : MonoBehaviour
 
     void Update()
     {
-        if(scroll!=null) scroll.enabled=!travelling && journal==null && !StoryCutscene.IsOpen;
-        if (journal != null && Input.GetKeyDown(KeyCode.Escape)) CloseJournal();
+        if(scroll!=null) scroll.enabled=!travelling && journal==null && !StoryCutscene.IsOpen && !RedboolPauseMenu.IsOpen;
         float now = Time.unscaledTime;
         float s = 1f + Mathf.Sin(now * pulseSpeed) * (Run != null && Run.IsStoryMap ? pulseAmount * 2.4f : pulseAmount);
         for (int i = 0; i < pulsing.Count; i++)
@@ -1247,7 +1246,7 @@ public class MapSceneUI : MonoBehaviour
         UIFactory.Place(title.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(44,-26),new Vector2(260,60));title.fontStyle=FontStyle.Bold;
         var summary=WuxiaTheme.Text("JournalSummary",paper.transform,"기록한 장소 "+entries.Count+"곳      돌파한 전투 "+won+" / "+battles,21,TextAnchor.MiddleLeft,new Color(.43f,.38f,.29f));
         UIFactory.Place(summary.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(300,-34),new Vector2(700,44));
-        var close=UIFactory.CreateButton("CloseJournal",paper.transform,"닫기  (Esc)",22,WuxiaTheme.Ink,CloseJournal);
+        var close=UIFactory.CreateButton("CloseJournal",paper.transform,"닫기",22,WuxiaTheme.Ink,CloseJournal);
         UIFactory.Place(close.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-34,-30),new Vector2(170,52));
         var rule=UIFactory.CreateImage("JournalRule",paper.transform,new Color(.53f,.40f,.23f,.45f));
         rule.rectTransform.anchorMin=new Vector2(0,1);rule.rectTransform.anchorMax=Vector2.one;
@@ -1443,9 +1442,7 @@ public class MapSceneUI : MonoBehaviour
 
     private void OnMenu()
     {
-        if (travelling || journal != null || StoryCutscene.IsOpen) return;
-        if (Run != null) Run.Save();
-        SceneRoutes.LoadStart();
+        RedboolPauseMenu.Open();
     }
 }
 

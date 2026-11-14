@@ -24,6 +24,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     expected = 'Windows' if target == 'windows' else 'Darwin'
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
+    if metadata.get('release') != 'v34.2':
+        raise ValueError('v34.2 requires the calibration sampling/load fix in its native backend.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -82,7 +84,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recognition_recording_schema='redbool.landmarks/1',
                     lan_protocol=30)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v34.2 · 전체 화면·내 동작 미리보기 보완 시험판\n\n'
+        'REDBOOL v34.2 · 보정·전체 화면·공통 메뉴 보완 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -92,7 +94,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '접기를 누르면 영상 표시를 쉬며 동작 인식은 계속됩니다.\n\n'
         '내 동작 미리보기는 최대 15fps이며 게임 처리에 부담이 생기면 8fps로 낮춥니다.\n'
         '전체 화면 크기는 유지하고 카메라와 함께 실행하는 3D 화면의 처리량을 조절합니다.\n'
-        '결투 바로가기는 수련을 건너뜁니다. 기본 보정은 C, 메뉴 복귀는 Esc 또는 메뉴로 버튼입니다.\n\n'
+        '결투 바로가기는 수련을 건너뛰며 기본 보정은 C입니다.\n모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
         '양쪽 모두 같은 v34.2 패키지로 테스트하는 것을 권합니다. 화면 통신 규약은 v34·v34.1과 같습니다.\n'
         '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'

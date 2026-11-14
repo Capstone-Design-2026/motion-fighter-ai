@@ -82,7 +82,10 @@ public sealed class RedboolCameraPanel : MonoBehaviour
             if(s.calibration_reason=="FISTS_LOW")return "주먹을 턱 근처로 올리고\n편안한 가드를 유지하세요";
             if(s.calibration_reason=="FISTS_HIGH")return "주먹을 턱 근처로 조금 내려주세요";
             if(s.calibration_reason=="ARMS_EXTENDED")return "팔꿈치를 굽혀 가드를 잡아주세요";
-            if(s.calibration_reason=="JOINTS_UNCERTAIN"||s.calibration_reason=="JOINT_HISTORY")return "양손과 팔꿈치가 가리지 않게\n카메라에 보여주세요";
+            if(s.calibration_reason=="FISTS_FAR")return "주먹을 몸 가까이 가져와\n편안한 가드를 잡아주세요";
+            if(s.calibration_reason=="STALE_FRAME"||s.calibration_reason=="JOINT_HISTORY")return "카메라 움직임을 확인하고 있어요\n가드를 유지하면 자동으로 이어집니다";
+            if(s.calibration_reason=="JOINTS_OUTSIDE")return "어깨와 양팔이 화면 안에\n들어오도록 앉아주세요";
+            if(s.calibration_reason=="JOINTS_UNCERTAIN")return "양손과 팔꿈치가 가리지 않게\n카메라에 보여주세요";
             if(s.calibration_progress>0||s.phase=="calibrating")return "가드 유지 중 · C를 다시 누르지 않아도 돼요";
             return "중앙에서 가드를 잡고\n보정 버튼 또는 C를 누르세요";
         }

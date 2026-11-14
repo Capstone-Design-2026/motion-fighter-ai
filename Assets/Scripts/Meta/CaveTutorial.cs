@@ -74,7 +74,7 @@ public class CaveTutorial : MonoBehaviour {
    if(run.Data.tutorialStep>=Actions.Length){run.CompleteTutorial();exit=true;return;}RefreshStep();}
   phaseLabel.text=advancing?"확인 완료":IsDemonstrating?"① 시범 보기":armed||DiscreteVisionStep?"② 따라 해보세요":"③ 팔을 내리거나 중앙으로 돌아오기";
   if(IsDemonstrating)return;
-  if(keyboard){if(Input.GetKeyDown(KeyCode.Space))Accept("IDLE",1);for(int i=0;i<Actions.Length;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))Accept(Actions[i],1);}
+  if(keyboard){if(!RedboolPauseMenu.BlocksStoryInput){if(Input.GetKeyDown(KeyCode.Space))Accept("IDLE",1);for(int i=0;i<Actions.Length;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))Accept(Actions[i],1);}}
   else if(Time.unscaledTime-lastPacket>3){armed=false;signal.text="카메라 신호 없음";if(Time.unscaledTime>feedbackUntil)status.text="비전 신호를 기다려요. 백엔드를 켜거나 우측 위에서 키보드 테스트를 선택하세요.";return;}
   if(Time.unscaledTime>feedbackUntil&&!advancing)status.text=Time.unscaledTime-stepStarted>12||mistakes>=3?Tips[CurrentStep]:armed||DiscreteVisionStep?Gestures[CurrentStep]:"팔을 내리거나 몸을 중앙으로 돌리면 다음 동작을 받을게요.";
  }

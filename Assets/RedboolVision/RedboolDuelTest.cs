@@ -60,8 +60,8 @@ public sealed class RedboolDuelTest : MonoBehaviour
     {
         UIFactory.EnsureEventSystem();
         var canvas = UIFactory.CreateCanvas("DuelTestHelp", transform, 210);
-        var exit = UIFactory.CreateButton("DuelExitToMenu", canvas.transform, "메뉴로 · Esc", 20,
-            WuxiaTheme.Ink, ReturnToMenu);
+        var exit = UIFactory.CreateButton("DuelExitToMenu", canvas.transform, "게임 메뉴 · Esc", 20,
+            WuxiaTheme.Ink, RedboolPauseMenu.Open);
         UIFactory.Place(exit.GetComponent<RectTransform>(), new Vector2(0, 1), new Vector2(0, 1),
             new Vector2(24, -124), new Vector2(180, 42));
         WuxiaTheme.StyleButton(exit);
@@ -75,7 +75,6 @@ public sealed class RedboolDuelTest : MonoBehaviour
     void Update()
     {
         if (!Active) return;
-        if (Input.GetKeyDown(KeyCode.Escape)) { ReturnToMenu(); return; }
-        if (Input.GetKeyDown(KeyCode.F5)) Restart();
+        if (!RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyCode.F5)) Restart();
     }
 }

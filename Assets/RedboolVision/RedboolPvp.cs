@@ -162,8 +162,7 @@ public sealed class RedboolPvp : MonoBehaviour
     void Update()
     {
         if(!configured) return;
-        if(IsClient) { if(Input.GetKeyDown(KeyCode.Escape)) Leave(true);return; }
-        if(Input.GetKeyDown(KeyCode.Escape)) { Leave(true);return; }
+        if(IsClient) return;
         if(Resolved && Input.GetKeyDown(KeyCode.R)) Rematch();
         if(Input.GetKeyDown(KeyCode.F6)) SkipPractice(0);
         if(Input.GetKeyDown(KeyCode.F7)) SkipPractice(1);
