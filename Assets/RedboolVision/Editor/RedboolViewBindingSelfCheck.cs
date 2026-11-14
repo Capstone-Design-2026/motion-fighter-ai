@@ -71,9 +71,20 @@ public static class RedboolViewBindingSelfCheck
             guestObject=new GameObject("View binding test guest");var guest=guestObject.AddComponent<RedboolViewLink>();
             Field("client").SetValue(guest,true);Field("initialized").SetValue(guest,true);
             var remote=new IPEndPoint(IPAddress.Loopback,RedboolViewProtocol.Port);Field("peer").SetValue(guest,remote);
+            // A newly opened local socket must not expose a completed old lobby
+            // frame/feedback or partial special animation from a former lease.
+            var assembler=(RedboolViewAssembler)Field("assembler").GetValue(guest);
+            var oldSession=Guid.NewGuid();
+            var oldActor=new RedboolViewActor {character=11,specialSerial=255,specialFlags=7,feedback=(byte)RedboolCombatFeedbackCode.SpecialStarted};
+            assembler.Push(new RedboolViewPacket {kind=1,session=oldSession,seq=44,time=1,world=new RedboolViewWorld {stage=1,cursor1=11}},1);
+            assembler.Push(new RedboolViewPacket {kind=2,session=oldSession,seq=44,time=1,actor=oldActor},1);
+            var oldFrame=assembler.Push(new RedboolViewPacket {kind=3,session=oldSession,seq=44,time=1,actor=oldActor},1);
+            var history=(List<RedboolViewFrame>)Field("history").GetValue(guest);history.Add(oldFrame);
+            Field("lastFrame").SetValue(guest,Time.realtimeSinceStartupAsDouble);Field("ack").SetValue(guest,44UL);
             Retry(guest,20);
             Check(guest.Bound&&!guest.PortConflict&&guest.BindError==null&&!guest.Fresh,"Guest without snapshots is waiting, not a bind failure");
             Check(remote.Equals(Field("peer").GetValue(guest)),"Guest retry preserves the selected remote host");
+            Check(guest.Latest==null&&history.Count==0&&(ulong)Field("ack").GetValue(guest)==0,"Reopened guest channel clears stale lobby/actor snapshots and old ACKs");
             DestroyFixture(hostObject);hostObject=null;
             using(var released=Reserve(RedboolViewProtocol.Port))Check(released.Client.IsBound,"Production cleanup releases only this host's5067 socket for the next game");
             string output=Environment.GetEnvironmentVariable("REDBOOL_VIEW_BINDING_CHECK_OUTPUT");

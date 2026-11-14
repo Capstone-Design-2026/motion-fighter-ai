@@ -25,7 +25,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
     if metadata.get('release') != 'v34.3':
-        raise ValueError('v35.1 retains the verified v34.3 recognition backend.')
+        raise ValueError('v36 retains the verified v34.3 recognition backend.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -82,9 +82,9 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
                     recognition_recording_max_bytes=134217728,
                     recognition_recording_schema='redbool.landmarks/1',
-                    lan_protocol=31)
+                    lan_protocol=32)
     (output / '시작 안내.txt').write_text(
-        'REDBOOL v35.1 · 간결한 전투 안내·자동 축소 카메라 시험판\n\n'
+        'REDBOOL v36 · 캐릭터 선택·인물별 필살기 통합 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -101,10 +101,10 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
         '결투 바로가기는 수련을 건너뛰며 기본 보정은 C입니다.\n모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 v35.1을 권장합니다. 화면 통신 규약 31은 v35와 같으며 v34 계열과는 혼용할 수 없습니다.\n'
+        '양쪽 모두 v36을 권장합니다. 화면 통신 규약 32입니다. 양쪽 모두 v36을 사용하고 이전 버전과 혼용하지 마세요.\n'
         '한 명은 방 만들기, 다른 한 명은 방 찾기 또는 방장의 IPv4 입력 후 대전 참가를 누릅니다.\n'
         'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
-        '양쪽 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
+        '각자 보정 후 인물을 고르고 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
         '카메라 접근 권한은 최초 실행 시 허용해야 합니다. 내 영상은 다른 PC로 보내지 않습니다.\n'
         '원본 영상은 녹화하지 않고 관절 좌표·인식·보정·성능 기록을 압축 저장합니다.\n'
         '관절 기록은 카메라 실행마다 최대 128MiB이며, 제한에 도달해도 게임은 계속됩니다.\n'

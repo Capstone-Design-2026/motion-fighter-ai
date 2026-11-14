@@ -374,6 +374,9 @@ public class PlayerController : MonoBehaviour
             case "SPECIAL":
             case "SPECIAL_CHARGE":
             {
+                // PvP 에서 적 인물을 골랐으면 그 인물의 기술이 나간다.
+                var own = GetComponent<EnemySpecial>();
+                if (own != null && own.enabled && own.PlayerOwned) { own.TryFire(); break; }
                 var special = GetComponent<SpecialMove>();
                 if (special != null && !special.IsPlaying) special.Activate();
                 break;

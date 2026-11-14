@@ -1,3 +1,6 @@
+Historical v34 packaging guide. Current integrated release: V36_TEST_RELEASE.txt.
+The v36 branch uses view protocol32; both laptops must use v36.
+
 REDBOOL v34.3 — camera acquisition, receiver ownership and stationary calibration
 
 Current patch: a packaged local story/P1 camera starts only after its own scene
@@ -130,3 +133,18 @@ actual test counts and measured recording overhead; do not assume every hardware
 or camera is validated by a successful build.
 Real simultaneous Mac/Windows camera play remains the final user check. Preserve
 entire Windows support folders. Mac local ad-hoc signing is not notarization.
+
+PvP lobby branch (feature/pvp-lobby-tutorial, merged on top of v34.1)
+Adds the PvP waiting room, 12-character select (hero + 11 story enemies), each
+character's own special move, the explained practice cards and story-style HUD
+in PvP. Details: Docs/PvpLobbyTutorial.md.
+The original lobby branch used a distinct protocol31 layout. The v36 integration
+uses protocol32, preserving feedback/punch-surface/practice-run plus lobby and
+character-special fields. Do not mix with either former protocol31 build.
+
+Play build without the "Development Build" watermark
+python Tools/Developer/build_local.py --release   -> Build/REDBOOL-release/
+The default build stays a development player in Build/REDBOOL/. The synthetic
+check above only runs in a development player, so check with the default build
+and hand out a package assembled from the --release build (same assemble command,
+--player pointing at Build/REDBOOL-release).

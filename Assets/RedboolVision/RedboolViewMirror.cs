@@ -35,10 +35,33 @@ public sealed class RedboolViewMirror : MonoBehaviour
         }
         foreach(var c in FindObjectsByType<Battle3DCamera>(FindObjectsSortMode.None)) c.enabled=false;
     }
+    /// <summary>손님 화면에서 인물의 겉모습이 바뀐 뒤: 새 겉모습도 스스로 움직이지 않게 하고 색을 다시 입힌다.</summary>
+    public void Rebind(int i)
+    {
+        if(i<0 ||i>=views.Length) return;
+        ClearActorTransient(i);
+        views[i].enabled=false;views[i].modelAnimator.enabled=false;
+        // The replacement visual must remain a replica, just like the original.
+        foreach(var body in views[i].visualRoot.GetComponentsInChildren<Rigidbody2D>(true)) body.simulated=false;
+        foreach(var collider in views[i].visualRoot.GetComponentsInChildren<Collider2D>(true)) collider.enabled=false;
+        foreach(var collider in views[i].visualRoot.GetComponentsInChildren<Collider>(true)) collider.enabled=false;
+        // 새 겉모습의 주먹 보정 면(주인공에게만 있다). 호스트가 보내는 값으로만 바꾼다.
+        punchSurfaces[i]=views[i].visualRoot.GetComponentsInChildren<HeroPunchSurfaceVisibility>(true);
+        foreach(var surface in punchSurfaces[i]) surface.enabled=false;
+        renderers[i]=views[i].visualRoot.GetComponentsInChildren<Renderer>();
+        var props=new MaterialPropertyBlock();props.SetColor("_BaseColor",views[i].fighterTint);props.SetColor("_Color",views[i].fighterTint);
+        foreach(var r in renderers[i]) r.SetPropertyBlock(props);
+    }
+    void ClearActorTransient(int i)
+    {
+        if(chargeFx[i]) Destroy(chargeFx[i].gameObject);chargeFx[i]=null;
+        for(int j=0;j<2;j++) {if(readyFx[i,j]) Destroy(readyFx[i,j]);readyFx[i,j]=null;}
+        serial[i]=-1;
+    }
     public void ClearTransient()
     {
         foreach(var wave in waves.Values) if(wave) Destroy(wave);waves.Clear();
-        for(int i=0;i<2;i++) {if(chargeFx[i]) Destroy(chargeFx[i].gameObject);for(int j=0;j<2;j++) if(readyFx[i,j]) Destroy(readyFx[i,j]);serial[i]=-1;}
+        for(int i=0;i<2;i++) ClearActorTransient(i);
         lastEffect=0;
     }
     public void Apply(RedboolViewFrame a,RedboolViewFrame b,float t)
@@ -52,7 +75,8 @@ public sealed class RedboolViewMirror : MonoBehaviour
             if(bones[i][0]) bones[i][0].localPosition=Vector3.Lerp(x.hips,y.hips,t);
             foreach(var surface in punchSurfaces[i]) surface.ApplyRemoteSurface(y.punchSurface);
             if(serial[i]>=0 && y.attackSerial!=serial[i]) CombatSfx.PlayAttack();serial[i]=y.attackSerial;
-            var hands=(bones[i][(int)HumanBodyBones.LeftHand].position+bones[i][(int)HumanBodyBones.RightHand].position)*.5f;
+            var left=bones[i][(int)HumanBodyBones.LeftHand];var right=bones[i][(int)HumanBodyBones.RightHand];
+            var hands=left&&right?(left.position+right.position)*.5f:y.visual;
             bool charging=y.phase==1||y.phase==2||y.phase==3;
             if(charging && !chargeFx[i] &&assets &&assets.charge) chargeFx[i]=Instantiate(assets.charge).GetComponent<QiChargeFx>();
             if(!charging && chargeFx[i]) {chargeFx[i].End();chargeFx[i]=null;}
@@ -60,7 +84,8 @@ public sealed class RedboolViewMirror : MonoBehaviour
             bool ready=y.charge>=y.maxCharge &&y.phase==0 &&y.hp>0;
             for(int j=0;j<2;j++)
             {
-                if(ready && !readyFx[i,j] &&assets &&assets.ready) readyFx[i,j]=Instantiate(assets.ready,bones[i][j==0?(int)HumanBodyBones.LeftHand:(int)HumanBodyBones.RightHand],false);
+                var hand=j==0?left:right;
+                if(ready && hand && !readyFx[i,j] &&assets &&assets.ready) readyFx[i,j]=Instantiate(assets.ready,hand,false);
                 if(!ready &&readyFx[i,j]) {Destroy(readyFx[i,j]);readyFx[i,j]=null;}
             }
             tint.SetColor("_BaseColor",y.tint);tint.SetColor("_Color",y.tint);

@@ -28,7 +28,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         public bool camera_slow;
         public float acquisition_fps;
         public string camera_profile;
-        public long preview_sequence; public Framing framing;
+        public long preview_sequence,frame_id; public Framing framing;
         public RecordingStatus recording;
     }
     [Serializable] sealed class Command { public string command,request_id; }
@@ -55,6 +55,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     public bool PreviewVisible { get; set; } = true;
     public bool Synthetic { get; private set; }
     public bool InferencePressure => Status!=null && Status.inference_warning=="AUXILIARY_DISABLED_FOR_LATENCY";
+    readonly RedboolRenderPressure renderPressure = new RedboolRenderPressure();
+    public bool JointRenderPressure => Running && renderPressure.Latched;
     Process child,stoppingChild; StreamWriter childLog;
     Coroutine statusRoutine,previewRoutine;
     string role,address="127.0.0.1",token,url; int generation,port;
@@ -64,6 +66,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     long logBytes; int previewSamples,previewRequests,frameSamples,healthyPreviewWindows;
     double decodeTotal,decodeMax,requestTotal,requestMax,metricStarted,metricAt;
     double lastFrameAt=-1,frameElapsed,nextReceiverRetry;
+    long lastCameraFrameId=-1;
+    double lastCameraFrameAt=-100,renderFpsTotal,renderFpsSeconds;
+    bool renderWindowEligible=true;
     GUIStyle connectionNoticeStyle;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -223,7 +228,19 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         // Recalibration must not raise preview work while inference is overloaded.
         ApplyInferencePressure();
         double now=Time.realtimeSinceStartupAsDouble;
-        if(lastFrameAt>=0) {frameElapsed+=now-lastFrameAt;frameSamples++;}
+        if(lastFrameAt>=0) {
+            double interval=now-lastFrameAt;
+            frameElapsed+=interval;frameSamples++;
+            // Status HTTP freshness alone is insufficient: the camera's actual
+            // processed frame must also keep advancing. Do not count sleep gaps.
+            float fps=Status!=null?Status.capture_fps:0;
+            bool active=Running && ShowPanel && Fresh && !Synthetic && Status.camera_connected
+                && now-lastCameraFrameAt<1.5 && Application.isFocused && !RedboolPauseMenu.BlocksStoryInput
+                && Status.phase!="paused" && interval>0 && interval<1
+                && fps>0 && !float.IsNaN(fps) && !float.IsInfinity(fps);
+            renderWindowEligible &= active;
+            if(active) {renderFpsTotal+=fps*interval;renderFpsSeconds+=interval;}
+        }
         lastFrameAt=now;
         if(now>=metricAt)
         {
@@ -232,6 +249,12 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             double meanDecode=previewSamples>0?decodeTotal/previewSamples:0;
             double meanRequest=previewRequests>0?requestTotal/previewRequests:0;
             int windowTarget=CurrentPreviewTargetFps;
+            bool wasPressure=renderPressure.Latched;
+            double cameraFps=renderFpsSeconds>0?renderFpsTotal/renderFpsSeconds:0;
+            renderPressure.Observe(generation,Running,renderWindowEligible && frameSamples>0,
+                elapsed,cameraFps,meanFrame);
+            if(!wasPressure && renderPressure.Latched)
+                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} target=1280x720 session_latched=true backend_unchanged=true"));
             if(Running && frameSamples>0)
             {
                 if(InferencePressure || meanFrame>22 || meanDecode>2 || meanRequest>80)
@@ -247,6 +270,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 Debug.Log(FormattableString.Invariant($"[REDBOOL CAMERA PREVIEW] samples={previewSamples} elapsed_s={elapsed:F3} delivered_fps={previewSamples/elapsed:F2} target_fps={windowTarget} next_target_fps={CurrentPreviewTargetFps} game_mean_frame_ms={meanFrame:F3} requests={previewRequests} request_mean_ms={meanRequest:F3} request_max_ms={requestMax:F3} decode_mean_ms={meanDecode:F3} decode_max_ms={decodeMax:F3} sequence={previewSequence} local_only=true"));
             previewSamples=previewRequests=0;decodeTotal=decodeMax=requestTotal=requestMax=0;
             frameSamples=0;frameElapsed=0;
+            renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=true;
             metricStarted=now;metricAt=now+5;
         }
     }
@@ -270,6 +294,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     void StartOwned()
     {
         Error=null;Status=null;lastStatus=lastPreview=-100;previewSequence=-1;PreviewDecodedFrames=0;generation++;
+        renderPressure.Reset(generation);lastCameraFrameId=-1;lastCameraFrameAt=-100;
+        renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=true;
         previewSamples=previewRequests=0;decodeTotal=decodeMax=requestTotal=requestMax=0;
         metricStarted=Time.realtimeSinceStartupAsDouble;metricAt=metricStarted+5;
         lastFrameAt=metricStarted;frameSamples=healthyPreviewWindows=0;frameElapsed=0;
@@ -347,7 +373,11 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 if(request.result==UnityWebRequest.Result.Success && request.downloadHandler.data!=null && request.downloadHandler.data.Length<=16384)
                 {
                     CameraStatus next=null;try { next=JsonUtility.FromJson<CameraStatus>(request.downloadHandler.text); } catch(ArgumentException) { }
-                    if(next!=null && next.schema==1) { Status=next;lastStatus=Time.realtimeSinceStartupAsDouble; }
+                    if(next!=null && next.schema==1) {
+                        Status=next;lastStatus=Time.realtimeSinceStartupAsDouble;
+                        if(next.camera_connected && next.frame_id>lastCameraFrameId)
+                        {lastCameraFrameId=next.frame_id;lastCameraFrameAt=lastStatus;}
+                    }
                 }
             }
             yield return new WaitForSecondsRealtime(.2f);
@@ -415,6 +445,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     IEnumerator StopOwned()
     {
         generation++;if(statusRoutine!=null)StopCoroutine(statusRoutine);if(previewRoutine!=null)StopCoroutine(previewRoutine);
+        renderPressure.Reset(generation);
         statusRoutine=previewRoutine=null;var owned=child;stoppingChild=owned;child=null;
         if(owned!=null && !Exited(owned))
         {

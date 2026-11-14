@@ -18,7 +18,7 @@ public static class RedboolPvpPlayCheck
  static System.Diagnostics.Process guest;
  static string GuestBinary=>Environment.GetEnvironmentVariable("REDBOOL_DUAL_CLIENT");
  static void StartGuest(){
-  var info=new System.Diagnostics.ProcessStartInfo(GuestBinary,"--redbool-external-camera --redbool-pvp-client 127.0.0.1 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -logFile \""+Path.Combine(Output,"guest.log")+"\"") {UseShellExecute=false};
+  var info=new System.Diagnostics.ProcessStartInfo(GuestBinary,"--redbool-external-camera --redbool-pvp-no-lobby --redbool-pvp-client 127.0.0.1 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -logFile \""+Path.Combine(Output,"guest.log")+"\"") {UseShellExecute=false};
   info.EnvironmentVariables["REDBOOL_VIEW_TRACE_FILE"]=Path.Combine(Output,"guest-"+DateTime.UtcNow.Ticks+".jsonl");
   info.EnvironmentVariables["REDBOOL_VIEW_CAPTURE_DIR"]=Output;
   guest=System.Diagnostics.Process.Start(info);

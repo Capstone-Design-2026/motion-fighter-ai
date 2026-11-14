@@ -84,10 +84,10 @@ public sealed class RedboolCombatFeedback
             case RedboolCombatFeedbackCode.Guarding: return "블락 중 · 팔을 풀면 해제돼요";
             case RedboolCombatFeedbackCode.Attacking: return "기술 동작 중 · 끝나면 다음 공격";
             case RedboolCombatFeedbackCode.Recovering: return "기술 회복 중 · 잠시 뒤 다음 공격";
-            case RedboolCombatFeedbackCode.SpecialActive: return "파운장 시전 중";
+            case RedboolCombatFeedbackCode.SpecialActive: return "필살기 시전 중";
             case RedboolCombatFeedbackCode.HitStunned: return "피격 중 · 잠시 뒤 다시 공격하세요";
             case RedboolCombatFeedbackCode.Interrupted: return "피격으로 진행 중인 기술이 끊겼어요";
-            case RedboolCombatFeedbackCode.NotCharged: return "X자 인식 · 파운장 충전이 필요해요";
+            case RedboolCombatFeedbackCode.NotCharged: return "X자 인식 · 필살기 충전이 필요해요";
             case RedboolCombatFeedbackCode.Busy: return "지금은 공격 대기 중이에요";
             case RedboolCombatFeedbackCode.TrackingLost: return "동작 추적 확인 중 · 카메라 안내를 봐주세요";
             case RedboolCombatFeedbackCode.InputDelayed: return "카메라 입력이 늦어요 · 잠시 대기";
@@ -98,7 +98,7 @@ public sealed class RedboolCombatFeedback
             case RedboolCombatFeedbackCode.StraightStarted: return "스트레이트 인식 · 기술 시작";
             case RedboolCombatFeedbackCode.HighKickStarted: return "하이킥 인식 · 기술 시작";
             case RedboolCombatFeedbackCode.LowKickStarted: return "로우킥 인식 · 기술 시작";
-            case RedboolCombatFeedbackCode.SpecialStarted: return "X자 인식 · 파운장 시작";
+            case RedboolCombatFeedbackCode.SpecialStarted: return "X자 인식 · 필살기 시작";
             case RedboolCombatFeedbackCode.TutorialRecognized: return "수련 동작을 인식했어요";
             case RedboolCombatFeedbackCode.ReleaseGuard: return "동작 인식 · 블락을 풀면 공격 가능";
             default: return "";

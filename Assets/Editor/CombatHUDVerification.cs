@@ -13,7 +13,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class CombatHUDVerification
 {
-    const string Flag="CombatHUDVerification.Active";
+    const string Flag="CombatHUDVerification.Active",SaveKey="VisionStriker.Run";
     static readonly List<string> checks=new List<string>(),errors=new List<string>();
     static IEnumerator flow;
     static int lastFrame=-1;
@@ -27,6 +27,9 @@ public static class CombatHUDVerification
     public static void Run()
     {
         Directory.CreateDirectory(Out);
+        SessionState.SetBool(Flag+".HadSave",PlayerPrefs.HasKey(SaveKey));
+        SessionState.SetString(Flag+".Save",PlayerPrefs.GetString(SaveKey,""));
+        SessionState.SetFloat(Flag+".Started",(float)EditorApplication.timeSinceStartup);
         EditorSceneManager.OpenScene("Assets/Scenes/GameScene.unity");
         SessionState.SetBool(Flag,true);
         EditorApplication.update-=Tick;EditorApplication.update+=Tick;
@@ -39,6 +42,7 @@ public static class CombatHUDVerification
     }
     static void Tick()
     {
+        if(EditorApplication.timeSinceStartup-SessionState.GetFloat(Flag+".Started",0)>240){errors.Add("HUD verification timeout");Finish();return;}
         if(!Application.isPlaying||EditorApplication.isCompiling)return;
         Application.runInBackground=true;EditorApplication.isPaused=false;EditorApplication.QueuePlayerLoopUpdate();
         if(lastFrame==Time.frameCount)return;lastFrame=Time.frameCount;
@@ -48,6 +52,11 @@ public static class CombatHUDVerification
     static void Finish()
     {
         SessionState.SetBool(Flag,false);EditorApplication.update-=Tick;Application.logMessageReceived-=Log;
+        bool hadSave=SessionState.GetBool(Flag+".HadSave",false);
+        string save=SessionState.GetString(Flag+".Save","");
+        if(hadSave)PlayerPrefs.SetString(SaveKey,save);else PlayerPrefs.DeleteKey(SaveKey);
+        PlayerPrefs.Save();
+        Check(PlayerPrefs.HasKey(SaveKey)==hadSave&&(!hadSave||PlayerPrefs.GetString(SaveKey)==save),"Campaign save key presence and exact contents restored on fixture exit");
         File.WriteAllLines(Path.Combine(Out,"runtime_errors.txt"),errors);
         bool ok=errors.Count==0&&checks.All(c=>c.StartsWith("PASS"));
         File.WriteAllText(Path.Combine(Out,"verification_done.txt"),ok?"PASS":"FAIL");
@@ -94,7 +103,7 @@ public static class CombatHUDVerification
         Check(Mathf.Abs(hp.FillRatio-(float)player.CurrentHealth/player.MaxHealth)<.0001f,"Carried / changed player health is exact");
         Check(Mathf.Abs(enemyHP.FillRatio-(float)enemy.CurrentHealth/enemy.MaxHealth)<.0001f,"Boss HP uses its own maximum");
         Check(hp.TrailRatio>hp.FillRatio&&enemyHP.TrailRatio>enemyHP.FillRatio,"Damage leaves a visible delayed trail");
-        Check(Mathf.Abs(gauge.FillRatio-2f/special.HitsToCharge)<.0001f,"Real SpecialMove charge updates blue bar");
+        Check(Mathf.Abs(gauge.FillRatio-2f/special.HitsToCharge)<.0001f&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text=="파운장 충전 중","Real SpecialMove charge updates the blue bar without a fraction label");
         Check(timer.text=="88","Remaining time rounds up");
         for(var c=Capture("02_damage",1920,1080);c.MoveNext();)yield return null;
         for(var w=Wait(1.7f);w.MoveNext();)yield return null;
@@ -102,7 +111,7 @@ public static class CombatHUDVerification
         player.Heal(10);yield return null;
         Check(Mathf.Approximately(hp.TrailRatio,hp.FillRatio),"Healing clears obsolete damage trail");
         special.AddCharge(99);yield return null;
-        Check(gauge.FillRatio==1&&gauge.Ready&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text.Contains("["+special.ActivateKey+"]"),"Full charge shows actual activation key");
+        Check(gauge.FillRatio==1&&gauge.Ready&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text=="파운장 준비 · 가슴 앞 X자","Full charge uses the actual camera gesture instead of an inactive keyboard shortcut");
         for(var c=Capture("03_ready",1920,1080);c.MoveNext();)yield return null;
         special.ResetCharge();yield return null;
         Check(gauge.FillRatio==0&&!gauge.Ready,"Consumed/reset charge clears readiness");
@@ -131,7 +140,7 @@ public static class CombatHUDVerification
         var headline=canvas.transform.Find("BattleResult/KOText").GetComponent<Text>();
         var caption=canvas.transform.Find("BattleResult/ResultCaption").GetComponent<Text>();
         var restart=canvas.transform.Find("BattleResult/RestartHint").GetComponent<Text>();
-        Check(caption.text=="TIME UP" &&restart.text.Contains("다시 시작")&&restart.gameObject.activeSelf,"Result keeps timeout cause and the Korean restart instruction separate from decorative lettering");
+        Check(caption.text=="시간 종료 · 패배" &&restart.text.Contains("다시 시작")&&restart.gameObject.activeSelf,"Result keeps timeout cause and the Korean restart instruction separate from decorative lettering");
         Check(headline.font==Resources.Load<Font>("UI/Fonts/TradeWinds-Regular") &&headline.GetComponents<CombatAnnouncementStyle>().Length==1,"Result uses the bundled announcement font and one bounded mesh effect");
         Check(restart.font!=headline.font&&!restart.raycastTarget&&!headline.raycastTarget,"Korean restart text retains the regular HUD font and does not intercept input");
         for(var c=Capture("07_timeout",1920,1080);c.MoveNext();)yield return null;
@@ -144,9 +153,73 @@ public static class CombatHUDVerification
         enemy.TakeDamage(10000,Vector2.zero);yield return null;
         Check(enemyHP.FillRatio==0&&canvas.transform.Find("BattleResult").gameObject.activeSelf,"KO empties health and preserves result overlay");
         for(var c=Capture("08_ko",1920,1080);c.MoveNext();)yield return null;
+        // Story owns one Korean result line; the decorative standalone result must stay hidden.
+        var runMode=typeof(BattleSceneBridge).GetField("runMode",BindingFlags.NonPublic|BindingFlags.Instance);
+        bool previousRunMode=(bool)runMode.GetValue(battle);
+        try
+        {
+            canvas.transform.Find("BattleResult").gameObject.SetActive(false);
+            runMode.SetValue(battle,true);
+            hud.ShowTimeOut(false);
+            Check(!canvas.transform.Find("BattleResult").gameObject.activeSelf,"Story timeout does not duplicate the bridge result with a standalone overlay");
+            typeof(CombatHUD).GetMethod("OnDeath",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(hud,new object[]{player});
+            Check(!canvas.transform.Find("BattleResult").gameObject.activeSelf,"Story KO keeps the same single-result ownership");
+            Invoke(battle,"BuildBanner");
+            typeof(BattleSceneBridge).GetMethod("ShowBanner",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(battle,new object[]{false,true});
+            var banner=(Text)typeof(BattleSceneBridge).GetField("bannerText",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(battle);
+            Check(banner.gameObject.activeSelf&&banner.text=="시간 종료 · 패배 - 이 판이 끝납니다","Story result immediately gives the Korean cause and next route");
+            banner.transform.parent.gameObject.SetActive(false);
+        }
+        finally {runMode.SetValue(battle,previousRunMode);}
+        CheckExternalHud();
         UnityEngine.Object.Destroy(hud.gameObject);yield return null;
         player.Heal(1);special.AddCharge();yield return null;
         Check(errors.Count==0,"No dangling HUD event callbacks / runtime errors");
+    }
+    static void CheckExternalHud()
+    {
+        var active=typeof(RedboolPvp).GetField("<Active>k__BackingField",BindingFlags.NonPublic|BindingFlags.Static);
+        bool previousActive=(bool)active.GetValue(null);
+        GameObject go=null;
+        try
+        {
+            // Only select the HUD's external-data path. No match, socket, camera, or scene is started.
+            active.SetValue(null,true);
+            go=new GameObject("ExternalCombatHUDCheck");
+            var external=go.AddComponent<CombatHUD>();
+            active.SetValue(null,previousActive);
+            Check(!external.enabled&&!external.ExternalVisible,"Shared PvP HUD starts hidden before the lobby admits combat");
+            external.SetExternalVisible(true);
+            external.ShowExternalFighter(true,"1P 서청운",72,100);
+            external.ShowExternalFighter(false,"2P 철문",90,150);
+            external.ShowExternalGauge(true,"파운장",2,5,false);
+            external.ShowExternalGauge(false,"파운장",5,5,false);
+            external.ShowExternalClock(87.1f);
+            var view=external.GetComponentInChildren<Canvas>();
+            var top=view.transform.Find("DuelHeader");
+            var left=top.Find("PlayerVitals/HealthBar").GetComponent<WuxiaCombatBar>();
+            var right=top.Find("EnemyVitals/HealthBar").GetComponent<WuxiaCombatBar>();
+            var qi=top.Find("PlayerVitals/SpecialGauge").GetComponent<WuxiaCombatBar>();
+            Check(external.ExternalVisible&&external.ExternalClockText=="88","Shared PvP HUD shows the supplied authoritative clock");
+            Check(Mathf.Approximately(left.FillRatio,.72f)&&Mathf.Approximately(right.FillRatio,.6f)&&!left.mirror&&right.mirror,"Shared HUD keeps exact distinct health maxima and opposing fill directions");
+            Check(Mathf.Approximately(qi.FillRatio,.4f)&&!qi.Ready&&external.ExternalSummary(true).Contains("파운장  충전 중"),"Partial special charge uses the bar rather than a fraction label");
+            Check(external.ExternalSummary(false).Contains("준비 · 가슴 앞 X자"),"Ready PvP special describes the actual X gesture");
+            external.ShowExternalGauge(true,"파운장",0,5,true);
+            Check(qi.FillRatio==1&&qi.Ready&&external.ExternalSummary(true).Contains("발동"),"An active special stays lit from authoritative firing state after spending charge");
+            external.ShowExternalFighter(true,"1P 서청운",50,100);
+            Check(left.TrailRatio>left.FillRatio,"Shared HUD damage creates the same delayed health trail as story");
+            external.ShowExternalFighter(true,"1P 서청운",100,100);
+            Check(left.FillRatio==1&&left.TrailRatio==1,"Shared HUD rematch/heal clears an obsolete damage trail");
+            external.SetExternalVisible(false);
+            Check(!external.enabled&&!external.ExternalVisible,"Lobby/result transitions can hide the shared HUD without owning gameplay");
+            external.SetExternalVisible(true);
+            Check(go.GetComponentsInChildren<Canvas>(true).Length==1&&view.GetComponentsInChildren<Graphic>(true).All(g=>!g.raycastTarget),"Showing the shared HUD again neither duplicates its canvas nor intercepts input");
+        }
+        finally
+        {
+            active.SetValue(null,previousActive);
+            if(go!=null)UnityEngine.Object.Destroy(go);
+        }
     }
     static IEnumerator Capture(string name,int width,int height)
     {

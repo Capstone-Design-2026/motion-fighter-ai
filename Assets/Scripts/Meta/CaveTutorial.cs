@@ -45,7 +45,7 @@ public class CaveTutorial : MonoBehaviour {
   Label("MappingArrow","→",55,900,140,120,85);
   phaseLabel=Label("TrainingPhase","",25,680,350,560,52);
   status=Label("TrainingStatus","",26,180,65,1560,55);progress=Label("TrainingProgress","",22,740,8,440,45);
-  inputHint=Label("TrainingInputHint","",20,160,865,1600,45);signal=Label("LiveSignal","",21,450,810,1020,45);
+  inputHint=Label("TrainingInputHint","",20,160,865,1600,45);signal=Label("LiveSignal","",21,450,810,1020,45);signal.gameObject.SetActive(false);
   var mode=Button("TutorialInputMode","키보드 테스트",ToggleInputMode,1640,1010,245);modeLabel=mode.GetComponentInChildren<Text>();mode.gameObject.SetActive(RedboolDemoSettings.OperatorMode);
   Button("LeaveTraining","수련 중단",()=>{run.Save();exit=true;},28,1010,180);
   Button("ReplayDemonstration","시범 다시 보기",ReplayDemonstration,1640,340,245);
@@ -73,12 +73,13 @@ public class CaveTutorial : MonoBehaviour {
   float[] xs={505,790,1410,1100};if(step<4){focus.gameObject.SetActive(true);Box(focus,xs[step],390,275,380);}else focus.gameObject.SetActive(false);
   frame.Find("InputPoseExplanation").GetComponent<Text>().text=Gestures[step]+(step<5?"\n내 왼손·오른손 기준으로 움직이세요":"\n이동 후 중앙으로 돌아오기");
   frame.Find("ResultPoseExplanation").GetComponent<Text>().text=Names[step]+(step==2?"\n상대의 머리 높이를 공격":step==3?"\n상대의 허벅지 높이를 공격":"\n인식 성공 후 기본 자세로");
-  inputHint.text=keyboard?"키보드 테스트 · Space 준비 / 1 잽 / 2 스트레이트 / 3 하이킥 / 4 로우킥 / 5 막기 / 6 왼쪽 / 7 오른쪽 / 8 X자":"비전 인식 · 카메라에 양손과 어깨가 보이게 준비하세요. 손동작으로 공격하고 어깨로 이동합니다.";
-  progress.text="성공  "+hits+" / 2";signal.text=keyboard?"테스트 입력 대기":"카메라 신호 대기";ReplayDemonstration();
+  inputHint.text=keyboard?"키보드 테스트 · Space 준비 / 1 잽 / 2 스트레이트 / 3 하이킥 / 4 로우킥 / 5 막기 / 6 왼쪽 / 7 오른쪽 / 8 X자":"카메라에 양손과 어깨가 보이게 준비하세요. 손동작으로 공격하고 어깨로 이동합니다.";
+  progress.text="성공  "+hits+" / 2";signal.text=keyboard?"키보드 입력 대기":"카메라 신호 대기";ReplayDemonstration();
  }
  void Feedback(string message){status.text=message;feedbackUntil=Time.unscaledTime+2.2f;}
  void Update(){if(run==null||exit)return;
   if(modeLabel!=null)modeLabel.transform.parent.gameObject.SetActive(RedboolDemoSettings.OperatorMode);
+  if(RedboolDemoSettings.OperatorMode&&!RedboolPauseMenu.BlocksStoryInput&&Input.GetKeyDown(RedboolBattlePreparation.KeyboardTestKey))ToggleInputMode();
   successPulse=Mathf.MoveTowards(successPulse,0,Time.unscaledDeltaTime);if(flash!=null)flash.color=new Color(.84f,1,.66f,successPulse);
   if(advancing){if(Time.unscaledTime<nextStepAt)return;advancing=false;run.Data.tutorialStep++;run.Save();hits=0;armed=false;
    if(run.Data.tutorialStep>=Actions.Length){run.CompleteTutorial();exit=true;return;}RefreshStep();}

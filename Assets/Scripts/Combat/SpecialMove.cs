@@ -152,7 +152,7 @@ public class SpecialMove : MonoBehaviour
     void Update()
     {
         // 게이지 채우기는 연출 확인용 단축키. 웹캠 테스트 중에도 쓰므로 useKeyboard 와 상관없이 받는다.
-        if (RedboolDemoSettings.OperatorMode && !RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
+        if (RedboolDemoSettings.OperatorMode && !RedboolPauseMenu.BlocksStoryInput && !RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
 
         if (controller == null || controller.useKeyboard)
         {
@@ -204,6 +204,22 @@ public class SpecialMove : MonoBehaviour
     {
         if (!IsReady || IsPlaying) return false;
         if (health.IsDead || health.IsHitStunned || fighter.InputLocked || fighter.VisionPreparationLocked) return false;
+        // Match the player-owned enemy techniques: only one PvP special may start
+        // at a time. Consult the authoritative participants, never an arbitrary NPC.
+        if (RedboolPvp.Active && RedboolPvp.Instance != null)
+        {
+            foreach (var other in RedboolPvp.Instance.Players)
+            {
+                if (other == null || other.GetComponent<Fighter>() == fighter) continue;
+                var palm = other.GetComponent<SpecialMove>();
+                var technique = other.GetComponent<EnemySpecial>();
+                if (palm != null && palm.isActiveAndEnabled && palm.IsPlaying
+                    || technique != null && technique.isActiveAndEnabled && technique.IsPlaying) return false;
+            }
+            if (!fighter.CanAttack || fighter.IsAttackSealed) return false;
+            foreach (var participant in RedboolPvp.Instance.Players)
+                if (participant != null) participant.GetComponent<EnemySpecial>()?.ClearIdlePresentation();
+        }
         if (!fighter.BeginSpecial()) return false;
 
         spent = charge;

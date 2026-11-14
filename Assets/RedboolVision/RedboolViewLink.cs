@@ -120,6 +120,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             // Opening a socket is not evidence of a connected peer. No previous
             // lease, ACK or snapshot can authorize play after local recovery.
             ack=0;lastHeartbeat=lastFrame=-10;nextSend=now;
+            assembler.Reset();history.Clear();mirror?.ClearTransient();
             if(!client) {peer=null;peerNonce=Guid.Empty;lastHello=-10;}
             Debug.Log("[REDBOOL VIEW] "+(recovered?"local channel recovered ":"")+(client?"guest "+peer:"host :5067")+" protocol="+RedboolViewProtocol.Version);
         }
@@ -250,9 +251,12 @@ public sealed class RedboolViewLink : MonoBehaviour
             var latest=history[history.Count-1];double target=latest.time+now-latest.arrival-.05;
             var a=history[0];var b=a;
             foreach(var frame in history) {b=frame;if(frame.time>=target) break;a=frame;}
-            float t=a==b?1:Mathf.Clamp01((float)((target-a.time)/(b.time-a.time)));
-            // Never blend across round resets or paused snapshots.
-            if(a.world.round!=b.world.round || a.world.paused!=b.world.paused) {a=b;t=1;}
+            double span=b.time-a.time;
+            float t=a==b||span<=0?1:Mathf.Clamp01((float)((target-a.time)/span));
+            // A different avatar needs its own rig before applying the first pose.
+            // Do not interpolate body/bone layouts across roster or round changes.
+            if(!CanBlendSnapshots(a,b)) {a=b;t=1;}
+            for(int i=0;i<2;i++) if(game.Characters[i]!=b.actors[i].character) game.ApplyCharacter(i,b.actors[i].character);
             long start=TimingNow;mirror.Apply(a,b,t);long replicaTicks=TimingNow-start;
             ShowRemoteMeasured(b,true);SampleGuest(replicaTicks);return;
         }
@@ -265,6 +269,22 @@ public sealed class RedboolViewLink : MonoBehaviour
         for(byte i=0;i<2;i++) {captured.actors[i]=CaptureActor(i);Send(new RedboolViewPacket {kind=(byte)(2+i),session=session,nonce=peerNonce,seq=sequence,time=now,echo=echo,actor=captured.actors[i]});}
         TraceFrame(captured);
     }
+    public static bool CanBlendSnapshots(RedboolViewFrame a,RedboolViewFrame b)
+    {
+        return a!=null && b!=null && a.Complete && b.Complete && a.session==b.session
+            && a.world.round==b.world.round && a.world.paused==b.world.paused && a.world.stage==b.world.stage
+            && a.actors[0].character==b.actors[0].character && a.actors[1].character==b.actors[1].character;
+    }
+    /// <summary>인물을 바꾼 뒤 그 겉모습의 뼈대를 다시 잡는다 (호스트는 보낼 뼈대, 손님은 움직일 뼈대).</summary>
+    public void Rebind(int i)
+    {
+        if(!initialized ||i<0||i>=views.Length) return;
+        views[i]=game.Players[i].GetComponent<Fighter3DView>();
+        punchSurfaces[i]=views[i].visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);   // 적 인물의 겉모습에는 없을 수 있다(null)
+        for(int b=0;b<bones[i].Length;b++) bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);
+        replicaBoneCount=0;foreach(var rig in bones) foreach(var bone in rig) if(bone) replicaBoneCount++;
+        if(mirror!=null) mirror.Rebind(i);
+    }
     RedboolViewActor CaptureActor(int i)
     {
         var p=game.Players[i];var h=p.GetComponent<Health>();var s=p.GetComponent<SpecialMove>();var practice=game.Practices[i];
@@ -273,15 +293,22 @@ public sealed class RedboolViewLink : MonoBehaviour
         a.chargeLevel=s.VisualChargeLevel;
         a.feedback=(byte)game.Receivers[i].FeedbackCode;
         a.punchSurface=punchSurfaces[i]!=null?punchSurfaces[i].CurrentSurface:(byte)0;
+        // 적 인물을 골랐으면 게이지와 발동 신호는 그 인물의 기술에서 가져온다.
+        var own=p.GetComponent<EnemySpecial>();
+        if(own!=null && own.enabled && own.PlayerOwned) {a.charge=own.IsPlaying?own.HitsToCharge:own.Charge;a.maxCharge=own.HitsToCharge;a.phase=0;a.chargeLevel=0;a.specialSerial=(byte)(own.FireSerial&255);a.specialFlags=(byte)((own.IsPlaying?1:0)|(own.GuardDecided?2:0)|(own.GuardedSpecial?4:0));}
         string status=game.Receivers[i].PersonalStatus;a.personal=(byte)(status.Contains("PERSONAL RANGE")?2:status.Contains("CYCLES")?1:0);
         var renderer=views[i].visualRoot.GetComponentInChildren<Renderer>();if(renderer) {var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);a.tint=block.GetColor("_BaseColor");}
+        a.character=(byte)game.Characters[i];
         return a;
     }
     RedboolViewWorld CaptureWorld()
     {
         var cam=Camera.main;var world=new RedboolViewWorld {round=game.Round,gate=game.Gate,countdown=game.Countdown,remaining=game.Remaining,paused=game.Paused,resolved=game.Resolved,fighting=game.Fighting,winner=game.Result.StartsWith("1P")?1:game.Result.StartsWith("2P")?2:0,camera=cam.transform.position,rotation=cam.transform.rotation,fov=cam.fieldOfView};
         foreach(var wave in FindObjectsByType<QiWave>(FindObjectsSortMode.None)) if(wave.isActiveAndEnabled && !wave.Finished &&world.waves.Count<8) world.waves.Add(new RedboolViewWave {id=wave.GetInstanceID(),point=wave.transform.position,rotation=wave.transform.rotation});
-        effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);return world;
+        effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);
+        var lobby=game.Lobby;
+        if(lobby!=null) {world.stage=(byte)lobby.Current;world.cursor0=(byte)lobby.Cursor[0];world.cursor1=(byte)lobby.Cursor[1];world.locked=(byte)((lobby.Locked[0]?1:0)|(lobby.Locked[1]?2:0));world.selectSeconds=(byte)Mathf.Clamp(Mathf.CeilToInt(lobby.SelectRemaining),0,60);}
+        return world;
     }
     void OnDestroy() {initialized=false;socket?.Close();socket=null;trace?.Dispose();trace=null;}
 }

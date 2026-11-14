@@ -67,7 +67,7 @@ public sealed class RedboolCombatPresentation
     static string CompactText(RedboolCombatFeedbackCode code)
     {
         if (code == RedboolCombatFeedbackCode.Interrupted) return "피격으로 중단";
-        if (code == RedboolCombatFeedbackCode.NotCharged) return "파운장 기 부족";
+        if (code == RedboolCombatFeedbackCode.NotCharged) return "필살기 기 부족";
         return "";
     }
 }

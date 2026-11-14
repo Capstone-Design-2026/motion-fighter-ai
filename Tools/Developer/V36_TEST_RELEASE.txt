@@ -1,0 +1,64 @@
+REDBOOL v36 integrated trial release
+
+Base: v35.1 Unity 90e6bf8. Merge: feature/pvp-lobby-tutorial through 2c4e091.
+The whole branch is reconciled, including its 12-character lobby, per-character
+specials, shared HUD, tutorial cards and removal of obsolete webcam scene quads.
+The reviewed latest feature/unity remains 9c656fa; v35 BGM/result-font changes stay.
+Existing calibration-gated start is retained; a separate READY/FIGHT lock is not added.
+
+Python: unchanged clean b521230 / v34.3 native backends and model fingerprints.
+The added joint render-pressure policy observes two consecutive5s windows of
+fresh connected advancing-camera capture<18fps and game mean>28ms. It excludes
+startup/stale/modal/background windows and latches only the3D720p budget for the
+owned camera generation. It never changes a model, input resolution or100ms gap.
+Framing guidance prioritizes BOTTOM clipping before generic slow-capture advice,
+while stale processing is never presented as a current pose correction.
+The v35.1 field339 archive replays3084frames and3events exactly in all3runs;
+render policy replay predicts earlier decisions, not measured hardware FPS gains.
+
+Selection context cannot train personal recognition; measured practice and return
+cycles remain the calibration path. No model retraining or new accuracy claim.
+
+Network: view protocol32, camera protocol v2, UDP5065/5066/5067 unchanged.
+Both laptops need v36. Two different pre-integration layouts used31, so accepting
+31 would decode different fields. Packets from either former version must be rejected instead of interpreted.
+The lobby discovery and both package guides identify protocol32. Internet server is not required on the same reachable LAN.
+
+Game: one executable starts the owned local camera. Story keeps its scene routing,
+save protections, calibration continuity, settings, BGM and common Esc menu.
+PvP: room -> own calibration -> character selection -> measured practice -> fight.
+Lean selects; either punch confirms; block cancels. After a round, rematch keeps
+practice; character reselect does not discard the existing personal profile.
+Regular unblocked hits charge the special; X requests the selected character's
+special. Camera acceptance, game start and actual hit remain distinct outcomes.
+
+Preserved: input event expiry/dedup, acknowledgements, source ownership, fresh
+peer readiness, reconnect retry, camera parent watchdog, compact combat notices,
+adaptive local preview/rendering, compressed pose diagnostics without raw video.
+
+Build Unity6000.4.5f1 with UNITY_MCP_DISABLE=1. Use RedboolLocalDemoBuild.Run.
+Keep native backend source/provenance checks and Tools/Developer/assemble_game.py.
+Windows requires the complete exe/support folder. Mac uses an Apple Silicon camera
+backend and local ad-hoc signing (not notarization). No Unity/Python installation
+is required for testers. REDBOOL_BUILD_RELEASE=1 supports a non-development player;
+the camera-free packaged fixture requires a development test player.
+
+Required validation before marking a package ready:
+- Release self-checks, view/binding/invalid-packet and practice/calibration gates.
+- CombatHUDVerification.Run; RedboolV36SceneSelfCheck.Run; warmup lifecycle check.
+- CampaignPlayCheck and EnemySpecialPreparationCheck, preserving saved game data.
+- Legacy two-screen PvpPlayCheck plus new PvpLobbyCheck with real guest binary:
+  selection, camera loss, recalibration, same-room rematch/reselect, all specials,
+  interrupted/blocked specials and host-authoritative guest visual playback.
+- Mac packaged synthetic-camera lifecycle at windowed and full-screen sizes,
+  with lobby/tutorial camera layout screenshots and child cleanup.
+- Fresh Mac/Windows builds with zero errors, original user-modified assets preserved,
+  build-input overlay, source/runtime/backend provenance, package hashes/ZIP CRC.
+All automatic launches must use --redbool-external-camera or explicit synthetic
+flags; no physical webcam or actual LAN participant is used by those tests.
+
+A successful build is not proof of Windows gameplay latency or recognition for
+new people. The final physical Mac/Windows LAN test still checks both cameras,
+selected specials, block-to-punch, X-to-follow-up, rematch and reconnect.
+Use Esc -> main menu; wait for record finalization -> diagnostic ZIP export.
+The review report records actual PASS counts, measurements and limitations.

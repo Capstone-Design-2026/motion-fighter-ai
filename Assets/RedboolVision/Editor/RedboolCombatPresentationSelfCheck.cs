@@ -11,7 +11,7 @@ public static class RedboolCombatPresentationSelfCheck
     static readonly List<string> checks = new List<string>();
     static void Check(bool value, string message) { if (!value) throw new Exception(message); checks.Add(message); }
     static string Text(RedboolCombatFeedbackCode code) { return RedboolCombatFeedback.Text(code); }
-    const string InterruptedText = "피격으로 중단", NotChargedText = "파운장 기 부족";
+    const string InterruptedText = "피격으로 중단", NotChargedText = "필살기 기 부족";
     public static void Run()
     {
         checks.Clear();

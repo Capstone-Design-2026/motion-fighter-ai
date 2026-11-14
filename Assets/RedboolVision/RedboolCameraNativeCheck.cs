@@ -126,7 +126,17 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             Check(cameraHint.gameObject.activeInHierarchy&&cameraHint.text.Contains("연결")&&cameraHint.preferredHeight<=44,"Compact connection problem remains readable in two lines");
             refresh.Invoke(panel,null);
             Check(cameraHint.gameObject.activeInHierarchy,"Connection guidance persists instead of expiring like a combat notice");
-            fixture.error=null;refresh.Invoke(panel,null);
+            fixture.error=null;
+            fixture.camera_slow=true;fixture.framing=new RedboolCameraRuntime.Framing{code="OUTSIDE",outside_edges=new[]{"BOTTOM"}};
+            cameraHint.text=RedboolCameraPanel.CameraInputGuidance(fixture,true);
+            Check(cameraHint.text.Contains("뒤로")&&cameraHint.text.Contains("팔꿈치")&&cameraHint.preferredHeight<=44,"Bottom-framing guidance outranks slow-capture warning and fits compact two-line panel");
+            fixture.framing=new RedboolCameraRuntime.Framing{code="OUTSIDE",outside_edges=new[]{"LEFT"}};
+            Check(RedboolCameraPanel.CameraInputGuidance(fixture,true).Contains("양팔"),"Side-framing warning does not incorrectly ask users to raise their fists");
+            fixture.framing=null;cameraHint.text=RedboolCameraPanel.CameraInputGuidance(fixture,true);
+            Check(cameraHint.text.Contains("다른 앱")&&cameraHint.preferredHeight<=44,"Slow capture gives bounded advice without claiming lighting is the cause");
+            fixture.camera_slow=false;
+            Check(RedboolCameraPanel.CameraInputGuidance(fixture,true)==null,"Healthy capture has no extra persistent warning");
+            refresh.Invoke(panel,null);
 
             ButtonNamed("FoldCamera").onClick.Invoke();refresh.Invoke(panel,null);
             Check(!runtime.PreviewVisible&&frame.rect.height==98,"Explicit fold hides image work while retaining necessary controls");
@@ -143,6 +153,65 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         finally
         {status.SetValue(runtime,saved);RedboolDemoSettings.OperatorMode=savedOperator;panel.enabled=savedPanelEnabled;refresh.Invoke(panel,null);}
         Check(runtime.Synthetic&&!runtime.Status.camera_connected,"Presentation fixture keeps the physical camera closed");
+    }
+    static Rect ScreenRect(RectTransform item)
+    {
+        var corners=new Vector3[4];item.GetWorldCorners(corners);
+        return Rect.MinMaxRect(corners[0].x,corners[0].y,corners[2].x,corners[2].y);
+    }
+    IEnumerator CheckPvpCameraPresentation(RedboolCameraRuntime runtime)
+    {
+        var game=RedboolPvp.Instance;var lobby=game.Lobby;
+        Check(lobby!=null,"Native PvP includes the merged character-selection lobby");
+        var panel=runtime.GetComponent<RedboolCameraPanel>();
+        var refresh=typeof(RedboolCameraPanel).GetMethod("RefreshDisplay",BindingFlags.NonPublic|BindingFlags.Instance);
+        var lobbyRefresh=typeof(RedboolPvpLobby).GetMethod("Refresh",BindingFlags.NonPublic|BindingFlags.Instance);
+        var stage=typeof(RedboolPvpLobby).GetProperty("Current");
+        var status=typeof(RedboolCameraRuntime).GetProperty("Status");
+        var savedStatus=runtime.Status;var savedStage=lobby.Current;
+        bool savedGame=game.enabled,savedLobby=lobby.enabled,savedPanel=panel.enabled;
+        bool savedOperator=RedboolDemoSettings.OperatorMode;
+        int child=runtime.ChildId;
+        var fixture=JsonUtility.FromJson<RedboolCameraRuntime.CameraStatus>("{\"schema\":1,\"synthetic\":true,\"phase\":\"test\",\"calibrated\":true,\"tracking\":\"VALID\"}");
+        game.enabled=false;lobby.enabled=false;panel.enabled=false;
+        try
+        {
+            RedboolDemoSettings.OperatorMode=false;status.SetValue(runtime,fixture);
+            stage.SetValue(lobby,RedboolPvpLobby.Stage.Room);refresh.Invoke(panel,null);
+            Check(panel.SmallPreview&&!panel.DetailedGuidance,"Calibrated waiting room does not masquerade as motion practice");
+            stage.SetValue(lobby,RedboolPvpLobby.Stage.Select);lobbyRefresh.Invoke(lobby,new object[]{null});refresh.Invoke(panel,null);
+            Canvas.ForceUpdateCanvases();
+            var frame=GameObject.Find("CameraFrame").GetComponent<RectTransform>();
+            var selection=GameObject.Find("Select").transform;
+            for(int i=0;i<RedboolPvpRoster.Count;i++)
+                Check(!ScreenRect(frame).Overlaps(ScreenRect(selection.Find("Card"+i).GetComponent<RectTransform>())),"Own preview leaves character card visible: "+i);
+            foreach(string name in new[]{"Name","Title","Line","Special","SpecialLine","State"})
+                Check(!ScreenRect(frame).Overlaps(ScreenRect(selection.Find("Pick1/"+name).GetComponent<RectTransform>())),"Own preview leaves selected-character detail visible: "+name);
+            yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_v36_character_camera.png"));
+            yield return new WaitForEndOfFrame();
+            status.SetValue(runtime,fixture);stage.SetValue(lobby,RedboolPvpLobby.Stage.Done);lobbyRefresh.Invoke(lobby,new object[]{null});refresh.Invoke(panel,null);
+            Check(panel.SmallPreview&&!panel.DetailedGuidance,"PvP uses compact camera alongside dedicated detailed tutorial cards");
+            Canvas.ForceUpdateCanvases();
+            foreach(string name in new[]{"TutorialCard1","TutorialCard2"})
+            {
+                var card=GameObject.Find(name).GetComponent<RectTransform>();
+                Check(card.gameObject.activeInHierarchy&&!ScreenRect(frame).Overlaps(ScreenRect(card)),"Camera does not cover detailed tutorial card: "+name);
+            }
+            yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"03_v36_tutorial_camera.png"));
+            yield return new WaitForEndOfFrame();
+            status.SetValue(runtime,fixture);fixture.calibrated=false;refresh.Invoke(panel,null);Canvas.ForceUpdateCanvases();
+            Check(!panel.SmallPreview,"Recalibration expands its controls even during PvP tutorial");
+            foreach(string name in new[]{"TutorialCard1","TutorialCard2"})
+                Check(!ScreenRect(frame).Overlaps(ScreenRect(GameObject.Find(name).GetComponent<RectTransform>())),"Expanded recalibration leaves tutorial text visible: "+name);
+            Check(runtime.ChildId==child,"Lobby and tutorial presentation preserve the existing camera child");
+        }
+        finally
+        {
+            stage.SetValue(lobby,savedStage);status.SetValue(runtime,savedStatus);
+            RedboolDemoSettings.OperatorMode=savedOperator;
+            lobbyRefresh.Invoke(lobby,new object[]{null});
+            game.enabled=savedGame;lobby.enabled=savedLobby;panel.enabled=savedPanel;refresh.Invoke(panel,null);
+        }
     }
     UdpClient ReserveInputPort(int port)
     {
@@ -311,15 +380,8 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(runtime.Status.synthetic&&!runtime.Status.camera_connected,"Synthetic backend reports physical camera closed");
         Check(ReceiverOnPort(5065).Bound&&ReceiverOnPort(5066).Bound&&!runtime.InputConnectionBlocked&&runtime.InputConnectionError==null&&runtime.LastInputConnectionError==null,"Both ports recover automatically and clear the conflict without restarting the game");
         Check(!Debug.developerConsoleVisible,"Expected port-conflict logs do not cover the game with a console");
-        var practicePanel=runtime.GetComponent<RedboolCameraPanel>();
-        var practiceStatus=runtime.Status;bool priorCalibrated=practiceStatus.calibrated;
-        try
-        {
-            practiceStatus.calibrated=true;
-            typeof(RedboolCameraPanel).GetMethod("RefreshDisplay",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(practicePanel,null);
-            Check(practicePanel.DetailedGuidance&&!practicePanel.SmallPreview,"PvP local practice keeps detailed guidance after calibration");
-        }
-        finally {practiceStatus.calibrated=priorCalibrated;}
+        var pvpPresentation=CheckPvpCameraPresentation(runtime);
+        while(pvpPresentation.MoveNext())yield return pvpPresentation.Current;
 
         Text feedbackText=null;
         foreach(var label in FindObjectsByType<Text>(FindObjectsInactive.Include,FindObjectsSortMode.None))
@@ -418,6 +480,14 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             pipeline.renderScale=originalRenderScale;budget.Refresh();
         }
         Check(runtime.Synthetic&&!runtime.InferencePressure&&Mathf.Approximately(pipeline.renderScale,RedboolCameraRenderBudget.ScaleFor(Screen.width,Screen.height,originalRenderScale)),"Removing fixture pressure restores normal budget and keeps physical camera closed");
+        var pressurePolicy=(RedboolRenderPressure)typeof(RedboolCameraRuntime).GetField("renderPressure",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime);
+        int cameraGeneration=(int)typeof(RedboolCameraRuntime).GetField("generation",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime);
+        Check(!runtime.JointRenderPressure,"Synthetic healthy-camera lifecycle does not trigger joint render pressure");
+        pressurePolicy.Observe(cameraGeneration,true,true,5,13,35);
+        Check(!runtime.JointRenderPressure,"One poor capture/game window leaves actual packaged rendering unchanged");
+        pressurePolicy.Observe(cameraGeneration,true,true,5,13,35);budget.Refresh();
+        Check(runtime.JointRenderPressure&&Mathf.Approximately(pipeline.renderScale,RedboolCameraRenderBudget.ScaleFor(Screen.width,Screen.height,originalRenderScale,true)),"Two joint-pressure windows apply the 720p budget through the existing renderer owner");
+        Check(runtime.ChildId==first&&runtime.Status==savedStatus&&Screen.width==displayWidth&&Screen.height==displayHeight,"Joint render fallback leaves recognition status, owned child and UI resolution untouched");
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_pvp_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
         float pvpTime=Time.timeScale,pvpStep=Time.fixedDeltaTime;
@@ -429,7 +499,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
         Check(!RedboolPauseMenu.IsOpen&&!RedboolPvp.Active,"Common menu confirmation uses the normal PvP disconnect route");
         Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
-        budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale),"Leaving camera gameplay restores authored render scale");
+        budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale)&&!runtime.JointRenderPressure,"Leaving camera gameplay restores authored render scale and clears joint pressure");
         ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Running||runtime.ChildId==first||!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"story duel synthetic status and preview");yield return null;}

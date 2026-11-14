@@ -63,8 +63,14 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         {cachedScene=scene;cave=null;nextTutorialCheck=0;manualExpanded=false;presentation.Reset();}
         if(cave==null&&Time.unscaledTime>=nextTutorialCheck)
         {cave=FindAnyObjectByType<CaveTutorial>();nextTutorialCheck=Time.unscaledTime+.5f;}
-        tutorial=cave!=null&&cave.isActiveAndEnabled||LocalPracticeActive();
-        DetailedGuidance=tutorial||RedboolDemoSettings.OperatorMode;
+        bool pvpPractice=LocalPracticeActive();
+        var pvp=RedboolPvp.Instance;
+        bool newPvpCards=pvpPractice&&pvp!=null&&pvp.Lobby!=null;
+        bool selecting=RedboolPvp.Active&&pvp!=null&&pvp.Lobby!=null&&pvp.Lobby.Current==RedboolPvpLobby.Stage.Select;
+        tutorial=cave!=null&&cave.isActiveAndEnabled||pvpPractice;
+        // New PvP cards already explain each motion in detail. Keep the own-camera
+        // image compact between the two pose diagrams rather than covering a card.
+        DetailedGuidance=tutorial&&!newPvpCards||RedboolDemoSettings.OperatorMode;
         var state=cameraRuntime.Status;
         bool calibrated=state!=null&&state.calibrated;
         if(wasCalibrated&&!calibrated)
@@ -77,10 +83,20 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         float previewHeight=SmallPreview?159:216;
         float footer=SmallPreview?(string.IsNullOrEmpty(guidance)?52:104):174;
         float height=folded?footer+46:previewHeight+46+footer;
-        // Keep the detailed story guide clear; PvP practice already has its own
-        // top-of-screen participant cards, so its camera stays at the bottom.
         bool top=cave!=null&&cave.isActiveAndEnabled;
-        UIFactory.Place(panel,top?Vector2.one:new Vector2(1,0),top?Vector2.one:new Vector2(1,0),
+        if(selecting)
+        {
+            // Use only our large illustration area. The twelve selectable cards,
+            // names, special descriptions and opponent portrait remain unobscured.
+            var anchor=new Vector2(RedboolPvp.IsClient?1665f/1920f:255f/1920f,(SmallPreview?673f:720f)/1080f);
+            UIFactory.Place(panel,anchor,new Vector2(.5f,.5f),Vector2.zero,new Vector2(width,height));
+        }
+        else if(newPvpCards)
+        {
+            float centre=SmallPreview?Mathf.Max(555f,428f+height*.5f):920f-height*.5f;
+            UIFactory.Place(panel,new Vector2(.5f,centre/1080f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(width,height));
+        }
+        else UIFactory.Place(panel,top?Vector2.one:new Vector2(1,0),top?Vector2.one:new Vector2(1,0),
             top?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(width,height));
         UIFactory.Place(heading.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-8),new Vector2(inner-110,30));
         heading.fontSize=SmallPreview?18:22;
@@ -121,7 +137,8 @@ public sealed class RedboolCameraPanel : MonoBehaviour
     {
         if(!RedboolPvp.Active)return false;
         var game=RedboolPvp.Instance;
-        if(game==null)return true;
+        if(game==null)return false;
+        if(game.Lobby!=null&&!game.Lobby.Complete)return false;
         if(!RedboolPvp.IsClient)return !game.Practices[0].Complete;
         var frame=game.ViewLink!=null?game.ViewLink.Latest:null;
         return frame==null||!frame.Complete||frame.actors[1].step<RedboolPractice.Actions.Length;
@@ -135,10 +152,29 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         if(!runtime.Fresh||runtime.Status==null)return "카메라 응답 대기\n자동으로 연결 확인 중";
         var s=runtime.Status;
         if(!s.camera_connected&&!runtime.Synthetic)return "카메라 연결 대기\n카메라 권한을 확인하세요";
-        if(s.camera_slow)return "카메라 영상 지연\n조명을 밝게 해주세요";
+        string physical=CameraInputGuidance(s,true);
+        if(physical!=null)return physical;
         if(s.tracking=="STALE")return "영상 처리 지연\n잠시 기다려주세요";
-        if(s.framing!=null&&s.framing.code=="OUTSIDE")return "양팔이 화면 안에\n들어오게 앉아주세요";
         return "양손과 팔꿈치를\n카메라에 보여주세요";
+    }
+    // Framing is actionable even when capture is also slow. Do not hide the
+    // clipped-elbow explanation behind a general performance warning.
+    public static string CameraInputGuidance(RedboolCameraRuntime.CameraStatus state,bool compact)
+    {
+        if(state==null)return null;
+        // Coordinates from stale processing are not a current pose instruction.
+        if(state.tracking=="STALE"||!state.calibrated&&state.calibration_reason=="STALE_FRAME")return null;
+        var framing=state.framing;
+        if(framing!=null&&framing.code=="OUTSIDE")
+        {
+            var edges=framing.outside_edges;
+            if(edges!=null&&System.Array.IndexOf(edges,"BOTTOM")>=0)
+                return compact?"조금 뒤로 앉아주세요\n팔꿈치까지 보여주세요":"조금 뒤로 앉아주세요\n팔꿈치 아래까지 보이게 맞추세요";
+            return compact?"양팔이 화면 안에\n들어오게 앉아주세요":"양팔이 화면 안에 들어오도록\n거리와 카메라 각도를 맞추세요";
+        }
+        if(state.camera_slow)
+            return compact?"카메라 영상 지연\n밝기·다른 앱 확인":"카메라 영상이 느리게 들어와요\n밝기와 다른 앱을 확인해주세요";
+        return null;
     }
     static bool NeedsAttention(RedboolCameraRuntime runtime)
     {
@@ -184,15 +220,10 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         if(s.phase=="optimizing_camera")return "카메라 설정을 맞추고 있어요\n처음 연결할 때 잠시 걸릴 수 있어요";
         if(s.phase=="starting"||s.phase=="loading_models")return "동작 인식을 준비하고 있어요\n잠시만 기다려주세요";
         if(!s.camera_connected)return "카메라 연결 중 · 최초 실행이라면\n카메라 사용 권한을 허용해주세요";
-        if(s.camera_slow)return "카메라 영상이 느리게 들어와요\n밝은 조명에서 다시 연결해보세요";
+        string physical=CameraInputGuidance(s,false);
+        if(physical!=null)return physical;
         if((!s.calibrated&&s.calibration_reason=="STALE_FRAME")||s.tracking=="STALE")
             return "영상 처리 지연을 줄이고 있어요\nC 반복 없이 잠시 기다려주세요";
-        if(s.framing!=null&&s.framing.code=="OUTSIDE")
-        {
-            var edges=s.framing.outside_edges;
-            if(edges!=null&&System.Array.IndexOf(edges,"BOTTOM")>=0)return "손목이 화면 아래에 있어요\n손을 들거나 카메라 각도를 조절하세요";
-            return "양쪽 팔꿈치와 손목이 화면에\n들어오도록 거리와 각도를 맞추세요";
-        }
         if(!s.calibrated)
         {
             if(s.calibration_reason=="ARMS_MOVING"||s.calibration_reason=="GUARD_SHIFTED")return "팔을 잠시 멈추면 보정이 이어져요\nC를 다시 누를 필요는 없어요";

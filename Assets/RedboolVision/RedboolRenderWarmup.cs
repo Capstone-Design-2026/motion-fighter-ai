@@ -12,7 +12,7 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
     readonly List<GameObject> visuals = new List<GameObject>();
     Camera cameraUsed;
     RenderTexture previous, target;
-    bool restored;
+    bool restored, finished;
     sealed class PunchSurface
     {
         public SkinnedMeshRenderer renderer;
@@ -57,9 +57,9 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
     {
         // Let normal Start methods prepare assets, camera and render templates.
         yield return null;
-        if (!isActiveAndEnabled) yield break;
+        if (!isActiveAndEnabled || finished) { Finish(); yield break; }
         cameraUsed = Camera.main;
-        if (cameraUsed == null) { Restore(); if (preparation != null) preparation.EffectsPreparing = false; Destroy(this); yield break; }
+        if (cameraUsed == null) { Finish(); yield break; }
         previous = cameraUsed.targetTexture;
         target = RenderTexture.GetTemporary(Mathf.Max(1, cameraUsed.pixelWidth), Mathf.Max(1, cameraUsed.pixelHeight), 24,
             cameraUsed.allowHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
@@ -105,9 +105,8 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
         finally { Restore(); }
         // Also let the restored backbuffer render before accepting live input.
         yield return null; yield return null;
-        if (preparation != null) preparation.EffectsPreparing = false;
         Debug.Log("[REDBOOL PREWARM] render complete; gameplay input unlocked; camera target restored");
-        Destroy(this);
+        Finish();
     }
 
     void Restore()
@@ -126,5 +125,15 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
         if (target != null) RenderTexture.ReleaseTemporary(target);
         QiPostFx.PrepareRenderWeight(0f);
     }
-    void OnDisable() { Restore(); if (preparation != null) preparation.EffectsPreparing = false; }
+    void Finish()
+    {
+        if (finished) return;
+        finished = true;
+        Restore();
+        if (preparation != null) preparation.EffectsPreparing = false;
+        // PvP waits for this component to disappear. A disabled/cancelled Start
+        // must not leave a permanently non-null preparation gate behind.
+        Destroy(this);
+    }
+    void OnDisable() { Finish(); }
 }

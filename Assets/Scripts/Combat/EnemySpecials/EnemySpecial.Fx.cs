@@ -33,6 +33,19 @@ public sealed partial class EnemySpecial
     private Material skyMat, skyOriginal;
     private bool lightingCaptured;
 
+    // A component is reused when a player selects another character. These
+    // generated materials contain that character's tint; source assets do not.
+    void ClearVisualMaterialCache()
+    {
+        foreach (var material in recolored.Values) if (material) Destroy(material, .6f);
+        foreach (var material in glowMats.Values) if (material) Destroy(material, .6f);
+        recolored.Clear(); glowMats.Clear();
+        foreach (var material in new[] { smokeMat, softMat, sparkMat, darkMat, crackMat })
+            if (material) Destroy(material, .6f);
+        smokeMat = softMat = sparkMat = darkMat = crackMat = null;
+        smokeFlash = 0f;
+    }
+
     const float RibbonWidth = 2.3f;   // 빛나는 띠는 가장자리가 번지며 사라지므로 이만큼 넓혀 그린다
 
     // ───────────── 기본 도구 ─────────────
@@ -63,6 +76,7 @@ public sealed partial class EnemySpecial
 
     void Place(GameObject fighter, float x)
     {
+        if (visualOnly) return;
         var p = fighter.transform.position; p.x = x; fighter.transform.position = p;
         var rb = fighter.GetComponent<Rigidbody2D>();
         if (rb != null) { rb.position = new Vector2(x, rb.position.y); rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y); }
@@ -112,6 +126,7 @@ public sealed partial class EnemySpecial
     }
     void Slide(GameObject fighter, float toX, float seconds)
     {
+        if (visualOnly) return;
         float from = fighter.transform.position.x;
         Tween(seconds, u => { if (fighter) Place(fighter, Mathf.Lerp(from, toX, u)); });
     }
@@ -128,8 +143,8 @@ public sealed partial class EnemySpecial
         Tween(seconds, u => heroTilt = tilt * Mathf.Sin(u * Mathf.PI), () => heroTilt = 0f);
     }
     /// <summary>카메라가 물러나 큰 기술을 한 화면에 담는다.</summary>
-    void Pull(float to, float seconds) { float from = pull; Tween(seconds, u => { pull = Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, u)); QiCameraFx.Pull(pull * .8f); }); }
-    void Shake(float amplitude, float decay = 6f) => QiCameraFx.Shake(amplitude * .45f, decay);
+    void Pull(float to, float seconds) { if (visualOnly) return; float from = pull; Tween(seconds, u => { pull = Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, u)); QiCameraFx.Pull(pull * .8f); }); }
+    void Shake(float amplitude, float decay = 6f) { if (!visualOnly) QiCameraFx.Shake(amplitude * .45f, decay); }
     void ShowFoe(bool visible)
     {
         if (foeView == null || foeView.visualRoot == null) return;
@@ -137,6 +152,7 @@ public sealed partial class EnemySpecial
     }
     void ApplyPose()
     {
+        if (visualOnly) return;   // 손님 화면의 몸 위치와 기울기는 호스트가 보낸 값 그대로다
         if (foeView != null && foeView.visualRoot != null && (foeLift != Vector3.zero || foeSpin != 0f || foeTilt != 0f))
         {
             var t = foeView.visualRoot; t.position += foeLift;

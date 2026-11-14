@@ -43,6 +43,13 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         : !lastCalibrated ? "CALIBRATION" : lastTracking!="VALID" ? "TRACKING" : "LEASE_EXPIRED";
     private string lastPhase;
     bool AllowsInput => (Preparation==null || Preparation.AllowsPlayer) && (ExternalGate==null || ExternalGate());
+    // 지금 필살기를 쓸 수 있는가: PvP에서 적 인물을 고른 사람은 그 인물의 기술, 그 밖에는 파운장.
+    bool SpecialReady { get {
+        if(player==null) return false;
+        var own=player.GetComponent<EnemySpecial>();
+        if(own!=null && own.enabled && own.PlayerOwned) return own.IsReady;
+        var palm=player.GetComponent<SpecialMove>();return palm!=null && palm.IsReady;
+    } }
     bool Practicing => PracticeAction!=null || TutorialAction!=null;
     void NotifyPractice(string action,float confidence,string movement,float strength) {
         if(PvpOwned) PracticeAction?.Invoke(action,confidence,movement,strength);
@@ -55,7 +62,14 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     }
     readonly RedboolCombatFeedback combatFeedback = new RedboolCombatFeedback();
     Fighter feedbackFighter;
+    EnemySpecial feedbackSpecial;
     void BindFeedbackFighter() {
+        var special=player!=null?player.GetComponent<EnemySpecial>():null;
+        if(special!=feedbackSpecial) {
+            if(feedbackSpecial!=null)feedbackSpecial.ChargeInterruptedByDamage-=OnFeedbackInterrupted;
+            feedbackSpecial=special;
+            if(feedbackSpecial!=null)feedbackSpecial.ChargeInterruptedByDamage+=OnFeedbackInterrupted;
+        }
         var next=player!=null?player.GetComponent<Fighter>():null;
         if(next==feedbackFighter)return;
         if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage-=OnFeedbackInterrupted;
@@ -80,7 +94,6 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
-    public bool showStatus = true;
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
     [Range(0f, .15f)] public float movementSmoothingSeconds = .06f;
@@ -218,8 +231,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
             configuredPlayer=player;oldKeyboard=player.useKeyboard;player.useKeyboard=false;
             diagnosticsEnemy=FindAnyObjectByType<EnemyAI>();
-            BindFeedbackFighter();
         }
+        // Character selection can add/replace a special on the same player.
+        // Subscribe before processing input, independent of whether any UI or
+        // remote viewer happens to read FeedbackCode this frame.
+        BindFeedbackFighter();
         // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
         if(player!=null && player==configuredPlayer) player.useKeyboard=!PvpOwned && RedboolBattlePreparation.KeyboardTest;
         if(NowNs()>=deadline) Safe(preservePresence:true);
@@ -291,6 +307,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 else if(!fighter.CanAttack || BlockActive) { status="GAME_BUSY";AttacksBusy++; }
                 else if(action=="SPECIAL") {
                     var special=player.GetComponent<SpecialMove>();
+                    // PvP에서 적 인물을 고른 사람은 그 인물의 기술을 쓴다(RedboolPvp.ConfigureSpecial). 그 밖에는 파운장.
+                    var own=player.GetComponent<EnemySpecial>();
+                    if(own!=null && own.enabled && own.PlayerOwned)
+                        status=!own.IsReady ? "NOT_CHARGED" : own.TryFire() ? "APPLIED" : "GAME_BUSY";
+                    else
                     status=special==null ? "NO_SPECIAL" : !special.IsReady ? "NOT_CHARGED"
                         : special.Activate() ? "APPLIED" : "GAME_BUSY";
                     if(status=="APPLIED") AttacksApplied++;
@@ -364,7 +385,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
             battle_preparing=!AllowsInput || Preparation!=null && Preparation.HoldRound,
-            special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
+            special_ready=SpecialReady,
             // Wire contract: ready to start another attack, not merely free to move.
             game_can_act=AllowsInput && !Practicing && fighter!=null && fighter.CanAttack,game_guard_active=fighter!=null && fighter.IsGuarding,
             guards_started=GuardsStarted,
@@ -396,19 +417,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f);
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
     }
-    private void OnGUI() {
-        // Packaged play uses the camera panel and game HUD. Keep this technical
-        // overlay available only in the existing manual development workflow.
-        if(!showStatus || RedboolCameraRuntime.Instance!=null) return;
-        GUI.Box(new Rect(12,12,470,130),"REDBOOL VISION :"+port);
-        GUI.Label(new Rect(22,35,450,25),Status+" | "+LastGesture+" | attacks "+AttacksApplied+" | busy "+AttacksBusy);
-        GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
-        var special=player!=null ? player.GetComponent<SpecialMove>() : null;
-        if(special!=null) GUI.Label(new Rect(22,85,450,25),special.IsReady ? "SPECIAL READY: cross arms at chest for 0.7s" : "SPECIAL: charging");
-        if(Time.unscaledTime<feedbackUntil) GUI.Label(new Rect(22,110,450,25),inputFeedback);
-    }
     private void OnDisable() {
         if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage-=OnFeedbackInterrupted;
+        if(feedbackSpecial!=null)feedbackSpecial.ChargeInterruptedByDamage-=OnFeedbackInterrupted;
+        feedbackSpecial=null;
         feedbackFighter=null;combatFeedback.Reset();
         Preparation?.ResetPreparation();
         Safe();running=false;udp?.Close();udp=null;
