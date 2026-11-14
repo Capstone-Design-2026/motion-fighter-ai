@@ -152,14 +152,14 @@ public static class QiPalmVerification
         enemyF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         ph.OnDamaged -= onBlock; playerF.ReleaseGuard();
-        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
+        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore-enemyF.GuardedDamageOf(CombatMove.Jab) && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         Position(-.4f, .4f); bool foeGuard = enemyF.TryGuard(false);
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
         int foeHp = eh.CurrentHealth; playerF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         enemyF.ReleaseGuard();
-        Check(foeGuard && eh.CurrentHealth == foeHp && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
+        Check(foeGuard && eh.CurrentHealth == foeHp-playerF.GuardedDamageOf(CombatMove.Jab) && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         for (int n = 1; n <= 2; n++)
         {

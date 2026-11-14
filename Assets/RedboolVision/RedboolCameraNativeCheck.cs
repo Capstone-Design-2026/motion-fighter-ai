@@ -71,6 +71,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         while(!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"host synthetic status and preview");yield return null;}
         Check(RedboolPvp.Active&&!RedboolPvp.IsClient&&RedboolPvp.RequireView,"HostDual starts same-arena two-screen mode");
+        Check(SceneManager.GetActiveScene().name=="UndergroundPit","PvP opens the new dedicated arena");
         Check(runtime.Status.synthetic&&!runtime.Status.camera_connected,"Synthetic backend reports physical camera closed");
         int first=runtime.ChildId;children.Add(first);Check(first>0,"Host owns one child PID");
         Check((string)typeof(RedboolCameraRuntime).GetField("role",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime)=="P1","Host camera uses P1 role");
@@ -87,14 +88,16 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_pvp_camera.png"));
         yield return new WaitForSecondsRealtime(.3f);
         RedboolPvp.Instance.Leave(true);end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.Running||Alive(first)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("DuelTestButton")==null)
         {Deadline(end,"return to menu stops owned child");yield return null;}
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
+        Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
         ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Running||runtime.ChildId==first||!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"story duel synthetic status and preview");yield return null;}
         int second=runtime.ChildId;children.Add(second);
         Check(second>0&&second!=first&&!RedboolPvp.Active,"Story duel starts independent owned child");
+        Check(SceneManager.GetActiveScene().name=="ScoutPass","Solo duel keeps its story arena");
         Check((string)typeof(RedboolCameraRuntime).GetField("role",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(runtime)=="DEV01","Story camera uses DEV01 role");
         Check(runtime.Synthetic&&runtime.Status.synthetic&&!runtime.Status.camera_connected,"Story path remains synthetic without physical camera");
         end=Time.realtimeSinceStartupAsDouble+10;

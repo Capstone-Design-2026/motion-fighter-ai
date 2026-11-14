@@ -18,7 +18,7 @@ public static class RedboolPvpPlayCheck
  static System.Diagnostics.Process guest;
  static string GuestBinary=>Environment.GetEnvironmentVariable("REDBOOL_DUAL_CLIENT");
  static void StartGuest(){
-  var info=new System.Diagnostics.ProcessStartInfo(GuestBinary,"--redbool-pvp-client 127.0.0.1 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -logFile \""+Path.Combine(Output,"guest.log")+"\"") {UseShellExecute=false};
+  var info=new System.Diagnostics.ProcessStartInfo(GuestBinary,"--redbool-external-camera --redbool-pvp-client 127.0.0.1 -screen-fullscreen 0 -screen-width 1280 -screen-height 720 -logFile \""+Path.Combine(Output,"guest.log")+"\"") {UseShellExecute=false};
   info.EnvironmentVariables["REDBOOL_VIEW_TRACE_FILE"]=Path.Combine(Output,"guest-"+DateTime.UtcNow.Ticks+".jsonl");
   info.EnvironmentVariables["REDBOOL_VIEW_CAPTURE_DIR"]=Output;
   guest=System.Diagnostics.Process.Start(info);
@@ -105,13 +105,13 @@ public static class RedboolPvpPlayCheck
   Check(GameObject.Find("PvpButton")!=null,"Menu exposes PvP entry");
   string save=PlayerPrefs.GetString(SaveKey,"");
   if(!String.IsNullOrEmpty(GuestBinary)){RedboolPvp.HostDual();StartGuest();}else RedboolPvp.Begin();yield return null;yield return null;yield return null;
-  Check(SceneManager.GetActiveScene().name==RedboolPvp.Arena,"Both humans use the PvP arena ("+RedboolPvp.Arena+")");
+  Check(SceneManager.GetActiveScene().name==RedboolPvp.ArenaScene,"Both humans use authored UndergroundPit arena");
   Check(Object.FindObjectsByType<PlayerController>(FindObjectsSortMode.None).Length==2,"Exactly two human controllers");
   Check(Object.FindAnyObjectByType<EnemyAI>()==null,"No active AI opponent in PvP");
   Check(!Object.FindAnyObjectByType<BattleSceneBridge>().enabled,"Campaign bridge disabled before Start");
   Check(Game.Players[0].GetComponent<Fighter3DView>().modelAnimator.isHuman && Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.isHuman,"Both use humanoid character animations");
   Check(Game.Players[1].GetComponent<Fighter3DView>().visualRoot.name.Contains("Cheolmun"),"2P uses authored Cheolmun visual");
-  Check(Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.runtimeAnimatorController.name=="RedboolPvpCheolmun","2P uses only the targeted jab extension controller");
+  Check(Game.Players[1].GetComponent<Fighter3DView>().modelAnimator.runtimeAnimatorController.name=="RedboolPvpCheolmun","2P uses the reviewed upstream jab controller");
   Check(GameObject.Find("PvpSpecialGauge0")!=null &&GameObject.Find("PvpSpecialGauge1")!=null,"Both participants have original-style charge bars");
   Check(GameObject.Find("PvpHealthBar0")!=null &&GameObject.Find("PvpHealthBar1")!=null,"Both participants use story-style health bars");
   for(int i=0;i<2;i++) Check(!new SerializedObject(Game.Players[i].GetComponent<SpecialMove>()).FindProperty("chargeWhenHit").boolValue,"P"+(i+1)+" scene/clone keeps incoming-hit charging disabled");
@@ -165,16 +165,19 @@ public static class RedboolPvpPlayCheck
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(replies["p1-jab"].status=="APPLIED"&&replies["p1-jab"].player_id=="P1","P1 attack applies to P1");
   Check(replies["p2-straight"].status=="APPLIED"&&replies["p2-straight"].player_id=="P2","P2 attack applies to P2");
+  CheckSurface(0,1);
   int count=Game.Receivers[0].AttacksApplied;
   Gesture(0,"LEFT_PUNCH","wrong-player",actor:"P2");Gesture(0,"LEFT_PUNCH","expired",true);
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(!replies.ContainsKey("wrong-player")&&replies["expired"].status=="EXPIRED"&&Game.Receivers[0].AttacksApplied==count,"Wrong actor and expired input cannot attack");
   for(var w=Pump(1.2f);w.MoveNext();)yield return null;
+  CheckSurface(0,0);
   block[0]=true;for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(Game.Players[0].GetComponent<Fighter>().IsVisionGuardHeld&&!Game.Players[1].GetComponent<Fighter>().IsVisionGuardHeld,"Guard belongs only to its player");
   block[0]=false;for(var w=Pump(.08f);w.MoveNext();)yield return null;Gesture(0,"RIGHT_PUNCH","block-followup");
   for(var w=Pump(.2f);w.MoveNext();)yield return null;
   Check(replies["block-followup"].status=="APPLIED","Held guard releases into attack");
+  CheckSurface(0,2);
   // Field v30: an expired held input was cancelling the entire round about once
   // per second. Presence grace must never extend that actor's actual input lease.
   for(var w=Pump(1.2f);w.MoveNext();)yield return null;
@@ -268,6 +271,16 @@ public static class RedboolPvpPlayCheck
   Check(PlayerPrefs.GetString(SaveKey,"")==save,"PvP save and clear-save calls are guarded");
   Game.Leave(true);yield return null;yield return null;
   Check(!RedboolPvp.Active&&SceneManager.GetActiveScene().name==SceneRoutes.Start&&Time.timeScale==1,"Exit restores menu, clock and story mode");
+ }
+ static void CheckSurface(int slot,byte expected){
+  var surface=Game.Players[slot].GetComponent<Fighter3DView>().visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);
+  Check(surface!=null&&surface.CurrentSurface==expected,"Host renders expected authored correction surface "+expected);
+  if(Game.ViewLink!=null){
+   var capture=typeof(RedboolViewLink).GetMethod("CaptureActor",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+   var actor=(RedboolViewActor)capture.Invoke(Game.ViewLink,new object[]{slot});
+   var packet=RedboolViewProtocol.Encode(new RedboolViewPacket {kind=(byte)(slot+2),session=Guid.NewGuid(),nonce=Guid.NewGuid(),seq=1,time=1,actor=actor});
+   Check(RedboolViewProtocol.TryDecode(packet,out var decoded)&&decoded.actor.punchSurface==expected,"Host snapshot sends identical correction surface to guest "+expected);
+  }
  }
  static void CheckCharge(int slot,int expected){
   var meter=Game.Players[slot].GetComponent<SpecialMove>();

@@ -360,7 +360,7 @@ public class CombatHUD : MonoBehaviour
         bar.gaugeLabel.text = s.IsPlaying ? s.MoveName + "  발동"
             : s.Used ? s.MoveName + "  사용함"
             : s.IsReady ? s.MoveName + "  준비"
-            : s.MoveName + "  " + current + " / " + max;
+            : s.MoveName + "  충전 중";
         bar.gaugeLabel.color = lit ? new Color(1f,.84f,.62f) : s.Used ? new Color(.6f,.62f,.62f) : new Color(.83f,.88f,.88f);
     }
 

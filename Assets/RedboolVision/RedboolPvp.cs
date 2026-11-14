@@ -7,6 +7,7 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(200)]
 public sealed class RedboolPvp : MonoBehaviour
 {
+    public const string ArenaScene = "UndergroundPit";
     public static bool Active { get; private set; }
     public static bool IsClient { get; private set; }
     public static string HostAddress { get; private set; } = "127.0.0.1";
@@ -25,8 +26,7 @@ public sealed class RedboolPvp : MonoBehaviour
     public readonly int[] Characters = { RedboolPvpRoster.Hero, RedboolPvpRoster.DefaultSecond };
     public bool ViewReady => !RequireView || ViewLink!=null && ViewLink.PeerReady;
     GameObject heroTemplate;
-    /// <summary>PvP 전용 무대. 빌드에 없으면 예전처럼 결투 연습 무대를 쓴다.</summary>
-    public const string ArenaScene="UndergroundPit";
+    /// <summary>실제로 쓰는 PvP 무대(ArenaScene). 빌드에 없으면 예전처럼 결투 연습 무대를 쓴다.</summary>
     public static string Arena => Application.CanStreamedLevelBeLoaded(ArenaScene)?ArenaScene:RedboolDuelTest.ArenaScene;
     // 스토리와 같은 체력 막대·게이지·시계. 대기실을 쓰는 흐름에서만 켠다(예전 흐름은 예전 패널 그대로).
     CombatHUD hud;

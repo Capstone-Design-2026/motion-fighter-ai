@@ -70,13 +70,6 @@ and REDBOOL_CAMERA_CHECK_OUTPUT pointing to a new evidence directory.
 This explicitly uses synthetic local images, never opens a camera and never sends
 gameplay attacks. It verifies menu→PvP→menu→story, local preview/calibration controls,
 role changes and cleanup, including destruction during pending shutdown.
-
-Play build without the "Development Build" watermark
-python Tools/Developer/build_local.py --release   → Build/REDBOOL-release/
-The default build stays a development player in Build/REDBOOL/. The synthetic
-check above only runs in a development player, so check with the default build
-and hand out a package assembled from the --release build (same assemble command,
---player pointing at Build/REDBOOL-release).
 Normal transport/gameplay test harnesses should use an unbundled player or pass
 --redbool-external-camera so they cannot accidentally acquire a physical camera.
 

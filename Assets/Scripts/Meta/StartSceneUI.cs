@@ -311,7 +311,7 @@ public class StartSceneUI : MonoBehaviour
         try
         {
             var reply=JsonUtility.FromJson<RoomReply>(Encoding.UTF8.GetString(data));
-            if(reply==null || reply.service!="REDBOOL" || reply.view_version!=29
+            if(reply==null || reply.service!="REDBOOL" || reply.view_version!=RedboolViewProtocol.Version
                 || reply.p2_port!=5066 || reply.view_port!=5067) return false;
             address=from.Address.ToString();return true;
         }

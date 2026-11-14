@@ -23,6 +23,7 @@ public sealed class Fighter3DView : MonoBehaviour
     const float GuardEntry = .27f, GuardRelease = .252f, GuardSwitchBlend = .14f;
     static readonly string[] Attacks = { "JAB", "CROSS", "HIGHKICK", "LOWKICK" };
     Fighter fighter;
+    bool cameraPlayer;
     Health health;
     Renderer[] renderers;
     MaterialPropertyBlock properties;
@@ -38,6 +39,7 @@ public sealed class Fighter3DView : MonoBehaviour
 
     void CacheVisual()
     {
+        cameraPlayer = GetComponent<PlayerController>() != null;
         renderers = visualRoot.GetComponentsInChildren<Renderer>();
         properties = new MaterialPropertyBlock();
         origin = visualRoot.localPosition;
@@ -187,8 +189,8 @@ public sealed class Fighter3DView : MonoBehaviour
         bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
         // 승인 걷기(HERO_*_STEP)는 걷기 빠르기 배율만큼 빨리 재생한다. 그 밖의 상태는 1.
         bool heroStep = heroMovement != null && heroMovement.isActiveAndEnabled && (currentState == "HERO_FORWARD_STEP" || currentState == "HERO_BACKWARD_STEP");
-        modelAnimator.speed = walkingState ? (authoredSteps ? walk.AuthoredPlaybackSpeed : walk.PlaybackSpeed) : heroStep ? heroMovement.PlaybackSpeed : 1f;
-        if (!authoredSteps && (heroMovement == null || !heroMovement.isActiveAndEnabled))
+        modelAnimator.speed = walkingState ? (authoredSteps && !cameraPlayer ? walk.AuthoredPlaybackSpeed : walk.PlaybackSpeed) : heroStep ? heroMovement.PlaybackSpeed : 1f;
+        if ((!authoredSteps || cameraPlayer) && (heroMovement == null || !heroMovement.isActiveAndEnabled))
             walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;

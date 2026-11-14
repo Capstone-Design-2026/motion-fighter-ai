@@ -162,6 +162,7 @@ public class Fighter : MonoBehaviour
 
     /// <summary>이 시간 동안 공격과 필살기를 새로 시작할 수 없다(적 필살기 '삼점봉혈'). 이동과 방어는 된다.</summary>
     public void SealAttacks(float seconds) { attackSealedUntil = Mathf.Max(attackSealedUntil, Time.time + Mathf.Max(0f, seconds)); }
+    public void ClearAttackSeal() { attackSealedUntil = 0f; }
     public bool IsAttackSealed => Time.time < attackSealedUntil;
     private float attackSealedUntil;
 

@@ -151,7 +151,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
     {
         foeHp.OnDamaged -= OnDamaged;
         foe.AttackLanded -= OnAttackLanded;
-        if (phase != Phase.Idle) { StopRoutine(); Cleanup(ownsTime && !foe.InputLocked); }
+        ClearOwnedEffects();
     }
 
     void Notify() => OnChargeChanged?.Invoke(charge, hitsToCharge);
@@ -252,7 +252,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
     /// <summary>라운드가 다시 시작될 때 처음 상태로 돌린다.</summary>
     public void ResetForRound()
     {
-        if (phase != Phase.Idle) { StopRoutine(); Cleanup(ownsTime && !foe.InputLocked); }
+        ClearOwnedEffects();
         charge = 0; used = false; readyAt = -1f;
         Notify();
     }
@@ -281,8 +281,44 @@ public sealed partial class EnemySpecial : MonoBehaviour
 
     bool KoTookOver() => foe.InputLocked || foeHp.IsDead || (heroHp != null && heroHp.IsDead);
 
+    // AI 적: PvP 이거나 AI 가 꺼졌거나 카메라 준비로 묶였으면 멈춘다(웅빈 v34).
+    // PvP 에서 사람이 쓰는 기술(playerOwned): 라운드가 멈춰 두 사람이 묶였을 때만 멈춘다. 손님 화면의 연출 전용은 호스트 신호만 따른다.
+    bool PreparationInterrupted => playerOwned
+        ? !visualOnly && (foe.VisionPreparationLocked || (hero != null && hero.VisionPreparationLocked))
+        : RedboolPvp.Active || ai == null || !ai.isActiveAndEnabled
+          || foe.VisionPreparationLocked || (hero != null && hero.VisionPreparationLocked);
+
+    // No coroutine, movement callback or late pose may outlive a camera pause.
+    // A cast interrupted before release keeps its charge; an already released cast remains used.
+    bool HasOwnedEffects => phase != Phase.Idle || routine != null || ownsTime || updaters.Count > 0
+        || root != null || extras.Count > 0 || lightingCaptured;
+
+    // Idle may still own the settle fades. Disabling or restarting must clear those
+    // callbacks too, without overriding a newer KO/PvP time owner.
+    void ClearOwnedEffects()
+    {
+        if (!HasOwnedEffects) return;
+        StopRoutine();
+        if (body != null) body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        Cleanup(ownsTime && !RedboolPvp.Active && !KoTookOver());
+    }
+
+    public void CancelForPreparation()
+    {
+        bool charging = IsCharging;
+        if (!HasOwnedEffects) return;
+        ClearOwnedEffects();
+        if (charging) {
+            charge = Mathf.Clamp(spent, 0, hitsToCharge);
+            readyAt = charge >= hitsToCharge ? Time.time + fireDelay : -1f;
+            Notify();
+        }
+    }
+
     void Update()
     {
+        if (hero == null && !playerOwned) FindHero();   // PvP 에서는 상대를 RedboolPvp 가 정해 준다(첫 PlayerController 가 자기 자신일 수 있다)
+        if (PreparationInterrupted) { CancelForPreparation(); return; }
         StepUpdaters();
         StepLook();
         if (phase != Phase.Idle)
@@ -447,7 +483,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
             if (fxScale > 0f) Burst(new Vector3(HeroX, height, 0f), guardedSpecial ? fxScale * .6f : fxScale);
             return true;
         }
-        if (hero == null || heroHp.IsDead) return false;
+        if (hero == null || heroHp.IsDead || PreparationInterrupted) return false;
         if (!float.IsNaN(at) && Mathf.Abs(HeroX - at) > reach) return false;
         if (!guardDecided) { guardDecided = true; guardedSpecial = hero.IsBlocking; }
         bool guarded = guardedSpecial;

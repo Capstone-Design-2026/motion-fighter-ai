@@ -21,6 +21,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     readonly List<RedboolViewEffect> effects=new List<RedboolViewEffect>();
     readonly Transform[][] bones={new Transform[(int)HumanBodyBones.LastBone],new Transform[(int)HumanBodyBones.LastBone]};
     readonly Fighter3DView[] views=new Fighter3DView[2];
+    readonly HeroPunchSurfaceVisibility[] punchSurfaces=new HeroPunchSurfaceVisibility[2];
     RedboolViewMirror mirror;
     double nextSend,lastHello=-10,lastHeartbeat=-10,lastFrame=-10,echo,lastReport;
     ulong sequence,ack;
@@ -91,6 +92,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             for(int i=0;i<2;i++)
             {
                 views[i]=game.Players[i].GetComponent<Fighter3DView>();
+                punchSurfaces[i]=views[i].visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);
                 for(int b=0;b<bones[i].Length;b++) {bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);if(bones[i][b]) replicaBoneCount++;}
             }
             if(client) {mirror=gameObject.AddComponent<RedboolViewMirror>();mirror.Initialize(game,views,bones);Time.timeScale=1;}
@@ -233,6 +235,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     {
         if(!initialized) return;
         views[i]=game.Players[i].GetComponent<Fighter3DView>();
+        punchSurfaces[i]=views[i].visualRoot.GetComponentInChildren<HeroPunchSurfaceVisibility>(true);   // 적 인물의 겉모습에는 없을 수 있다(null)
         for(int b=0;b<bones[i].Length;b++) bones[i][b]=views[i].modelAnimator.GetBoneTransform((HumanBodyBones)b);
         if(mirror!=null) mirror.Rebind(i);
     }
@@ -242,6 +245,7 @@ public sealed class RedboolViewLink : MonoBehaviour
         var a=new RedboolViewActor {root=p.transform.position,visual=views[i].visualRoot.position,rotation=views[i].visualRoot.rotation,scale=views[i].visualRoot.localScale,hips=bones[i][0]?bones[i][0].localPosition:Vector3.zero,hp=h.CurrentHealth,maxHp=h.MaxHealth,charge=s.Charge,maxCharge=s.HitsToCharge,phase=(int)s.CurrentPhase,step=practice.Step,hits=practice.Hits,practiceRun=Guid.Parse(practice.Run),live=game.Receivers[i].LiveReady,attackSerial=p.GetComponent<Fighter>().AttackSerial};
         for(int b=0;b<a.bones.Length;b++) a.bones[b]=bones[i][b]?bones[i][b].localRotation:Quaternion.identity;
         a.chargeLevel=s.VisualChargeLevel;
+        a.punchSurface=punchSurfaces[i]!=null?punchSurfaces[i].CurrentSurface:(byte)0;
         // 적 인물을 골랐으면 게이지와 발동 신호는 그 인물의 기술에서 가져온다.
         var own=p.GetComponent<EnemySpecial>();
         if(own!=null && own.enabled && own.PlayerOwned) {a.charge=own.IsPlaying?own.HitsToCharge:own.Charge;a.maxCharge=own.HitsToCharge;a.phase=0;a.chargeLevel=0;a.specialSerial=(byte)(own.FireSerial&255);a.specialFlags=(byte)((own.IsPlaying?1:0)|(own.GuardDecided?2:0)|(own.GuardedSpecial?4:0));}

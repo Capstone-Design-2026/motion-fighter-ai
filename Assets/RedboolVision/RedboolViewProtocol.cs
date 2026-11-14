@@ -14,7 +14,7 @@ public sealed class RedboolViewActor
     public bool live;
     public Color tint=Color.white;
     public float chargeLevel;
-    public byte personal;
+    public byte personal, punchSurface;
     public Guid practiceRun;
     /// <summary>고른 인물 번호 (RedboolPvpRoster)</summary>
     public byte character;
@@ -54,7 +54,9 @@ public sealed class RedboolViewPacket
 }
 public static class RedboolViewProtocol
 {
-    public const int Port=5067,MaxBytes=1200,Version=30;
+    // 31: 30 위에 인물 선택(대기실 단계·고른 칸·확정·남은 초, 인물 번호)과 인물 고유 필살기 신호를 더했다.
+    //     웅빈의 30(주먹 보정 면 punchSurface)과 내용이 달라 섞이지 않게 번호를 올렸다. 두 노트북은 같은 빌드여야 한다.
+    public const int Port=5067,MaxBytes=1200,Version=31;
     const uint Magic=0x52425657;
     static float Finite(float v) { if(float.IsNaN(v)||float.IsInfinity(v)||Mathf.Abs(v)>100000) throw new InvalidDataException();return v; }
     static double Finite(double v) {if(double.IsNaN(v)||double.IsInfinity(v)||v<0) throw new InvalidDataException();return v;}
@@ -85,7 +87,7 @@ public static class RedboolViewProtocol
             else if(p.kind==2 || p.kind==3)
             {
                 var a=p.actor;V(w,a.root);V(w,a.visual);V(w,a.scale);V(w,a.hips);Q(w,a.rotation);
-                w.Write((ushort)a.hp);w.Write((ushort)a.maxHp);w.Write((byte)a.charge);w.Write((byte)a.maxCharge);w.Write((byte)a.step);w.Write((byte)a.hits);w.Write((byte)a.phase);w.Write(a.attackSerial);w.Write(a.live);var color=(Color32)a.tint;w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((byte)Mathf.RoundToInt(a.chargeLevel*255));w.Write(a.personal);w.Write(a.practiceRun.ToByteArray());
+                w.Write((ushort)a.hp);w.Write((ushort)a.maxHp);w.Write((byte)a.charge);w.Write((byte)a.maxCharge);w.Write((byte)a.step);w.Write((byte)a.hits);w.Write((byte)a.phase);w.Write(a.attackSerial);w.Write(a.live);var color=(Color32)a.tint;w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((byte)Mathf.RoundToInt(a.chargeLevel*255));w.Write(a.personal);w.Write(a.punchSurface);w.Write(a.practiceRun.ToByteArray());
                 w.Write(a.character);w.Write(a.specialSerial);w.Write(a.specialFlags);
                 foreach(var q in a.bones) Q(w,q);
             }
@@ -116,7 +118,7 @@ public static class RedboolViewProtocol
                 else if(n.kind==2 || n.kind==3)
                 {
                     var a=new RedboolViewActor {root=V(r),visual=V(r),scale=V(r),hips=V(r),rotation=Q(r),hp=Range(r.ReadUInt16(),10000),maxHp=Range(r.ReadUInt16(),10000),charge=Range(r.ReadByte(),100),maxCharge=Range(r.ReadByte(),100),step=Range(r.ReadByte(),8),hits=Range(r.ReadByte(),2),phase=Range(r.ReadByte(),4),attackSerial=r.ReadInt32(),live=r.ReadBoolean()};
-                    a.tint=new Color32(r.ReadByte(),r.ReadByte(),r.ReadByte(),r.ReadByte());a.chargeLevel=r.ReadByte()/255f;a.personal=(byte)Range(r.ReadByte(),2);a.practiceRun=new Guid(r.ReadBytes(16));
+                    a.tint=new Color32(r.ReadByte(),r.ReadByte(),r.ReadByte(),r.ReadByte());a.chargeLevel=r.ReadByte()/255f;a.personal=(byte)Range(r.ReadByte(),2);a.punchSurface=(byte)Range(r.ReadByte(),2);a.practiceRun=new Guid(r.ReadBytes(16));
                     if(a.hp>a.maxHp || a.scale.x<=0 || a.scale.y<=0 ||a.scale.z<=0) return false;
                     a.character=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);a.specialSerial=r.ReadByte();a.specialFlags=(byte)Range(r.ReadByte(),7);
                     for(int i=0;i<a.bones.Length;i++) a.bones[i]=Q(r);n.actor=a;

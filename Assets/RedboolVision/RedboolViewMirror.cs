@@ -13,6 +13,7 @@ public sealed class RedboolViewMirror : MonoBehaviour
     public bool Ready => warmup==null;
     readonly int[] serial={-1,-1};
     readonly Renderer[][] renderers=new Renderer[2][];
+    readonly HeroPunchSurfaceVisibility[][] punchSurfaces=new HeroPunchSurfaceVisibility[2][];
     int lastEffect;
     public void Initialize(RedboolPvp owner,Fighter3DView[] presentation,Transform[][] rig)
     {
@@ -26,6 +27,8 @@ public sealed class RedboolViewMirror : MonoBehaviour
             foreach(var c in p.GetComponentsInChildren<Collider2D>(true)) c.enabled=false;
             foreach(var c in p.GetComponentsInChildren<Collider>(true)) c.enabled=false;
             views[i].enabled=false;views[i].modelAnimator.enabled=false;
+            punchSurfaces[i]=views[i].visualRoot.GetComponentsInChildren<HeroPunchSurfaceVisibility>(true);
+            foreach(var surface in punchSurfaces[i]) surface.enabled=false;
             renderers[i]=views[i].visualRoot.GetComponentsInChildren<Renderer>();
             var props=new MaterialPropertyBlock();props.SetColor("_BaseColor",views[i].fighterTint);props.SetColor("_Color",views[i].fighterTint);
             foreach(var r in renderers[i]) r.SetPropertyBlock(props);
@@ -36,6 +39,9 @@ public sealed class RedboolViewMirror : MonoBehaviour
     public void Rebind(int i)
     {
         views[i].enabled=false;views[i].modelAnimator.enabled=false;
+        // 새 겉모습의 주먹 보정 면(주인공에게만 있다). 호스트가 보내는 값으로만 바꾼다.
+        punchSurfaces[i]=views[i].visualRoot.GetComponentsInChildren<HeroPunchSurfaceVisibility>(true);
+        foreach(var surface in punchSurfaces[i]) surface.enabled=false;
         renderers[i]=views[i].visualRoot.GetComponentsInChildren<Renderer>();
         var props=new MaterialPropertyBlock();props.SetColor("_BaseColor",views[i].fighterTint);props.SetColor("_Color",views[i].fighterTint);
         foreach(var r in renderers[i]) r.SetPropertyBlock(props);
@@ -56,6 +62,7 @@ public sealed class RedboolViewMirror : MonoBehaviour
             v.visualRoot.position=Vector3.Lerp(x.visual,y.visual,t);v.visualRoot.rotation=Quaternion.Slerp(x.rotation,y.rotation,t);v.visualRoot.localScale=Vector3.Lerp(x.scale,y.scale,t);
             for(int j=0;j<bones[i].Length;j++) if(bones[i][j]) bones[i][j].localRotation=Quaternion.Slerp(x.bones[j],y.bones[j],t);
             if(bones[i][0]) bones[i][0].localPosition=Vector3.Lerp(x.hips,y.hips,t);
+            foreach(var surface in punchSurfaces[i]) surface.ApplyRemoteSurface(y.punchSurface);
             if(serial[i]>=0 && y.attackSerial!=serial[i]) CombatSfx.PlayAttack();serial[i]=y.attackSerial;
             var hands=(bones[i][(int)HumanBodyBones.LeftHand].position+bones[i][(int)HumanBodyBones.RightHand].position)*.5f;
             bool charging=y.phase==1||y.phase==2||y.phase==3;
