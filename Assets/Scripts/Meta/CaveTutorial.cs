@@ -45,7 +45,7 @@ public class CaveTutorial : MonoBehaviour {
   Label("MappingArrow","→",55,900,140,120,85);
   phaseLabel=Label("TrainingPhase","",25,680,350,560,52);
   status=Label("TrainingStatus","",26,180,65,1560,55);progress=Label("TrainingProgress","",22,740,8,440,45);
-  inputHint=Label("TrainingInputHint","",20,160,865,1600,45);signal=Label("LiveSignal","",21,450,810,1020,45);
+  inputHint=Label("TrainingInputHint","",20,160,865,1600,45);signal=Label("LiveSignal","",21,450,810,1020,45);signal.gameObject.SetActive(false);   // 받은 동작·신호 상태는 아래 안내 줄이 알려 준다(위아래로 글이 겹쳐 보이지 않게 숨김)
   Button("LeaveTraining","수련 중단",()=>{run.Save();exit=true;},28,1010,180);
   Button("ReplayDemonstration","시범 다시 보기",ReplayDemonstration,1640,340,245);
   var pulse=UIFactory.CreateImage("SuccessPulse",frame,new Color(.84f,1,.66f,0));Box(pulse.rectTransform,0,316,1920,4);flash=pulse;

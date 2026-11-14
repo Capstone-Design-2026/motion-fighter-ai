@@ -260,8 +260,10 @@ public class CombatHUD : MonoBehaviour
     private void OnDeath(Health dead)
     {
         matchOver = true;
+        // 지도를 거쳐 들어온 전투는 BattleSceneBridge 가 "승리 - 지도로 돌아갑니다" 같은 한 줄을 띄운다. 같은 뜻의 글을 두 번 띄우지 않는다.
+        if (battle != null && battle.RunMode) return;
         bool playerLost = (dead == playerHealth);
-        koText.text = (playerLost ? "YOU LOSE" : "K.O.  YOU WIN")
+        koText.text = (playerLost ? "패  배" : "승  리")
                     + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
         koText.color = playerLost ? new Color(1f, 0.45f, 0.45f) : new Color(1f, 0.9f, 0.4f);
         koText.gameObject.SetActive(true);
@@ -270,7 +272,8 @@ public class CombatHUD : MonoBehaviour
     public void ShowTimeOut(bool won)
     {
         matchOver = true;
-        koText.text = "TIME UP\n" + (won ? "YOU WIN" : "YOU LOSE")
+        if (battle != null && battle.RunMode) return;
+        koText.text = "시간 종료\n" + (won ? "승  리" : "패  배")
                     + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
         koText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.45f, 0.45f);
         koText.gameObject.SetActive(true);

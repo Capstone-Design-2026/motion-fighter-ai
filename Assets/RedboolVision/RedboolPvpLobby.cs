@@ -226,7 +226,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         Label(room, "RoomSub", "두 사람이 모두 준비되면 인물을 고릅니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -112), new Vector2(900, 34));
         roomStatus = Label(room, "RoomStatus", "", 28, TextAnchor.MiddleCenter, WuxiaTheme.Paper, centre, new Vector2(0, -22), new Vector2(940, 200));
         roomStatus.lineSpacing = 1.35f;
-        Label(room, "RoomHint", "카메라 앞에 서서 C 로 중앙 가드를 보정하세요      진행자: F9 로 바로 넘기기 · Esc 메뉴", 19, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 46), new Vector2(960, 36));
+        Label(room, "RoomHint", "카메라 앞에 서서 C 로 중앙 가드를 보정하세요", 19, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 46), new Vector2(960, 36));
     }
 
     void BuildSelect()
@@ -294,7 +294,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         versusText.supportRichText = true;
         Label(versus, "VersusSub", "곧 수련을 시작합니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 38), new Vector2(800, 32));
 
-        Label(select.transform, "Hint", "몸을 좌우로 기울여 고르기   ·   잽이나 스트레이트로 확정   ·   양손 막기로 취소\n진행자 키보드   1P: W A S D · F 확정 · G 취소      2P: 방향키 · Enter 확정 · Backspace 취소", 19, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 58), new Vector2(1500, 60));
+        Label(select.transform, "Hint", "몸을 좌우로 기울여 고르기   ·   잽이나 스트레이트로 확정   ·   양손 막기로 취소", 19, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(1500, 34));
     }
 
     // 먹빛 판에 색 테두리를 두른 칸 (메뉴의 PvP 칸과 같은 모양)

@@ -49,7 +49,8 @@ public sealed class RedboolPvp : MonoBehaviour
     readonly TrainingPoseGraphic[] diagrams=new TrainingPoseGraphic[2];
     Text banner, clockLabel, roundResult;
     GameObject resultPanel;
-    Button rematchButton;
+    Button rematchButton, reselectButton;
+    double fightHintUntil=-1;   // 대전이 시작된 뒤 안내 줄을 잠깐만 보여 준다
     readonly Button[] skipButtons=new Button[2];
     readonly RectTransform[] playerPanels=new RectTransform[2];
     string lastDiagnostic;double lastDiagnosticTime;
@@ -253,7 +254,15 @@ public sealed class RedboolPvp : MonoBehaviour
         if(row!=lastDiagnostic &&now-lastDiagnosticTime>.25 || now-lastDiagnosticTime>=2)
         { Debug.Log("[REDBOOL PVP GATE] "+row+FormattableString.Invariant($" round={Round} remaining={Remaining:F2} hp1={Players[0].GetComponent<Health>().CurrentHealth} hp2={Players[1].GetComponent<Health>().CurrentHealth} age1_ms={Receivers[0].InputAgeMs:F1} age2_ms={Receivers[1].InputAgeMs:F1} source1_ms={Receivers[0].SourceAgeMs:F1} source2_ms={Receivers[1].SourceAgeMs:F1} lease1_ms={Receivers[0].LeaseRemainingMs:F1} lease2_ms={Receivers[1].LeaseRemainingMs:F1} uncertainty1_ms={Receivers[0].ClockUncertaintyMs:F1} uncertainty2_ms={Receivers[1].ClockUncertaintyMs:F1}")+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
     }
-    static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 연결 복구 후 자동 재개":gate==3?"1P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==4?"2P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"신호 확인 · 잠시 후 자동 시작":"2인 대전 · 블락 유지 · 가슴 앞 X자 필살기 · Esc: 메뉴";
+    // 대전 중(gate 0) 안내 줄은 라운드가 시작된 뒤 3초만 보여 준다. 그 밖의 단계(준비·대기·수련)는 그대로 계속 보여 준다.
+    string Banner(byte gate,float countdown)
+    {
+        if(gate!=0) {fightHintUntil=-1;return GateText(gate,countdown);}
+        double now=Time.realtimeSinceStartupAsDouble;
+        if(fightHintUntil<0) fightHintUntil=now+3;
+        return now<fightHintUntil?GateText(gate,countdown):"";
+    }
+    static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 연결 복구 후 자동 재개":gate==3?"1P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==4?"2P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"신호 확인 · 잠시 후 자동 시작":"대전 시작 · 양손을 올려 막기 · 가슴 앞 X자로 필살기";
     // Resolve after the contact world: simultaneous KO must not become a 1P win.
     void LateUpdate()
     {
@@ -325,6 +334,10 @@ public sealed class RedboolPvp : MonoBehaviour
         UIFactory.Place(roundResult.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-20),new Vector2(750,155));
         rematchButton=UIFactory.CreateButton("PvpRematch",result.transform,"다시 대전 · R",25,new Color(.14f,.20f,.23f,1),Rematch);
         UIFactory.Place(rematchButton.GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,25),new Vector2(360,55));
+        // 인물 다시 고르기(F8)도 결과 판의 단추로 둔다. 아래 안내 줄에 같은 내용을 또 쓰지 않기 위해서다.
+        reselectButton=UIFactory.CreateButton("PvpReselect",result.transform,"인물 다시 고르기 · F8",25,new Color(.14f,.20f,.23f,1),()=>{if(Lobby!=null){Rematch();Lobby.Reopen();}});
+        UIFactory.Place(reselectButton.GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(190,25),new Vector2(360,55));
+        reselectButton.gameObject.SetActive(false);
         resultPanel.SetActive(false);
     }
     void RefreshUi()
@@ -341,7 +354,7 @@ public sealed class RedboolPvp : MonoBehaviour
             practiceLabels[i].text=(!Receivers[i].LiveReady?"카메라 연결 · C로 중앙 가드 보정\n":"")+Practices[i].Instruction+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
-        banner.text=Resolved?Result+" · R: 재대전 · "+(Lobby!=null?"F8: 인물 다시 고르기 · ":"")+"Esc: 메뉴":GateText(Gate,Countdown);
+        banner.text=Resolved?"":Banner(Gate,Countdown);   // 결과는 가운데 판에만
         LobbyUi();
         ShowResult(Resolved,Result,Remaining,Players[0].GetComponent<Health>().CurrentHealth,Players[1].GetComponent<Health>().CurrentHealth,false);
     }
@@ -350,6 +363,9 @@ public sealed class RedboolPvp : MonoBehaviour
         resultPanel.SetActive(ended);if(!ended)return;
         roundResult.text=(hp1<=0||hp2<=0?"K.O. · 라운드 종료":"시간 종료 · 라운드 종료")+"\n"+winner+(remote?"\n1P 화면에서 다시 대전을 선택하세요":"");
         rematchButton.gameObject.SetActive(!remote);
+        bool reselect=!remote && Lobby!=null;
+        reselectButton.gameObject.SetActive(reselect);
+        rematchButton.GetComponent<RectTransform>().anchoredPosition=new Vector2(reselect?-190:0,25);
     }
     void ShowPracticeVisibility(int slot,bool show) {practiceLabels[slot].gameObject.SetActive(show);playerPanels[slot].SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,show?260:155);}
     void ShowHealth(int slot,int current,int maximum)
@@ -385,7 +401,7 @@ public sealed class RedboolPvp : MonoBehaviour
             practiceLabels[i].text=(!a.live?"카메라 연결 · C로 중앙 가드 보정\n":"")+RedboolPractice.Describe(a.step,a.hits)+"\n"+(a.personal==2?"개인 동작 범위 적용":a.personal==1?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
-        banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?(frame.world.winner==0?"무승부":frame.world.winner+"P 승리")+" · 호스트에서 R: 재대전 · Esc: 메뉴":GateText(frame.world.gate,frame.world.countdown);
+        banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?"":Banner(frame.world.gate,frame.world.countdown);
         ShowResult(fresh&&Resolved,frame.world.winner==0?"무승부":frame.world.winner+"P 승리",Remaining,frame.actors[0].hp,frame.actors[1].hp,true);
         // 호스트에서 정해진 인물을 이 화면의 두 사람에게도 입힌다.
         for(int i=0;i<2;i++) if(frame.actors[i].character!=Characters[i]) ApplyCharacter(i,frame.actors[i].character);

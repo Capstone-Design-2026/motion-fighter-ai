@@ -349,7 +349,7 @@ public class RunState : MonoBehaviour
         if (node != null && node.type == NodeType.Boss)
         {
             Data.finished = true;
-            LastMessage = "최종 보스 격파!";
+            LastMessage = null;   // 엔딩과 크레딧이 끝을 알린다. 시작 화면에 "최종 보스 격파!"를 남기지 않는다.
             ClearSave(); // 완료한 판은 이어하기 대상으로 남기지 않는다.
             if (IsStoryMap) StartCoroutine(StoryEnding());
             else SceneRoutes.LoadEnding();

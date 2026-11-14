@@ -24,6 +24,8 @@ public class BattleSceneBridge : MonoBehaviour
     [SerializeField] private float roundDuration = 120f;
     public float RemainingSeconds { get; private set; }
     public bool IsResolved => resolved;
+    /// <summary>지도를 거쳐 들어온 전투인가. 이때 결과 글은 이 브리지가 한국어 한 줄로 띄우고, CombatHUD 의 K.O. 글은 쓰지 않는다.</summary>
+    public bool RunMode => runMode;
 
     [Header("전투 종료 후")]
     [Tooltip("K.O. 뒤 지도로 돌아가기까지 기다리는 시간(초). 실제 시간 기준이라 슬로우모션의 영향을 받지 않는다.")]
@@ -238,6 +240,8 @@ public class BattleSceneBridge : MonoBehaviour
             var hud = FindAnyObjectByType<CombatHUD>();
             if (hud != null) hud.ShowTimeOut(won);
         }
+        // 결과 글은 결판이 난 순간 한 번만 띄운다 (K.O. 슬로우가 끝날 때까지 기다리지 않는다).
+        if (runMode) ShowBanner(won, timedOut);
         StartCoroutine(FinishRoutine(won, timedOut));
     }
 
@@ -274,14 +278,6 @@ public class BattleSceneBridge : MonoBehaviour
         // 단독 실행이면 연출까지만. 재시작은 CombatHUD 의 R 키가 맡는다.
         if (!runMode) yield break;
 
-        if (bannerText != null)
-        {
-            bannerText.text  = won ? (Run.PendingNode != null && Run.PendingNode.type == NodeType.Boss
-                ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 - 이 판이 끝납니다";
-            bannerText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.5f, 0.5f);
-            bannerText.gameObject.SetActive(true);
-        }
-
         yield return new WaitForSecondsRealtime(returnDelay);
 
         RestoreTimeScale();
@@ -310,6 +306,15 @@ public class BattleSceneBridge : MonoBehaviour
     {
         Time.timeScale = 1f;
         Time.fixedDeltaTime = defaultFixedDelta > 0f ? defaultFixedDelta : 0.02f;
+    }
+
+    private void ShowBanner(bool won, bool timedOut)
+    {
+        if (bannerText == null) return;
+        bannerText.text  = (timedOut ? "시간 종료 · " : "") + (won ? (Run.PendingNode != null && Run.PendingNode.type == NodeType.Boss
+            ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 - 이 판이 끝납니다");
+        bannerText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.5f, 0.5f);
+        bannerText.gameObject.SetActive(true);
     }
 
     private void BuildBanner()

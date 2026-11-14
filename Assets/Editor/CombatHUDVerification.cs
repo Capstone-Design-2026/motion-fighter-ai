@@ -127,11 +127,11 @@ public static class CombatHUDVerification
         // Equal exact ratios, including different maximum HP.
         player.SetCurrentHealth(player.MaxHealth);enemy.SetCurrentHealth(enemy.MaxHealth);
         TimeLeft(.001f);for(var w=Wait(.15f);w.MoveNext();)yield return null;
-        Check(battle.IsResolved&&canvas.transform.Find("KOText").GetComponent<Text>().text.Contains("YOU LOSE"),"Equal HP ratio at timeout is a player loss");
+        Check(battle.IsResolved&&canvas.transform.Find("KOText").GetComponent<Text>().text.Contains("패"),"Equal HP ratio at timeout is a player loss");
         for(var c=Capture("07_timeout",1920,1080);c.MoveNext();)yield return null;
         Invoke(hud,"RestartRound");player.SetCurrentHealth(player.MaxHealth);enemy.SetCurrentHealth(1);TimeLeft(.001f);
         for(var w=Wait(.15f);w.MoveNext();)yield return null;
-        Check(battle.IsResolved&&canvas.transform.Find("KOText").GetComponent<Text>().text.Contains("YOU WIN"),"Higher HP ratio at timeout wins");
+        Check(battle.IsResolved&&canvas.transform.Find("KOText").GetComponent<Text>().text.Contains("승"),"Higher HP ratio at timeout wins");
         Invoke(hud,"RestartRound");battle.enabled=false;
         enemy.TakeDamage(10000,Vector2.zero);yield return null;
         Check(enemyHP.FillRatio==0&&canvas.transform.Find("KOText").gameObject.activeSelf,"KO empties health and preserves result overlay");

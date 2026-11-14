@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>Scene-local preparation owns a separate lock; never clears KO or story locks.</summary>
 [DefaultExecutionOrder(-700)]
@@ -108,23 +109,47 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
             if (fighter != null) fighter.SetVisionPreparationLock(EffectsPreparing || !KeyboardTest && !State.Running && !(State.Rehearsal && fighter == playerFighter));
     }
 
-    private void OnGUI()
+    // 전투를 멈춰 둔 이유를 화면 위쪽 가운데에 한 줄로 알린다(게임의 다른 안내와 같은 먹색 판).
+    private Canvas noticeCanvas; private Text noticeText; private string shownNotice;
+    /// <summary>지금 띄우는 안내 글. 없으면 null (검사용으로도 쓴다).</summary>
+    public string Notice
     {
-        // The result screen already explains the stopped round; do not cover it
-        // with a misleading camera prompt after the recording is closed.
-        foreach (var fighter in fighters)
-            if (fighter != null && fighter.Health != null && fighter.Health.IsDead) return;
-        if (KeyboardTest) return;   // 키보드로 시험하는 중에는 화면에 아무것도 띄우지 않는다 (F8 로 켜고 끄는 것은 그대로)
-        if (EffectsPreparing) { GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 30), "PREPARING COMBAT EFFECTS"); return; }
-        if (State.Running) return;
-        bool integrated=RedboolCameraRuntime.Instance!=null;
-        string text = State.Rehearsal ? "CONNECTION TEST — enemy and round timer held"
-            : integrated&&!State.Connected ? "카메라 준비 중 · 오른쪽 내 동작 화면을 확인해주세요"
-            : integrated&&!State.Calibrated ? "중앙에서 가드를 잡고 보정 버튼 또는 C를 누르세요"
-            : !State.Connected ? "WAITING FOR CAMERA — start Python"
-            : !State.Calibrated ? "CALIBRATE — focus camera window and press C"
-            : "TRACKING PAUSED — keep both arms and shoulders visible";
-        GUI.Box(new Rect(Screen.width / 2f - 300, 110, 600, 50), text);
+        get
+        {
+            // 결과 화면이 멈춘 이유를 이미 알려 준다. 쓰러진 뒤에는 카메라 안내로 가리지 않는다.
+            foreach (var fighter in fighters)
+                if (fighter != null && fighter.Health != null && fighter.Health.IsDead) return null;
+            if (KeyboardTest) return null;   // 키보드로 시험하는 중에는 아무것도 띄우지 않는다 (F8 로 켜고 끄는 것은 그대로)
+            if (EffectsPreparing) return "전투 준비 중 · 잠시만 기다려 주세요";
+            if (State.Running) return null;
+            bool integrated = RedboolCameraRuntime.Instance != null;   // 게임 안에서 카메라를 켜는 패키지
+            return State.Rehearsal ? "연결 확인 중 · 적과 시간은 잠시 멈춰 있어요"
+                : integrated && !State.Connected ? "카메라 준비 중 · 오른쪽 내 동작 화면을 확인해주세요"
+                : integrated && !State.Calibrated ? "중앙에서 가드를 잡고 보정 버튼 또는 C를 누르세요"
+                : !State.Connected ? "카메라 신호를 기다리는 중 · 카메라 프로그램이 켜져 있는지 확인해 주세요"
+                : !State.Calibrated ? "카메라 창을 누른 뒤, 가운데서 가드를 잡고 C를 눌러 보정하세요"
+                : "어깨와 두 팔이 카메라에 보이게 서 주세요";
+        }
+    }
+
+    private void LateUpdate()
+    {
+        string text = Notice;
+        if (text == shownNotice) return;
+        shownNotice = text;
+        if (noticeCanvas == null)
+        {
+            if (text == null) return;
+            noticeCanvas = UIFactory.CreateCanvas("CameraWaitNotice", transform, 150);
+            var plaque = UIFactory.CreateRect("Plaque", noticeCanvas.transform);
+            UIFactory.Place(plaque, new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -150), new Vector2(900, 58));
+            var ink = WuxiaTheme.Ornament("Ink", plaque, WuxiaGraphic.Shape.Plaque, new Color(.03f, .045f, .055f, .9f)); UIFactory.Stretch(ink.rectTransform);
+            var frame = WuxiaTheme.Ornament("Frame", plaque, WuxiaGraphic.Shape.PlaqueFrame, new Color(WuxiaTheme.Gold.r, WuxiaTheme.Gold.g, WuxiaTheme.Gold.b, .8f)); UIFactory.Stretch(frame.rectTransform);
+            noticeText = WuxiaTheme.Text("Notice", plaque, "", 24, TextAnchor.MiddleCenter, WuxiaTheme.Paper);
+            noticeText.raycastTarget = false; UIFactory.Stretch(noticeText.rectTransform);
+        }
+        noticeCanvas.gameObject.SetActive(text != null);
+        if (text != null) noticeText.text = text;
     }
 
     // Fail closed if accidentally disabled during battle. Scene teardown destroys the fighters.
