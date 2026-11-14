@@ -99,7 +99,8 @@ public class CombatHUD : MonoBehaviour
 
     void Awake()
     {
-        if (RedboolPvp.Active) { enabled=false; return; }
+        // PvP: 판정과 두 화면 동기화는 RedboolPvp 가 한다. 여기서는 값만 받아 그리는 방식으로 대기한다(SetExternalVisible 로 켠다).
+        if (RedboolPvp.Active) { external = true; enabled = false; return; }
         player = FindAnyObjectByType<PlayerController>();
         if (playerHealth == null && player != null)
             playerHealth = player.GetComponent<Health>();
@@ -138,6 +139,7 @@ public class CombatHUD : MonoBehaviour
     {
         UpdateChip(playerBar);
         UpdateChip(enemyBar);
+        if (external) return;
         UpdateKeyGuide();
         UpdateTimer();
 
@@ -178,6 +180,69 @@ public class CombatHUD : MonoBehaviour
     void OnDestroy()
     {
         Unbind(playerBar); Unbind(enemyBar);
+    }
+
+    // ─────────────────────── PvP: 값만 받아서 그린다 ───────────────────────
+    // 스토리와 같은 체력 막대·필살기 게이지·시계를 쓰되, 체력·게이지·시간은 RedboolPvp 가 넣어 준다.
+    // (손님 화면에는 실제 Health 가 없고 호스트가 보낸 숫자만 있기 때문이다.)
+    private bool external, externalBuilt;
+
+    public void SetExternalVisible(bool visible)
+    {
+        if (!external) return;
+        if (visible && !externalBuilt)
+        {
+            externalBuilt = true;
+            font = LoadFont();
+            BuildCanvas();
+            BuildTimer();
+            playerBar = BuildBar(null, playerColor, true);
+            enemyBar = BuildBar(null, enemyColor, false);
+        }
+        if (canvas != null && canvas.gameObject.activeSelf != visible) canvas.gameObject.SetActive(visible);
+        enabled = visible;
+    }
+
+    public void ShowExternalFighter(bool left, string name, int current, int max)
+    {
+        var bar = left ? playerBar : enemyBar;
+        if (!external || bar == null) return;
+        float next = max > 0 ? Mathf.Clamp01((float)current / max) : 0;
+        if (next < bar.targetRatio) bar.trailUntil = Time.unscaledTime + damageTrailDelay;
+        else if (next > bar.targetRatio) bar.chipRatio = next;
+        bar.targetRatio = next;
+        bar.graphic.SetValues(next, bar.chipRatio);
+        bar.label.text = name;
+        bar.amount.text = current + " / " + max;
+    }
+
+    /// <summary>필살기 게이지. firing: 지금 그 기술이 나가는 중.</summary>
+    public void ShowExternalGauge(bool left, string move, int current, int max, bool firing)
+    {
+        var bar = left ? playerBar : enemyBar;
+        if (!external || bar == null || bar.gauge == null) return;
+        bool ready = max > 0 && current >= max, lit = ready || firing;
+        bar.gauge.fillColor = lit ? gaugeReadyColor : gaugeFillColor;
+        bar.gauge.SetValues(firing ? 1f : max > 0 ? Mathf.Clamp01((float)current / max) : 0f, 0, lit);
+        bar.gaugeLabel.text = firing ? move + "  발동" : ready ? move + "  준비 · 가슴 앞 X자" : move + "  " + current + " / " + max;
+        bar.gaugeLabel.color = lit ? new Color(1f, .84f, .62f) : new Color(.83f, .88f, .88f);
+    }
+
+    public void ShowExternalClock(float seconds)
+    {
+        if (!external || timerText == null) return;
+        timerText.text = Mathf.CeilToInt(Mathf.Max(0f, seconds)).ToString("D2");
+        timerText.color = seconds <= 10f ? new Color(1f, .36f, .25f) : new Color(1f, .93f, .77f);
+    }
+
+    // 검사용: 지금 화면에 나와 있는 글
+    public bool ExternalVisible => external && externalBuilt && canvas != null && canvas.gameObject.activeSelf;
+    public string ExternalClockText => timerText != null ? timerText.text : "";
+    public string ExternalSummary(bool left)
+    {
+        var bar = left ? playerBar : enemyBar;
+        if (bar == null) return "";
+        return bar.label.text + " | " + bar.amount.text + " | " + (bar.gaugeLabel != null ? bar.gaugeLabel.text : "");
     }
 
     private void Unbind(Bar bar)
@@ -237,7 +302,7 @@ public class CombatHUD : MonoBehaviour
 
     private void BuildTimer()
     {
-        if (battle == null) return;
+        if (battle == null && !external) return;
         var rect = CreateRect("RoundTimer", topRail);
         rect.anchorMin = rect.anchorMax = new Vector2(.5f, 1);
         rect.pivot = new Vector2(.5f, 1);
@@ -288,9 +353,9 @@ public class CombatHUD : MonoBehaviour
     // A resource is displayed only from a real SpecialMove component; no fictitious enemy MP.
     private void BuildSpecialGauge(Bar bar, RectTransform parent)
     {
-        bar.resource = bar.health.GetComponent<SpecialMove>();
-        bar.foeResource = bar.resource == null ? bar.health.GetComponent<EnemySpecial>() : null;
-        bool shown = bar.resource != null || (bar.foeResource != null && bar.foeResource.Available);
+        bar.resource = bar.health != null ? bar.health.GetComponent<SpecialMove>() : null;
+        bar.foeResource = bar.health != null && bar.resource == null ? bar.health.GetComponent<EnemySpecial>() : null;
+        bool shown = bar.health == null || bar.resource != null || (bar.foeResource != null && bar.foeResource.Available);
         bar.gauge = CreateBarGraphic("SpecialGauge", parent, true, !bar.leftSide, gaugeFillColor);
         var r = bar.gauge.rectTransform;
         r.anchorMin = new Vector2(bar.leftSide ? 0 : .13f, 0);

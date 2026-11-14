@@ -18,6 +18,8 @@ public sealed class RedboolViewActor
     public Guid practiceRun;
     /// <summary>고른 인물 번호 (RedboolPvpRoster)</summary>
     public byte character;
+    /// <summary>인물 고유 필살기: 발동 횟수(하위 8비트)와 상태(비트 0 진행 중, 1 방어 여부 정해짐, 2 막힘)</summary>
+    public byte specialSerial,specialFlags;
 }
 [Serializable]
 public sealed class RedboolViewWorld
@@ -84,7 +86,7 @@ public static class RedboolViewProtocol
             {
                 var a=p.actor;V(w,a.root);V(w,a.visual);V(w,a.scale);V(w,a.hips);Q(w,a.rotation);
                 w.Write((ushort)a.hp);w.Write((ushort)a.maxHp);w.Write((byte)a.charge);w.Write((byte)a.maxCharge);w.Write((byte)a.step);w.Write((byte)a.hits);w.Write((byte)a.phase);w.Write(a.attackSerial);w.Write(a.live);var color=(Color32)a.tint;w.Write(color.r);w.Write(color.g);w.Write(color.b);w.Write(color.a);w.Write((byte)Mathf.RoundToInt(a.chargeLevel*255));w.Write(a.personal);w.Write(a.practiceRun.ToByteArray());
-                w.Write(a.character);
+                w.Write(a.character);w.Write(a.specialSerial);w.Write(a.specialFlags);
                 foreach(var q in a.bones) Q(w,q);
             }
             else if(p.kind==5) {w.Write(p.practiceRun.ToByteArray());w.Write(p.practiceStep);}
@@ -116,7 +118,7 @@ public static class RedboolViewProtocol
                     var a=new RedboolViewActor {root=V(r),visual=V(r),scale=V(r),hips=V(r),rotation=Q(r),hp=Range(r.ReadUInt16(),10000),maxHp=Range(r.ReadUInt16(),10000),charge=Range(r.ReadByte(),100),maxCharge=Range(r.ReadByte(),100),step=Range(r.ReadByte(),8),hits=Range(r.ReadByte(),2),phase=Range(r.ReadByte(),4),attackSerial=r.ReadInt32(),live=r.ReadBoolean()};
                     a.tint=new Color32(r.ReadByte(),r.ReadByte(),r.ReadByte(),r.ReadByte());a.chargeLevel=r.ReadByte()/255f;a.personal=(byte)Range(r.ReadByte(),2);a.practiceRun=new Guid(r.ReadBytes(16));
                     if(a.hp>a.maxHp || a.scale.x<=0 || a.scale.y<=0 ||a.scale.z<=0) return false;
-                    a.character=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);
+                    a.character=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);a.specialSerial=r.ReadByte();a.specialFlags=(byte)Range(r.ReadByte(),7);
                     for(int i=0;i<a.bones.Length;i++) a.bones[i]=Q(r);n.actor=a;
                 }
                 else if(n.kind==5) {n.practiceRun=new Guid(r.ReadBytes(16));n.practiceStep=(byte)Range(r.ReadByte(),7);}

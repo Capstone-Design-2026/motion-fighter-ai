@@ -145,7 +145,7 @@ public sealed partial class EnemySpecial
         Stun(1.1f);
         Drain(() => HeroChest, Hands, 14, .55f);
         yield return Hold(.3f);
-        if (heroSpecial != null) heroSpecial.ResetCharge();
+        DrainTarget();
         Fx(qi.ready, Hands(), Quaternion.identity, 2.2f, 1.2f);
         yield return Hold(.4f);
         if (foeView != null) foeView.PlaySpecial("HIGHKICK");
@@ -373,7 +373,7 @@ public sealed partial class EnemySpecial
             foreach (var mark in marks) { if (mark) { Burst(mark.transform.position, .5f); Sparks(mark.transform.position, Vector3.up, 18, 5f, .5f, 85f, .8f, .04f); Destroy(mark); } }
             Strike(6 * marks.Count, Away(1.5f), .9f, .32f);
             // 봉혈: 몸에 고리가 남아 있는 2초 동안 공격과 파운장이 나가지 않는다(이동과 방어는 된다)
-            hero.SealAttacks(2f);
+            if (!visualOnly) hero.SealAttacks(2f);
             Ring(u => new Vector3(HeroX, .9f, 0), Vector3.up, u => .46f, 2f, .035f, 2.2f); Ring(u => new Vector3(HeroX, 1.35f, 0), Vector3.up, u => .42f, 2f, .035f, 2.2f);
             yield return Hold(.85f);
         }

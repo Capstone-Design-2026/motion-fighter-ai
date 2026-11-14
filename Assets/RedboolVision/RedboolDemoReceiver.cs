@@ -43,6 +43,13 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         : !lastCalibrated ? "CALIBRATION" : lastTracking!="VALID" ? "TRACKING" : "LEASE_EXPIRED";
     private string lastPhase;
     bool AllowsInput => (Preparation==null || Preparation.AllowsPlayer) && (ExternalGate==null || ExternalGate());
+    // 지금 필살기를 쓸 수 있는가: PvP에서 적 인물을 고른 사람은 그 인물의 기술, 그 밖에는 파운장.
+    bool SpecialReady { get {
+        if(player==null) return false;
+        var own=player.GetComponent<EnemySpecial>();
+        if(own!=null && own.enabled && own.PlayerOwned) return own.IsReady;
+        var palm=player.GetComponent<SpecialMove>();return palm!=null && palm.IsReady;
+    } }
     bool Practicing => PracticeAction!=null || TutorialAction!=null;
     void NotifyPractice(string action,float confidence,string movement,float strength) {
         if(PvpOwned) PracticeAction?.Invoke(action,confidence,movement,strength);
@@ -243,6 +250,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 else if(!fighter.CanAttack || BlockActive) { status="GAME_BUSY";AttacksBusy++; }
                 else if(action=="SPECIAL") {
                     var special=player.GetComponent<SpecialMove>();
+                    // PvP에서 적 인물을 고른 사람은 그 인물의 기술을 쓴다(RedboolPvp.ConfigureSpecial). 그 밖에는 파운장.
+                    var own=player.GetComponent<EnemySpecial>();
+                    if(own!=null && own.enabled && own.PlayerOwned)
+                        status=!own.IsReady ? "NOT_CHARGED" : own.TryFire() ? "APPLIED" : "GAME_BUSY";
+                    else
                     status=special==null ? "NO_SPECIAL" : !special.IsReady ? "NOT_CHARGED"
                         : special.Activate() ? "APPLIED" : "GAME_BUSY";
                     if(status=="APPLIED") AttacksApplied++;
@@ -312,7 +324,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
             battle_preparing=!AllowsInput || Preparation!=null && Preparation.HoldRound,
-            special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
+            special_ready=SpecialReady,
             // Wire contract: ready to start another attack, not merely free to move.
             game_can_act=AllowsInput && !Practicing && fighter!=null && fighter.CanAttack,game_guard_active=fighter!=null && fighter.IsGuarding,
             guards_started=GuardsStarted,

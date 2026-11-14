@@ -105,7 +105,7 @@ public static class RedboolPvpPlayCheck
   Check(GameObject.Find("PvpButton")!=null,"Menu exposes PvP entry");
   string save=PlayerPrefs.GetString(SaveKey,"");
   if(!String.IsNullOrEmpty(GuestBinary)){RedboolPvp.HostDual();StartGuest();}else RedboolPvp.Begin();yield return null;yield return null;yield return null;
-  Check(SceneManager.GetActiveScene().name=="ScoutPass","Both humans use authored ScoutPass arena");
+  Check(SceneManager.GetActiveScene().name==RedboolPvp.Arena,"Both humans use the PvP arena ("+RedboolPvp.Arena+")");
   Check(Object.FindObjectsByType<PlayerController>(FindObjectsSortMode.None).Length==2,"Exactly two human controllers");
   Check(Object.FindAnyObjectByType<EnemyAI>()==null,"No active AI opponent in PvP");
   Check(!Object.FindAnyObjectByType<BattleSceneBridge>().enabled,"Campaign bridge disabled before Start");

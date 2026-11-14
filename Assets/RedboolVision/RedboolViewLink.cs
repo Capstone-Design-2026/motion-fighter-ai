@@ -242,6 +242,9 @@ public sealed class RedboolViewLink : MonoBehaviour
         var a=new RedboolViewActor {root=p.transform.position,visual=views[i].visualRoot.position,rotation=views[i].visualRoot.rotation,scale=views[i].visualRoot.localScale,hips=bones[i][0]?bones[i][0].localPosition:Vector3.zero,hp=h.CurrentHealth,maxHp=h.MaxHealth,charge=s.Charge,maxCharge=s.HitsToCharge,phase=(int)s.CurrentPhase,step=practice.Step,hits=practice.Hits,practiceRun=Guid.Parse(practice.Run),live=game.Receivers[i].LiveReady,attackSerial=p.GetComponent<Fighter>().AttackSerial};
         for(int b=0;b<a.bones.Length;b++) a.bones[b]=bones[i][b]?bones[i][b].localRotation:Quaternion.identity;
         a.chargeLevel=s.VisualChargeLevel;
+        // 적 인물을 골랐으면 게이지와 발동 신호는 그 인물의 기술에서 가져온다.
+        var own=p.GetComponent<EnemySpecial>();
+        if(own!=null && own.enabled && own.PlayerOwned) {a.charge=own.IsPlaying?own.HitsToCharge:own.Charge;a.maxCharge=own.HitsToCharge;a.phase=0;a.chargeLevel=0;a.specialSerial=(byte)(own.FireSerial&255);a.specialFlags=(byte)((own.IsPlaying?1:0)|(own.GuardDecided?2:0)|(own.GuardedSpecial?4:0));}
         string status=game.Receivers[i].PersonalStatus;a.personal=(byte)(status.Contains("PERSONAL RANGE")?2:status.Contains("CYCLES")?1:0);
         var renderer=views[i].visualRoot.GetComponentInChildren<Renderer>();if(renderer) {var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);a.tint=block.GetColor("_BaseColor");}
         a.character=(byte)game.Characters[i];

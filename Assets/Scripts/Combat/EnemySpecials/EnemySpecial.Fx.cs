@@ -128,8 +128,8 @@ public sealed partial class EnemySpecial
         Tween(seconds, u => heroTilt = tilt * Mathf.Sin(u * Mathf.PI), () => heroTilt = 0f);
     }
     /// <summary>카메라가 물러나 큰 기술을 한 화면에 담는다.</summary>
-    void Pull(float to, float seconds) { float from = pull; Tween(seconds, u => { pull = Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, u)); QiCameraFx.Pull(pull * .8f); }); }
-    void Shake(float amplitude, float decay = 6f) => QiCameraFx.Shake(amplitude * .45f, decay);
+    void Pull(float to, float seconds) { if (visualOnly) return; float from = pull; Tween(seconds, u => { pull = Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, u)); QiCameraFx.Pull(pull * .8f); }); }
+    void Shake(float amplitude, float decay = 6f) { if (!visualOnly) QiCameraFx.Shake(amplitude * .45f, decay); }
     void ShowFoe(bool visible)
     {
         if (foeView == null || foeView.visualRoot == null) return;
@@ -137,6 +137,7 @@ public sealed partial class EnemySpecial
     }
     void ApplyPose()
     {
+        if (visualOnly) return;   // 손님 화면의 몸 위치와 기울기는 호스트가 보낸 값 그대로다
         if (foeView != null && foeView.visualRoot != null && (foeLift != Vector3.zero || foeSpin != 0f || foeTilt != 0f))
         {
             var t = foeView.visualRoot; t.position += foeLift;

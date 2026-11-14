@@ -66,7 +66,7 @@ public static class RedboolPvpLobbyCheck
 
     static void Tick()
     {
-        if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Active + ".Start", 0) > 240) { Finish("Timeout"); return; }
+        if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Active + ".Start", 0) > 900) { Finish("Timeout"); return; }
         if (!Application.isPlaying || EditorApplication.isCompiling) return;
         EditorApplication.isPaused = false; EditorApplication.QueuePlayerLoopUpdate();
         if (frame == Time.frameCount) return; frame = Time.frameCount;
@@ -108,9 +108,15 @@ public static class RedboolPvpLobbyCheck
         Send(slot, new Packet { kind = "GESTURE", gesture = gesture, event_id = id, side = gesture == "SPECIAL" ? "BOTH" : gesture.StartsWith("LEFT") ? "LEFT" : "RIGHT", event_expires_ns = Now + 150000000L });
     }
 
-    static void Shot(string name)
+    static void Place(int slot, float x)
     {
-        var camera = Camera.main; var rt = new RenderTexture(1920, 1080, 24);
+        var p = Game.Players[slot]; p.transform.position = new Vector3(x, p.transform.position.y, 0);
+        var body = p.GetComponent<Rigidbody2D>(); body.position = p.transform.position; body.linearVelocity = Vector2.zero;
+    }
+
+    static void Shot(string name, int width = 1920, int height = 1080)
+    {
+        var camera = Camera.main; var rt = new RenderTexture(width, height, 24);
         // 캔버스가 이 그림 크기(1920x1080)에 맞춰 배치되게 카메라의 출력을 먼저 바꿔 둔다.
         var previous = camera.targetTexture; camera.targetTexture = rt;
         var overlays = new List<Canvas>();
@@ -120,7 +126,7 @@ public static class RedboolPvpLobbyCheck
         UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera, new UnityEngine.Rendering.RenderPipeline.StandardRequest { destination = rt });
         camera.targetTexture = previous;
         var old = RenderTexture.active; RenderTexture.active = rt;
-        var image = new Texture2D(1920, 1080, TextureFormat.RGB24, false); image.ReadPixels(new Rect(0, 0, 1920, 1080), 0, 0); image.Apply();
+        var image = new Texture2D(width, height, TextureFormat.RGB24, false); image.ReadPixels(new Rect(0, 0, width, height), 0, 0); image.Apply();
         File.WriteAllBytes(Path.Combine(Output, name + ".png"), image.EncodeToPNG());
         RenderTexture.active = old; Object.Destroy(image); rt.Release(); Object.Destroy(rt);
         foreach (var c in overlays) { c.renderMode = RenderMode.ScreenSpaceOverlay; c.worldCamera = null; }
@@ -203,6 +209,7 @@ public static class RedboolPvpLobbyCheck
         Check(lobby.Locked[0], "스트레이트로도 확정된다");
         Gesture(1, "LEFT_PUNCH", "select-jab-1"); for (var w = Wait(.3f); w.MoveNext();) yield return null;
         Check(lobby.Locked[1], "2P가 잽을 하면 확정된다");
+        Shot("3b_select_both_locked");
         for (var w = Wait(RedboolPvpLobby.ConfirmSeconds + .4f); w.MoveNext();) yield return null;
         Check(lobby.Complete, "두 사람이 모두 확정하면 인물 선택이 끝난다");
         Check(Game.Characters[0] == 3 && Game.Characters[1] == 4, "고른 인물이 정해진다 (1P " + RedboolPvpRoster.Get(Game.Characters[0]).name + ", 2P " + RedboolPvpRoster.Get(Game.Characters[1]).name + ")");
@@ -242,6 +249,22 @@ public static class RedboolPvpLobbyCheck
         Check(Game.Fighting && !Game.Paused, "두 사람이 수련을 마치면 대전이 시작된다");
         Shot("7_fight");
 
+        // 무대와 HUD
+        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        Check(scene == RedboolPvp.ArenaScene, "PvP 무대가 지하 동굴 투기장이다 (" + scene + ")");
+        var hud = Object.FindFirstObjectByType<CombatHUD>(FindObjectsInactive.Include);
+        Check(hud != null && hud.ExternalVisible, "스토리와 같은 HUD(체력 막대·필살기 게이지·시계)가 켜져 있다");
+        Check(GameObject.Find("PlayerPanel0") == null && GameObject.Find("PlayerPanel1") == null && GameObject.Find("RoundClock") == null, "예전 PvP 체력 패널과 시계는 감춰진다");
+        Check(hud.ExternalSummary(true).Contains("1P") && hud.ExternalSummary(true).Contains(RedboolPvpRoster.Get(3).name) && hud.ExternalSummary(true).Contains(RedboolPvpRoster.Get(3).signature), "왼쪽 막대에 1P의 인물 이름과 필살기 이름이 나온다 (" + hud.ExternalSummary(true) + ")");
+        Check(hud.ExternalSummary(false).Contains("2P") && hud.ExternalSummary(false).Contains(RedboolPvpRoster.Get(4).name) && hud.ExternalSummary(false).Contains(RedboolPvpRoster.Get(4).signature), "오른쪽 막대에 2P의 인물 이름과 필살기 이름이 나온다 (" + hud.ExternalSummary(false) + ")");
+        Check(int.TryParse(hud.ExternalClockText, out int clock) && clock > 100 && clock <= 120, "시계가 남은 시간을 보여 준다 (" + hud.ExternalClockText + ")");
+        for (int i = 0; i < 2; i++)
+        {
+            var mine = Game.Players[i].GetComponent<EnemySpecial>(); var palm = Game.Players[i].GetComponent<SpecialMove>();
+            Check(mine != null && mine.enabled && mine.PlayerOwned && Game.SpecialName(i) == RedboolPvpRoster.Get(Game.Characters[i]).signature, (i + 1) + "P의 필살기가 고른 인물의 기술이다 (" + Game.SpecialName(i) + ")");
+            Check(palm == null || !palm.enabled, (i + 1) + "P의 파운장은 꺼진다");
+        }
+
         // 대전 중: 고른 인물로 움직이고 때린다
         float x0 = Game.Players[0].transform.position.x;
         movement[0] = "RIGHT"; for (var w = Wait(.6f); w.MoveNext();) yield return null;
@@ -251,6 +274,72 @@ public static class RedboolPvpLobbyCheck
         Check(Game.Players[0].GetComponent<Fighter>().IsAttacking || Game.Players[0].GetComponent<Fighter3DView>().CurrentState == "JAB", "대전에서 잽이 나간다 (state " + Game.Players[0].GetComponent<Fighter3DView>().CurrentState + ")");
         for (var w = Wait(1.2f); w.MoveNext();) yield return null;
         Shot("8_fight_moved");
+
+        // 공격을 맞히면 그 인물의 필살기 게이지가 찬다
+        var remaining = typeof(RedboolPvp).GetProperty("Remaining");
+        {
+            var mine = Game.Players[0].GetComponent<EnemySpecial>(); int before = mine.Charge;
+            Place(0, -.45f); Place(1, .45f);
+            for (var w = Wait(.2f); w.MoveNext();) yield return null;
+            Gesture(0, "LEFT_PUNCH", "charge-jab-0"); for (var w = Wait(.8f); w.MoveNext();) yield return null;
+            Check(mine.Charge == before + 1, "잽을 맞히면 필살기 게이지가 한 칸 찬다 (" + before + " → " + mine.Charge + ")");
+            Check(hud.ExternalSummary(true).Contains(mine.Charge + " / " + mine.HitsToCharge), "게이지 숫자가 HUD에 나온다 (" + hud.ExternalSummary(true) + ")");
+        }
+
+        // 인물 11명의 필살기를 양쪽 자리에서 한 번씩 써 본다 (1P는 왼쪽, 2P는 오른쪽). 상대는 가만히 서 있는 청운이다.
+        for (int index = 1; index < RedboolPvpRoster.Count; index++)
+            for (int side = 0; side < 2; side++)
+            {
+                var who = RedboolPvpRoster.Get(index);
+                string label = (side + 1) + "P " + who.name + " · " + who.signature;
+                Game.ApplyCharacter(side, index); Game.ApplyCharacter(1 - side, RedboolPvpRoster.Hero);
+                yield return null;
+                for (int i = 0; i < 2; i++) { var h = Game.Players[i].GetComponent<Health>(); h.ResetHealth(); h.ClearStun(); }
+                Place(0, start0.x); Place(1, start1.x);
+                remaining.SetValue(Game, 120f);
+                for (var w = Wait(.4f); w.MoveNext();) yield return null;
+                var own = Game.Players[side].GetComponent<EnemySpecial>(); var targetHp = Game.Players[1 - side].GetComponent<Health>();
+                Check(own != null && own.enabled && own.PlayerOwned && own.MoveName == who.signature && Game.SpecialName(side) == who.signature, label + ": 그 인물의 기술이 맡겨진다");
+                Check(Game.SpecialName(1 - side) == "파운장" && Game.Players[1 - side].GetComponent<SpecialMove>().enabled, label + ": 상대(청운)는 파운장을 쓴다");
+                Gesture(side, "SPECIAL", "sweep-empty-" + index + "-" + side); for (var w = Wait(.3f); w.MoveNext();) yield return null;
+                Check(!own.IsPlaying, label + ": 게이지가 비어 있으면 나가지 않는다");
+                own.AddCharge(own.HitsToCharge);
+                int serial = own.FireSerial;
+                for (var w = Wait(.25f); w.MoveNext();) yield return null;
+                Gesture(side, "SPECIAL", "sweep-" + index + "-" + side);
+                double until = Time.realtimeSinceStartupAsDouble + 1.5;
+                while (own.FireSerial == serial && Time.realtimeSinceStartupAsDouble < until) for (var w = Wait(0f); w.MoveNext();) yield return null;
+                Check(own.FireSerial == serial + 1 && own.IsPlaying, label + ": 가슴 앞 X자 동작으로 나간다");
+                until = Time.realtimeSinceStartupAsDouble + 16; double actedAt = -1; bool pictured = false;
+                while (own.IsPlaying && Time.realtimeSinceStartupAsDouble < until)
+                {
+                    if (actedAt < 0 && own.CurrentPhase == EnemySpecial.Phase.Acting) actedAt = Time.realtimeSinceStartupAsDouble;
+                    if (!pictured && actedAt >= 0 && Time.realtimeSinceStartupAsDouble - actedAt > .45) { pictured = true; Shot("special_" + index.ToString("D2") + "_" + (side + 1) + "p", 960, 540); }
+                    for (var w = Wait(0f); w.MoveNext();) yield return null;
+                }
+                Check(!own.IsPlaying && actedAt >= 0, label + ": 끝까지 진행된다");
+                Check(own.LastDamage > 0 && targetHp.CurrentHealth < targetHp.MaxHealth, label + ": 상대에게 피해가 들어간다 (피해 " + own.LastDamage + ", 상대 체력 " + targetHp.CurrentHealth + ")");
+                for (var w = Wait(.5f); w.MoveNext();) yield return null;
+                Check(Mathf.Approximately(Time.timeScale, 1f) && Game.Fighting && !Game.Resolved, label + ": 끝난 뒤 시간과 대전 상태가 그대로다 (timeScale " + Time.timeScale + ")");
+                Check(own.Charge == 0 && !own.Used && Game.Players[side].GetComponent<Fighter>().CanAttack, label + ": 쓰고 나면 게이지가 비고 다시 모을 수 있다");
+            }
+
+        // 승표탈기는 상대가 모아 둔 게이지를 비운다 (상대가 인물 고유 기술을 쓸 때도)
+        {
+            Game.ApplyCharacter(0, 4); Game.ApplyCharacter(1, 5); yield return null;
+            for (int i = 0; i < 2; i++) { var h = Game.Players[i].GetComponent<Health>(); h.ResetHealth(); h.ClearStun(); }
+            Place(0, start0.x); Place(1, start1.x); remaining.SetValue(Game, 120f);
+            for (var w = Wait(.4f); w.MoveNext();) yield return null;
+            var thief = Game.Players[0].GetComponent<EnemySpecial>(); var victim = Game.Players[1].GetComponent<EnemySpecial>();
+            victim.AddCharge(3); thief.AddCharge(thief.HitsToCharge);
+            for (var w = Wait(.25f); w.MoveNext();) yield return null;
+            Check(victim.Charge == 3, "철문이 게이지를 3칸 모아 두었다");
+            Gesture(0, "SPECIAL", "drain-0");
+            double until = Time.realtimeSinceStartupAsDouble + 16; bool began = false;
+            while ((!began || thief.IsPlaying) && Time.realtimeSinceStartupAsDouble < until) { began |= thief.IsPlaying; for (var w = Wait(0f); w.MoveNext();) yield return null; }
+            Check(began && !thief.IsPlaying && thief.LastDamage > 0 && victim.Charge == 0, "승표탈기가 맞으면 상대의 필살기 게이지가 비워진다 (남은 게이지 " + victim.Charge + ")");
+            for (var w = Wait(.5f); w.MoveNext();) yield return null;
+        }
 
         if (dual)
         {
