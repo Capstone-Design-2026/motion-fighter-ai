@@ -25,7 +25,7 @@ def main():
             result=subprocess.run([str(executable),'--check'],cwd=cwd,capture_output=True,text=True,timeout=120)
             if result.returncode:raise RuntimeError(result.stdout+result.stderr)
             report['capabilities']=json.loads(result.stdout.strip().splitlines()[-1])
-            assert report['capabilities']['release']=='v34'
+            assert report['capabilities']['release']=='v34.1'
             assert report['capabilities']['recording_schema']=='redbool.landmarks/1'
             assert report['capabilities']['frozen'] and not report['capabilities']['camera_opened']
             metadata=json.loads((executable.parent/'backend-build.json').read_text(encoding='utf-8'))

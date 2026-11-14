@@ -44,7 +44,7 @@ class BackendProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);(root/'assets').mkdir()
             path=root/'assets'/PROVENANCE_FILE
-            data={'release':'v34','recording_schema':'redbool.landmarks/1','source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
+            data={'release':'v34.1','recording_schema':'redbool.landmarks/1','source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
             path.write_text(json.dumps(data),encoding='utf-8')
             with patch('redbool_demo.backend_provenance.sys.frozen',True,create=True),patch('redbool_demo.backend_provenance.sys._MEIPASS',folder,create=True):
                 self.assertTrue(capabilities()['frozen']);self.assertEqual(capabilities()['source_commit'],'b'*40)

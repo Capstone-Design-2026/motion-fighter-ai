@@ -1,4 +1,5 @@
 import gzip
+import copy
 import json
 import math
 from pathlib import Path
@@ -77,6 +78,31 @@ class LandmarkJournalTests(unittest.TestCase):
             self.assertEqual(row['frame']['full_image']['world'][15][2],-float('inf'))
             raw_text=gzip.decompress(next(journal.directory.glob('*.gz')).read_bytes()).decode()
             self.assertNotIn('NaN',raw_text);self.assertIn('"$float":"nan"',raw_text)
+
+    def test_raw_auxiliary_override_preserves_capture_identity(self):
+        with tempfile.TemporaryDirectory() as td:
+            journal=LandmarkJournal(Path(td)/'recognition')
+            obs=pose(frame=55,stamp=9_000_000_000);frame=frame_for(obs,auxiliary=True)
+            frame['processing_metadata']['camera_frame_id']=987
+            frame['capture_attempt_id']=123
+            # Live passes only the two raw model entries; base camera metadata
+            # still belongs to the SessionRecorder frame. Raw NaN must override
+            # the normalized None without erasing the source capture identity.
+            raw={k:copy.deepcopy(frame['processing_metadata'][k]) for k in ('cross_pose','cross_recovery')}
+            raw['cross_pose']['landmarks']=list(map(list,obs.landmarks))
+            raw['cross_pose']['landmarks'][15][0]=float('nan')
+            frame['processing_metadata']['cross_pose']['landmarks']=list(map(list,obs.landmarks))
+            frame['processing_metadata']['cross_pose']['landmarks'][15][0]=None
+            try:
+                journal.offer('process',observation=obs,frame=frame,has_auxiliary=True,raw_models=raw)
+                self.assertEqual(journal.close()['state'],'complete')
+                row=next(iter_journal(journal.directory))
+                self.assertEqual(row['frame']['camera_frame_id'],987)
+                self.assertEqual(row['frame']['capture_attempt_id'],123)
+                self.assertEqual(row['observation'][2:4],[55,9_000_000_000])
+                self.assertTrue(math.isnan(row['frame']['full_video']['landmarks'][15][0]))
+                self.assertEqual(row['frame']['full_image'],json.loads(_encode(raw['cross_recovery'])))
+            finally:journal.close()
 
     def test_each_closed_chunk_valid_and_active_chunk_excluded(self):
         with tempfile.TemporaryDirectory() as td:

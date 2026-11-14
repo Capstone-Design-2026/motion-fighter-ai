@@ -85,6 +85,9 @@ class LandmarkLiveTests(unittest.TestCase):
             self.assertEqual(result['events'],summary['counts']['events'])
             self.assertGreater(result['events'],0);self.assertEqual(result['calibrations'],2)
             frames=[r for r in iter_journal(output/'recognition') if r['kind']=='process']
+            camera_ids=[r['frame']['camera_frame_id'] for r in frames]
+            self.assertTrue(all(isinstance(fid,int) and 0<fid<=summary['counts']['captured'] for fid in camera_ids))
+            self.assertTrue(all(after>before for before,after in zip(camera_ids,camera_ids[1:])))
             self.assertTrue(all(len(r['frame']['full_image']['world'])==33 for r in frames))
             self.assertTrue(all(len(r['frame']['full_video']['presence'])==33 for r in frames))
             self.assertEqual(bridge.data['recording']['state'],'complete')

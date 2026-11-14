@@ -33,7 +33,10 @@ def _compact_row(row):
     if row.get('kind') != 'process' or 'observation' not in row:
         return row
     frame = row['frame']; obs = row['observation']
-    meta = row.get('raw_models') or frame.get('processing_metadata') or {}
+    meta = frame.get('processing_metadata') or {}
+    # Raw model values override sanitized model payloads only. Capture identity
+    # belongs to the original frame and is absent from live's raw_models dict.
+    models = row.get('raw_models') or meta
     result = {k:v for k,v in row.items() if k not in ('frame', 'observation', 'raw_models')}
     # Positional coordinate arrays eliminate unused per-frame baseline fields;
     # no rounding or omission of valid/invalid/lost observations occurs.
@@ -46,7 +49,7 @@ def _compact_row(row):
         pose_start_ns=frame.get('pose_start_monotonic_ns'),pose_end_ns=frame.get('pose_end_monotonic_ns'),
         image=frame.get('image_landmarks'),world=frame.get('world_landmarks'),
         visibility=frame.get('landmark_visibility'),presence=frame.get('landmark_presence'),
-        full_video=meta.get('cross_pose'),full_image=meta.get('cross_recovery'))
+        full_video=models.get('cross_pose'),full_image=models.get('cross_recovery'))
     return result
 
 
