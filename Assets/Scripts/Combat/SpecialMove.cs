@@ -204,17 +204,16 @@ public class SpecialMove : MonoBehaviour
     {
         if (!IsReady || IsPlaying) return false;
         if (health.IsDead || health.IsHitStunned || fighter.InputLocked || fighter.VisionPreparationLocked) return false;
-        // Match the player-owned enemy techniques: only one PvP special may start
-        // at a time. Consult the authoritative participants, never an arbitrary NPC.
+        // Character techniques own shared presentation, so a palm cannot overlap
+        // one. Two PvP palms do not own global cut-in/time and may start together.
+        // Consult the authoritative participants, never an arbitrary NPC.
         if (RedboolPvp.Active && RedboolPvp.Instance != null)
         {
             foreach (var other in RedboolPvp.Instance.Players)
             {
                 if (other == null || other.GetComponent<Fighter>() == fighter) continue;
-                var palm = other.GetComponent<SpecialMove>();
                 var technique = other.GetComponent<EnemySpecial>();
-                if (palm != null && palm.isActiveAndEnabled && palm.IsPlaying
-                    || technique != null && technique.isActiveAndEnabled && technique.IsPlaying) return false;
+                if (technique != null && technique.isActiveAndEnabled && technique.IsPlaying) return false;
             }
             if (!fighter.CanAttack || fighter.IsAttackSealed) return false;
             foreach (var participant in RedboolPvp.Instance.Players)

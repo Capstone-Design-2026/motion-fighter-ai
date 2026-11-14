@@ -366,6 +366,32 @@ public static class RedboolPvpLobbyCheck
             Check(Game.CanFight && !own.IsPlaying && !targetPalm.IsPlaying, "재연결 뒤 이전 필살기를 다시 시작하지 않는다");
         }
 
+        // The original Hero-vs-Hero PvP path permits simultaneous palms:
+        // neither palm owns the global cut-in, zoom or time scale in PvP.
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                Game.ApplyCharacter(i, RedboolPvpRoster.Hero);
+                var hp = Game.Players[i].GetComponent<Health>(); hp.ResetHealth(); hp.ClearStun();
+            }
+            Place(0, start0.x); Place(1, start1.x); remaining.SetValue(Game, 120f);
+            for (var w = Wait(.4f); w.MoveNext();) yield return null;
+            var firstPalm = Game.Players[0].GetComponent<SpecialMove>();
+            var secondPalm = Game.Players[1].GetComponent<SpecialMove>();
+            firstPalm.AddCharge(firstPalm.HitsToCharge); secondPalm.AddCharge(secondPalm.HitsToCharge);
+            float timeScale = Time.timeScale, fixedDelta = Time.fixedDeltaTime;
+            Check(firstPalm.Activate(), "청운 대 청운에서 1P 파운장이 시작된다");
+            Check(secondPalm.Activate() && firstPalm.IsPlaying && secondPalm.IsPlaying
+                && firstPalm.Charge == 0 && secondPalm.Charge == 0,
+                "청운 두 명의 파운장은 같은 프레임에 함께 시작하고 각자의 게이지만 소비한다");
+            Check(Mathf.Approximately(Time.timeScale, timeScale) && Mathf.Approximately(Time.fixedDeltaTime, fixedDelta),
+                "동시 파운장은 대전의 시간 소유권을 바꾸지 않는다");
+            firstPalm.CancelForPause(); secondPalm.CancelForPause();
+            Check(!firstPalm.IsPlaying && !secondPalm.IsPlaying
+                && Game.Players[0].GetComponent<Fighter>().CanAttack && Game.Players[1].GetComponent<Fighter>().CanAttack,
+                "동시 파운장을 정리하면 두 사람 모두 다음 동작을 받을 수 있다");
+        }
+
         // 인물 11명의 필살기를 양쪽 자리에서 한 번씩 써 본다 (1P는 왼쪽, 2P는 오른쪽). 상대는 가만히 서 있는 청운이다.
         for (int index = 1; index < RedboolPvpRoster.Count; index++)
             for (int side = 0; side < 2; side++)
