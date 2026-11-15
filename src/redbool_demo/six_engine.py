@@ -8,6 +8,7 @@ from dataclasses import asdict, replace
 import numpy as np
 from action_engine.experimental import ChannelSignals, joint_validity, RelativeBlock
 from action_engine.types import ActionEvent
+from action_engine.core import ActionEngine
 from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
 from .special import CrossSpecial, cross_geometry, extended_cross_arm
@@ -272,6 +273,9 @@ class SixAttack(DemoAttack):
 class SixGestureEngine(DemoEngine):
     def _components(self):
         super()._components()
+        self._continuity_pending = False
+        self._continuity_until = None
+        self._continuity_processing = False
         self.attack.units = {s: SixAttack(self.config) for s in ('LEFT', 'RIGHT')}
         self.movement = LateralMovement(self.config)
         self.special = CrossSpecial()
@@ -302,7 +306,7 @@ class SixGestureEngine(DemoEngine):
 
     @property
     def ready(self):
-        return (self.calibrated and not self.special.owned and self.guard_held and self.vertical_state == 'READY'
+        return (not self._continuity_pending and self.calibrated and not self.special.owned and self.guard_held and self.vertical_state == 'READY'
                 and all(u.state == 'READY' for u in self.attack.units.values()))
 
     def _publish_state(self, state):
@@ -322,6 +326,27 @@ class SixGestureEngine(DemoEngine):
         return self.control
 
     def _safe(self, now, reason):
+        # Output liveness and the interval between captured observations are
+        # different clocks. A fresh result can arrive after its predecessor's
+        # output lease expired, despite a continuous <=100ms capture pair.
+        # Keep only private state for the latest possible eligible successor;
+        # never retain a published direction/block or pending attack.
+        deadline = (self.last_capture + int((self.config.max_gap_ms
+            + self.config.evidence_age_ms) * 1_000_000)) if self.last_capture is not None else None
+        if (reason == 'observation_timeout' and self.calibrated
+                and self.last_capture == self.safety.last_valid_ns
+                and deadline is not None and now < deadline):
+            self._continuity_pending = True
+            self._continuity_until = deadline
+            self.outbox.pending.clear()
+            self.control = replace(self.control, timestamp_ns=now, tracking='LOST',
+                block=False, movement='NEUTRAL', movement_strength=0., attack_state='UNAVAILABLE')
+            self._log('safety', now, reason=reason, private_continuity_until_ns=deadline,
+                state=asdict(self.control))
+            return
+        self._continuity_pending = False
+        self._continuity_until = None
+        self._continuity_processing = False
         super()._safe(now, reason)
         self.special.invalidate()
         self.cross_extension_since = None
@@ -334,6 +359,25 @@ class SixGestureEngine(DemoEngine):
         self.guard_held = False
         self.vertical_state = 'DISARMED'
         self.vertical_candidate = self.vertical_since = self.return_since = None
+
+    def tick(self, now_ns=None):
+        with self.lock:
+            now = self.clock() if now_ns is None else now_ns
+            # Also expire while output is already LOST; ActionEngine's normal
+            # watchdog deliberately avoids repeatedly invalidating that state.
+            if self._continuity_pending and now >= self._continuity_until:
+                self._safe(now, 'recognition_continuity_timeout')
+            state = ActionEngine.tick(self, now)
+            # The block output was already released above. Keep its private
+            # dwell only for the same bounded, subsequently validated pair.
+            if (not self._continuity_pending and not self._continuity_processing
+                    and (self.last_block_valid is None
+                         or now-self.last_block_valid >= self.config.safety_timeout_ms*1_000_000)):
+                self.block.reset()
+                if self.control.block:
+                    self.control = replace(state, timestamp_ns=now, block=False)
+                    self._log('block_timeout', now)
+            return self.control
 
     def _process_actions(self, obs, evidence=None, now_ns=None):
         with self.lock:
@@ -441,6 +485,32 @@ class SixGestureEngine(DemoEngine):
             return self._publish_state(state)
 
     def process(self, obs, evidence=None, now_ns=None, special_observation=None):
+        with self.lock:
+            now = self.clock() if now_ns is None else now_ns
+            ident = (obs.actor_id, obs.capture_epoch)
+            ordered = (ident not in self.retired and (ident != self.identity
+                or self.last_capture is None
+                or obs.capture_ns > self.last_capture and obs.frame_id > self.last_frame))
+            if ordered:
+                if self._continuity_pending or self.safety.expired(now):
+                    self.tick(now)
+                if self._continuity_pending:
+                    eligible = (ident == self.identity
+                        and 0 < obs.capture_ns-self.last_capture <= self.config.max_gap_ms*1_000_000
+                        and 0 <= now-obs.capture_ns <= self.config.evidence_age_ms*1_000_000
+                        and not joint_validity(obs, self.config)['BLOCK'])
+                    if eligible:
+                        self._continuity_pending = False
+                        self._continuity_until = None
+                        self._continuity_processing = True
+                    else:
+                        self._safe(now, 'recognition_continuity_rejected')
+            try:
+                return self._process_observation(obs, evidence, now, special_observation)
+            finally:
+                self._continuity_processing = False
+
+    def _process_observation(self, obs, evidence=None, now_ns=None, special_observation=None):
         with self.lock:
             now = self.clock() if now_ns is None else now_ns
             ident = (obs.actor_id, obs.capture_epoch)
