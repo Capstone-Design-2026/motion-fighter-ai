@@ -52,8 +52,10 @@ class PreviewPressureTests(unittest.TestCase):
                 processing_end_ns=stamp+145_000_000)
         self.assertTrue(transition)
         bridge.limit_preview_fps(8.)
-        for command in ('calibrate','pause','calibrate'):
-            bridge.command(command,command+str(time.monotonic_ns()))
+        for index,command in enumerate(('calibrate','pause','calibrate')):
+            # Clock resolution is not a uniqueness guarantee, particularly on
+            # Windows Python3.11. Exercise three distinct user commands.
+            self.assertFalse(bridge.command(command,f'pressure-command-{index}'))
             self.assertEqual(bridge.take_command(),command)
             policy.observe(auxiliary_ran=False,capture_ns=1_000_000_000,
                 primary_end_ns=1_010_000_000,auxiliary_end_ns=1_010_000_000,
