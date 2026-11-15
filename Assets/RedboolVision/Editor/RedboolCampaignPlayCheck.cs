@@ -55,6 +55,19 @@ public static class RedboolCampaignPlayCheck
         double until = Time.realtimeSinceStartupAsDouble + seconds;
         while (Time.realtimeSinceStartupAsDouble < until) yield return null;
     }
+
+    // READY/FIGHT 시작 연출(BattleIntroSequence) 동안은 두 사람 모두 잠기고 피해도 받지 않는다. 끝날 때까지 기다린다.
+    // 실제 카메라처럼 대기 중에도 상태를 계속 보낸다. 한 번만 보내면 신호가 낡아 준비 단계가 다시 판을 붙잡는다.
+    static IEnumerator UntilIntroDone(string label, System.Action keepCameraFresh)
+    {
+        var intro = Object.FindAnyObjectByType<BattleIntroSequence>();
+        double start = Time.realtimeSinceStartupAsDouble, until = start + 6;
+        int frame0 = Time.frameCount;
+        while (intro != null && intro.HoldRound && Time.realtimeSinceStartupAsDouble < until) { keepCameraFresh(); yield return null; }
+        Check(intro == null || !intro.HoldRound, label + " READY/FIGHT intro releases the round (phase=" + (intro != null ? intro.Phase.ToString() : "none")
+            + " timeScale=" + Time.timeScale + " frames=" + (Time.frameCount - frame0) + " seconds=" + (Time.realtimeSinceStartupAsDouble - start).ToString("F2")
+            + " introEnabled=" + (intro != null && intro.isActiveAndEnabled) + ")");
+    }
     static IEnumerator Tests()
     {
         yield return null; yield return null;
@@ -109,6 +122,7 @@ public static class RedboolCampaignPlayCheck
             gate.Observe(true,"VALID","ACTIVE",false,"LEFT");
             Check(gate.AllowsPlayer && !gate.HoldRound,node.id+" preserved calibration starts without another pose hold");
             enemy.enabled=false;
+            for(var intro=UntilIntroDone(node.id,()=>gate.Observe(true,"VALID","ACTIVE",false,"LEFT"));intro.MoveNext();)yield return null;
             Check(enemy.GetComponent<Health>().TakeDamage(99999,Vector2.zero,false,true),node.id+" real death handler triggered");
             double deadline=Time.realtimeSinceStartupAsDouble+10;
             while(SceneManager.GetActiveScene().name==expected && Time.realtimeSinceStartupAsDouble<deadline)yield return null;
@@ -124,6 +138,7 @@ public static class RedboolCampaignPlayCheck
         var p=Object.FindAnyObjectByType<PlayerController>();var g=Object.FindAnyObjectByType<RedboolBattlePreparation>();
         while(g.EffectsPreparing) yield return null;
         g.Observe(true,"VALID","READY",false,"NEUTRAL");
+        for(var intro=UntilIntroDone("loss",()=>g.Observe(true,"VALID","READY",false,"NEUTRAL"));intro.MoveNext();)yield return null;
         Check(p.GetComponent<Health>().TakeDamage(99999,Vector2.zero,false,true),"Player KO triggers actual loss handler");
         double end=Time.realtimeSinceStartupAsDouble+10;
         while(SceneManager.GetActiveScene().name!=SceneRoutes.Start && Time.realtimeSinceStartupAsDouble<end)yield return null;
