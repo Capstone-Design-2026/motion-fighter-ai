@@ -720,6 +720,18 @@ class SixGestureEngine(DemoEngine):
                         self.forward_sides.discard(side)
                         self.forward_proof.pop(side, None)
                         self.compact_forward_proof.pop(side, None)
+                    # Personal speed helps a new punch begin, but must not let
+                    # slow depth jitter steal an already observed upward stroke.
+                    # Ordinary slow punches and baseline-speed takeovers retain
+                    # their existing routing; no timing/geometry bound is lowered.
+                    if (self.vertical_state == 'PENDING'
+                            and self.vertical_candidate == side + '_RAISE'
+                            and self.attack.units[side].cfg.onset_speed < self.config.onset_speed
+                            and arm['speed_xy'] < self.config.onset_speed
+                            and not self.attack.units[side].unreturned_punch):
+                        self.forward_sides.discard(side)
+                        self.forward_proof.pop(side, None)
+                        self.compact_forward_proof.pop(side, None)
             else:
                 self.forward_proof.clear();self.compact_forward_proof.clear()
             self.special_inhibited = self.special.owned or (not self.special.latched and approach)
