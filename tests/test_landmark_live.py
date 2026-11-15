@@ -36,13 +36,20 @@ class LandmarkLiveTests(unittest.TestCase):
     def test_sustained_auxiliary_overload_stops_full_calls_and_replays_exactly(self):
         self._check_live(overload=True)
 
+    def test_opt_in_heavy_same_frame_journal_replays_without_changing_capture(self):
+        # Test scheduling only: shorten qualification/pending gates so this
+        # existing synthetic controlled-pose fixture exercises the optional slot.
+        with patch('redbool_demo.heavy_auxiliary.BoundedHeavyAuxiliary.WINDOW',2), \
+             patch('redbool_demo.heavy_auxiliary.BoundedHeavyAuxiliary.PENDING_NS',0):
+            self._check_live(overload=False,refine=True)
+
     def test_startup_probe_frames_never_enter_engine_or_journal(self):
         self._check_live(overload=False,profiling=True)
 
     def test_cancel_during_startup_probe_releases_owned_camera_without_observations(self):
         self._check_live(overload=False,profiling=True,cancel_profile=True)
 
-    def _check_live(self, overload, profiling=False, cancel_profile=False):
+    def _check_live(self, overload, profiling=False, cancel_profile=False,refine=False):
         from redbool_demo.live import run
         from redbool_demo.camera_profile import select_startup_profile
         from mediapipe.tasks.python.vision import PoseLandmarker
@@ -79,8 +86,12 @@ class LandmarkLiveTests(unittest.TestCase):
             def offer(self,event):self.delivery['offered']+=1
             def close(self):self.closed=True
         class Bridge:
-            def __init__(self):self.stop_requested=threading.Event();self.data=dict(preview_encoded=0);self.done=set();self.history=[]
+            def __init__(self):self.stop_requested=threading.Event();self.data=dict(preview_encoded=0,preview_target_fps=15.);self.done=set();self.history=[];self.preview_limits=[]
             def update(self,**kw):self.data.update(kw);self.history.append(dict(kw))
+            def limit_preview_fps(self,fps):
+                self.preview_limits.append(fps)
+                self.data['preview_target_fps']=min(self.data['preview_target_fps'],fps)
+                return self.data['preview_target_fps']
             def offer_preview(self,*args,**kw):self.data['preview_encoded']+=1
             def snapshot(self):return dict(self.data)
             def take_command(self):
@@ -93,10 +104,12 @@ class LandmarkLiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)/'한글 경로';root.mkdir();lite=root/'lite.task';full=root/'full.task';lite.write_bytes(b'lite');full.write_bytes(b'full')
             bridge=Bridge();camera=Camera();args=argparse.Namespace(output=root/'runs',pose=lite,pose_variant='Lite',cross_pose=full,
+                cross_refine_pose=full if refine else None,
                 cross_redetect=True,guard_model=None,personal_calibration=True,check=False,stream_id='synthetic',
                 movement=True,actor='DEV01',host='127.0.0.1',port=9,camera=0,backend='auto',seconds=8,
-                guided=False,recording='diagnostics',preview_fps=8,headless=True,bridge_instance=bridge,mirror=True)
+                guided=False,recording='diagnostics',preview_fps=15,headless=True,bridge_instance=bridge,mirror=True)
             with patch('continuous_events.protocol.verify_pose_asset'),patch('pose_capture.open_camera',return_value=camera),\
+                 patch('redbool_demo.backend_assets.verify_pose_asset'),\
                  patch.object(PoseLandmarker,'create_from_options',side_effect=lambda *a,**kw:Model()),\
                  patch('redbool_demo.live.DemoSender',Sender), \
                  patch('redbool_demo.live.profile_eligible',return_value=profiling), \
@@ -145,7 +158,19 @@ class LandmarkLiveTests(unittest.TestCase):
             runs=[v for i,v in enumerate(phases) if i==0 or phases[i-1]!=v]
             self.assertEqual(runs,[False,True,False] if overload else [False,True,False,True],
                 'Recalibration retains an overload latch, otherwise it reenables auxiliaries')
-            self.assertEqual(len(models),3,'All models are created once and reused')
+            self.assertEqual(len(models),4 if refine else 3,'All models are created once and reused')
+            if refine:
+                heavy=[row for row in frames if row['frame'].get('heavy_image') is not None]
+                self.assertGreater(len(heavy),0)
+                self.assertTrue(any(row['frame'].get('heavy_image') is None for row in frames))
+                for row in heavy:
+                    data=row['frame']['heavy_image']
+                    self.assertEqual(data['source']['frame_id'],row['observation'][2])
+                    self.assertEqual(data['source']['capture_ns'],row['observation'][3])
+                    self.assertLessEqual(data['end_ns'],row['clocks'][0])
+                    self.assertLessEqual(data['end_ns']-row['observation'][3],120_000_000)
+                self.assertFalse(summary['performance']['optional_refine']['worker_alive'])
+            else:self.assertTrue(all('heavy_image' not in row['frame'] for row in frames))
             probe_reads=summary['performance']['camera_properties'].get('startup_profile',{}).get('probe_reads',0)
             self.assertEqual(probe_reads,14 if profiling else 0)
             if profiling:
@@ -163,6 +188,9 @@ class LandmarkLiveTests(unittest.TestCase):
                 summary['performance']['auxiliary_overload_skipped_frames'],len(frames)-len(auxiliary_ids))
             self.assertEqual(summary['performance']['inference_runtime']['overload_latched'],overload)
             self.assertEqual(bridge.data['inference_mode'],'lite_overload' if overload else 'full')
+            self.assertEqual(bridge.preview_limits,[8.] if overload else [])
+            self.assertEqual(summary['performance']['preview_requested_fps'],15)
+            self.assertEqual(summary['performance']['preview_target_fps'],8. if overload else 15.)
             if overload:
                 self.assertEqual(len(auxiliary_ids),10)
                 self.assertGreater(summary['performance']['auxiliary_overload_skipped_frames'],0)

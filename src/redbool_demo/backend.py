@@ -69,6 +69,9 @@ def main(argv=None):
         synthetic_bridge(args)
         return
     assets=packaged_assets()
+    for i,value in enumerate(args[:-1]):
+        if value=='--cross-refine-pose' and args[i+1]=='bundled':
+            args[i+1]=str(assets/'pose_landmarker_heavy.task')
     defaults=['--headless','--personal-calibration','--movement','--seconds','86400',
               '--preview-fps','8','--recording','diagnostics',
               '--pose',str(assets/'pose_landmarker_lite.task'),

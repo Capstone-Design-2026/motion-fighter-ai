@@ -8,6 +8,7 @@ import ctypes
 import hmac
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import math
 import os
 import threading
 import time
@@ -62,6 +63,7 @@ class LocalBridge:
             raise ValueError('Headless preview_fps must be between1and15')
         self.token = token
         self.clock = clock
+        self.requested_preview_fps = float(preview_fps)
         self.interval = 1. / preview_fps
         self.encoder = encoder
         self.parent = parent or (ParentProcess(parent_pid) if parent_pid else None)
@@ -176,11 +178,27 @@ class LocalBridge:
         with self.lock:
             self.status.update(values)
 
+    def limit_preview_fps(self, maximum_fps):
+        """Reduce producer work for this process; never raise a caller's limit.
+
+        This is an internal performance action, not an HTTP control. Calibration
+        and pause commands cannot restore the higher encoder rate.
+        """
+        if (isinstance(maximum_fps, bool)
+                or not isinstance(maximum_fps, (int, float))
+                or not math.isfinite(maximum_fps) or not 1 <= maximum_fps <= 15):
+            raise ValueError('Preview limit must be finite and between1and15')
+        with self.lock:
+            self.interval = max(self.interval, 1. / maximum_fps)
+            return 1. / self.interval
+
     def snapshot(self):
         with self.lock:
             return {**self.status, 'preview_sequence': self.preview_sequence,
                     'preview_capture_ns': self.preview_capture_ns,
                     'preview_encoded': self.encoded, 'preview_dropped': self.dropped,
+                    'preview_requested_fps': self.requested_preview_fps,
+                    'preview_target_fps': 1. / self.interval,
                     'preview_encode_ms_max': max(self.encode_ms, default=0.)}
 
     def command(self, command, request_id):
@@ -210,17 +228,24 @@ class LocalBridge:
         self.frame_ready.set()
 
     def _preview_loop(self):
-        next_at = 0.
+        last_begin = None
         while not self.closed.is_set():
             self.frame_ready.wait(.1)
+            with self.lock:
+                next_at = 0. if last_begin is None else last_begin+self.interval
             if self.closed.wait(max(0., next_at-self.clock())):
                 break
             with self.lock:
+                # A new lower rate may arrive while waiting at the previous
+                # cadence. Recheck before consuming or encoding any pixels.
+                if last_begin is not None and self.clock() < last_begin+self.interval:
+                    continue
                 item, self.pending_frame = self.pending_frame, None
                 self.frame_ready.clear()
             if item is None or self.encoder is None:
                 continue
             begin = self.clock()
+            last_begin = begin
             try:
                 encoded = self.encoder(item[0], item[2], item[3])
                 if not isinstance(encoded, bytes) or not 0 < len(encoded) <= 256*1024:
@@ -233,7 +258,6 @@ class LocalBridge:
                     self.encode_ms.append((self.clock()-begin)*1000.)
             except Exception as exc:
                 self.update(preview_error=str(exc))
-            next_at = max(begin+self.interval, self.clock())
 
     def _parent_loop(self):
         while not self.closed.wait(.25):

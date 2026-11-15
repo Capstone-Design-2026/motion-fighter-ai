@@ -44,7 +44,7 @@ class BackendProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);(root/'assets').mkdir()
             path=root/'assets'/PROVENANCE_FILE
-            data={'release':'v36.2','recording_schema':'redbool.landmarks/1','source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
+            data={'release':'v36.3','recording_schema':'redbool.landmarks/1','source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
             path.write_text(json.dumps(data),encoding='utf-8')
             with patch('redbool_demo.backend_provenance.sys.frozen',True,create=True),patch('redbool_demo.backend_provenance.sys._MEIPASS',folder,create=True):
                 self.assertTrue(capabilities()['frozen']);self.assertEqual(capabilities()['source_commit'],'b'*40)
@@ -57,7 +57,7 @@ class BackendProvenanceTests(unittest.TestCase):
             root=Path(folder);(root/'assets').mkdir()
             # Same schema/hash shape is insufficient: this release changes the
             # actual live inference policy and must ship its own executable.
-            data={'release':'v34.3','recording_schema':'redbool.landmarks/1',
+            data={'release':'v36.2','recording_schema':'redbool.landmarks/1',
                   'source_sha256':'a'*64,'source_commit':'b'*40,'source_dirty':False}
             (root/'assets'/PROVENANCE_FILE).write_text(json.dumps(data),encoding='utf-8')
             with patch('redbool_demo.backend_provenance.sys.frozen',True,create=True),patch('redbool_demo.backend_provenance.sys._MEIPASS',folder,create=True):
@@ -69,7 +69,7 @@ class BackendProvenanceTests(unittest.TestCase):
             main(['--check'])
         self.assertTrue(live.called)
         data=json.loads(out.getvalue().strip().splitlines()[-1])
-        self.assertEqual(data['release'],'v36.2')
+        self.assertEqual(data['release'],'v36.3')
         self.assertEqual(data['recording_schema'],'redbool.landmarks/1');self.assertFalse(data['camera_opened'])
 
 

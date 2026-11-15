@@ -16,13 +16,21 @@ def run(argv, assets):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--pose',type=Path,default=assets/'pose_landmarker_lite.task')
     p.add_argument('--cross-pose',type=Path,default=assets/'pose_landmarker_full.task')
+    p.add_argument('--cross-refine-pose',type=Path,
+                   help='Explicitly check verified Heavy IMAGE; use bundled for this package asset')
     a=p.parse_args(argv)
     verify_pose_asset(a.pose,'Lite');verify_pose_asset(a.cross_pose,'Full')
+    models=[('Lite',a.pose,RunningMode.VIDEO),
+            ('Full',a.cross_pose,RunningMode.VIDEO),
+            ('Full',a.cross_pose,RunningMode.IMAGE)]
+    if a.cross_refine_pose is not None:
+        heavy=(assets/'pose_landmarker_heavy.task'
+               if str(a.cross_refine_pose)=='bundled' else a.cross_refine_pose)
+        verify_pose_asset(heavy,'Heavy')
+        models.append(('Heavy',heavy,RunningMode.IMAGE))
     image=mp.Image(image_format=mp.ImageFormat.SRGB,data=np.zeros((480,640,3),np.uint8))
     results=[]
-    for variant,path,mode in [('Lite',a.pose,RunningMode.VIDEO),
-                              ('Full',a.cross_pose,RunningMode.VIDEO),
-                              ('Full',a.cross_pose,RunningMode.IMAGE)]:
+    for variant,path,mode in models:
         begin=time.perf_counter()
         pose=PoseLandmarker.create_from_options(PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(path),delegate=BaseOptions.Delegate.CPU),

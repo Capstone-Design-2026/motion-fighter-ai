@@ -50,6 +50,8 @@ def _compact_row(row):
         image=frame.get('image_landmarks'),world=frame.get('world_landmarks'),
         visibility=frame.get('landmark_visibility'),presence=frame.get('landmark_presence'),
         full_video=models.get('cross_pose'),full_image=models.get('cross_recovery'))
+    if 'cross_refine' in models:
+        result['frame']['heavy_image'] = models['cross_refine']
     return result
 
 

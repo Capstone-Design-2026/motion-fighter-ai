@@ -71,6 +71,15 @@ def run(a):
     verify_pose_asset(a.pose,variant)
     cross_path=getattr(a,"cross_pose",None)
     if cross_path:verify_pose_asset(cross_path,"Full")
+    refine_path=getattr(a,'cross_refine_pose',None)
+    refine_metadata=None
+    if refine_path:
+        from .backend_assets import verify_pose_asset as verify_optional,POSE_SHA256,HEAVY_MODEL_URL
+        verify_optional(refine_path,'Heavy')
+        if not cross_path or not getattr(a,'cross_redetect',True) or getattr(a,'guard_model',None):
+            raise ValueError('Optional Heavy requires the existing Full VIDEO/IMAGE calibrated-rule path')
+        refine_metadata=dict(variant='Heavy',mode='IMAGE',sha256=POSE_SHA256['Heavy'],
+            source_url=HEAVY_MODEL_URL,default_enabled=False,scope='optional bounded same-frame X refinement')
     inference_runtime=InferencePolicy(bool(cross_path))
     inference_policy=inference_runtime.description()
     if getattr(a,'guard_model',None):
@@ -88,7 +97,9 @@ def run(a):
         raise ValueError("Auxiliary cross pose is supported by the calibrated engine only")
     if a.check:
         mode='learned guard confirmation' if getattr(a,'guard_model',None) else 'calibrated rules'
-        _print_status(f'Demo modules, {variant} asset and {mode} OK. Camera/UDP not opened.');return
+        _print_status(f'Demo modules, {variant} asset and {mode} OK. Camera/UDP not opened.')
+        if refine_metadata:_print_status(json.dumps({'verified_optional_refine':refine_metadata}))
+        return
     stream=a.stream_id or uuid.uuid4().hex
     out=a.output/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+stream[:8])
     out.mkdir(parents=True,exist_ok=False)
@@ -111,6 +122,7 @@ def run(a):
             actor_id=a.actor,capture_epoch=stream,runtime_clock=runtime_clock,
             primary_model=dict(variant=variant,sha256=hashlib.sha256(a.pose.read_bytes()).hexdigest()),
             auxiliary_model=dict(variant='Full',sha256=hashlib.sha256(cross_path.read_bytes()).hexdigest()) if cross_path else None,
+            optional_refine_model=refine_metadata,
             source_mirrored=False,raw_rgb_saved=False,inference_policy=inference_policy,
             implementation={k:capability[k] for k in ('release','recording_schema','source_commit',
                 'source_sha256','source_dirty','source_file_count')})
@@ -118,6 +130,7 @@ def run(a):
     counts={'captured':0,'processed':0,'events':0,'left':0,'right':0,'both':0,'preview_frames':0}
     guide=GuidedCheck(movement=a.movement, self_paced=not getattr(a,'guided_timed',False), focus=getattr(a,'guided_focus','all')) if getattr(a,'guided',False) else None
     display={'event':'NONE','event_ns':0};cap=None;pose=None;cross_pose=None;recovery_pose=None;recovery_pool=None;video=None;recorder=None
+    refine=None;refine_pending_since=None
     def fail(where,exc):
         errors.append({'where':where,'error':repr(exc)});stop.set()
         if bridge:bridge.update(phase='error',error=str(exc))
@@ -244,6 +257,17 @@ def run(a):
         def redetect(image):
             begin=now_ns();result=recovery_pose.detect(image)
             return result,begin,now_ns()
+        if refine_path:
+            from .heavy_auxiliary import BoundedHeavyAuxiliary,FrameKey,refinement_owned
+            def load_refine():
+                return PoseLandmarker.create_from_options(PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=str(refine_path),delegate=BaseOptions.Delegate.CPU),
+                    running_mode=RunningMode.IMAGE,num_poses=1,min_pose_detection_confidence=.5,
+                    min_pose_presence_confidence=.5,min_tracking_confidence=.5))
+            def warm_refine(model):
+                model.detect(mp.Image(image_format=mp.ImageFormat.SRGB,data=np.zeros((256,256,3),np.uint8)))
+            refine=BoundedHeavyAuxiliary(load_refine,lambda model,image:model.detect(image),
+                warm=warm_refine,clock_ns=now_ns)
         if bridge and bridge.stop_requested.is_set():stop.set()
         for worker in workers:
             if not stop.is_set():worker.start()
@@ -267,6 +291,7 @@ def run(a):
                         'camera_properties':dict(camera_info),
                         'cross_pose':{'variant':'Full','sha256':hashlib.sha256(cross_path.read_bytes()).hexdigest(),'scope':'same-frame auxiliary X only'} if cross_path else None,
                         'cross_redetect':{'mode':'IMAGE','variant':'Full','scope':'same-frame X recovery only'} if recovery_pose else None,
+                        'cross_refine':refine_metadata,
                         'camera_requested_fps':30,'preview_target_fps':preview_fps,'opencv_threads':1,
                         'inference_policy':inference_policy,
                         'guard_model':engine.posture_model.meta if getattr(a,'guard_model',None) else None,
@@ -294,6 +319,20 @@ def run(a):
                 if inference_runtime.lite_only:auxiliary_overload_skipped_frames+=1
                 else:auxiliary_calibration_skipped_frames+=1
             image=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
+            refine_ticket=None;refine_submitted=False
+            if refine is not None:
+                with engine.lock:
+                    owned=refinement_owned(owned=engine.special.owned,latched=engine.special.latched,
+                        refinement_latched=engine.cross_refinement_latched)
+                    latched=engine.special.latched or engine.cross_refinement_latched
+                    if not owned:refine_pending_since=None
+                    elif refine_pending_since is None:refine_pending_since=engine.last_capture
+                    generation=getattr(engine,'calibration_generation',0)
+                key=FrameKey(a.actor,stream,counts['processed']+1,stamp,
+                    bgr.shape[1],bgr.shape[0],False,generation)
+                refine_ticket=refine.plan(key,calibrated=calibrated_at_frame_start,
+                    owned=owned,latched=latched,pending_since_ns=refine_pending_since)
+                if refine_ticket is not None:refine_submitted=refine.submit(refine_ticket,image)
             recovery_future=recovery_pool.submit(redetect,image) if recovery_pool and run_auxiliary else None
             start=now_ns();result=pose.detect_for_video(image,ms);end=now_ns()
             cross=None;cross_data=None
@@ -319,11 +358,23 @@ def run(a):
                 if journal:
                     world=recovery.pose_world_landmarks[0] if recovery.pose_world_landmarks else []
                     recovery_data['world']=[[p.x,p.y,p.z,getattr(p,'visibility',None),getattr(p,'presence',None)] for p in world]
+            refine_data=None
+            if refine_submitted:
+                refined=refine.result(refine_ticket)
+                if refined is not None:
+                    pts=refined.value.pose_landmarks[0] if refined.value.pose_landmarks else []
+                    world=refined.value.pose_world_landmarks[0] if refined.value.pose_world_landmarks else []
+                    refine_data={**refine_metadata,'start_ns':refined.started_ns,'end_ns':refined.finished_ns,
+                        'source':asdict(refined.key),'worker_generation':refined.generation,
+                        'landmarks':[[p.x,p.y,p.z] for p in pts],'visibility':[p.visibility for p in pts],
+                        'presence':[getattr(p,'presence',None) for p in pts],
+                        'world':[[p.x,p.y,p.z,getattr(p,'visibility',None),getattr(p,'presence',None)] for p in world]}
             frame=recorder.record_frame(capture_return_monotonic_ns=stamp,pose_success=True,
                 pose_start_monotonic_ns=start,pose_end_monotonic_ns=end,
                 image_landmarks=result.pose_landmarks[0] if result.pose_landmarks else None,
                 world_landmarks=result.pose_world_landmarks[0] if result.pose_world_landmarks else None,
-                processing_metadata={'camera_frame_id':fid,'stream_id':stream,'cross_pose':cross_data,'cross_recovery':recovery_data})
+                processing_metadata={'camera_frame_id':fid,'stream_id':stream,'cross_pose':cross_data,'cross_recovery':recovery_data,
+                    **({'cross_refine':refine_data} if refine is not None else {})})
             obs=PoseObservation.from_record(frame,{'subject_id':a.actor,'session_id':stream,
                 'actual_resolution':[bgr.shape[1],bgr.shape[0]],'recording_config':{'source_mirrored':False}})
             aux=None
@@ -334,11 +385,19 @@ def run(a):
                 recovery=replace(obs,landmarks=tuple(map(tuple,recovery_data['landmarks'])) or None,
                     visibility=tuple(recovery_data['visibility']) or None,pose_present=bool(recovery_data['landmarks']))
                 aux=(aux,recovery)
+            if refine_data is not None:
+                expected=(obs.actor_id,obs.capture_epoch,obs.frame_id,obs.capture_ns,obs.width,obs.height,obs.source_mirrored)
+                actual=tuple(refine_data['source'][k] for k in ('actor_id','capture_epoch','frame_id','capture_ns','width','height','source_mirrored'))
+                if expected!=actual:raise RuntimeError('Optional Heavy frame identity mismatch')
+                heavy=replace(obs,landmarks=tuple(map(tuple,refine_data['landmarks'])) or None,
+                    visibility=tuple(refine_data['visibility']) or None,pose_present=bool(refine_data['landmarks']))
+                aux=(*aux,heavy) if isinstance(aux,tuple) else (aux,None,heavy)
             if journal:
                 state=record_operation(journal,journal_clock,engine,'process',
                     lambda: engine.process(obs,special_observation=aux) if cross_data is not None else engine.process(obs),
                     frame=frame,observation=obs,has_auxiliary=cross_data is not None,
-                    raw_models={'cross_pose':cross_data,'cross_recovery':recovery_data})
+                    raw_models={'cross_pose':cross_data,'cross_recovery':recovery_data,
+                        **({'cross_refine':refine_data} if refine is not None else {})})
             else:
                 state=engine.process(obs,special_observation=aux) if cross_data is not None else engine.process(obs)
             if video is not None:video.write(bgr,rgb,frame,trial_state='DEMO')
@@ -349,8 +408,13 @@ def run(a):
             transition=inference_runtime.observe(auxiliary_ran=run_auxiliary,
                 capture_ns=stamp,primary_end_ns=end,auxiliary_end_ns=auxiliary_end,processing_end_ns=engine_end)
             if transition:
+                if bridge and inference_runtime.lite_only:
+                    bridge.limit_preview_fps(8.)
                 log.write({'type':'inference_policy','frame_id':frame['frame_id'],
                     'capture_ns':stamp,'timestamp_ns':engine_end,**transition})
+            if refine is not None:
+                refine.observe_performance(capture_ns=stamp,primary_end_ns=end,processing_end_ns=engine_end,
+                    calibrated=engine.calibrated,overload=inference_runtime.lite_only)
             log.write({'type':'frame','frame_id':frame['frame_id'],'camera_frame_id':fid,'capture_ns':stamp,
                 'pose_end_ns':end,'engine_end_ns':engine_end,'state':asdict(state),'framing':framing})
             with engine.lock:
@@ -426,6 +490,8 @@ def run(a):
                 else:
                     engine.request_calibration()
                     if key==ord('x'):engine.calibrating=False
+                if refine is not None:
+                    refine.reset('calibrate' if key==ord('c') else 'pause');refine_pending_since=None
                 recorder.record_annotation(label='CALIBRATE' if key==ord('c') else 'PAUSE',annotation_type='marker',event_frame_id=frame['frame_id'],source='unity_game_control' if headless else 'human_demo_control')
             if key==ord('m'):
                 if journal:record_operation(journal,journal_clock,engine,'movement',engine.toggle_movement)
@@ -440,6 +506,7 @@ def run(a):
             if worker.ident is not None:worker.join(timeout=3)
         if any(w.is_alive() for w in workers):errors.append({'where':'shutdown','error':'worker did not stop'})
         if workers[1].ident is None:sender.close()
+        if refine is not None:refine.close()
         if recovery_pool is not None:recovery_pool.shutdown(wait=True)
         if recovery_pose is not None:recovery_pose.close()
         if pose is not None:pose.close()
@@ -462,12 +529,14 @@ def run(a):
             bridge.update(phase='error' if errors else 'stopped',camera_connected=False,recording=recording_health)
             counts['preview_frames']=bridge.snapshot()['preview_encoded']
             bridge.close()
-        performance={'camera_requested_fps':30,'preview_target_fps':preview_fps,
+        performance={'camera_requested_fps':30,'preview_requested_fps':preview_fps,
+            'preview_target_fps':bridge.snapshot()['preview_target_fps'] if bridge else preview_fps,
             'headless':headless,'local_preview':bridge.snapshot() if bridge else None,
             'inference_policy':inference_policy,'auxiliary_frames':len(cross_samples),
             'auxiliary_calibration_skipped_frames':auxiliary_calibration_skipped_frames,
             'auxiliary_overload_skipped_frames':auxiliary_overload_skipped_frames,
             'inference_runtime':inference_runtime.snapshot(engine.calibrated),
+            'optional_refine':refine.snapshot() if refine is not None else None,
             'runtime_clock':runtime_clock,'acquisition':acquisition.summary(),'camera_properties':camera_info,
             'processed_fps':(counts['processed']-1)*1e9/(last_stamp-origin) if last_stamp is not None and last_stamp>origin else 0.,
             'cross_redetect_ms_p50_p95':np.percentile(recovery_samples,[50,95]).tolist() if recovery_samples else [],
@@ -491,6 +560,7 @@ def main(argv=None,bridge_instance=None):
     p.add_argument('--pose',type=Path)
     p.add_argument('--pose-variant',choices=['Lite','Full'],default='Lite')
     p.add_argument('--cross-pose',type=Path,help='Optional Full asset for same-frame crossed-arm geometry only')
+    p.add_argument('--cross-refine-pose',type=Path,help='Opt-in verified Heavy for bounded same-frame X refinement; default off')
     p.add_argument('--cross-redetect',action=argparse.BooleanOptionalAction,default=True,help='Same-frame independent Full detection for X recovery; requires --cross-pose')
     p.add_argument('--personal-calibration',action='store_true',help='Bounded per-person tutorial ranges; C resets the profile')
     p.add_argument('--guard-model',type=Path,help='Optional learned confirmation for relaxed guard; match Pose variant')

@@ -1,0 +1,534 @@
+{
+  "release": "v36.3",
+  "purpose": "Recorded-data X latency trial; no new camera capture",
+  "policy": {
+    "pending_ms": 500,
+    "baseline_pending_ms": 1000,
+    "ownership": "(normal_owned and not normal_latched) or external_repeat_latch",
+    "hold_ms_unchanged": 700,
+    "health_frames_unchanged": 30,
+    "healthy_age_ms_unchanged": 45,
+    "configured_wait_ms_unchanged": 10,
+    "evidence_age_ms_unchanged": 120,
+    "output_lease_ms_unchanged": 150,
+    "geometry_or_model_threshold_changes": false
+  },
+  "no_optional_path": {
+    "status": "PASS",
+    "scope": {
+      "legacy9": {
+        "sessions": 9,
+        "frames": 90575,
+        "events_before": 550,
+        "events_after": 550,
+        "event_fields_equal": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      },
+      "modern37": {
+        "sessions": 37,
+        "frames": 146076,
+        "events_before": 407,
+        "events_after": 407,
+        "event_fields_equal": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      },
+      "new278_3": {
+        "sessions": 3,
+        "frames": 6270,
+        "events_before": 10,
+        "events_after": 10,
+        "event_fields_equal": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      },
+      "personal_stress": {
+        "sessions": 1,
+        "frames": 13806,
+        "events_before": 98,
+        "events_after": 98,
+        "event_fields_equal": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      }
+    },
+    "frames_total": 256727,
+    "unique_sessions": 49,
+    "personal_stress_replays": 1,
+    "events_compared": 1065,
+    "timing": {
+      "source_capture_delta_ms": {
+        "samples": 1065,
+        "min_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "commit_delta_ms": {
+        "samples": 1065,
+        "min_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "capture_to_commit_delta_ms": {
+        "samples": 1065,
+        "min_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "expiry_delta_ms": {
+        "samples": 417,
+        "min_ms": 0.0,
+        "max_ms": 0.0
+      }
+    },
+    "ground_truth": {
+      "before": 136,
+      "after": 136,
+      "conditions": 139
+    },
+    "personal_ground_truth": {
+      "before": 19,
+      "after": 19,
+      "conditions": 19
+    }
+  },
+  "optional_coordinate_comparison": {
+    "sessions": 9,
+    "frames": 90575,
+    "old_heavy_events": 558,
+    "new_events": 559,
+    "old_X_lost": false,
+    "matching": "All original SPECIALs match same reviewed attempts within2s, with zero count decrease; changed times and new event listed separately. Ordinary event payloads including capture/commit/expiry times exactly equal.",
+    "ordinary_event_changes": 0,
+    "block_movement_tracking_calibration_changes": 0,
+    "fixed_GT_before": [
+      136,
+      139
+    ],
+    "fixed_GT_after": [
+      136,
+      139
+    ],
+    "gt_notes": "Fixed139 windows unchanged. Three-person358X now inside original357–359s (+1); existing375.943X now375.309/frame11252, fourframes before original11256–11286 window (-1), actual RGB confirms earlier correct hold. No arbitrary score-window expansion.",
+    "unsafe_events": 0,
+    "same_latch_duplicate_events": 0
+  },
+  "special_timing_changes": [
+    {
+      "session": "high_guard",
+      "old_frame": 3818,
+      "new_frame": 3804,
+      "old_t": 127.414124833,
+      "new_t": 126.943191666,
+      "delta_ms": -470.933167
+    },
+    {
+      "session": "new_participant",
+      "old_frame": 5924,
+      "new_frame": 5916,
+      "old_t": 197.587297833,
+      "new_t": 197.321027333,
+      "delta_ms": -266.2705
+    },
+    {
+      "session": "new_participant",
+      "old_frame": 6135,
+      "new_frame": 6120,
+      "old_t": 204.627211916,
+      "new_t": 204.12072225,
+      "delta_ms": -506.489666
+    },
+    {
+      "session": "new_participant",
+      "old_frame": 6182,
+      "new_frame": 6180,
+      "old_t": 206.188763875,
+      "new_t": 206.121979041,
+      "delta_ms": -66.784834
+    },
+    {
+      "session": "two_person_earlier",
+      "old_frame": 6718,
+      "new_frame": 6716,
+      "old_t": 224.159081625,
+      "new_t": 224.092700833,
+      "delta_ms": -66.380792
+    },
+    {
+      "session": "two_person_earlier",
+      "old_frame": 11188,
+      "new_frame": 11174,
+      "old_t": 373.175835292,
+      "new_t": 372.707352667,
+      "delta_ms": -468.482625
+    },
+    {
+      "session": "two_person_earlier",
+      "old_frame": 11271,
+      "new_frame": 11252,
+      "old_t": 375.943403667,
+      "new_t": 375.308771208,
+      "delta_ms": -634.632459
+    },
+    {
+      "session": "two_person_earlier",
+      "old_frame": 11341,
+      "new_frame": 11338,
+      "old_t": 378.275805167,
+      "new_t": 378.176047125,
+      "delta_ms": -99.758042
+    },
+    {
+      "session": "two_person_earlier",
+      "old_frame": 11962,
+      "new_frame": 11943,
+      "old_t": 398.977015417,
+      "new_t": 398.34155225,
+      "delta_ms": -635.463167
+    },
+    {
+      "session": "three_person",
+      "old_frame": 10413,
+      "new_frame": 10411,
+      "old_t": 347.502135416,
+      "new_t": 347.433943458,
+      "delta_ms": -68.191958
+    },
+    {
+      "session": "three_person",
+      "old_frame": 10619,
+      "new_frame": 10609,
+      "old_t": 354.3705415,
+      "new_t": 354.035655291,
+      "delta_ms": -334.886209
+    },
+    {
+      "session": "three_person",
+      "old_frame": 10777,
+      "new_frame": 10741,
+      "old_t": 359.6347705,
+      "new_t": 358.436427583,
+      "delta_ms": -1198.342917
+    }
+  ],
+  "new_X": {
+    "session": "two_person_earlier",
+    "frame": 12084,
+    "time_seconds": 403.04327375,
+    "rgb_review": "Separate release, recross and held X; not a duplicate."
+  },
+  "optional_request_cost": {
+    "old1000_total": 1665,
+    "new500_stop_total": 2544,
+    "difference": 879,
+    "increase_fraction": 0.5279279279279279,
+    "actually_injected": 2476,
+    "coverage": "Ideal same-frame coordinate supply, not measured real worker submit count or CPU cost. Original RGB sessions8 complete; fourth-person archive only partial15fpslossy review."
+  },
+  "missing_rgb": [
+    {
+      "session": "four_person",
+      "requested": 134,
+      "injected": 66,
+      "missing_frames": [
+        3179,
+        3181,
+        3183,
+        3185,
+        3253,
+        3255,
+        3257,
+        3259,
+        3261,
+        3263,
+        3317,
+        3319,
+        3321,
+        3323,
+        3325,
+        3327,
+        3329,
+        3425,
+        3427,
+        3429,
+        3431,
+        3433,
+        3435,
+        3497,
+        3499,
+        3501,
+        3503,
+        3539,
+        3541,
+        3543,
+        5627,
+        5629,
+        5631,
+        5663,
+        5665,
+        5667,
+        5669,
+        5671,
+        5673,
+        5675,
+        5677,
+        5679,
+        5681,
+        6209,
+        6211,
+        6213,
+        6215,
+        6217,
+        7097,
+        7099,
+        7101,
+        7103,
+        7105,
+        7133,
+        11766,
+        11768,
+        11770,
+        11842,
+        11844,
+        11846,
+        11848,
+        11850,
+        17126,
+        17128,
+        17130,
+        17132,
+        17134,
+        17136
+      ]
+    }
+  ],
+  "native_pairs": [
+    {
+      "run": "A1_1000",
+      "capture_frames": 360,
+      "processed_frames": 360,
+      "processing_fps": 30.028206808389168,
+      "age_ms_p50_p95_max": [
+        17.6239585,
+        26.435651749999998,
+        30.514708
+      ],
+      "age_over120": 0,
+      "source_gap_over100": 0,
+      "heavy_planned": 155,
+      "heavy_submitted": 155,
+      "heavy_accepted": 152,
+      "first_disabled_frame": null,
+      "helper_final": {
+        "ready": true,
+        "warming": false,
+        "healthy": false,
+        "active": false,
+        "disabled": false,
+        "disable_reason": "",
+        "generation": 1,
+        "queued": 0,
+        "running": 0,
+        "last_job_ms": 23.5075,
+        "counts": {
+          "submitted": 155,
+          "result_wait_expired": 2,
+          "discarded_old_job": 2,
+          "accepted": 152,
+          "late_result": 1,
+          "reset_closed": 1
+        },
+        "worker_alive": false
+      },
+      "events": [
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 355.335521791,
+          "age_ms": 23.359292,
+          "expired": false
+        },
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 359.668409,
+          "age_ms": 24.052875,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "run": "B1_500_stop",
+      "capture_frames": 360,
+      "processed_frames": 359,
+      "processing_fps": 29.9444144287232,
+      "age_ms_p50_p95_max": [
+        25.318458,
+        26.6670837,
+        71.850375
+      ],
+      "age_over120": 0,
+      "source_gap_over100": 0,
+      "heavy_planned": 185,
+      "heavy_submitted": 185,
+      "heavy_accepted": 184,
+      "first_disabled_frame": null,
+      "helper_final": {
+        "ready": true,
+        "warming": false,
+        "healthy": false,
+        "active": false,
+        "disabled": false,
+        "disable_reason": "",
+        "generation": 1,
+        "queued": 0,
+        "running": 0,
+        "last_job_ms": 24.5755,
+        "counts": {
+          "submitted": 185,
+          "result_wait_expired": 1,
+          "discarded_old_job": 1,
+          "accepted": 184,
+          "reset_closed": 1
+        },
+        "worker_alive": false
+      },
+      "events": [
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 355.335521791,
+          "age_ms": 23.64625,
+          "expired": false
+        },
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 358.370357291,
+          "age_ms": 23.496417,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "run": "B2_500_stop",
+      "capture_frames": 360,
+      "processed_frames": 360,
+      "processing_fps": 30.029850715148168,
+      "age_ms_p50_p95_max": [
+        17.9355,
+        29.527941650000006,
+        43.777542
+      ],
+      "age_over120": 0,
+      "source_gap_over100": 0,
+      "heavy_planned": 158,
+      "heavy_submitted": 158,
+      "heavy_accepted": 143,
+      "first_disabled_frame": 286,
+      "helper_final": {
+        "ready": true,
+        "warming": false,
+        "healthy": false,
+        "active": false,
+        "disabled": true,
+        "disable_reason": "result_wait_expired",
+        "generation": 2,
+        "queued": 0,
+        "running": 0,
+        "last_job_ms": 28.217333,
+        "counts": {
+          "submitted": 158,
+          "result_wait_expired": 4,
+          "discarded_old_job": 4,
+          "accepted": 143,
+          "late_result": 11,
+          "reset_disabled": 1,
+          "reset_closed": 1
+        },
+        "worker_alive": false
+      },
+      "events": [
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 355.401725083,
+          "age_ms": 25.096583,
+          "expired": false
+        },
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 358.403889875,
+          "age_ms": 23.843084,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "run": "A2_1000",
+      "capture_frames": 360,
+      "processed_frames": 360,
+      "processing_fps": 30.02836272698197,
+      "age_ms_p50_p95_max": [
+        17.571083,
+        26.4220098,
+        31.237958
+      ],
+      "age_over120": 0,
+      "source_gap_over100": 0,
+      "heavy_planned": 156,
+      "heavy_submitted": 156,
+      "heavy_accepted": 155,
+      "first_disabled_frame": null,
+      "helper_final": {
+        "ready": true,
+        "warming": false,
+        "healthy": false,
+        "active": false,
+        "disabled": false,
+        "disable_reason": "",
+        "generation": 1,
+        "queued": 0,
+        "running": 0,
+        "last_job_ms": 23.511584,
+        "counts": {
+          "submitted": 156,
+          "result_wait_expired": 1,
+          "discarded_old_job": 1,
+          "accepted": 155,
+          "reset_closed": 1
+        },
+        "worker_alive": false
+      },
+      "events": [
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 355.301616208,
+          "age_ms": 23.675625,
+          "expired": false
+        },
+        {
+          "gesture": "SPECIAL",
+          "source_video_t": 359.601940958,
+          "age_ms": 23.79725,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Fixed-clock replay is not live end-to-end game latency.",
+    "Four-person review video is only15fps;68 requested optional frames have no RGB and were left absent. Eight other raw-video sessions have complete requested coverage.",
+    "All139 original GT windows unchanged: one recovered within its window and one correctly earlier X is fourframes before its narrow window; score remains136/139.",
+    "Optional evidence requests increased52.8% in ideal coordinate replay. Health and120ms evidence/150ms output limits are unchanged.",
+    "Native benchmark uses existing12second video, no Unity renderer/network/preview/journal. Physical cameras and simultaneous two-PC performance need final trial.",
+    "First target X did not reliably get earlier: unchanged in pair1 and about100ms later in pair2. Second target improved1.20–1.30seconds.",
+    "One candidate native run disabled optional work after repeated worker deadlines. Basic inference remains active; this test version does not claim everyX is faster or allPC performance is unchanged."
+  ],
+  "native_candidate_second_run_safety_fallback": {
+    "disabled_after_second_X_ms": 1167,
+    "reason": "three consecutive optional result deadlines",
+    "tracking_valid_frames_after_disable": 74,
+    "primary_inference_continued": true,
+    "ready_frames_after_release": 16,
+    "external_latch_cleared": true,
+    "limitation": "Optional recovery of later occluded X attempts stays off until camera restart; no new recovery policy was added."
+  }
+}

@@ -25,19 +25,30 @@ def main():
             result=subprocess.run([str(executable),'--check'],cwd=cwd,capture_output=True,text=True,timeout=120)
             if result.returncode:raise RuntimeError(result.stdout+result.stderr)
             report['capabilities']=json.loads(result.stdout.strip().splitlines()[-1])
-            assert report['capabilities']['release']=='v36.2'
+            assert report['capabilities']['release']=='v36.3'
             assert report['capabilities']['recording_schema']=='redbool.landmarks/1'
             assert report['capabilities']['frozen'] and not report['capabilities']['camera_opened']
             metadata=json.loads((executable.parent/'backend-build.json').read_text(encoding='utf-8'))
             for key in ('release','recording_schema','source_sha256','source_commit','source_dirty'):
                 assert report['capabilities'][key]==metadata[key], 'Bundled provenance differs: '+key
-            report['checks'].append('v36.2 bundled landmark journal schema and source provenance')
+            report['checks'].append('v36.3 bundled landmark journal schema and source provenance')
             report['checks'].append('bundled assets and imports outside source directory')
             result=subprocess.run([str(executable),'--check-inference'],cwd=cwd,capture_output=True,text=True,timeout=120)
             if result.returncode:raise RuntimeError(result.stdout+result.stderr)
             report['inference']=json.loads(result.stdout.strip().splitlines()[-1])
             assert report['inference']['passed'] and report['inference']['frozen']
             report['checks'].append('native Lite VIDEO and Full VIDEO/IMAGE inference on synthetic RGB')
+            if metadata.get('optional_cross_refine',{}).get('bundled'):
+                result=subprocess.run([str(executable),'--check-inference','--cross-refine-pose','bundled'],
+                    cwd=cwd,capture_output=True,text=True,timeout=120)
+                if result.returncode:raise RuntimeError(result.stdout+result.stderr)
+                report['refinement_inference']=json.loads(result.stdout.strip().splitlines()[-1])
+                check=report['refinement_inference']
+                assert check['passed'] and check['frozen'] and not check['camera_opened']
+                assert check['game_packets']==0
+                assert [(m['variant'],m['mode']) for m in check['models']]==[
+                    ('Lite','VIDEO'),('Full','VIDEO'),('Full','IMAGE'),('Heavy','IMAGE')]
+                report['checks'].append('explicit bundled Heavy native IMAGE inference; no camera/game input')
         with socket.socket() as reserve:
             reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         token=secrets.token_hex(24)

@@ -212,7 +212,8 @@ class PersonalGestureEngine(SixGestureEngine):
         elif target=='SPECIAL':
             # Measure successful v26 X holds only. Do not weaken cross geometry.
             result.update(target=bool(self.special.latched),amount=1.,conflict=False,
-                rest=bool(not self.special.owned and not self.special.latched and not state.block))
+                rest=bool(not self.special.owned and not self.special.latched
+                    and not self.cross_refinement_latched and not state.block))
         gesture = {'JAB':'LEFT_PUNCH','STRAIGHT':'RIGHT_PUNCH',
                    'HIGH_KICK':'LEFT_RAISE','LOW_KICK':'RIGHT_RAISE','SPECIAL':'SPECIAL'}.get(target)
         result['verified_commit'] = bool(gesture and any(

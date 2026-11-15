@@ -69,6 +69,26 @@ def observation(row):
         return replace(obs,landmarks=tuple(map(tuple,points)) if points else None,
                        visibility=tuple(vis) if vis else None,pose_present=bool(points))
     video=aux(frame.get('full_video')); image=aux(frame.get('full_image'))
+    if frame.get('heavy_image') is not None:
+        data=frame['heavy_image']; source=data.get('source',{})
+        fields=('actor_id','capture_epoch','frame_id','capture_ns','width','height','source_mirrored')
+        if tuple(source.get(k) for k in fields)!=tuple(getattr(obs,k) for k in fields):
+            raise ValueError('Optional Heavy source identity differs from primary observation')
+        generation=source.get('calibration_generation')
+        worker_generation=data.get('worker_generation')
+        expected_generation=row.get('expected',{}).get('calibration_generation')
+        if (type(generation) is not int or generation<0 or type(worker_generation) is not int or worker_generation<0
+                or expected_generation is not None and generation!=expected_generation):
+            raise ValueError('Optional Heavy calibration generation invalid')
+        from .backend_assets import POSE_SHA256
+        begin=data.get('start_ns');finish=data.get('end_ns')
+        if (data.get('variant')!='Heavy' or data.get('mode')!='IMAGE' or data.get('sha256')!=POSE_SHA256['Heavy']
+                or type(begin) is not int or type(finish) is not int
+                or not obs.capture_ns<=begin<=finish<=obs.capture_ns+120_000_000):
+            raise ValueError('Optional Heavy provenance or source deadline invalid')
+        if row.get('clocks') and finish>row['clocks'][0]:
+            raise ValueError('Optional Heavy result was not available at engine processing time')
+        return obs, (video,image,aux(data))
     return obs, (video,image) if frame.get('full_image') is not None else video
 
 
