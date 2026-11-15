@@ -70,6 +70,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
 
     /// <summary>(현재 게이지, 만충 수치). 발동·사용 상태가 바뀔 때도 불린다.</summary>
     public event Action<int, int> OnChargeChanged;
+    public event Action ChargeInterruptedByDamage;
 
     public int Charge => charge;
     public int HitsToCharge => hitsToCharge;
@@ -151,15 +152,110 @@ public sealed partial class EnemySpecial : MonoBehaviour
     {
         foeHp.OnDamaged -= OnDamaged;
         foe.AttackLanded -= OnAttackLanded;
-        if (phase != Phase.Idle) { StopRoutine(); Cleanup(ownsTime && !foe.InputLocked); }
+        ClearGhostRenderSamples();
+        ClearOwnedEffects();
     }
+    void OnDestroy() { ClearVisualMaterialCache(); }
 
     void Notify() => OnChargeChanged?.Invoke(charge, hitsToCharge);
+
+    // ─────────────────────── PvP: 사람이 고른 인물의 필살기 ───────────────────────
+    // PvP 에서는 AI 가 없다. RedboolPvp 가 인물에 맞는 기술을 맡기고(ConfigureForPlayer), 사람이 X자 동작을 하면 TryFire 로 쓴다.
+    // 스테이지당 1회 제한 없이, 쓰고 나면 다시 모을 수 있다(파운장과 같은 규칙).
+    // 두 화면 대전의 손님 화면은 판정 없이 연출만 따라 한다(visualOnly): 피해·경직·시간·카메라는 건드리지 않는다.
+    private bool playerOwned, visualOnly, remoteGuarded;
+    public bool PlayerOwned => playerOwned;
+    /// <summary>발동할 때마다 1씩 오른다. 손님 화면이 같은 연출을 시작하는 신호다.</summary>
+    public int FireSerial { get; private set; }
+    public bool GuardDecided => guardDecided;
+    public bool GuardedSpecial => guardedSpecial;
+
+    /// <summary>이 인물(스토리 칸 id)의 기술을 맡기고 상대를 정한다. 기술과 이펙트 재료가 있으면 true.</summary>
+    public bool ConfigureForPlayer(string id, Fighter target, bool visualsOnly)
+    {
+        ClearOwnedEffects();
+        ClearVisualMaterialCache();
+        spec = null;
+        foreach (var candidate in Specs) if (candidate.id == id) { spec = candidate; break; }
+        specResolved = true; playerOwned = true; visualOnly = visualsOnly;
+        hero = target;
+        heroHp = target != null ? target.GetComponent<Health>() : null;
+        heroView = target != null ? target.GetComponent<Fighter3DView>() : null;
+        heroSpecial = target != null ? target.GetComponent<SpecialMove>() : null;
+        charge = 0; used = false; readyAt = -1f;
+        Notify();
+        return spec != null && Available && hero != null && heroHp != null;
+    }
+
+    /// <summary>사람이 필살기 동작을 했다. 게이지가 가득 차 있고 지금 쓸 수 있으면 시작한다.</summary>
+    public bool TryFire()
+    {
+        if (!playerOwned || visualOnly || phase != Phase.Idle || !IsReady || !Available) return false;
+        if (!foe.CanAttack || foe.IsAttackSealed || hero == null || heroHp == null) return false;
+        if (heroHp.IsDead || hero.InputLocked || hero.VisionPreparationLocked || (heroSpecial != null && heroSpecial.enabled && heroSpecial.IsPlaying)) return false;
+        var other = hero.GetComponent<EnemySpecial>();
+        if (other != null && other.enabled && other.IsPlaying) return false;   // 두 사람의 필살기가 겹치지 않게 한다
+        ClearIdlePresentation(); other?.ClearIdlePresentation();
+        if (!foe.BeginSpecial()) return false;
+        FireSerial++;
+        routine = StartCoroutine(Run());
+        return true;
+    }
+
+    /// <summary>손님 화면: 호스트에서 이 기술이 시작됐다. 판정 없이 연출만 처음부터 따라 한다.</summary>
+    public void PlayRemote()
+    {
+        if (!playerOwned || !visualOnly || spec == null || !Available || hero == null) return;
+        ClearOwnedEffects();
+        remoteGuarded = false;
+        routine = StartCoroutine(Run());
+    }
+
+    /// <summary>손님 화면: 호스트가 정한 '막혔는지'를 받아 둔다. 첫 타격 연출 때 쓴다.</summary>
+    public void RemoteGuard(bool guarded) { remoteGuarded = guarded; if (visualOnly && guardDecided) guardedSpecial = guarded; }
+
+    /// <summary>손님 화면: 호스트에서 기술이 모으는 중에 끊겼다. 아직 모으는 연출 중이면 같이 멈춘다.</summary>
+    public void StopRemoteCharge() { if (visualOnly && IsCharging) { StopRoutine(); Cleanup(false); } }
+
+    /// <summary>Stop the presentation on stale view, round end or host cancellation; never replay it on reconnect.</summary>
+    public void StopRemote() { if (visualOnly) ClearOwnedEffects(); }
+
+    /// <summary>Finish only an old idle fade before another cast captures lighting.
+    /// Does not move the actor, unlock gameplay or add a wait between techniques.</summary>
+    public void ClearIdlePresentation()
+    {
+        if (!playerOwned || phase != Phase.Idle || foe.IsSpecialActive || !HasOwnedEffects) return;
+        StopRoutine(); Cleanup(false, false);
+    }
+
+    /// <summary>상대의 게이지 탈취(승표탈기)에 당했다.</summary>
+    public void DrainCharge() { if (phase != Phase.Idle) return; charge = 0; readyAt = -1f; Notify(); }
+
+    /// <summary>대전이 멈출 때(연결 끊김 등) 진행 중인 기술을 접는다. 아직 나가지 않았으면 게이지를 돌려준다.</summary>
+    public void CancelForPause()
+    {
+        if (!HasOwnedEffects) return;
+        bool fired = phase == Phase.Acting;
+        bool charging = IsCharging;
+        ClearOwnedEffects();
+        if (charging && !fired) charge = Mathf.Clamp(spent, 0, hitsToCharge);
+        used = false; readyAt = -1f;
+        Notify();
+    }
+
+    // 승표탈기: 상대가 모아 둔 필살기 게이지를 비운다 (파운장이든 인물 고유 기술이든).
+    void DrainTarget()
+    {
+        if (visualOnly || hero == null) return;
+        if (heroSpecial != null) heroSpecial.ResetCharge();
+        var other = hero.GetComponent<EnemySpecial>();
+        if (other != null && other.enabled) other.DrainCharge();
+    }
 
     /// <summary>게이지를 채운다(검사용으로도 쓴다). 이미 썼거나 필살기가 없는 적이면 무시한다.</summary>
     public void AddCharge(int amount = 1)
     {
-        if (amount <= 0 || used || !Available || charge >= hitsToCharge) return;
+        if (amount <= 0 || visualOnly || used || !Available || charge >= hitsToCharge) return;
         charge = Mathf.Min(hitsToCharge, charge + amount);
         if (charge >= hitsToCharge)
         {
@@ -173,7 +269,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
     /// <summary>라운드가 다시 시작될 때 처음 상태로 돌린다.</summary>
     public void ResetForRound()
     {
-        if (phase != Phase.Idle) { StopRoutine(); Cleanup(ownsTime && !foe.InputLocked); }
+        ClearOwnedEffects();
         charge = 0; used = false; readyAt = -1f;
         Notify();
     }
@@ -202,8 +298,44 @@ public sealed partial class EnemySpecial : MonoBehaviour
 
     bool KoTookOver() => foe.InputLocked || foeHp.IsDead || (heroHp != null && heroHp.IsDead);
 
+    // AI 적: PvP 이거나 AI 가 꺼졌거나 카메라 준비로 묶였으면 멈춘다(웅빈 v34).
+    // PvP 에서 사람이 쓰는 기술(playerOwned): 라운드가 멈춰 두 사람이 묶였을 때만 멈춘다. 손님 화면의 연출 전용은 호스트 신호만 따른다.
+    bool PreparationInterrupted => playerOwned
+        ? !visualOnly && (foe.VisionPreparationLocked || (hero != null && hero.VisionPreparationLocked))
+        : RedboolPvp.Active || ai == null || !ai.isActiveAndEnabled
+          || foe.VisionPreparationLocked || (hero != null && hero.VisionPreparationLocked);
+
+    // No coroutine, movement callback or late pose may outlive a camera pause.
+    // A cast interrupted before release keeps its charge; an already released cast remains used.
+    bool HasOwnedEffects => phase != Phase.Idle || routine != null || ownsTime || updaters.Count > 0
+        || root != null || extras.Count > 0 || lightingCaptured;
+
+    // Idle may still own the settle fades. Disabling or restarting must clear those
+    // callbacks too, without overriding a newer KO/PvP time owner.
+    void ClearOwnedEffects()
+    {
+        if (!HasOwnedEffects) return;
+        StopRoutine();
+        if (!visualOnly && body != null) body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        Cleanup(ownsTime && !RedboolPvp.Active && !KoTookOver());
+    }
+
+    public void CancelForPreparation()
+    {
+        bool charging = IsCharging;
+        if (!HasOwnedEffects) return;
+        ClearOwnedEffects();
+        if (charging) {
+            charge = Mathf.Clamp(spent, 0, hitsToCharge);
+            readyAt = charge >= hitsToCharge ? Time.time + fireDelay : -1f;
+            Notify();
+        }
+    }
+
     void Update()
     {
+        if (hero == null && !playerOwned) FindHero();   // PvP 에서는 상대를 RedboolPvp 가 정해 준다(첫 PlayerController 가 자기 자신일 수 있다)
+        if (PreparationInterrupted) { CancelForPreparation(); return; }
         StepUpdaters();
         StepLook();
         if (phase != Phase.Idle)
@@ -213,7 +345,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
             interrupted = false;
             return;
         }
-        if (!IsReady || !Available || Time.time < readyAt) return;
+        if (playerOwned || !IsReady || !Available || Time.time < readyAt) return;
         if (ai == null || !ai.enabled || !foe.CanAttack || !FindHero()) return;
         if (heroHp.IsDead || hero.InputLocked || hero.VisionPreparationLocked || (heroSpecial != null && heroSpecial.IsPlaying)) return;
         if (!foe.BeginSpecial()) return;
@@ -237,6 +369,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
         yield return Retreat();
         yield return spec.run(this);
         phase = Phase.Idle; routine = null;
+        if (playerOwned) used = false;   // PvP: 다시 모아서 또 쓸 수 있다
         Notify();
     }
 
@@ -248,17 +381,17 @@ public sealed partial class EnemySpecial : MonoBehaviour
         while (t < .5f && Mathf.Abs(FoeX - HeroX) < spec.gap)
         {
             t += Time.deltaTime;
-            if (body != null) body.linearVelocity = new Vector2(S * 6.5f, body.linearVelocity.y);
+            if (!visualOnly && body != null) body.linearVelocity = new Vector2(S * 6.5f, body.linearVelocity.y);
             yield return null;
         }
-        if (body != null) body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        if (!visualOnly && body != null) body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
     }
 
     /// <summary>발동: 화면이 어두워지고 컷인이 지나간 뒤(짧은 슬로우) 기술마다 다른 시간만큼 기를 모은다. 여기까지가 끊길 수 있는 구간이다.</summary>
     IEnumerator Gather(float seconds, float scale, string state = "SPECIAL_CHARGE")
     {
         phase = Phase.CutIn;
-        HitImpact.ReleaseTimeControl();
+        if (!visualOnly) HitImpact.ReleaseTimeControl();
         QiPostFx.Set(1f); Dim(.6f, .25f);
         PlayVoice(qi.chargeStart, .9f);
         if (foeView != null) foeView.PlaySpecial(state);
@@ -266,7 +399,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
         chargeFx = charging != null ? charging.GetComponent<QiChargeFx>() : null;
         CutIn();
 
-        ownsTime = !foe.InputLocked;
+        ownsTime = !visualOnly && !foe.InputLocked;
         if (ownsTime) SetTimeScale(cutInSlowScale);
         float t = 0f;
         while (t < cutInDuration) { t += Time.unscaledDeltaTime; FollowCharge(0f, scale); yield return null; }
@@ -293,7 +426,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
         yield return Hold(.35f);
         foeLift = Vector3.zero; foeSpin = foeTilt = 0f;
         if (foeView != null) foeView.PlaySpecial("IDLE");
-        foe.EndSpecial();
+        if (!visualOnly) foe.EndSpecial();
         QiPostFx.Set(0f); Dim(1f, .5f); Pull(0f, .5f);
     }
 
@@ -307,6 +440,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
         Cleanup(ownsTime && !foe.InputLocked);
         charge = Mathf.Clamp(refund, 0, hitsToCharge - 1); readyAt = -1f;
         Notify();
+        if (playerOwned && !visualOnly) ChargeInterruptedByDamage?.Invoke();
         Debug.Log($"[EnemySpecial] {foeHp.DisplayName} {spec.hangul} 끊김 → 게이지 {charge} 반환");
     }
 
@@ -317,17 +451,17 @@ public sealed partial class EnemySpecial : MonoBehaviour
     }
 
     /// <summary>도중에 멈출 때(끊김, K.O.) 띄워 둔 것을 치우고 화면·조명·시간을 원래대로 돌린다.</summary>
-    void Cleanup(bool restoreTime)
+    void Cleanup(bool restoreTime, bool releaseGameplay = true)
     {
         updaters.Clear();
         if (chargeFx != null) { chargeFx.End(); chargeFx = null; }
         foeLift = heroLift = Vector3.zero; foeSpin = foeTilt = heroSpin = heroTilt = 0f;
         ShowFoe(true);
-        QiPostFx.Set(0f); QiCameraFx.Pull(0f);
+        QiPostFx.Set(0f); if (!visualOnly) QiCameraFx.Pull(0f);
         SetDim(1f); RestoreSky();
         if (restoreTime) RestoreTime();
         ownsTime = false;
-        foe.EndSpecial();
+        if (!visualOnly && releaseGameplay) foe.EndSpecial();
         if (root != null) { Destroy(root.gameObject, .5f); root = null; }
         foreach (var extra in extras) if (extra) Destroy(extra);
         extras.Clear();
@@ -339,11 +473,13 @@ public sealed partial class EnemySpecial : MonoBehaviour
 
     void SetTimeScale(float scale)
     {
+        if (visualOnly) return;
         Time.timeScale = scale;
         Time.fixedDeltaTime = Mathf.Max(defaultFixedDelta * scale, MinFixedDelta);
     }
     void RestoreTime()
     {
+        if (visualOnly) return;
         Time.timeScale = 1f;
         Time.fixedDeltaTime = defaultFixedDelta > 0f ? defaultFixedDelta : .02f;
     }
@@ -356,7 +492,16 @@ public sealed partial class EnemySpecial : MonoBehaviour
     /// </summary>
     bool Strike(int damage, Vector2 knockback, float fxScale, float shake, float height = 1.15f, float at = float.NaN, float reach = 1.5f)
     {
-        if (hero == null || heroHp.IsDead) return false;
+        if (visualOnly)
+        {
+            // 손님 화면: 피해는 호스트가 준다. 같은 자리 조건으로 맞았는지만 가려서 터지는 연출을 낸다.
+            if (hero == null) return false;
+            if (!float.IsNaN(at) && Mathf.Abs(HeroX - at) > reach) return false;
+            if (!guardDecided) { guardDecided = true; guardedSpecial = remoteGuarded; }
+            if (fxScale > 0f) Burst(new Vector3(HeroX, height, 0f), guardedSpecial ? fxScale * .6f : fxScale);
+            return true;
+        }
+        if (hero == null || heroHp.IsDead || PreparationInterrupted) return false;
         if (!float.IsNaN(at) && Mathf.Abs(HeroX - at) > reach) return false;
         if (!guardDecided) { guardDecided = true; guardedSpecial = hero.IsBlocking; }
         bool guarded = guardedSpecial;
@@ -378,7 +523,7 @@ public sealed partial class EnemySpecial : MonoBehaviour
     }
 
     /// <summary>막히지 않았을 때만 주인공을 묶어 둔다.</summary>
-    void Stun(float seconds) { if (guardDecided && !guardedSpecial && heroHp != null) heroHp.ExtendStun(seconds); }
+    void Stun(float seconds) { if (visualOnly) return; if (guardDecided && !guardedSpecial && heroHp != null) heroHp.ExtendStun(seconds); }
 
     /// <summary>주인공을 밀어내는 넉백(적에게서 멀어지는 쪽).</summary>
     Vector2 Away(float speed) => new Vector2(-S * speed, 0f);

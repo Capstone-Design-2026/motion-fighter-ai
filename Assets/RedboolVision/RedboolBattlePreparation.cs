@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>Scene-local preparation owns a separate lock; never clears KO or story locks.</summary>
 [DefaultExecutionOrder(-700)]
@@ -11,14 +12,16 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     public readonly RedboolPreparationState State = new RedboolPreparationState();
     private readonly List<Fighter> fighters = new List<Fighter>();
     private double nextRefresh;
-    public bool HoldRound => !KeyboardTest && (!isActiveAndEnabled || !State.Running);
-    public bool AllowsPlayer => isActiveAndEnabled && (KeyboardTest || State.Running || State.Rehearsal);
+    public bool HoldRound => EffectsPreparing || !KeyboardTest && (!isActiveAndEnabled || !State.Running);
+    public bool EffectsPreparing { get; internal set; }
+    public bool AllowsPlayer => !EffectsPreparing && isActiveAndEnabled && (KeyboardTest || State.Running || State.Rehearsal);
 
     /// <summary>
     /// 키보드 테스트 모드. 카메라(Python) 없이 키보드로 전투를 시험할 때 쓴다. 기본은 꺼져 있어 카메라 대기가 유지된다.
     /// 전투 중 F8 로 켜고 끄며, 실행 인자 -redbool-keyboard 로 처음부터 켤 수 있다(배치 검사 포함).
     /// </summary>
     public static bool KeyboardTest { get; private set; }
+    static bool previousOperatorMode;
     public const KeyCode KeyboardTestKey = KeyCode.F8;
     public static void SetKeyboardTest(bool on) => KeyboardTest = on;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -29,12 +32,25 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
         SceneManager.sceneLoaded += OnSceneLoaded;
+        previousOperatorMode=RedboolDemoSettings.OperatorMode;
+        RedboolDemoSettings.Changed-=OnSettingsChanged;
+        RedboolDemoSettings.Changed+=OnSettingsChanged;
+    }
+
+    static void OnSettingsChanged()
+    {
+        bool current=RedboolDemoSettings.OperatorMode;
+        // Only an explicit operator ON -> OFF transition returns to the camera.
+        // Command-line/native fixtures and unrelated settings keep their mode.
+        if(previousOperatorMode && !current)SetKeyboardTest(false);
+        previousOperatorMode=current;
     }
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         // sceneLoaded runs after scene Awake and before Start/Update. Stage replacements
         // created by BattleSceneBridge.Awake are included in the first lock pass.
+        if (RedboolPvp.Active) return;
         PlayerController player = null;
         RedboolDemoReceiver receiver = null;
         foreach (var root in scene.GetRootGameObjects())
@@ -61,6 +77,11 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
         receiver.player = player;
         receiver.Preparation = preparation;
         preparation.ResetPreparation();
+        if (RedboolEffectPreparation.Enabled)
+        {
+            preparation.EffectsPreparing = true;
+            receiver.gameObject.AddComponent<RedboolRenderWarmup>().preparation = preparation;
+        }
     }
 
     public void Observe(bool calibrated, string tracking, string phase, bool block, string movement)
@@ -79,7 +100,7 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyboardTestKey)) SetKeyboardTest(!KeyboardTest);
+        if (RedboolDemoSettings.OperatorMode && !RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyboardTestKey)) SetKeyboardTest(!KeyboardTest);
         if (receiver == null || !receiver.isActiveAndEnabled) State.Reset();
         else State.Tick(Time.realtimeSinceStartupAsDouble);
         if (Time.realtimeSinceStartupAsDouble >= nextRefresh) RefreshFighters();
@@ -98,28 +119,55 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     {
         var playerFighter = player != null ? player.GetComponent<Fighter>() : null;
         foreach (var fighter in fighters)
-            if (fighter != null) fighter.SetVisionPreparationLock(!KeyboardTest && !State.Running && !(State.Rehearsal && fighter == playerFighter));
+            if (fighter != null) fighter.SetVisionPreparationLock(EffectsPreparing || !KeyboardTest && !State.Running && !(State.Rehearsal && fighter == playerFighter));
     }
 
-    private void OnGUI()
+    // 전투를 멈춰 둔 이유를 화면 위쪽 가운데에 한 줄로 알린다(게임의 다른 안내와 같은 먹색 판).
+    private Canvas noticeCanvas; private Text noticeText; private string shownNotice;
+    /// <summary>지금 띄우는 안내 글. 없으면 null (검사용으로도 쓴다).</summary>
+    public string Notice
     {
-        // The result screen already explains the stopped round; do not cover it
-        // with a misleading camera prompt after the recording is closed.
-        foreach (var fighter in fighters)
-            if (fighter != null && fighter.Health != null && fighter.Health.IsDead) return;
-        if (KeyboardTest)
+        get
         {
-            GUI.Box(new Rect(Screen.width / 2f - 200, 110, 400, 26), "KEYBOARD TEST MODE — F8: camera mode");
-            return;
+            // 결과 화면이 멈춘 이유를 이미 알려 준다. 쓰러진 뒤에는 카메라 안내로 가리지 않는다.
+            foreach (var fighter in fighters)
+                if (fighter != null && fighter.Health != null && fighter.Health.IsDead) return null;
+            if (KeyboardTest) return RedboolDemoSettings.OperatorMode ? "키보드 시험 중 · F8: 카메라로 전환" : null;
+            if (EffectsPreparing) return "전투 준비 중 · 잠시만 기다려 주세요";
+            if (State.Running) return null;
+            bool integrated = RedboolCameraRuntime.Instance != null;   // 게임 안에서 카메라를 켜는 패키지
+            return State.Rehearsal ? "연결 확인 중 · 적과 시간은 잠시 멈춰 있어요"
+                : integrated && !State.Connected ? "카메라 준비 중 · 오른쪽 내 동작 화면을 확인해주세요"
+                : integrated && !State.Calibrated ? "중앙에서 가드를 잡고 보정 버튼 또는 C를 누르세요"
+                : !State.Connected ? "카메라 신호를 기다리는 중 · 카메라 프로그램이 켜져 있는지 확인해 주세요"
+                : !State.Calibrated ? "카메라 창을 누른 뒤, 가운데서 가드를 잡고 C를 눌러 보정하세요"
+                : "어깨와 두 팔이 카메라에 보이도록 해주세요";
         }
-        if (State.Running) return;
-        string text = State.Rehearsal ? "CONNECTION TEST — enemy and round timer held"
-            : !State.Connected ? "WAITING FOR CAMERA — start Python  (F8: keyboard test)"
-            : !State.Calibrated ? "CALIBRATE — focus camera window and press C"
-            : "TRACKING PAUSED — keep both arms and shoulders visible";
-        GUI.Box(new Rect(Screen.width / 2f - 300, 110, 600, 50), text);
+    }
+
+    private void LateUpdate()
+    {
+        string text = Notice;
+        if (text == shownNotice) return;
+        shownNotice = text;
+        if (noticeCanvas == null)
+        {
+            if (text == null) return;
+            noticeCanvas = UIFactory.CreateCanvas("CameraWaitNotice", transform, 150);
+            var plaque = UIFactory.CreateRect("Plaque", noticeCanvas.transform);
+            UIFactory.Place(plaque, new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -150), new Vector2(900, 58));
+            var ink = WuxiaTheme.Ornament("Ink", plaque, WuxiaGraphic.Shape.Plaque, new Color(.03f, .045f, .055f, .9f)); UIFactory.Stretch(ink.rectTransform);
+            var frame = WuxiaTheme.Ornament("Frame", plaque, WuxiaGraphic.Shape.PlaqueFrame, new Color(WuxiaTheme.Gold.r, WuxiaTheme.Gold.g, WuxiaTheme.Gold.b, .8f)); UIFactory.Stretch(frame.rectTransform);
+            noticeText = WuxiaTheme.Text("Notice", plaque, "", 24, TextAnchor.MiddleCenter, WuxiaTheme.Paper);
+            noticeText.raycastTarget = false;
+            noticeText.horizontalOverflow = HorizontalWrapMode.Wrap; noticeText.verticalOverflow = VerticalWrapMode.Truncate;
+            noticeText.resizeTextForBestFit = true; noticeText.resizeTextMinSize = 18; noticeText.resizeTextMaxSize = 24;
+            UIFactory.Stretch(noticeText.rectTransform, 18, 2, 18, 2);
+        }
+        noticeCanvas.gameObject.SetActive(text != null);
+        if (text != null) noticeText.text = text;
     }
 
     // Fail closed if accidentally disabled during battle. Scene teardown destroys the fighters.
-    private void OnDisable() { State.Reset(); ApplyLocks(); }
+    private void OnDisable() { State.Reset(); ApplyLocks(); if (noticeCanvas != null) noticeCanvas.gameObject.SetActive(false); shownNotice = null; }
 }

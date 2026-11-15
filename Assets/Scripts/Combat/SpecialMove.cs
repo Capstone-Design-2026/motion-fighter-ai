@@ -3,12 +3,13 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 필살기 파운장(破雲掌). 내 공격이 맞을 때마다 게이지가 차고, 다 차면 기를 모았다가 양 손바닥으로 기파를 밀어낸다.
-/// 게이지는 일반 공격이 막히지 않고 들어갔을 때만 찬다(2026-11-13). 막힌 공격, 내가 맞거나 막은 타격, 파운장 자체의 적중은 세지 않는다.
+/// 필살기 파운장(破雲掌). 내 일반 공격이 막히지 않고 들어갈 때 공격자의 게이지가 1씩 차고, 5회면 준비된다.
+/// 막힌 공격·피격·방어·헛치기·파운장 자체 적중은 세지 않는다. 스토리와 PvP가 같은 규칙을 쓴다.
 ///
 /// 흐름
 ///   발동  : 짧은 슬로우와 컷인(破雲掌), 화면 줌·블룸.
-///   모으기: 활성 키를 누르고 있는 동안(최소 minCharge, 최대 maxCharge). 오래 모으면 피해가 조금 늘어난다.
+///   모으기: 일반 입력은 한 번으로 최소 minCharge만 모은 뒤 자동 발사한다.
+///           BeginCharge/Release 검사 API만 최대 maxCharge까지 유지할 수 있다.
 ///           이때 맞으면 끊기고 게이지 일부를 돌려받는다. 적 AI 는 이 자세를 보고 방어를 시도할 수 있다.
 ///   발사  : SPECIAL_RELEASE 의 ReleaseImpact 시점에 기파(QiWave)가 손을 떠난다.
 ///   적중  : 정타는 큰 피해·넉백, 방어는 "기 관통"으로 일부 피해만 들어가고 방어가 풀린다. 빗나가면 짧은 무방비.
@@ -76,6 +77,7 @@ public class SpecialMove : MonoBehaviour
     public event Action<int, int> OnChargeChanged;
 
     public int Charge => charge;
+    public float VisualChargeLevel => level;
     public int HitsToCharge => hitsToCharge;
     public bool IsReady => charge >= hitsToCharge;
     public bool IsPlaying => phase != Phase.Idle;
@@ -120,6 +122,18 @@ public class SpecialMove : MonoBehaviour
         loop = gameObject.AddComponent<AudioSource>(); loop.playOnAwake = false; loop.spatialBlend = 0f; loop.loop = true;
     }
 
+    void Start()
+    {
+        if (RedboolEffectPreparation.Enabled)
+        {
+            RedboolEffectPreparation.Measure("special-font", QiCutIn.Prewarm);
+            RedboolEffectPreparation.Measure("special-volume", QiPostFx.Prewarm);
+            if (assets != null)
+                foreach (var clip in new[] { assets.chargeStart, assets.chargeLoop, assets.release, assets.impactClip, assets.readyClip, assets.fizzle })
+                    if (clip != null && clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
+        }
+    }
+
     void OnEnable()
     {
         health.OnDamaged += OnDamaged;
@@ -138,7 +152,7 @@ public class SpecialMove : MonoBehaviour
     void Update()
     {
         // 게이지 채우기는 연출 확인용 단축키. 웹캠 테스트 중에도 쓰므로 useKeyboard 와 상관없이 받는다.
-        if (chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
+        if (RedboolDemoSettings.OperatorMode && !RedboolPauseMenu.BlocksStoryInput && !RedboolPvp.Active && chargeKey != KeyCode.None && Input.GetKeyDown(chargeKey)) AddCharge(chargeKeyAmount);
 
         if (controller == null || controller.useKeyboard)
         {
@@ -190,6 +204,21 @@ public class SpecialMove : MonoBehaviour
     {
         if (!IsReady || IsPlaying) return false;
         if (health.IsDead || health.IsHitStunned || fighter.InputLocked || fighter.VisionPreparationLocked) return false;
+        // Character techniques own shared presentation, so a palm cannot overlap
+        // one. Two PvP palms do not own global cut-in/time and may start together.
+        // Consult the authoritative participants, never an arbitrary NPC.
+        if (RedboolPvp.Active && RedboolPvp.Instance != null)
+        {
+            foreach (var other in RedboolPvp.Instance.Players)
+            {
+                if (other == null || other.GetComponent<Fighter>() == fighter) continue;
+                var technique = other.GetComponent<EnemySpecial>();
+                if (technique != null && technique.isActiveAndEnabled && technique.IsPlaying) return false;
+            }
+            if (!fighter.CanAttack || fighter.IsAttackSealed) return false;
+            foreach (var participant in RedboolPvp.Instance.Players)
+                if (participant != null) participant.GetComponent<EnemySpecial>()?.ClearIdlePresentation();
+        }
         if (!fighter.BeginSpecial()) return false;
 
         spent = charge;
@@ -218,14 +247,13 @@ public class SpecialMove : MonoBehaviour
         return true;
     }
 
-    /// <summary>맞으면 모으던 기가 끊긴다. 맞거나 막는 것으로는 게이지가 차지 않는다(chargeWhenHit 을 켜면 맞았을 때만 찬다).</summary>
     void OnDamaged(bool guarded)
     {
         if (IsCharging || (phase == Phase.Releasing && !waveLaunched)) interrupted = true;
         else if (chargeWhenHit && !guarded && !IsPlaying) AddCharge();
     }
 
-    /// <summary>내 일반 공격이 막히지 않고 들어갔다 → 게이지 1칸.</summary>
+    // Only successful unguarded normal attacks feed the meter; QiWave does not emit this event.
     void OnAttackLanded(Fighter target)
     {
         if (!IsPlaying) AddCharge();
@@ -236,9 +264,9 @@ public class SpecialMove : MonoBehaviour
     IEnumerator Routine()
     {
         phase = Phase.CutIn;
-        HitImpact.ReleaseTimeControl();
-        QiPostFx.Set(1f);
-        QiCameraFx.Zoom(chargeZoom);
+        if (!RedboolPvp.Active) HitImpact.ReleaseTimeControl();
+        if (!RedboolPvp.Active) QiPostFx.Set(1f);
+        if (!RedboolPvp.Active) QiCameraFx.Zoom(chargeZoom);
         PlayVoice(assets ? assets.chargeStart : null, .9f);
         if (view != null) view.PlaySpecial(QiPalmTiming.ChargeState);
         if (assets != null && assets.charge != null)
@@ -246,9 +274,9 @@ public class SpecialMove : MonoBehaviour
             chargeFx = Instantiate(assets.charge).GetComponent<QiChargeFx>();
             FollowFx(0f);
         }
-        if (assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
+        if (!RedboolPvp.Active && assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
 
-        ownsTime = !fighter.InputLocked;
+        ownsTime = !RedboolPvp.Active && !fighter.InputLocked;
         if (ownsTime) SetTimeScale(cutInSlowScale);
         float t = 0f;
         while (t < cutInDuration)
@@ -279,7 +307,7 @@ public class SpecialMove : MonoBehaviour
 
         phase = Phase.Releasing;
         if (view != null) view.PlaySpecial(QiPalmTiming.ReleaseState);
-        QiCameraFx.Zoom(1f);
+        if (!RedboolPvp.Active) QiCameraFx.Zoom(1f);
         float r = 0f;
         while (r < QiPalmTiming.ReleaseImpact)
         {
@@ -300,7 +328,7 @@ public class SpecialMove : MonoBehaviour
             while (w < whiffOpen && !KoTookOver()) { w += Time.deltaTime; yield return null; }
         }
         fighter.EndSpecial();
-        QiPostFx.Set(0f);
+        if (!RedboolPvp.Active) QiPostFx.Set(0f);
         phase = Phase.Idle;
         routine = null;
     }
@@ -315,7 +343,7 @@ public class SpecialMove : MonoBehaviour
         var rot = Quaternion.LookRotation(dir > 0 ? Vector3.right : Vector3.left, Vector3.up);
         if (assets != null) QiFxLife.Spawn(assets.muzzle, hands, rot);
         PlayVoice(assets ? assets.release : null, 1f);
-        QiCameraFx.Shake(.05f, 7f);
+        if (!RedboolPvp.Active) QiCameraFx.Shake(.05f, 7f);
 
         int dmg = Mathf.RoundToInt(damage * (1f + fullChargeBonus * level));
         int chip = Mathf.Max(1, Mathf.RoundToInt(dmg * guardDamageRatio));
@@ -333,13 +361,14 @@ public class SpecialMove : MonoBehaviour
 
     void OnWaveHit(QiWave wave, Health target, bool guarded, Vector3 point)
     {
+        RedboolViewLink.RecordEffect(point,guarded?3:2);
         LastResult = guarded ? Result.Blocked : Result.Hit;
         // 유지형 방어는 막아도 풀리지 않는다. 파운장은 기가 방어를 뚫고 들어가 방어를 풀어 버린다.
         if (guarded) target.GetComponent<Fighter>()?.ReleaseGuard();
         bool finisher = target.IsDead;
         if (assets != null) QiFxLife.Spawn(assets.impact, point, Quaternion.identity, guarded ? .65f : 1.1f, guarded ? .5f : 1f);
         PlayVoice(assets ? assets.impactClip : null, guarded ? .65f : 1f);
-        QiCameraFx.Shake(guarded ? .05f : .13f, 5f);
+        if (!RedboolPvp.Active) QiCameraFx.Shake(guarded ? .05f : .13f, 5f);
         if (finisher) CombatSfx.PlayHit(false, true);
         HitImpact.Play(point, guarded, finisher, !finisher);
         Debug.Log($"[SpecialMove] 파운장 {(guarded ? "방어됨(기 관통)" : "적중")} → {target.DisplayName}");
@@ -364,12 +393,19 @@ public class SpecialMove : MonoBehaviour
         Debug.Log($"[SpecialMove] {name} 파운장 끊김 → 게이지 {refund} 반환");
     }
 
+    public void CancelForPause()
+    {
+        if (routine!=null) StopCoroutine(routine);
+        if (IsPlaying && !waveLaunched) { charge=Mathf.Min(hitsToCharge,charge+spent); OnChargeChanged?.Invoke(charge,hitsToCharge); }
+        Cleanup(false);
+    }
+
     void Cleanup(bool restoreTime)
     {
         if (loop) loop.Stop();
         if (chargeFx != null) { chargeFx.End(); chargeFx = null; }
-        QiPostFx.Set(0f);
-        QiCameraFx.Zoom(1f);
+        if (!RedboolPvp.Active) QiPostFx.Set(0f);
+        if (!RedboolPvp.Active) QiCameraFx.Zoom(1f);
         if (restoreTime) RestoreTime();
         ownsTime = false;
         fighter.EndSpecial();

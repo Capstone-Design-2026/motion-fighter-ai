@@ -213,6 +213,9 @@ public class EnemyAI : MonoBehaviour
 
     void Update()
     {
+        // Calibration pauses combat, not the resting facing direction.
+        if (fighter != null && fighter.VisionPreparationLocked && !fighter.InputLocked && !health.IsDead && target != null)
+            FaceTarget();
         // K.O. 연출 중에는 이긴 쪽도 행동하지 않는다. (BattleSceneBridge 가 켠다)
         if (fighter != null && (fighter.InputLocked || fighter.VisionPreparationLocked))
         {

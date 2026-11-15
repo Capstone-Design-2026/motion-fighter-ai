@@ -193,6 +193,7 @@ public class Health : MonoBehaviour
         if (flashRoutine != null) { StopCoroutine(flashRoutine); flashRoutine = null; }
 
         GetComponent<Fighter>()?.CancelAttack();
+        GetComponent<Fighter>()?.ClearAttackSeal();
         GetComponent<Fighter3DView>()?.ResetPresentation();
         CurrentHealth = maxHealth;
         invulnerableUntil = 0f;

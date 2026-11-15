@@ -34,7 +34,7 @@ MonoBehaviour:
   - boss_04
   - boss_final
   campaignBranches: 3
-  heroMovement: 0
+  heroMovement: 2
   heroWalkSpeed: 2.61
   titleMusic: {fileID: 8300000, guid: d12559d7163eff64bb3c5e7f77521464, type: 3}
   mapMusic: {fileID: 8300000, guid: 9b6aa1a1760182340b83a211f94c6308, type: 3}

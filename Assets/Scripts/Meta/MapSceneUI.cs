@@ -35,8 +35,6 @@ public class MapSceneUI : MonoBehaviour
     private readonly HashSet<string> reachable = new HashSet<string>();
 
     private bool travelling;
-    private bool showWholeMap;
-    private Text mapPreviewLabel;
     private RectTransform traveller;
     private GameObject journal;
     private Canvas canvas;
@@ -129,8 +127,7 @@ public class MapSceneUI : MonoBehaviour
 
     void Update()
     {
-        if(scroll!=null) scroll.enabled=!travelling && journal==null && !StoryCutscene.IsOpen;
-        if (journal != null && Input.GetKeyDown(KeyCode.Escape)) CloseJournal();
+        if(scroll!=null) scroll.enabled=!travelling && journal==null && !StoryCutscene.IsOpen && !RedboolPauseMenu.IsOpen;
         float now = Time.unscaledTime;
         float s = 1f + Mathf.Sin(now * pulseSpeed) * (Run != null && Run.IsStoryMap ? pulseAmount * 2.4f : pulseAmount);
         for (int i = 0; i < pulsing.Count; i++)
@@ -227,11 +224,6 @@ public class MapSceneUI : MonoBehaviour
             UIFactory.Place(minus.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(110,28),new Vector2(55,60));
             var plus=UIFactory.CreateButton("ZoomIn",canvas.transform,"+",30,WuxiaTheme.Ink,()=>{if(!travelling&&journal==null)((WorldMapScroll)scroll).SetZoom(content.localScale.x*1.25f);});
             UIFactory.Place(plus.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(173,28),new Vector2(55,60));
-            var preview=UIFactory.CreateButton("ToggleMapClouds",canvas.transform,"전체 지도 보기",22,WuxiaTheme.Ink,ToggleMapPreview);
-            WuxiaTheme.StyleButton(preview);
-            UIFactory.Stretch(preview.transform.Find("Label").GetComponent<RectTransform>(),40,0,10,0);
-            UIFactory.Place(preview.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-30,28),new Vector2(235,56));
-            mapPreviewLabel=preview.transform.Find("Label").GetComponent<Text>();
             BuildInfoCard();
             if (PreviewStyle == 1) BuildLegend();
         }
@@ -392,7 +384,7 @@ public class MapSceneUI : MonoBehaviour
             aspect.aspectRatio=(float)mapTexture.width/mapTexture.height;
             if (Run.IsStoryMap) StoryMapWater.Create(artwork, mapTexture);
         }
-        if(!showWholeMap) {
+        {
             var clouds=UIFactory.CreateRect("DriftingMapClouds",content);UIFactory.Stretch(clouds);
             var mist=clouds.gameObject.AddComponent<StoryMapFog>();mist.ambientOnly=true;mist.driftSpeed=26;mist.raycastTarget=false;
         }
@@ -416,12 +408,12 @@ public class MapSceneUI : MonoBehaviour
 
         foreach (var node in map.nodes)
         {
-            if (!showWholeMap && !Run.IsDiscovered(node.id)) continue;
+            if (!Run.IsDiscovered(node.id)) continue;
             bool fromCleared = node.status == NodeStatus.Cleared;
             foreach (var nextId in node.next)
             {
                 Vector2 to;
-                if ((!showWholeMap && !Run.IsDiscovered(nextId)) || !nodePositions.TryGetValue(nextId, out to)) continue;
+                if (!Run.IsDiscovered(nextId) || !nodePositions.TryGetValue(nextId, out to)) continue;
                 var target = map.Find(nextId);
                 int visitedIndex = Run.Data.clearedNodeIds.IndexOf(node.id);
                 bool travelled = fromCleared && target != null && visitedIndex >= 0
@@ -451,7 +443,7 @@ public class MapSceneUI : MonoBehaviour
             }
         }
 
-        if (Run.IsStoryMap && !showWholeMap)
+        if (Run.IsStoryMap)
         {
             var fogRect = UIFactory.CreateRect("ExplorationClouds",content);
             UIFactory.Stretch(fogRect);
@@ -464,7 +456,7 @@ public class MapSceneUI : MonoBehaviour
         }
         pulsing.Clear(); bouncing.Clear();
         foreach (var node in map.nodes)
-            if (showWholeMap || Run.IsDiscovered(node.id)) DrawNode(nodes, node);
+            if (Run.IsDiscovered(node.id)) DrawNode(nodes, node);
         if (Run.IsStoryMap && Run.CurrentNode != null)
         {
             if (MarkerStyle == 0) BuildTraveller(nodes, nodePositions[Run.CurrentNode.id]);
@@ -1206,17 +1198,6 @@ public class MapSceneUI : MonoBehaviour
         travelling = false;
     }
 
-    private void ToggleMapPreview()
-    {
-        if (travelling || journal != null) return;
-        showWholeMap = !showWholeMap;
-        if (mapPreviewLabel != null) mapPreviewLabel.text = showWholeMap ? "구름 다시 켜기" : "전체 지도 보기";
-        Vector2 position = scroll.normalizedPosition;
-        Rebuild();
-        Canvas.ForceUpdateCanvases();
-        scroll.normalizedPosition = position;
-    }
-
     // ─────────────────────── 단서 기록 ───────────────────────
 
     private void CloseJournal() { if (journal != null) { Destroy(journal); journal = null; } }
@@ -1250,7 +1231,7 @@ public class MapSceneUI : MonoBehaviour
         UIFactory.Place(title.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(44,-26),new Vector2(260,60));title.fontStyle=FontStyle.Bold;
         var summary=WuxiaTheme.Text("JournalSummary",paper.transform,"기록한 장소 "+entries.Count+"곳      돌파한 전투 "+won+" / "+battles,21,TextAnchor.MiddleLeft,new Color(.43f,.38f,.29f));
         UIFactory.Place(summary.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(300,-34),new Vector2(700,44));
-        var close=UIFactory.CreateButton("CloseJournal",paper.transform,"닫기  (Esc)",22,WuxiaTheme.Ink,CloseJournal);
+        var close=UIFactory.CreateButton("CloseJournal",paper.transform,"닫기",22,WuxiaTheme.Ink,CloseJournal);
         UIFactory.Place(close.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-34,-30),new Vector2(170,52));
         var rule=UIFactory.CreateImage("JournalRule",paper.transform,new Color(.53f,.40f,.23f,.45f));
         rule.rectTransform.anchorMin=new Vector2(0,1);rule.rectTransform.anchorMax=Vector2.one;
@@ -1446,9 +1427,7 @@ public class MapSceneUI : MonoBehaviour
 
     private void OnMenu()
     {
-        if (travelling || journal != null || StoryCutscene.IsOpen) return;
-        if (Run != null) Run.Save();
-        SceneRoutes.LoadStart();
+        RedboolPauseMenu.Open();
     }
 }
 

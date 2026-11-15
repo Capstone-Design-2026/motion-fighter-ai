@@ -100,7 +100,8 @@ public class RunConfig : ScriptableObject
 
     [Header("주인공 이동")]
     [Tooltip("ApprovedWalk: 승준의 승인 걷기(스텝)로 앞뒤 이동(기본). DashAndStep: 대시 → 이어 달리기 → 스텝, 뒤로는 백대시. CommonWalk: 적과 같은 걷기.")]
-    public HeroMovementStyle heroMovement = HeroMovementStyle.ApprovedWalk;
+    // Keep the field-validated camera stride. Authored travel remains an optional developer setting.
+    public HeroMovementStyle heroMovement = HeroMovementStyle.CommonWalk;
     [Tooltip("ApprovedWalk 일 때 걷기 빠르기 배율. 1 = 클립 그대로(초당 약 0.38m). 재생과 이동을 함께 올려 발이 미끄러지지 않는다. Play 중에 바꿔도 바로 반영된다.")]
     [Range(1f, 3f)] public float heroWalkSpeed = 2.61f;   // 초당 약 1.0m
 

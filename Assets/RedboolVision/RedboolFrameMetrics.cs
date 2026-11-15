@@ -12,6 +12,7 @@ public sealed class RedboolFrameMetrics : MonoBehaviour
     double started;
     int focusedFrames;
     float minTimeScale = float.PositiveInfinity, maxTimeScale;
+    int lastGc0, lastGc1, lastGc2;
     static double liveInputUntil;
     public static void NoteLiveInput() { liveInputUntil = Time.realtimeSinceStartupAsDouble + .5; }
 #if UNITY_STANDALONE_OSX && !UNITY_EDITOR
@@ -57,7 +58,12 @@ public sealed class RedboolFrameMetrics : MonoBehaviour
         UpdateActivity(Time.realtimeSinceStartupAsDouble < liveInputUntil);
         string current = SceneManager.GetActiveScene().name;
         if (current != scene) { Flush(); scene = current; started = Time.realtimeSinceStartupAsDouble; }
-        intervals.Add(Time.unscaledDeltaTime * 1000f);
+        float frameMs = Time.unscaledDeltaTime * 1000f;
+        int gc0 = GC.CollectionCount(0), gc1 = GC.CollectionCount(1), gc2 = GC.CollectionCount(2);
+        if (frameMs >= 50f)
+            Debug.Log(FormattableString.Invariant($"[REDBOOL STALL] scene={current} frame={Time.frameCount} ms={frameMs:F2} gc0={gc0-lastGc0} gc1={gc1-lastGc1} gc2={gc2-lastGc2} focused={Application.isFocused} scale={Time.timeScale:F3} realtime_s={Time.realtimeSinceStartupAsDouble:F3} utc={DateTime.UtcNow:O}"));
+        lastGc0 = gc0; lastGc1 = gc1; lastGc2 = gc2;
+        intervals.Add(frameMs);
         if (Application.isFocused) focusedFrames++;
         minTimeScale = Mathf.Min(minTimeScale, Time.timeScale);
         maxTimeScale = Mathf.Max(maxTimeScale, Time.timeScale);

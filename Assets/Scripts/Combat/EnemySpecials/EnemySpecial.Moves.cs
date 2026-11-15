@@ -145,7 +145,7 @@ public sealed partial class EnemySpecial
         Stun(1.1f);
         Drain(() => HeroChest, Hands, 14, .55f);
         yield return Hold(.3f);
-        if (heroSpecial != null) heroSpecial.ResetCharge();
+        DrainTarget();
         Fx(qi.ready, Hands(), Quaternion.identity, 2.2f, 1.2f);
         yield return Hold(.4f);
         if (foeView != null) foeView.PlaySpecial("HIGHKICK");
@@ -363,7 +363,7 @@ public sealed partial class EnemySpecial
             yield return Hold(.15f);
         }
         // 물러서서 지켜본다
-        Tween(.22f, u => { if (body != null) body.linearVelocity = new Vector2(S * 6f, body.linearVelocity.y); }, () => { if (body != null) body.linearVelocity = new Vector2(0f, body.linearVelocity.y); });
+        if (!visualOnly) Tween(.22f, u => { if (body != null) body.linearVelocity = new Vector2(S * 6f, body.linearVelocity.y); }, () => { if (body != null) body.linearVelocity = new Vector2(0f, body.linearVelocity.y); });
         if (foeView != null) foeView.PlaySpecial("GUARD_HOLD");
         yield return Hold(.45f);
         if (marks.Count > 0)
@@ -373,7 +373,7 @@ public sealed partial class EnemySpecial
             foreach (var mark in marks) { if (mark) { Burst(mark.transform.position, .5f); Sparks(mark.transform.position, Vector3.up, 18, 5f, .5f, 85f, .8f, .04f); Destroy(mark); } }
             Strike(6 * marks.Count, Away(1.5f), .9f, .32f);
             // 봉혈: 몸에 고리가 남아 있는 2초 동안 공격과 파운장이 나가지 않는다(이동과 방어는 된다)
-            hero.SealAttacks(2f);
+            if (!visualOnly) hero.SealAttacks(2f);
             Ring(u => new Vector3(HeroX, .9f, 0), Vector3.up, u => .46f, 2f, .035f, 2.2f); Ring(u => new Vector3(HeroX, 1.35f, 0), Vector3.up, u => .42f, 2f, .035f, 2.2f);
             yield return Hold(.85f);
         }
@@ -486,7 +486,7 @@ public sealed partial class EnemySpecial
             // 기운을 빨아들여 회복한다
             Drain(() => HeroChest, () => new Vector3(FoeX, 1.2f, 0), 18, .7f);
             int heal = Mathf.RoundToInt(foeHp.MaxHealth * .2f);
-            After(.5f, () => { foeHp.Heal(heal); Fx(qi.ready, new Vector3(FoeX, 1.1f, 0), Quaternion.identity, 3.2f, 1.2f); });
+            After(.5f, () => { if (!visualOnly) foeHp.Heal(heal); Fx(qi.ready, new Vector3(FoeX, 1.1f, 0), Quaternion.identity, 3.2f, 1.2f); });
             yield return Hold(.9f);
             foreach (var fang in fangs) EndWave(fang);
             Strike(10, Away(5f), 1.1f, .32f);

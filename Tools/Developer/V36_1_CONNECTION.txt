@@ -1,0 +1,44 @@
+REDBOOL v36.1 — PvP waiting-room address display
+
+The host waiting room shows eligible local IPv4 addresses with interface labels,
+copy buttons, and refresh. Guest screens never advertise the guest's own address
+as the host address. The display does not assert peer connectivity from a local IP.
+
+Local interface enumeration runs away from the render thread. The room refreshes
+at a bounded cadence; selection/combat do not start further enumeration jobs.
+No broadcast, participant input, router configuration, or firewall mutation is
+performed to obtain the list. IPv6 support is not added in this release.
+
+Loopback, unspecified, link-local, multicast, and CLAT translation-only IPv4
+addresses are excluded. Obvious VM-only adapters are not presented as a Wi-Fi
+host. Windows Wi-Fi Direct/mobile hotspot remains eligible. Multiple connected
+interfaces are labeled instead of pretending the first address is always reachable.
+
+macOS HostDown joins the existing temporary send-error filter. A failed send
+does not refresh ACKs or input leases. Later new attempts continue; no old attack
+is replayed. This prevents exception spam but cannot repair an isolated network.
+
+Camera backend is rebuilt as v36.1 / f8260da4e00de84f2639debb8caa0b01f94d82d0.
+The low-PC field recording revealed successful calibration followed by repeated
+recognition-history invalidation. Output still expires at150ms; only private
+recognition history can survive until source+220ms, validated by a fresh same-person
+successor with capture gap<=100ms and evidence age<=120ms. Expired attacks never revive.
+Normal-recording control output and79 attacks were identical across18,557 frames.
+This is not a hardware FPS measurement or a per-attempt recognition accuracy score.
+
+Tutorial memory also pauses across bounded source-continuous lease gaps without
+crediting stale time or counting stale gestures. Match presence can retain its
+original short deadline on exact-source STALE packets; those packets never renew
+the deadline or allow movement, block, or attacks. True loss/recalibration resets it.
+Sustained severe foreground rendering can request the existing720p budget even
+while the camera is starting. Loading, scene changes, modals and background time
+are excluded. Fast-PC rendering and recognition paths remain unchanged.
+
+View protocol32, ports5065/5066/5067, model files, recognition geometry, personal
+calibration, story saves, character selection, and special damage/timing stay
+unchanged from v36. Previous backend executables do not contain the new fix.
+
+Validation: deterministic multi-interface/address classification, room UI checks
+and rendered layouts, existing protocol/recognition-state self-checks, and both
+desktop builds. A displayed address is a candidate for direct LAN connection;
+physical Windows/macOS network reachability still needs a real two-PC check.

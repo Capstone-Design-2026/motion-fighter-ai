@@ -58,6 +58,7 @@ public class CombatSfx : MonoBehaviour
     private int nextAttackVoice;
 
     private static bool prefabMissing;
+    private bool prewarmed;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatic() { instance = null; prefabMissing = false; }
@@ -73,6 +74,23 @@ public class CombatSfx : MonoBehaviour
         if (prefab == null) { prefabMissing = true; return null; }
         Instantiate(prefab).name = "CombatSfx (auto)";   // Awake 가 instance 를 채운다
         return instance;
+    }
+
+    // Loading the newly shared story sound prefab belongs to preparation, not the first hit.
+    public static void Prewarm()
+    {
+        if (!RedboolEffectPreparation.Enabled) return;
+        var sfx = Ensure();
+        if (sfx == null || sfx.prewarmed) return;
+        sfx.prewarmed = true;
+        RedboolEffectPreparation.Measure("combat-audio", () => {
+            Load(sfx.attackClip); Load(sfx.finisherClip);
+            if (sfx.hitClips != null) foreach (var clip in sfx.hitClips) Load(clip);
+        });
+    }
+    static void Load(AudioClip clip)
+    {
+        if (clip != null && clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
     }
 
     /// <summary>공격 시작 효과음.</summary>

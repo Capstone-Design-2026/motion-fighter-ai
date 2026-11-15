@@ -26,9 +26,23 @@ public static class QiPalmVerification
     static SpecialMove special; static PlayerController player; static EnemyAI enemy;
     static RenderTexture rt; static Texture2D img;
 
-    static QiPalmVerification() { if (SessionState.GetBool(Flag, false)) Subscribe(); }
+    static QiPalmVerification()
+    {
+        if (!SessionState.GetBool(Flag, false)) return;
+        if (!SessionState.GetBool(Flag + ".Locked", false))
+        {
+            // A dependency import interrupted an older unlocked run. Preserve its
+            // original save through the ordinary cleanup path before retrying.
+            errors.Add("Verification interrupted by asset/domain reload; retry with assembly lock.");
+            EditorApplication.delayCall += Finish;
+        }
+        else Subscribe();
+    }
     public static void Run()
     {
+        AssetDatabase.DisallowAutoRefresh(); EditorApplication.LockReloadAssemblies();
+        SessionState.SetBool(Flag + ".Locked", true);
+        SessionState.SetFloat(Flag + ".Started", (float)EditorApplication.timeSinceStartup);
         Directory.CreateDirectory(Out + "/stills"); Directory.CreateDirectory(Out + "/frames");
         SessionState.SetBool(Flag + ".HadSave", PlayerPrefs.HasKey(SaveKey)); SessionState.SetString(Flag + ".Save", PlayerPrefs.GetString(SaveKey, ""));
         EditorSceneManager.OpenScene("Assets/Scenes/ScoutPass.unity"); SessionState.SetBool(Flag, true); Subscribe();
@@ -38,6 +52,8 @@ public static class QiPalmVerification
     static void Log(string m, string s, LogType t) { if ((t == LogType.Error || t == LogType.Exception) && !m.Contains("MCP") && !s.Contains("IvanMurzak")) errors.Add(m + "\n" + s); }
     static void Tick()
     {
+        if (EditorApplication.timeSinceStartup - SessionState.GetFloat(Flag + ".Started", 0) > 300)
+        { errors.Add("Verification timed out after 300 seconds."); Finish(); return; }
         if (!Application.isPlaying || EditorApplication.isCompiling) return;
         Application.runInBackground = true; EditorApplication.isPaused = false; EditorApplication.QueuePlayerLoopUpdate();
         if (Time.frameCount == last) return; last = Time.frameCount;
@@ -66,7 +82,10 @@ public static class QiPalmVerification
         File.WriteAllLines(Out + "/runtime_errors.txt", errors);
         bool pass = errors.Count == 0 && checks.All(x => x.StartsWith("PASS"));
         File.WriteAllText(Out + "/verify_done.txt", pass ? "PASS" : "FAIL");
-        SessionState.SetBool(Flag, false); EditorApplication.update -= Tick; Application.logMessageReceived -= Log; EditorApplication.Exit(pass ? 0 : 1);
+        SessionState.SetBool(Flag, false); EditorApplication.update -= Tick; Application.logMessageReceived -= Log;
+        if (SessionState.GetBool(Flag + ".Locked", false))
+        { SessionState.SetBool(Flag + ".Locked", false); EditorApplication.UnlockReloadAssemblies(); AssetDatabase.AllowAutoRefresh(); }
+        EditorApplication.Exit(pass ? 0 : 1);
     }
 
     // ───────────── helpers ─────────────
@@ -111,7 +130,6 @@ public static class QiPalmVerification
         foreach (var p in Object.FindObjectsByType<Pushbox>(FindObjectsSortMode.None)) p.enabled = false;
         cam = Camera.main; var rig = cam.GetComponent<Battle3DCamera>(); rig.allowMouseOrbit = false; rig.automaticCombatFraming = false; rig.SetOrbit(-24, 9, true);
         hud = Object.FindAnyObjectByType<CombatHUD>()?.GetComponentInChildren<Canvas>(); if (hud) hud.transform.Find("KeyGuide")?.gameObject.SetActive(false);
-        var webcamUi = GameObject.Find("WebcamUI"); if (webcamUi) webcamUi.SetActive(false);
         File.WriteAllText(Out + "/events.txt", "");
         Check(special != null && QiPalmAssets.Load() != null, "SpecialMove and QiPalmAssets present in " + SceneManager.GetActiveScene().name);
         Check(view.modelAnimator.runtimeAnimatorController != null && view.modelAnimator.HasState(0, Animator.StringToHash(QiPalmTiming.ChargeState)) && view.modelAnimator.HasState(0, Animator.StringToHash(QiPalmTiming.ReleaseState)), "player animator has SPECIAL_CHARGE / SPECIAL_RELEASE");
@@ -133,14 +151,14 @@ public static class QiPalmVerification
         enemyF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         ph.OnDamaged -= onBlock; playerF.ReleaseGuard();
-        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
+        Check(guardUp && blockedOne && ph.CurrentHealth == hpBefore-enemyF.GuardedDamageOf(CombatMove.Jab) && special.Charge == 0, "blocking a hit does not fill the gauge: blocked " + blockedOne + " gauge " + special.Charge);
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         Position(-.4f, .4f); bool foeGuard = enemyF.TryGuard(false);
         for (var w = Wait(.5f); w.MoveNext();) yield return null;
         int foeHp = eh.CurrentHealth; playerF.TryAttack(CombatMove.Jab);
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         enemyF.ReleaseGuard();
-        Check(foeGuard && eh.CurrentHealth == foeHp && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
+        Check(foeGuard && eh.CurrentHealth == foeHp-playerF.GuardedDamageOf(CombatMove.Jab) && special.Charge == 0, "a blocked attack does not fill the gauge: gauge " + special.Charge);
         for (var w = Wait(.8f); w.MoveNext();) yield return null;
         for (int n = 1; n <= 2; n++)
         {
@@ -305,5 +323,11 @@ public static class QiPalmVerification
         while (RunState.Instance.HasPendingBattle && Time.realtimeSinceStartup < done) yield return null;
         Check(RunState.Instance.LastBattleWon && !RunState.Instance.HasPendingBattle, "victory resolves after special K.O.");
         Check(Mathf.Approximately(Time.timeScale, 1f), "time scale restored after K.O.");
+        var oldEffect = Object.FindAnyObjectByType<QiPostFxDriver>();
+        if (oldEffect != null) Object.Destroy(oldEffect.gameObject);
+        yield return null;
+        QiPostFx.Set(0f);
+        Check(Object.FindAnyObjectByType<QiPostFxDriver>() == null,
+            "cleanup after effect destruction does not spawn another post-effect object");
     }
 }

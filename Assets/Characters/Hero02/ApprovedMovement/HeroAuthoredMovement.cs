@@ -40,7 +40,7 @@ public sealed class HeroAuthoredMovement : MonoBehaviour
     void OnEnable()
     {
         var run = RunState.Instance;
-        var style = run != null && run.Config != null ? run.Config.heroMovement : HeroMovementStyle.ApprovedWalk;
+        var style = run != null && run.Config != null ? run.Config.heroMovement : HeroMovementStyle.CommonWalk;
         if (style == HeroMovementStyle.CommonWalk) { enabled = false; return; }
         sequence.WalkOnly = style == HeroMovementStyle.ApprovedWalk;
         config = run != null ? run.Config : null;

@@ -25,7 +25,7 @@ public class StoryVideo : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space)) RequestAdvance();
+        if (!RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyCode.Space)) RequestAdvance();
     }
 
     // Shared by keyboard input and runtime checks; loading input is deliberately discarded.

@@ -33,6 +33,20 @@ public sealed partial class EnemySpecial
     private Material skyMat, skyOriginal;
     private bool lightingCaptured;
 
+    // A component is reused when a player selects another character. These
+    // generated materials contain that character's tint; source assets do not.
+    void ClearVisualMaterialCache()
+    {
+        ClearGhostRenderSamples();
+        foreach (var material in recolored.Values) if (material) Destroy(material, .6f);
+        foreach (var material in glowMats.Values) if (material) Destroy(material, .6f);
+        recolored.Clear(); glowMats.Clear();
+        foreach (var material in new[] { smokeMat, softMat, sparkMat, darkMat, crackMat })
+            if (material) Destroy(material, .6f);
+        smokeMat = softMat = sparkMat = darkMat = crackMat = null;
+        smokeFlash = 0f;
+    }
+
     const float RibbonWidth = 2.3f;   // 빛나는 띠는 가장자리가 번지며 사라지므로 이만큼 넓혀 그린다
 
     // ───────────── 기본 도구 ─────────────
@@ -63,6 +77,7 @@ public sealed partial class EnemySpecial
 
     void Place(GameObject fighter, float x)
     {
+        if (visualOnly) return;
         var p = fighter.transform.position; p.x = x; fighter.transform.position = p;
         var rb = fighter.GetComponent<Rigidbody2D>();
         if (rb != null) { rb.position = new Vector2(x, rb.position.y); rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y); }
@@ -112,6 +127,7 @@ public sealed partial class EnemySpecial
     }
     void Slide(GameObject fighter, float toX, float seconds)
     {
+        if (visualOnly) return;
         float from = fighter.transform.position.x;
         Tween(seconds, u => { if (fighter) Place(fighter, Mathf.Lerp(from, toX, u)); });
     }
@@ -128,8 +144,8 @@ public sealed partial class EnemySpecial
         Tween(seconds, u => heroTilt = tilt * Mathf.Sin(u * Mathf.PI), () => heroTilt = 0f);
     }
     /// <summary>카메라가 물러나 큰 기술을 한 화면에 담는다.</summary>
-    void Pull(float to, float seconds) { float from = pull; Tween(seconds, u => { pull = Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, u)); QiCameraFx.Pull(pull * .8f); }); }
-    void Shake(float amplitude, float decay = 6f) => QiCameraFx.Shake(amplitude * .45f, decay);
+    void Pull(float to, float seconds) { if (visualOnly) return; float from = pull; Tween(seconds, u => { pull = Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, u)); QiCameraFx.Pull(pull * .8f); }); }
+    void Shake(float amplitude, float decay = 6f) { if (!visualOnly) QiCameraFx.Shake(amplitude * .45f, decay); }
     void ShowFoe(bool visible)
     {
         if (foeView == null || foeView.visualRoot == null) return;
@@ -137,6 +153,7 @@ public sealed partial class EnemySpecial
     }
     void ApplyPose()
     {
+        if (visualOnly) return;   // 손님 화면의 몸 위치와 기울기는 호스트가 보낸 값 그대로다
         if (foeView != null && foeView.visualRoot != null && (foeLift != Vector3.zero || foeSpin != 0f || foeTilt != 0f))
         {
             var t = foeView.visualRoot; t.position += foeLift;
@@ -646,9 +663,49 @@ public sealed partial class EnemySpecial
         var renderer = go.GetComponent<Renderer>(); renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
         return go;
     }
+    // Readiness warmup owns activation and the temporary camera target. This
+    // sample has no attack coroutine, tween, physics, audio or gameplay state.
+    readonly List<GhostRenderSample> ghostRenderSamples = new List<GhostRenderSample>();
+    public sealed class GhostRenderSample : IDisposable
+    {
+        public GameObject Root { get; private set; }
+        EnemySpecial owner; Material material;
+        internal GhostRenderSample(EnemySpecial owner, GameObject root, Material material)
+        { this.owner = owner; Root = root; this.material = material; }
+        public void Dispose()
+        {
+            if (Root != null) { Root.SetActive(false); UnityEngine.Object.Destroy(Root); Root = null; }
+            if (material != null) { UnityEngine.Object.Destroy(material); material = null; }
+            if (owner != null) owner.ghostRenderSamples.Remove(this);
+            owner = null;
+        }
+    }
+    public GhostRenderSample CreateGhostRenderSample(Transform inactiveHolder, Vector3 position)
+    {
+        if (!isActiveAndEnabled || Current == null || Current.id != "entrance" || fx == null || foeView == null || foeView.visualRoot == null) return null;
+        if (inactiveHolder == null || inactiveHolder.gameObject.activeInHierarchy)
+            throw new ArgumentException("Ghost warmup requires an inactive holder", "inactiveHolder");
+        Material orb;
+        var go = BuildGhost(position, position + Vector3.right, "WALK_FORWARD", true, 2.4f, inactiveHolder, true, out orb);
+        var sample = new GhostRenderSample(this, go, orb); ghostRenderSamples.Add(sample); return sample;
+    }
+    void ClearGhostRenderSamples()
+    {
+        foreach (var sample in ghostRenderSamples.ToArray()) sample.Dispose();
+        ghostRenderSamples.Clear();
+    }
+
     /// <summary>적의 지금 모습을 본뜬 잔상(dark 면 검은 그림자 분신). 지정한 동작을 재생하고 사라진다.</summary>
     GameObject Ghost(Vector3 position, Vector3 lookAt, string state, float life, bool dark = false, float speed = 1f)
     {
+        Material orb;
+        var go = BuildGhost(position, lookAt, state, dark, speed, Root, false, out orb);
+        Tween(life, u => orb.SetFloat("_Alpha", 1f - Mathf.Clamp01((u - .65f) / .35f)), () => { if (go) Destroy(go); Destroy(orb); });
+        return go;
+    }
+    GameObject BuildGhost(Vector3 position, Vector3 lookAt, string state, bool dark, float speed, Transform parent, bool warmup, out Material orb)
+    {
+        long began = System.Diagnostics.Stopwatch.GetTimestamp();
         var source = foeView.visualRoot.gameObject;
         // 꺼진 부모 밑에 복제해 전투 스크립트가 한 번도 깨어나지 않게 한 뒤 떼어 낸다.
         var holder = new GameObject("Ghost holder"); holder.SetActive(false);
@@ -658,12 +715,17 @@ public sealed partial class EnemySpecial
         foreach (var c in go.GetComponentsInChildren<Collider2D>(true)) DestroyImmediate(c);
         foreach (var l in go.GetComponentsInChildren<Light>(true)) DestroyImmediate(l);
         foreach (var a in go.GetComponentsInChildren<AudioSource>(true)) DestroyImmediate(a);
+        if (warmup)
+        {
+            foreach (var rb in go.GetComponentsInChildren<Rigidbody>(true)) { rb.isKinematic = true; rb.detectCollisions = false; }
+            foreach (var rb in go.GetComponentsInChildren<Rigidbody2D>(true)) rb.simulated = false;
+        }
         var look = lookAt - position; look.y = 0f;
-        go.transform.SetParent(Root, false);
-        go.transform.SetPositionAndRotation(new Vector3(position.x, source.transform.position.y - foeLift.y, position.z), look.sqrMagnitude > .001f ? Quaternion.LookRotation(look) : source.transform.rotation);
+        go.transform.SetParent(parent, false);
+        go.transform.SetPositionAndRotation(new Vector3(position.x, warmup ? position.y : source.transform.position.y - foeLift.y, position.z), look.sqrMagnitude > .001f ? Quaternion.LookRotation(look) : source.transform.rotation);
         go.transform.localScale = source.transform.lossyScale;
         Destroy(holder);
-        var anim = go.GetComponentInChildren<Animator>(); if (anim != null) { anim.applyRootMotion = false; anim.speed = speed; anim.Play(state, 0, 0f); }
+        var anim = go.GetComponentInChildren<Animator>(warmup); if (anim != null) { anim.applyRootMotion = false; anim.speed = speed; if (!warmup) anim.Play(state, 0, 0f); }
         void Paint(GameObject target, Material material)
         {
             foreach (var r in target.GetComponentsInChildren<Renderer>(true))
@@ -673,16 +735,22 @@ public sealed partial class EnemySpecial
             }
         }
         // 잔상은 가장자리가 빛나는 기운 몸체로 그린다. 그림자 분신은 검은 몸 위에, 같은 동작을 하는 빛 테두리를 겹친다.
-        var orb = OrbMaterial(dark ? Color.black : Hdr(spec.tint, .2f), Hdr(spec.tint, dark ? 1.6f : 2.3f), dark ? 2.6f : 1.7f);
+        orb = OrbMaterial(dark ? Color.black : Hdr(spec.tint, .2f), Hdr(spec.tint, dark ? 1.6f : 2.3f), dark ? 2.6f : 1.7f);
         if (dark)
         {
             Paint(go, DarkMaterial);
             var rim = Instantiate(go, go.transform); rim.transform.localPosition = Vector3.zero; rim.transform.localRotation = Quaternion.identity; rim.transform.localScale = Vector3.one;
             Paint(rim, orb);
-            var rimAnim = rim.GetComponentInChildren<Animator>(); if (rimAnim != null) { rimAnim.applyRootMotion = false; rimAnim.speed = speed; rimAnim.Play(state, 0, 0f); }
+            var rimAnim = rim.GetComponentInChildren<Animator>(warmup); if (rimAnim != null) { rimAnim.applyRootMotion = false; rimAnim.speed = speed; if (!warmup) rimAnim.Play(state, 0, 0f); }
         }
         else Paint(go, orb);
-        Tween(life, u => orb.SetFloat("_Alpha", 1f - Mathf.Clamp01((u - .65f) / .35f)), () => { if (go) Destroy(go); Destroy(orb); });
+        if (Application.isEditor || Debug.isDebugBuild)
+        {
+            double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - began) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            Debug.Log("[REDBOOL GHOST BUILD] warmup=" + warmup + " remote=" + visualOnly + " dark=" + dark
+                + " cpu_ms=" + ms.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)
+                + " skinned=" + go.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length);
+        }
         return go;
     }
     /// <summary>한쪽에서 다른 쪽으로 빨려 가는 기운 알갱이.</summary>

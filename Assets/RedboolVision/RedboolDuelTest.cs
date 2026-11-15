@@ -1,9 +1,9 @@
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
-/// <summary>Explicit, unsaved combat rehearsal. Normal campaign routing is unchanged.</summary>
+/// <summary>Explicit, unsaved combat rehearsal. Normal campaign routing is unchanged.
+/// 시작 화면의 빠른 대전 또는 --redbool-duel-test 로 진입한다. 운영자 모드의 F5 는 처음부터 다시.</summary>
 public sealed class RedboolDuelTest : MonoBehaviour
 {
     public static bool Active { get; private set; }
@@ -18,6 +18,19 @@ public sealed class RedboolDuelTest : MonoBehaviour
     static void CommandLineEntry()
     {
         if (Array.IndexOf(Environment.GetCommandLineArgs(), "--redbool-duel-test") >= 0) Begin();
+    }
+
+    public static void End() { Active=false; if(instance!=null) Destroy(instance.gameObject); instance=null; }
+
+    public static void ReturnToMenu()
+    {
+        if (!Active) return;
+        // Direct duel never owns a campaign run. Leave it through the normal
+        // menu route so the integrated camera can finish its diagnostics.
+        HitImpact.ReleaseTimeControl();
+        Time.timeScale = 1f; Time.fixedDeltaTime = .02f;
+        End();
+        SceneRoutes.LoadStart();
     }
 
     public static void Begin()
@@ -45,9 +58,15 @@ public sealed class RedboolDuelTest : MonoBehaviour
 
     void Start()
     {
+        UIFactory.EnsureEventSystem();
         var canvas = UIFactory.CreateCanvas("DuelTestHelp", transform, 210);
+        var exit = UIFactory.CreateButton("DuelExitToMenu", canvas.transform, "게임 메뉴 · Esc", 20,
+            WuxiaTheme.Ink, RedboolPauseMenu.Open);
+        UIFactory.Place(exit.GetComponent<RectTransform>(), new Vector2(0, 1), new Vector2(0, 1),
+            new Vector2(24, -124), new Vector2(180, 42));
+        WuxiaTheme.StyleButton(exit);
         var label = WuxiaTheme.Text("Help", canvas.transform,
-            "결투 테스트 · 진행 저장 안 함  |  F5: 처음부터 다시  |  I: 필살기 충전", 18,
+            "빠른 대전 · 스토리 진행은 저장되지 않아요  |  Esc: 게임 메뉴", 18,
             TextAnchor.MiddleCenter, WuxiaTheme.Paper);
         UIFactory.Place(label.rectTransform, new Vector2(.5f, 0), new Vector2(.5f, 0),
             new Vector2(0, 24), new Vector2(1100, 40));
@@ -55,6 +74,7 @@ public sealed class RedboolDuelTest : MonoBehaviour
 
     void Update()
     {
-        if (Active && Input.GetKeyDown(KeyCode.F5)) Restart();
+        if (!Active) return;
+        if (RedboolDemoSettings.OperatorMode && !RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(KeyCode.F5)) Restart();
     }
 }

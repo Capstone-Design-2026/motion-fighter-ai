@@ -238,7 +238,7 @@ public class EndingSceneUI : MonoBehaviour
         endCard.alpha = Mathf.Clamp01((since - .6f) / 1.5f);
         if (music != null && since > EndCardTime - 2f) music.volume = Mathf.Min(music.volume, Mathf.Clamp01((EndCardTime - since) / 2f) * .8f);
 
-        if (Input.GetKeyDown(KeyCode.Escape) || since >= EndCardTime) Finish();
+        if (since >= EndCardTime) Finish();
     }
 
     /// <summary>검사·미리보기용: 지정한 시간만큼 흐른 모습으로 맞춘다.</summary>

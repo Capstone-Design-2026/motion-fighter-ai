@@ -1,0 +1,37 @@
+name: Windows socket ownership
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/pvp-dual-screen-20261112]
+    paths:
+      - Assets/RedboolVision/RedboolSocketOwnership.cs
+      - Assets/RedboolVision/RedboolDemoReceiver.cs
+      - Assets/RedboolVision/RedboolViewLink.cs
+      - Tools/Developer/tests/**
+      - .github/workflows/windows-socket-ownership.yml
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: |
+            Assets/RedboolVision
+            Tools/Developer/tests
+      - name: Check native Windows handle inheritance without camera
+        shell: pwsh
+        run: ./Tools/Developer/tests/check_socket_ownership.ps1 -OutputDirectory "$env:RUNNER_TEMP/redbool-socket-check"
+      - name: Save positive-control and protected-handle evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: REDBOOL-Windows-Socket-Ownership
+          path: ${{ runner.temp }}/redbool-socket-check/*.json
+          retention-days: 14
+          if-no-files-found: error
