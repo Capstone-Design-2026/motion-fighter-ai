@@ -9,7 +9,7 @@ import sys
 
 from .landmark_recording import SCHEMA, VERSION
 
-RELEASE = 'v36.1'
+RELEASE = 'v36.2'
 PROVENANCE_FILE = 'backend-provenance.json'
 
 

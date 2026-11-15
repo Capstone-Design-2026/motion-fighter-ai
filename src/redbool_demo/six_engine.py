@@ -38,6 +38,36 @@ class SixAttack(DemoAttack):
     learned_guard_required = False
     guard_probability = 0.
 
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.projected_body_samples = []
+
+    def invalidate(self, now):
+        super().invalidate(now)
+        self.projected_body_samples.clear()
+
+    @staticmethod
+    def _projected_body_evidence(arm, base, rule):
+        delta = arm['position'] - base['position']
+        return bool(.12 < delta[1] <= .55 and abs(delta[0]) >= .65
+            and arm['position'][1] <= .55 and arm['angle'] >= 1.8
+            and arm['angle'] - base['angle'] >= 1.5
+            and rule['vertical_fraction'] <= .60 and rule['outward'])
+
+    def _remember_projected_body(self, arms, signals, now, previous_state, block):
+        # Record once after processing an observation. candidates() is queried
+        # more than once in an update; those queries must not invent extra votes.
+        if (previous_state != 'CANDIDATE' or self.state != 'CANDIDATE'
+                or block or self.inhibited or not self.opposite_guard):
+            self.projected_body_samples.clear()
+            return
+        self.projected_body_samples = [t for t in self.projected_body_samples
+            if 0 <= now-t <= 120_000_000]
+        if any(self._projected_body_evidence(a, self.baseline[s], signals[s])
+               for s, a in arms.items()):
+            if not self.projected_body_samples or self.projected_body_samples[-1] != now:
+                self.projected_body_samples.append(now)
+
     @staticmethod
     def guard_position(arm, base, *, allow_calibrated_floor=False):
         dx, dy = arm['position'][:2] - base['position'][:2]
@@ -98,6 +128,7 @@ class SixAttack(DemoAttack):
                 block and not recovering)
         finally:
             self.block_return = False
+        self._remember_projected_body(arms, signals, now, previous_state, block)
         if previous_state == 'READY' and self.state == 'CANDIDATE':
             self.early_candidate = not signals[self.side]['strict_onset_rule']
         elif self.state != 'CANDIDATE':self.early_candidate = False
@@ -207,6 +238,19 @@ class SixAttack(DemoAttack):
                 and arm['position'][1]<=1.0 and arm['angle']>=2.2
                 and arm['angle']-self.baseline[side]['angle']>=.7
                 and row['vertical_fraction']<=.8 and row['outward'])
+            # A front-directed body punch can fold its monocular depth while
+            # the image elbow opens clearly. Finish only an existing onset with
+            # two separate substantial openings, a guarding opposite hand and
+            # large horizontal travel. Never start/rearm from this route.
+            projected_body = bool(self.baseline and self.state == 'CANDIDATE'
+                and not self.inhibited and self.opposite_guard
+                and self._projected_body_evidence(arm, self.baseline[side], row)
+                and arm['angle'] >= 2.05
+                and any(30_000_000 <= self.now-t <= 120_000_000
+                        for t in self.projected_body_samples))
+            if projected_body:
+                body_planar = True
+                row['projected_body_confirmation'] = True
             row['body_extension'] = body_extension
             row['body_planar_extension'] = body_planar
             low_forward = low_forward or compact_low or body_extension or body_planar
