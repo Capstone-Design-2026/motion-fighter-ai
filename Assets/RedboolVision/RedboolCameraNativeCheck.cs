@@ -77,6 +77,11 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         }
     }
     void Check(bool value,string label) {if(!value)throw new Exception(label);checks.Add(label);Debug.Log("[CAMERA CHECK] "+label);}
+    // UI units are independent of Retina render scale. A half-unit tolerance
+    // tolerates layout rounding but still detects a missing 24-unit status row.
+    const float LayoutTolerance=.5f;
+    static bool LayoutSize(RectTransform item,float width,float height)
+    {return Mathf.Abs(item.rect.width-width)<=LayoutTolerance&&Mathf.Abs(item.rect.height-height)<=LayoutTolerance;}
     static void Deadline(double end,string label) {if(Time.realtimeSinceStartupAsDouble>end)throw new Exception("Timed out: "+label);}
     static Button ButtonNamed(string name)
     {
@@ -102,7 +107,15 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             fixture.calibrated=true;refresh.Invoke(panel,null);
             Check(panel.SmallPreview&&!panel.DetailedGuidance&&runtime.PreviewVisible,"Calibration automatically shrinks preview without pausing its images");
             var frame=GameObject.Find("CameraFrame").GetComponent<RectTransform>();
-            Check(frame.rect.width==240&&frame.rect.height==257,"Normal combat preview occupies the compact 240 by 257 layout");
+            // Current product: 70 header (including the calibration-status row),
+            // 159 image and 52 footer. The old 257 omitted that 24-unit row.
+            Check(LayoutSize(frame,240,281),"Normal combat preview occupies the compact 240 by 281 layout; actual "+frame.rect.size);
+            var calibrationLine=frame.Find("CalibrationStatus").GetComponent<Text>();
+            var previewImage=frame.Find("LocalCameraImage").GetComponent<RectTransform>();
+            Check(calibrationLine.gameObject.activeInHierarchy&&!string.IsNullOrEmpty(calibrationLine.text)
+                &&Mathf.Abs(calibrationLine.rectTransform.rect.height-24)<=LayoutTolerance
+                &&!ScreenRect(calibrationLine.rectTransform).Overlaps(ScreenRect(previewImage)),
+                "Calibration-status row stays visible above the compact preview without overlap");
             Check(!ButtonNamed("CameraCalibrate").transform.Find("MenuMark").gameObject.activeSelf,"Compact controls hide oversized decorative marks");
             Check(string.IsNullOrEmpty(panel.DisplayedFeedbackText),"Normal ready combat does not display routine action or recovery text");
             Text shortText=null;
@@ -139,7 +152,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             refresh.Invoke(panel,null);
 
             ButtonNamed("FoldCamera").onClick.Invoke();refresh.Invoke(panel,null);
-            Check(!runtime.PreviewVisible&&frame.rect.height==98,"Explicit fold hides image work while retaining necessary controls");
+            Check(!runtime.PreviewVisible&&LayoutSize(frame,240,122),"Explicit fold hides image work while retaining the 70-unit header and 52-unit controls; actual "+frame.rect.size);
             fixture.calibrated=false;refresh.Invoke(panel,null);
             Check(!panel.SmallPreview&&runtime.PreviewVisible,"New calibration expands and unfolds the camera guidance");
             fixture.calibrated=true;refresh.Invoke(panel,null);
