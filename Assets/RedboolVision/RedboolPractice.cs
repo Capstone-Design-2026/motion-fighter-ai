@@ -22,14 +22,37 @@ public sealed class RedboolPractice
     public bool Suspended;
     double returnSince = -1;
     readonly Func<double> clock;
-    public RedboolPractice(Func<double> clock=null) { this.clock=clock??(()=>Time.realtimeSinceStartupAsDouble);Reset(); }
-    public void Reset() { Run=Guid.NewGuid().ToString("N"); Step=Hits=Skipped=0; armed=false; returnSince=-1; }
-    void Advance() { Step++;Hits=0;armed=true;returnSince=-1; }
+    readonly Func<long> sourceClock;
+    readonly RedboolPracticeContinuity continuity=new RedboolPracticeContinuity();
+    bool sourceTiming;
+    public RedboolPractice(Func<double> clock=null,Func<long> sourceClock=null) { this.clock=clock??(()=>Time.realtimeSinceStartupAsDouble);this.sourceClock=sourceClock??RedboolPracticeContinuity.ClockNs;Reset(); }
+    public void Reset() { Run=Guid.NewGuid().ToString("N"); Step=Hits=Skipped=0; armed=false; returnSince=-1;continuity.Reset();sourceTiming=false; }
+    void Advance() { Step++;Hits=0;armed=true;returnSince=-1;continuity.Reset();sourceTiming=false; }
     public void Skip() { if(!Complete) {Skipped++;Advance();} }
     // Discrete events already passed v26's onset/return/re-arm checks. Requiring
     // both arms READY again here strands recognized gestures in a second FSM.
-    public void Tick() { if(!Suspended && !Complete && Hits>=2 && (Step<4 || Step==7) && returnSince>=0 && clock()-returnSince>=.25) Advance(); }
+    public void Tick() {
+        if(Suspended){continuity.Reset();sourceTiming=false;armed=false;if(Hits<2||Step>=4&&Step<=6)returnSince=-1;return;}
+        long now=sourceClock();
+        if(sourceTiming&&continuity.Tick(now)){armed=false;if(Step>=4&&Step<=6)returnSince=-1;}
+        if(!Complete && Hits>=2 && (Step<4 || Step==7) && returnSince>=0 && clock()-returnSince>=.25) Advance();
+        else if(!Complete&&Hits>=2&&Step>=4&&Step<=6&&sourceTiming&&continuity.Fresh(now)&&continuity.RestNs>=150000000L)Advance();
+    }
+    public void ObserveInput(RedboolPracticeInput input)
+    {
+        if(Complete||Suspended){continuity.Reset();sourceTiming=false;return;}
+        bool rest=input!=null&&(Step==4 ? input.Action!="BLOCK" : Step==5||Step==6 ? input.Movement=="NEUTRAL" : input.Action=="IDLE");
+        var result=continuity.Observe(input,rest);
+        if(result==RedboolPracticeContinuity.Result.Legacy){sourceTiming=false;Observe(input.Action,input.Confidence,input.Movement,input.Strength);return;}
+        sourceTiming=true;
+        if(result==RedboolPracticeContinuity.Result.Reset){armed=false;if(Hits<2||Step>=4&&Step<=6)returnSince=-1;return;}
+        if(result==RedboolPracticeContinuity.Result.Paused)return;
+        if(result==RedboolPracticeContinuity.Result.FreshReset){armed=false;if(Step>=4&&Step<=6)returnSince=-1;}
+        ObserveCore(input.Action,input.Confidence,input.Movement,input.Strength,true);
+    }
     public void Observe(string action, float confidence, string movement, float strength)
+    { continuity.Reset();sourceTiming=false;ObserveCore(action,confidence,movement,strength,false); }
+    void ObserveCore(string action, float confidence, string movement, float strength,bool bounded)
     {
         if (Complete || Suspended) return;
         if (action=="UNAVAILABLE") { armed=false; if(Hits<2 || Step>=4 && Step<=6) returnSince=-1; return; }
@@ -40,7 +63,9 @@ public sealed class RedboolPractice
             if (Hits>=2)
             {
                 if (returnSince<0) returnSince=clock();
-                if ((Step==4 || Step==5 || Step==6) && clock()-returnSince>=.15) Advance();
+                if ((Step==4 || Step==5 || Step==6) && (bounded
+                    ? continuity.Fresh(sourceClock())&&continuity.RestNs>=150000000L
+                    : clock()-returnSince>=.15)) Advance();
             }
             return;
         }

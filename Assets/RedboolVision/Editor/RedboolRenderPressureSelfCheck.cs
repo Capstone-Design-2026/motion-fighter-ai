@@ -41,6 +41,61 @@ public static class RedboolRenderPressureSelfCheck
         Check(RedboolRenderPressure.LowBudget(true, false, false), "Existing backend latency warning still lowers rendering");
         Check(RedboolRenderPressure.LowBudget(false, false, true), "Joint pressure feeds the existing render owner");
         Check(!RedboolRenderPressure.LowBudget(false, false, false), "Turning off manual low is not itself a latch");
+
+        // 025 ScoutPass preview windows, in recorded order. The first window
+        // includes scene/model startup, so it must not count as stable pressure.
+        p.Reset(10);
+        Check(!p.Observe(10,true,false,5.019,0,111.543,false) && p.SevereGameWindows==0,
+            "025 loading window is excluded even when the game is extremely slow");
+        Check(!p.Observe(10,true,false,5.099,0,115.875,true) && p.SevereGameWindows==1 && p.BadWindows==0,
+            "025 first stable slow window counts before a camera result exists");
+        Check(p.Observe(10,true,false,5.069,0,115.201,true) && p.Trigger=="severe_game",
+            "025 second stable slow window enables existing render relief without camera freshness");
+        Check(p.Observe(10,true,false,5,0,16,false), "Severe relief stays latched while a modal or recalibration is open");
+        Check(!p.Observe(11,true,false,5,0,16,true) && p.Trigger=="" && p.SevereGameWindows==0,
+            "Starting a new camera session clears severe pressure and its diagnostic reason");
+        foreach(double ms in new[]{16.7,28.0,30.553,33.34,50.0})
+        {
+            p.Reset(1);
+            Check(!p.Observe(1,true,false,5,0,ms,true) && !p.Observe(1,true,false,5,0,ms,true),
+                "Normal 30/60fps and the exact severe boundary do not trigger without joint evidence: "+ms);
+        }
+        p.Reset(1);
+        Check(!Bad(p) && !p.Observe(1,true,false,5,0,100,true),
+            "One joint window and one severe-only window cannot combine into a latch");
+        Check(p.Observe(1,true,false,5,0,100,true), "Two severe-only windows still latch after a mixed start");
+        p.Reset(1);p.Observe(1,true,false,5,0,100,true);
+        Check(!p.Observe(1,true,false,5,0,100,false) && p.SevereGameWindows==0,
+            "A scene transition, modal, pause or unfocused interval breaks pending severe pressure");
+        Check(!p.Observe(1,true,false,5,0,100,true), "Recovery needs two new complete eligible windows");
+        foreach(double elapsed in new[]{0d,4.9,8,double.NaN,double.PositiveInfinity})
+        {
+            p.Reset(1);p.Observe(1,true,false,5,0,100,true);
+            Check(!p.Observe(1,true,false,elapsed,0,100,true) && p.SevereGameWindows==0,
+                "Incomplete or sleep-sized windows also reset severe pressure: "+elapsed);
+        }
+        foreach(double ms in new[]{0d,-1,double.NaN,double.PositiveInfinity})
+        {
+            p.Reset(1);p.Observe(1,true,false,5,0,100,true);
+            Check(!p.Observe(1,true,false,5,0,ms,true) && p.SevereGameWindows==0,
+                "Invalid timing never supplies severe pressure: "+ms);
+        }
+        p.Reset(1);
+        Check(!p.Observe(1,true,false,5,30,100,true) && p.Observe(1,true,false,5,30,100,true),
+            "Severe game relief does not require an unhealthy camera or alter its frame cadence");
+        Check(!p.Observe(1,false,false,5,0,100,true) && p.SevereGameWindows==0 && p.Trigger=="",
+            "Stopping the child clears severe relief even if the caller reports an eligible window");
+        Check(RedboolRenderPressure.IsStableGameFrame(true,true,true,false,false,false,.125),
+            "Focused 8fps rendering can be eligible while the camera is loading");
+        foreach(double interval in new[]{0d,-.1,1,2,double.NaN,double.PositiveInfinity})
+            Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,false,false,false,interval),
+                "Invalid, loading or suspended frame is excluded at the actual runtime predicate: "+interval);
+        Check(!RedboolRenderPressure.IsStableGameFrame(false,true,true,false,false,false,.1), "No owned child means no severe-frame evidence");
+        Check(!RedboolRenderPressure.IsStableGameFrame(true,false,true,false,false,false,.1), "Hidden camera gameplay means no severe-frame evidence");
+        Check(!RedboolRenderPressure.IsStableGameFrame(true,true,false,false,false,false,.1), "Unfocused frames cannot lower rendering");
+        Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,true,false,false,.1), "A modal interval cannot lower rendering");
+        Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,false,true,false,.1), "Synthetic fixtures never create automatic field pressure");
+        Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,false,false,true,.1), "Explicit camera pause cannot create severe pressure");
         Debug.Log("REDBOOL RENDER PRESSURE PASS " + checks + " deterministic checks; no camera or game packets");
     }
 }

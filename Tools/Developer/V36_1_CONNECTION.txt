@@ -18,10 +18,25 @@ macOS HostDown joins the existing temporary send-error filter. A failed send
 does not refresh ACKs or input leases. Later new attempts continue; no old attack
 is replayed. This prevents exception spam but cannot repair an isolated network.
 
-Camera backend remains v34.3 / b5212300b62a9ff762a01df7a712e67ef3b11edf.
-View protocol32, ports5065/5066/5067, recognition thresholds, personal calibration,
-story saves, character selection, special damage/timing, and readiness rules stay
-unchanged from v36.
+Camera backend is rebuilt as v36.1 / f8260da4e00de84f2639debb8caa0b01f94d82d0.
+The low-PC field recording revealed successful calibration followed by repeated
+recognition-history invalidation. Output still expires at150ms; only private
+recognition history can survive until source+220ms, validated by a fresh same-person
+successor with capture gap<=100ms and evidence age<=120ms. Expired attacks never revive.
+Normal-recording control output and79 attacks were identical across18,557 frames.
+This is not a hardware FPS measurement or a per-attempt recognition accuracy score.
+
+Tutorial memory also pauses across bounded source-continuous lease gaps without
+crediting stale time or counting stale gestures. Match presence can retain its
+original short deadline on exact-source STALE packets; those packets never renew
+the deadline or allow movement, block, or attacks. True loss/recalibration resets it.
+Sustained severe foreground rendering can request the existing720p budget even
+while the camera is starting. Loading, scene changes, modals and background time
+are excluded. Fast-PC rendering and recognition paths remain unchanged.
+
+View protocol32, ports5065/5066/5067, model files, recognition geometry, personal
+calibration, story saves, character selection, and special damage/timing stay
+unchanged from v36. Previous backend executables do not contain the new fix.
 
 Validation: deterministic multi-interface/address classification, room UI checks
 and rendered layouts, existing protocol/recognition-state self-checks, and both

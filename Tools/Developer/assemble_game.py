@@ -24,8 +24,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     expected = 'Windows' if target == 'windows' else 'Darwin'
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
-    if metadata.get('release') != 'v34.3':
-        raise ValueError('v36 retains the verified v34.3 recognition backend.')
+    if metadata.get('release') != 'v36.1':
+        raise ValueError('v36.1 requires the rebuilt camera backend with bounded recognition continuity.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -77,14 +77,14 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     manifest.update(target=target, backend=portable_backend,
                     backend_executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
                     entry=entry.name, camera_preview='local loopback only; 320x240; 15 fps target, 8 fps under game/preview load',
-                    camera_render_budget='3D targets at most 1920x1200; 1280x720 on sustained inference overload; native window/UI retained',
+                    camera_render_budget='3D targets at most 1920x1200; 1280x720 on sustained inference or severe foreground game pressure, including camera startup; native window/UI retained',
                     camera_starts='enter tutorial, combat, or PvP; never on the main menu',
                     recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
                     recognition_recording_max_bytes=134217728,
                     recognition_recording_schema='redbool.landmarks/1',
                     lan_protocol=32)
     (output / '시작 안내.txt').write_text(
-        f'REDBOOL {manifest["release"]} · 대기실 접속 주소 안내 시험판\n\n'
+        f'REDBOOL {manifest["release"]} · 저사양 준비 상태·대기실 접속 주소 보완 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'

@@ -68,7 +68,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     double lastFrameAt=-1,frameElapsed,nextReceiverRetry;
     long lastCameraFrameId=-1;
     double lastCameraFrameAt=-100,renderFpsTotal,renderFpsSeconds;
-    bool renderWindowEligible=true;
+    bool renderWindowEligible=true,severeRenderWindowEligible=true;
+    int renderSceneHandle=-1;
     GUIStyle connectionNoticeStyle;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -240,6 +241,11 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 && fps>0 && !float.IsNaN(fps) && !float.IsInfinity(fps);
             renderWindowEligible &= active;
             if(active) {renderFpsTotal+=fps*interval;renderFpsSeconds+=interval;}
+            int sceneHandle=SceneManager.GetActiveScene().handle;
+            severeRenderWindowEligible &= sceneHandle==renderSceneHandle
+                && RedboolRenderPressure.IsStableGameFrame(Running,ShowPanel,Application.isFocused,
+                    RedboolPauseMenu.BlocksStoryInput,Synthetic,Status!=null && Status.phase=="paused",interval);
+            renderSceneHandle=sceneHandle;
         }
         lastFrameAt=now;
         if(now>=metricAt)
@@ -252,9 +258,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             bool wasPressure=renderPressure.Latched;
             double cameraFps=renderFpsSeconds>0?renderFpsTotal/renderFpsSeconds:0;
             renderPressure.Observe(generation,Running,renderWindowEligible && frameSamples>0,
-                elapsed,cameraFps,meanFrame);
+                elapsed,cameraFps,meanFrame,severeRenderWindowEligible && frameSamples>0);
             if(!wasPressure && renderPressure.Latched)
-                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} target=1280x720 session_latched=true backend_unchanged=true"));
+                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} severe_windows={renderPressure.SevereGameWindows} reason={renderPressure.Trigger} target=1280x720 session_latched=true backend_unchanged=true"));
             if(Running && frameSamples>0)
             {
                 if(InferencePressure || meanFrame>22 || meanDecode>2 || meanRequest>80)
@@ -270,7 +276,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 Debug.Log(FormattableString.Invariant($"[REDBOOL CAMERA PREVIEW] samples={previewSamples} elapsed_s={elapsed:F3} delivered_fps={previewSamples/elapsed:F2} target_fps={windowTarget} next_target_fps={CurrentPreviewTargetFps} game_mean_frame_ms={meanFrame:F3} requests={previewRequests} request_mean_ms={meanRequest:F3} request_max_ms={requestMax:F3} decode_mean_ms={meanDecode:F3} decode_max_ms={decodeMax:F3} sequence={previewSequence} local_only=true"));
             previewSamples=previewRequests=0;decodeTotal=decodeMax=requestTotal=requestMax=0;
             frameSamples=0;frameElapsed=0;
-            renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=true;
+            renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=severeRenderWindowEligible=true;
             metricStarted=now;metricAt=now+5;
         }
     }
@@ -295,7 +301,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     {
         Error=null;Status=null;lastStatus=lastPreview=-100;previewSequence=-1;PreviewDecodedFrames=0;generation++;
         renderPressure.Reset(generation);lastCameraFrameId=-1;lastCameraFrameAt=-100;
-        renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=true;
+        renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=severeRenderWindowEligible=true;
+        renderSceneHandle=SceneManager.GetActiveScene().handle;
         previewSamples=previewRequests=0;decodeTotal=decodeMax=requestTotal=requestMax=0;
         metricStarted=Time.realtimeSinceStartupAsDouble;metricAt=metricStarted+5;
         lastFrameAt=metricStarted;frameSamples=healthyPreviewWindows=0;frameElapsed=0;

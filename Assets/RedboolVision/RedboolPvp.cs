@@ -145,7 +145,7 @@ public sealed class RedboolPvp : MonoBehaviour
             receiver.PracticeContext=()=>Lobby!=null && !Lobby.Complete
                 ? new RedboolPracticeContext {run=Practices[slot].Run,action="",phase="SELECT",hits=0}   // 인물을 고르는 중: 수련 동작이 아니다
                 : new RedboolPracticeContext {run=Practices[slot].Run,action=Practices[slot].Action,phase=Practices[slot].Phase,hits=Practices[slot].Hits};
-            receiver.PracticeAction+=Practices[i].Observe;
+            receiver.PracticeInput+=Practices[i].ObserveInput;
             receiver.CalibrationObserved+=(calibrated,generation)=>OnCalibration(slot,calibrated,generation);
             Receivers[i]=receiver;host.SetActive(true);
         }
@@ -172,9 +172,9 @@ public sealed class RedboolPvp : MonoBehaviour
     }
     void ResetPractice(int slot)
     {
-        Receivers[slot].PracticeAction-=Practices[slot].Observe;
+        Receivers[slot].PracticeInput-=Practices[slot].ObserveInput;
         Practices[slot].Reset();Practices[slot].Suspended=Lobby!=null && !Lobby.Complete;
-        Receivers[slot].PracticeAction+=Practices[slot].Observe;
+        Receivers[slot].PracticeInput+=Practices[slot].ObserveInput;
         Lobby?.ParticipantChanged(slot);
         fullPreparation=true;readySince=-1;SetPaused(true);
     }
@@ -216,7 +216,7 @@ public sealed class RedboolPvp : MonoBehaviour
             { if(streams[i]!=null) ResetPractice(i);streams[i]=stream; }
             Practices[i].Suspended=Lobby!=null && !Lobby.Complete;
             Practices[i].Tick();
-            if(Practices[i].Complete) Receivers[i].PracticeAction-=Practices[i].Observe;
+            if(Practices[i].Complete) Receivers[i].PracticeInput-=Practices[i].ObserveInput;
         }
         bool ready=BothPresent && (Lobby==null || Lobby.Complete) && Practices[0].Complete && Practices[1].Complete && warmup==null && !Resolved && (!RequireView || ViewLink!=null && ViewLink.PeerReady);
         double now=Time.realtimeSinceStartupAsDouble;

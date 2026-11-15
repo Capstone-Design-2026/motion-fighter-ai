@@ -24,6 +24,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public Func<bool> ExternalGate;
     public Func<RedboolPracticeContext> PracticeContext;
     public event Action<string,float,string,float> PracticeAction;
+    public event Action<RedboolPracticeInput> PracticeInput;
     public event Action<bool,int> CalibrationObserved;
     public Fighter Opponent;
     public bool LiveReady => controlling && tutorialInputValid && NowNs()<deadline;
@@ -50,11 +51,16 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(own!=null && own.enabled && own.PlayerOwned) return own.IsReady;
         var palm=player.GetComponent<SpecialMove>();return palm!=null && palm.IsReady;
     } }
-    bool Practicing => PracticeAction!=null || TutorialAction!=null;
-    void NotifyPractice(string action,float confidence,string movement,float strength) {
+    bool Practicing => PracticeAction!=null || TutorialAction!=null || PracticeInput!=null || TutorialInput!=null;
+    void NotifyPractice(string action,float confidence,string movement,float strength,RedboolPracticeInput input=null) {
         if(PvpOwned) PracticeAction?.Invoke(action,confidence,movement,strength);
         else TutorialAction?.Invoke(action,confidence,movement,strength);
+        if(input==null)input=PracticeSample(RedboolPracticeInputKind.Reset,action,confidence,movement,strength,NowNs());
+        if(PvpOwned)PracticeInput?.Invoke(input);else TutorialInput?.Invoke(input);
     }
+    RedboolPracticeInput PracticeSample(RedboolPracticeInputKind kind,string action,float confidence,string movement,float strength,long now)
+        => new RedboolPracticeInput(kind,action,confidence,movement,strength,StreamId,CalibrationGeneration,
+            rawSourceCaptureNs,sourceCaptureNs,now,deadline);
     private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
     public static RedboolDemoReceiver ListeningOn(int listenPort) {
         RedboolDemoReceiver receiver;
@@ -93,9 +99,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         }
     }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
+    private static void ResetListeners() { listeners.Clear(); TutorialAction = null; TutorialInput = null; }
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
+    public static event Action<RedboolPracticeInput> TutorialInput;
     [Range(0f, .15f)] public float movementSmoothingSeconds = .06f;
     // Map a recognised light lean to a useful walking pace before smoothing.
     // Zero still means stop; timeout, preparation and collision rules are unchanged.
@@ -134,7 +141,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private float targetMove, currentMove;
     private bool controlling, tutorialInputValid, hasState, lastCalibrated;
     private string lastTracking;
-    private long sourceCaptureNs, lastUncertaintyNs;
+    private long sourceCaptureNs, rawSourceCaptureNs, lastUncertaintyNs;
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
     private EnemyAI diagnosticsEnemy;
@@ -300,7 +307,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 else if(action=="UNASSIGNED") status="UNASSIGNED";
                 else if(Practicing && (!tutorialInputValid || now>=deadline)) status="INPUT_LOCKED";
                 else if(Practicing) {
-                    NotifyPractice(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
+                    NotifyPractice(action,1f,"NEUTRAL",0f,PracticeSample(RedboolPracticeInputKind.Event,action,1f,"NEUTRAL",0f,now));status="TUTORIAL_APPLIED";
                 }
                 else if(player==null || fighter==null) status="NO_PLAYER";
                 else if(!AllowsInput || (PvpOwned && !LiveReady)) status="INPUT_LOCKED";
@@ -332,12 +339,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             || p.movement_strength<0 || p.movement_strength>1) status="BAD_STATE";
         else {
             sequence=p.sequence;lastLiveNs=now;
+            bool calibrated=p.calibration_version==1 && p.calibrated;
+            bool leaseOnlyStale=lastCalibrated && calibrated && rawSourceCaptureNs>0 && p.capture_ns==rawSourceCaptureNs
+                && CalibrationGeneration==p.calibration_generation && p.tracking=="STALE";
+            long retainedPresence=RedboolPracticeContinuity.PreservePresence(presenceDeadline,now,lastCalibrated,calibrated,
+                rawSourceCaptureNs,p.capture_ns,CalibrationGeneration,p.calibration_generation,p.tracking,StreamId,p.stream_id);
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
-            hasState=true;lastCalibrated=p.calibration_version==1 && p.calibrated;lastTracking=p.tracking;
+            hasState=true;lastCalibrated=calibrated;lastTracking=p.tracking;
+            rawSourceCaptureNs=p.capture_ns;
             sourceCaptureNs=p.capture_ns>0?p.capture_ns+p.receiver_offset_ns:0;
             lastUncertaintyNs=p.clock_uncertainty_ns;
             tutorialInputValid=lastCalibrated && p.tracking=="VALID";
-            presenceDeadline=tutorialInputValid ? deadline+100000000L : 0;
+            presenceDeadline=tutorialInputValid ? deadline+100000000L : retainedPresence;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             if(CalibrationGeneration!=p.calibration_generation)combatFeedback.Reset();
             CalibrationGeneration=p.calibration_generation;
@@ -355,7 +368,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             // not clear tutorial readiness before the following one-shot event.
             string tutorialState=!tutorialInputValid ? "UNAVAILABLE"
                 : p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "BUSY";
-            NotifyPractice(tutorialState,1f,p.movement,p.movement_strength);
+            var practiceKind=tutorialInputValid ? RedboolPracticeInputKind.State
+                : leaseOnlyStale ? RedboolPracticeInputKind.Pause : RedboolPracticeInputKind.Reset;
+            NotifyPractice(tutorialState,1f,p.movement,p.movement_strength,
+                PracticeSample(practiceKind,tutorialState,1f,p.movement,p.movement_strength,now));
             status=player!=null?"APPLIED":Practicing?"TUTORIAL_APPLIED":"NO_PLAYER";
         }
         if(oneShot || status!="APPLIED") Status=status;
@@ -411,10 +427,13 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     }
     public void ClearInput() { Safe(); }
     private void Safe(bool preservePresence=false) {
-        if(!preservePresence) {presenceDeadline=0;hasState=false;sourceCaptureNs=0;}
+        var practiceSample=PracticeSample(preservePresence && hasState && lastCalibrated && rawSourceCaptureNs>0
+            ? RedboolPracticeInputKind.Pause : RedboolPracticeInputKind.Reset,"UNAVAILABLE",0f,"NEUTRAL",0f,NowNs());
+        if(!preservePresence) {presenceDeadline=0;hasState=false;sourceCaptureNs=rawSourceCaptureNs=0;}
         if(player!=null) player.GetComponent<Fighter>()?.SetVisionGuard(false);
         if(controlling && player!=null) player.ClearExternalInput();
-        if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f);
+        if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f,practiceSample);
+        else if(!preservePresence) {if(PvpOwned)PracticeInput?.Invoke(practiceSample);else TutorialInput?.Invoke(practiceSample);}
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
     }
     private void OnDisable() {
