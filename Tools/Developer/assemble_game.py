@@ -14,6 +14,12 @@ import sys
 
 from build_stamp import snapshot
 
+EXPECTED_MODELS = {
+    'pose_landmarker_lite.task': '59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a',
+    'pose_landmarker_full.task': '5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1',
+    'pose_landmarker_heavy.task': '64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b',
+}
+
 
 def assemble(player: Path, backend: Path, output: Path, target: str):
     player, backend, output = (p.resolve() for p in (player, backend, output))
@@ -24,8 +30,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     expected = 'Windows' if target == 'windows' else 'Darwin'
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
-    if metadata.get('release') != 'v36.2':
-        raise ValueError('v36.2 requires the matching reviewed camera backend.')
+    if metadata.get('release') != 'v36.3':
+        raise ValueError('v36.3 requires the matching reviewed camera backend.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -33,9 +39,13 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                          'source_dirty', 'source_file_count')
     if any(key not in metadata or provenance.get(key) != metadata[key] for key in provenance_fields):
         raise ValueError('Embedded and external camera build provenance differ.')
-    for name in ('pose_landmarker_lite.task', 'pose_landmarker_full.task'):
+    optional = metadata.get('optional_cross_refine', {})
+    if optional.get('bundled') is not True or optional.get('default_enabled') is not False:
+        raise ValueError('v36.3 requires bundled Heavy with source/dev default-off; Unity explicitly enables it.')
+    for name, expected_digest in EXPECTED_MODELS.items():
         model = backend / '_internal/assets' / name
-        if not model.is_file() or hashlib.sha256(model.read_bytes()).hexdigest() != metadata.get('models', {}).get(name):
+        if (not model.is_file() or metadata.get('models', {}).get(name) != expected_digest
+                or hashlib.sha256(model.read_bytes()).hexdigest() != expected_digest):
             raise ValueError('Bundled model fingerprint mismatch: ' + name)
     if output.exists():
         raise FileExistsError('Use a new output folder; existing packages are preserved.')
@@ -71,7 +81,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     # Local/CI build paths are useful during assembly, not in the distributed app.
     portable_backend = {k: metadata[k] for k in ('platform', 'architecture', 'python', 'mode', 'models',
         'release', 'recording_schema', 'source_commit', 'source_sha256',
-        'source_dirty', 'source_file_count') if k in metadata}
+        'source_dirty', 'source_file_count', 'optional_cross_refine') if k in metadata}
     (destination / 'backend-build.json').write_text(json.dumps(portable_backend, indent=2), encoding='utf-8')
     manifest = snapshot()
     manifest.update(target=target, backend=portable_backend,
@@ -79,12 +89,13 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     entry=entry.name, camera_preview='local loopback only; 320x240; 15 fps target, 8 fps under game/preview load',
                     camera_render_budget='3D targets at most 1920x1200; 1280x720 on sustained inference or severe foreground game pressure, including camera startup; native window/UI retained',
                     camera_starts='enter tutorial, combat, or PvP; never on the main menu',
+                    camera_x_refinement='verified bundled Heavy IMAGE; explicit Unity argument; health-gated; source/dev default off',
                     recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
                     recognition_recording_max_bytes=134217728,
                     recognition_recording_schema='redbool.landmarks/1',
                     lan_protocol=33)
     (output / '시작 안내.txt').write_text(
-        f'REDBOOL {manifest["release"]} · 동작 안내·직접 캐릭터 선택 시험판\n\n'
+        f'REDBOOL {manifest["release"]} · X자 인식·반응 개선 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -101,7 +112,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
         '모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 v36.2를 사용하세요. 화면 통신 규약 33이며 기존 v36.1과 함께 접속할 수 없습니다.\n'
+        '양쪽 모두 같은 v36.3 시험본을 사용하세요. 화면 통신 규약 33이며 규약 32 이하 버전과는 접속할 수 없습니다.\n'
         '방장은 대기실의 상대가 입력할 주소를 복사해 전달합니다. 상대는 주소 입력 후 대전 참가를 누릅니다.\n'
         '주소가 여러 개면 상대와 연결한 Wi-Fi·유선·핫스팟에 해당하는 주소를 선택하세요.\n'
         '3개를 넘으면 다른 주소 버튼으로 넘겨 볼 수 있고, 네트워크 변경 뒤에는 새로고침을 누를 수 있습니다.\n'
@@ -113,7 +124,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '관절 기록은 카메라 실행마다 최대 128MiB이며, 제한에 도달해도 게임은 계속됩니다.\n'
         '테스트를 마친 뒤 메인 메뉴 → 설정에서 기록 마무리가 끝나면 진단 기록 저장을 누르세요.\n'
         '최근 3개 카메라 실행의 ZIP이 있는 폴더가 열립니다. PvP는 두 PC의 ZIP을 보내주세요.\n'
-        '이 패키지는 첫 통합 시험판이며 실제 두 기기 카메라·성능 확인은 별도로 필요합니다.\n',
+        'X자 보조 인식은 게임이 명시적으로 켜며, 처리 여유와 현재 관측의 신선도가 확보될 때만 사용합니다.\n'
+        '이 패키지는 개선 검증용 시험본이며 실제 두 기기 카메라·성능 확인은 별도로 필요합니다.\n',
         encoding='utf-8')
     if target == 'mac':
         plist_path = entry / 'Contents/Info.plist'

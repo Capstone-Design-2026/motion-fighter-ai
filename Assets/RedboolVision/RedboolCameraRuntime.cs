@@ -322,7 +322,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         var arguments=new List<string> {"--headless","--bridge-port",port.ToString(),"--bridge-token",token,
             "--parent-pid",Process.GetCurrentProcess().Id.ToString(),"--actor",role,"--host",address,
             "--port",role=="P2"?"5066":"5065","--personal-calibration","--movement","--mirror",
-            "--camera",RedboolDemoSettings.CameraIndex.ToString(),"--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
+            "--camera",RedboolDemoSettings.CameraIndex.ToString(),"--cross-refine-pose","bundled",
+            "--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
         if(Synthetic) arguments.Add("--synthetic-bridge-check");
         var escaped=new List<string>();foreach(string arg in arguments) escaped.Add(Quote(arg));
         var info=new ProcessStartInfo(BackendPath,string.Join(" ",escaped)) { UseShellExecute=false,CreateNoWindow=true,
