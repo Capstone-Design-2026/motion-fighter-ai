@@ -1,0 +1,834 @@
+{
+  "schema": "redbool.recognition-selection/1",
+  "decision_date": "2026-11-16",
+  "selected_release": "v36.2",
+  "selected_runtime_commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b",
+  "decision": "Retain current runtime; no evidence supports rolling back or weakening thresholds. Add a source/dependency/model change gate only.",
+  "reviewed_reference_windows": {
+    "sessions": 9,
+    "frames_per_version": 90575,
+    "conditions": 139,
+    "results": [
+      {
+        "version": "v26",
+        "commit": "3fc4299c96b79cc70d9873ac125c75814fa0406e",
+        "checks_pass": 128,
+        "checks_total": 139,
+        "by_kind": {
+          "block_off": {
+            "pass": 1,
+            "total": 1
+          },
+          "block_on": {
+            "pass": 4,
+            "total": 4
+          },
+          "forbid": {
+            "pass": 7,
+            "total": 8
+          },
+          "one_per_hold": {
+            "pass": 12,
+            "total": 12
+          },
+          "positive": {
+            "pass": 76,
+            "total": 86
+          },
+          "quiet": {
+            "pass": 28,
+            "total": 28
+          }
+        },
+        "by_gesture": {
+          "LEFT_PUNCH": {
+            "exact_once": 13,
+            "windows": 13,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "LEFT_RAISE": {
+            "exact_once": 9,
+            "windows": 9,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_PUNCH": {
+            "exact_once": 47,
+            "windows": 47,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_RAISE": {
+            "exact_once": 11,
+            "windows": 18,
+            "missing": 7,
+            "wrong_events": 4,
+            "duplicate_events": 0
+          },
+          "SPECIAL": {
+            "exact_once": 8,
+            "windows": 11,
+            "missing": 3,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          }
+        }
+      },
+      {
+        "version": "v32",
+        "commit": "2b90fab184f3bafe4f1bd437bdbb1348c2dc5409",
+        "checks_pass": 136,
+        "checks_total": 139,
+        "by_kind": {
+          "block_off": {
+            "pass": 1,
+            "total": 1
+          },
+          "block_on": {
+            "pass": 4,
+            "total": 4
+          },
+          "forbid": {
+            "pass": 8,
+            "total": 8
+          },
+          "one_per_hold": {
+            "pass": 12,
+            "total": 12
+          },
+          "positive": {
+            "pass": 83,
+            "total": 86
+          },
+          "quiet": {
+            "pass": 28,
+            "total": 28
+          }
+        },
+        "by_gesture": {
+          "LEFT_PUNCH": {
+            "exact_once": 13,
+            "windows": 13,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "LEFT_RAISE": {
+            "exact_once": 9,
+            "windows": 9,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_PUNCH": {
+            "exact_once": 47,
+            "windows": 47,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_RAISE": {
+            "exact_once": 18,
+            "windows": 18,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "SPECIAL": {
+            "exact_once": 8,
+            "windows": 11,
+            "missing": 3,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          }
+        }
+      },
+      {
+        "version": "v34_1",
+        "commit": "2fedf2c81c20dfbe396296e59e09a09186a3f756",
+        "checks_pass": 136,
+        "checks_total": 139,
+        "by_kind": {
+          "block_off": {
+            "pass": 1,
+            "total": 1
+          },
+          "block_on": {
+            "pass": 4,
+            "total": 4
+          },
+          "forbid": {
+            "pass": 8,
+            "total": 8
+          },
+          "one_per_hold": {
+            "pass": 12,
+            "total": 12
+          },
+          "positive": {
+            "pass": 83,
+            "total": 86
+          },
+          "quiet": {
+            "pass": 28,
+            "total": 28
+          }
+        },
+        "by_gesture": {
+          "LEFT_PUNCH": {
+            "exact_once": 13,
+            "windows": 13,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "LEFT_RAISE": {
+            "exact_once": 9,
+            "windows": 9,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_PUNCH": {
+            "exact_once": 47,
+            "windows": 47,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_RAISE": {
+            "exact_once": 18,
+            "windows": 18,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "SPECIAL": {
+            "exact_once": 8,
+            "windows": 11,
+            "missing": 3,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          }
+        }
+      },
+      {
+        "version": "v35_36",
+        "commit": "b5212300b62a9ff762a01df7a712e67ef3b11edf",
+        "checks_pass": 136,
+        "checks_total": 139,
+        "by_kind": {
+          "block_off": {
+            "pass": 1,
+            "total": 1
+          },
+          "block_on": {
+            "pass": 4,
+            "total": 4
+          },
+          "forbid": {
+            "pass": 8,
+            "total": 8
+          },
+          "one_per_hold": {
+            "pass": 12,
+            "total": 12
+          },
+          "positive": {
+            "pass": 83,
+            "total": 86
+          },
+          "quiet": {
+            "pass": 28,
+            "total": 28
+          }
+        },
+        "by_gesture": {
+          "LEFT_PUNCH": {
+            "exact_once": 13,
+            "windows": 13,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "LEFT_RAISE": {
+            "exact_once": 9,
+            "windows": 9,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_PUNCH": {
+            "exact_once": 47,
+            "windows": 47,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_RAISE": {
+            "exact_once": 18,
+            "windows": 18,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "SPECIAL": {
+            "exact_once": 8,
+            "windows": 11,
+            "missing": 3,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          }
+        }
+      },
+      {
+        "version": "v36_1",
+        "commit": "f8260da4e00de84f2639debb8caa0b01f94d82d0",
+        "checks_pass": 136,
+        "checks_total": 139,
+        "by_kind": {
+          "block_off": {
+            "pass": 1,
+            "total": 1
+          },
+          "block_on": {
+            "pass": 4,
+            "total": 4
+          },
+          "forbid": {
+            "pass": 8,
+            "total": 8
+          },
+          "one_per_hold": {
+            "pass": 12,
+            "total": 12
+          },
+          "positive": {
+            "pass": 83,
+            "total": 86
+          },
+          "quiet": {
+            "pass": 28,
+            "total": 28
+          }
+        },
+        "by_gesture": {
+          "LEFT_PUNCH": {
+            "exact_once": 13,
+            "windows": 13,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "LEFT_RAISE": {
+            "exact_once": 9,
+            "windows": 9,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_PUNCH": {
+            "exact_once": 47,
+            "windows": 47,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_RAISE": {
+            "exact_once": 18,
+            "windows": 18,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "SPECIAL": {
+            "exact_once": 8,
+            "windows": 11,
+            "missing": 3,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          }
+        }
+      },
+      {
+        "version": "v36_2",
+        "commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b",
+        "checks_pass": 136,
+        "checks_total": 139,
+        "by_kind": {
+          "block_off": {
+            "pass": 1,
+            "total": 1
+          },
+          "block_on": {
+            "pass": 4,
+            "total": 4
+          },
+          "forbid": {
+            "pass": 8,
+            "total": 8
+          },
+          "one_per_hold": {
+            "pass": 12,
+            "total": 12
+          },
+          "positive": {
+            "pass": 83,
+            "total": 86
+          },
+          "quiet": {
+            "pass": 28,
+            "total": 28
+          }
+        },
+        "by_gesture": {
+          "LEFT_PUNCH": {
+            "exact_once": 13,
+            "windows": 13,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "LEFT_RAISE": {
+            "exact_once": 9,
+            "windows": 9,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_PUNCH": {
+            "exact_once": 47,
+            "windows": 47,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "RIGHT_RAISE": {
+            "exact_once": 18,
+            "windows": 18,
+            "missing": 0,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          },
+          "SPECIAL": {
+            "exact_once": 8,
+            "windows": 11,
+            "missing": 3,
+            "wrong_events": 0,
+            "duplicate_events": 0
+          }
+        }
+      }
+    ],
+    "cases": [
+      {
+        "case": "body_punch",
+        "conditions": 21,
+        "passes": {
+          "v26": 21,
+          "v32": 21,
+          "v34_1": 21,
+          "v35_36": 21,
+          "v36_1": 21,
+          "v36_2": 21
+        }
+      },
+      {
+        "case": "high_guard",
+        "conditions": 19,
+        "passes": {
+          "v26": 19,
+          "v32": 19,
+          "v34_1": 19,
+          "v35_36": 19,
+          "v36_1": 19,
+          "v36_2": 19
+        }
+      },
+      {
+        "case": "sweep",
+        "conditions": 16,
+        "passes": {
+          "v26": 16,
+          "v32": 16,
+          "v34_1": 16,
+          "v35_36": 16,
+          "v36_1": 16,
+          "v36_2": 16
+        }
+      },
+      {
+        "case": "high_block",
+        "conditions": 20,
+        "passes": {
+          "v26": 20,
+          "v32": 20,
+          "v34_1": 20,
+          "v35_36": 20,
+          "v36_1": 20,
+          "v36_2": 20
+        }
+      },
+      {
+        "case": "new_participant",
+        "conditions": 9,
+        "passes": {
+          "v26": 9,
+          "v32": 9,
+          "v34_1": 9,
+          "v35_36": 9,
+          "v36_1": 9,
+          "v36_2": 9
+        }
+      },
+      {
+        "case": "two_person_latest",
+        "conditions": 19,
+        "passes": {
+          "v26": 18,
+          "v32": 19,
+          "v34_1": 19,
+          "v35_36": 19,
+          "v36_1": 19,
+          "v36_2": 19
+        }
+      },
+      {
+        "case": "two_person_earlier",
+        "conditions": 4,
+        "passes": {
+          "v26": 4,
+          "v32": 4,
+          "v34_1": 4,
+          "v35_36": 4,
+          "v36_1": 4,
+          "v36_2": 4
+        }
+      },
+      {
+        "case": "three_person",
+        "conditions": 21,
+        "passes": {
+          "v26": 16,
+          "v32": 18,
+          "v34_1": 18,
+          "v35_36": 18,
+          "v36_1": 18,
+          "v36_2": 18
+        }
+      },
+      {
+        "case": "four_person",
+        "conditions": 10,
+        "passes": {
+          "v26": 5,
+          "v32": 10,
+          "v34_1": 10,
+          "v35_36": 10,
+          "v36_1": 10,
+          "v36_2": 10
+        }
+      }
+    ],
+    "paired_decision_times": [
+      {
+        "from": "v26",
+        "to": "v36_2",
+        "label": "Same reviewed intent window decision time difference, NOT human motion-onset latency",
+        "paired": 88,
+        "excluded_failed_or_missing": [
+          "two_person_latest-014",
+          "three_person-012",
+          "three_person-019",
+          "three_person-020",
+          "three_person-021",
+          "four_person-001",
+          "four_person-002",
+          "four_person-003",
+          "four_person-004",
+          "four_person-005"
+        ],
+        "same": 86,
+        "earlier": 2,
+        "later": 0,
+        "median_ms": 0.0,
+        "mean_ms": -7.189679920454545,
+        "min_ms": -365.476791,
+        "max_ms": 0.0,
+        "p95_ms": 0.0,
+        "changes": [
+          {
+            "id": "four_person-008",
+            "gesture": "RIGHT_RAISE",
+            "before_frame": 15224,
+            "after_frame": 15216,
+            "delta_ms": -267.215042
+          },
+          {
+            "id": "four_person-009",
+            "gesture": "RIGHT_RAISE",
+            "before_frame": 17344,
+            "after_frame": 17333,
+            "delta_ms": -365.476791
+          }
+        ]
+      },
+      {
+        "from": "v32",
+        "to": "v36_2",
+        "label": "Same reviewed intent window decision time difference, NOT human motion-onset latency",
+        "paired": 95,
+        "excluded_failed_or_missing": [
+          "three_person-019",
+          "three_person-020",
+          "three_person-021"
+        ],
+        "same": 95,
+        "earlier": 0,
+        "later": 0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "min_ms": 0.0,
+        "max_ms": 0.0,
+        "p95_ms": 0.0,
+        "changes": []
+      },
+      {
+        "from": "v34_1",
+        "to": "v36_2",
+        "label": "Same reviewed intent window decision time difference, NOT human motion-onset latency",
+        "paired": 95,
+        "excluded_failed_or_missing": [
+          "three_person-019",
+          "three_person-020",
+          "three_person-021"
+        ],
+        "same": 95,
+        "earlier": 0,
+        "later": 0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "min_ms": 0.0,
+        "max_ms": 0.0,
+        "p95_ms": 0.0,
+        "changes": []
+      },
+      {
+        "from": "v35_36",
+        "to": "v36_2",
+        "label": "Same reviewed intent window decision time difference, NOT human motion-onset latency",
+        "paired": 95,
+        "excluded_failed_or_missing": [
+          "three_person-019",
+          "three_person-020",
+          "three_person-021"
+        ],
+        "same": 95,
+        "earlier": 0,
+        "later": 0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "min_ms": 0.0,
+        "max_ms": 0.0,
+        "p95_ms": 0.0,
+        "changes": []
+      },
+      {
+        "from": "v36_1",
+        "to": "v36_2",
+        "label": "Same reviewed intent window decision time difference, NOT human motion-onset latency",
+        "paired": 95,
+        "excluded_failed_or_missing": [
+          "three_person-019",
+          "three_person-020",
+          "three_person-021"
+        ],
+        "same": 95,
+        "earlier": 0,
+        "later": 0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "min_ms": 0.0,
+        "max_ms": 0.0,
+        "p95_ms": 0.0,
+        "changes": []
+      },
+      {
+        "from": "v36_2",
+        "to": "v36_2",
+        "label": "Same reviewed intent window decision time difference, NOT human motion-onset latency",
+        "paired": 95,
+        "excluded_failed_or_missing": [
+          "three_person-019",
+          "three_person-020",
+          "three_person-021"
+        ],
+        "same": 95,
+        "earlier": 0,
+        "later": 0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "min_ms": 0.0,
+        "max_ms": 0.0,
+        "p95_ms": 0.0,
+        "changes": []
+      }
+    ]
+  },
+  "modern_fixed_input": {
+    "sessions_with_poses": 37,
+    "complete_sessions": 35,
+    "contiguous_prefix_sessions": 2,
+    "frames_per_version": 146076,
+    "results": {
+      "v26": {
+        "sessions": 37,
+        "frames": 146076,
+        "events": 373,
+        "calibration_completions": 23,
+        "sessions_calibrated": 20,
+        "unsafe_events": 0,
+        "engine_cpu_seconds": 176.505085,
+        "event_counts": {
+          "LEFT_PUNCH": 76,
+          "RIGHT_PUNCH": 137,
+          "RIGHT_RAISE": 66,
+          "LEFT_RAISE": 69,
+          "SPECIAL": 25
+        },
+        "source_commit": "3fc4299c96b79cc70d9873ac125c75814fa0406e"
+      },
+      "v32": {
+        "sessions": 37,
+        "frames": 146076,
+        "events": 382,
+        "calibration_completions": 23,
+        "sessions_calibrated": 20,
+        "unsafe_events": 0,
+        "engine_cpu_seconds": 182.926779,
+        "event_counts": {
+          "LEFT_PUNCH": 76,
+          "RIGHT_PUNCH": 128,
+          "RIGHT_RAISE": 84,
+          "LEFT_RAISE": 69,
+          "SPECIAL": 25
+        },
+        "source_commit": "2b90fab184f3bafe4f1bd437bdbb1348c2dc5409"
+      },
+      "v34_1": {
+        "sessions": 37,
+        "frames": 146076,
+        "events": 382,
+        "calibration_completions": 23,
+        "sessions_calibrated": 20,
+        "unsafe_events": 0,
+        "engine_cpu_seconds": 263.094968,
+        "event_counts": {
+          "LEFT_PUNCH": 76,
+          "RIGHT_PUNCH": 128,
+          "RIGHT_RAISE": 84,
+          "LEFT_RAISE": 69,
+          "SPECIAL": 25
+        },
+        "source_commit": "2fedf2c81c20dfbe396296e59e09a09186a3f756"
+      },
+      "v35_36": {
+        "sessions": 37,
+        "frames": 146076,
+        "events": 382,
+        "calibration_completions": 30,
+        "sessions_calibrated": 26,
+        "unsafe_events": 0,
+        "engine_cpu_seconds": 271.120599,
+        "event_counts": {
+          "LEFT_PUNCH": 76,
+          "RIGHT_PUNCH": 128,
+          "RIGHT_RAISE": 84,
+          "LEFT_RAISE": 69,
+          "SPECIAL": 25
+        },
+        "source_commit": "b5212300b62a9ff762a01df7a712e67ef3b11edf"
+      },
+      "v36_1": {
+        "sessions": 37,
+        "frames": 146076,
+        "events": 406,
+        "calibration_completions": 30,
+        "sessions_calibrated": 26,
+        "unsafe_events": 0,
+        "engine_cpu_seconds": 266.325186,
+        "event_counts": {
+          "LEFT_PUNCH": 80,
+          "RIGHT_PUNCH": 129,
+          "RIGHT_RAISE": 88,
+          "LEFT_RAISE": 76,
+          "SPECIAL": 33
+        },
+        "source_commit": "f8260da4e00de84f2639debb8caa0b01f94d82d0"
+      },
+      "v36_2": {
+        "sessions": 37,
+        "frames": 146076,
+        "events": 407,
+        "calibration_completions": 30,
+        "sessions_calibrated": 26,
+        "unsafe_events": 0,
+        "engine_cpu_seconds": 254.593283,
+        "event_counts": {
+          "LEFT_PUNCH": 81,
+          "RIGHT_PUNCH": 129,
+          "RIGHT_RAISE": 88,
+          "LEFT_RAISE": 76,
+          "SPECIAL": 33
+        },
+        "source_commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b"
+      }
+    },
+    "current_vs_v36_1": {
+      "prior_events_preserved_at_same_frame_and_time": 406,
+      "added_tutorial_supported_not_rgb_labelled_jab": 1,
+      "other_output_changes": 0
+    },
+    "calibration_completions": {
+      "through_v34_1": 23,
+      "v35_36_and_current": 30,
+      "additional_sessions_completed": 6
+    },
+    "accuracy_labels_available": false
+  },
+  "personal_lower_bound_stress": {
+    "frames_per_version": 13806,
+    "versions": 5,
+    "older_four_passed": 18,
+    "current_passed": 19,
+    "conditions": 19,
+    "correction": {
+      "before_frame": 12114,
+      "before_gesture": "RIGHT_PUNCH",
+      "after_frame": 12113,
+      "after_gesture": "RIGHT_RAISE"
+    },
+    "scope": "Intentional .65 supported-speed-bound intervention; not measured participant learning accuracy."
+  },
+  "known_limits": [
+    "Three video-reviewed X attempts remain missed by every version.",
+    "Seven unlabelled 584 combat intervals change punch vs raise between v26 and later versions; intended gesture unresolved.",
+    "These reviewed intervals are development data, not held-out participant accuracy.",
+    "Sparse practice exports lack full initial/state history; inventoried and diagnosed but excluded from exact full-session ranking.",
+    "Fixed coordinate replay cannot measure new camera FPS, model accuracy, network or screen latency.",
+    "CPU totals are diagnostic processing time under concurrent runs, not a live speed ranking."
+  ],
+  "runtime_changed": false,
+  "unity_changed": false,
+  "evidence_sha256": {
+    "legacy/gt_manifest.json": "955fe60c3d7c08975152f0d5b43c99470008c8e1581f24fc985e75e1294512e1",
+    "legacy/comparison_summary.json": "fa8d5fc9718615332fc6eaa1ff5b21d771da2f357dce6c8245a6fba91d7586f9",
+    "legacy/personal_stress_summary.json": "b6bad38342517c9a49976af2741bf729477797d02b8f2a7624ac7bec5b0fe9dd",
+    "modern/comparison.json": "87bed23d1d1ea1295267380fe443958a5cbf4c2cfc0a8ba8a367e77d13f7e3a9",
+    "modern_inventory/ground_truth_coverage.json": "9cddb000ed5cc727e3b04ca741a0df19618bdb5cac98913549f78d98e3ebccfc"
+  }
+}

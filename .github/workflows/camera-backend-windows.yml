@@ -10,6 +10,8 @@ on:
       - scripts/build_camera_backend.py
       - scripts/camera_backend_entry.py
       - scripts/check_camera_backend.py
+      - scripts/check_recognition_baseline.py
+      - config/recognition_baseline.json
       - requirements-backend-build.txt
       - .github/workflows/camera-backend-windows.yml
 
@@ -29,10 +31,16 @@ jobs:
         with:
           python-version: '3.11'
           architecture: x64
+      - name: Verify reviewed recognition source baseline
+        run: python scripts/check_recognition_baseline.py
+      - name: Test baseline change detection without camera
+        run: python -m unittest -v test_recognition_baseline
       - name: Install packaging runtime
         run: python -m pip install -r requirements-backend-build.txt
       - name: Fetch fingerprint-verified models
         run: python scripts/setup_demo_models.py
+      - name: Verify exact Lite and Full model bytes
+        run: python scripts/check_recognition_baseline.py --check-models
       - name: Camera-free control and storage tests
         run: python -m unittest -v test_local_bridge test_headless_live test_diagnostics_recording test_live_clock test_backend_entry test_landmark_recording test_landmark_live test_landmark_replay_comparison test_backend_provenance test_calibration_sampling test_performance_policy test_camera_profile test_bounded_continuity test_projected_body_punch test_personal_raise_priority test_chest_special test_six_gestures test_redbool_demo test_udp_receive_reset
       - name: Build native executable and check assets
