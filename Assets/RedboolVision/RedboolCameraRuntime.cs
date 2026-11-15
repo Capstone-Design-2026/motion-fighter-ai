@@ -21,7 +21,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     [Serializable] public sealed class CameraStatus
     {
-        public int schema,control_count; public bool camera_connected,calibrated,synthetic;
+        public int schema,control_count; public bool camera_connected,calibrated,synthetic,ready;
         public float calibration_progress,pose_ms,capture_fps;
         public string phase,calibration_hint,calibration_reason,tracking,error,stream_id,last_command;
         public string inference_mode,inference_warning;

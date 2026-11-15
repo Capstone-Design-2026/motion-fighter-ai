@@ -68,7 +68,17 @@ public static class RedboolSettingsSelfCheck
             Transform canvas = menuRoot.transform.Find("StartCanvas");
             Check(canvas.Find("DuelTestButton").GetComponentInChildren<Text>().text == "빠른 대전", "Quick match has a player-facing label");
             Check(canvas.Find("QuickDuelHelp").GetComponent<Text>().text.Contains("혼자"), "Quick match distinguishes solo from PvP");
-            Check(canvas.Find("ReleaseVersion").GetComponent<Text>().text.Contains(RedboolDemoSettings.Release), "Menu displays release version");
+            Check(canvas.Find("ReleaseVersion").GetComponent<Text>().text.Contains(RedboolDemoSettings.Release), "Operator release label matches the packaged version");
+            foreach(string name in new[]{"DuelTestButton","QuickDuelHelp","ReleaseVersion"})
+                Check(!canvas.Find(name).gameObject.activeSelf,"Default release menu hides "+name);
+            float defaultPvpY=canvas.Find("PvpButton").GetComponent<RectTransform>().anchoredPosition.y;
+            RedboolDemoSettings.OperatorMode=true;
+            foreach(string name in new[]{"DuelTestButton","QuickDuelHelp","ReleaseVersion"})
+                Check(canvas.Find(name).gameObject.activeSelf,"Explicit operator mode restores "+name);
+            Check(canvas.Find("PvpButton").GetComponent<RectTransform>().anchoredPosition.y<defaultPvpY,"Showing the test tool reflows menu buttons without overlap");
+            RedboolDemoSettings.OperatorMode=false;
+            Check(canvas.Find("PvpButton").GetComponent<RectTransform>().anchoredPosition.y==defaultPvpY,"Hiding the test tool removes its empty menu row");
+            CaptureUi("release_menu",canvas.GetComponent<Canvas>());
             canvas.Find("NewGameButton").GetComponent<Button>().onClick.Invoke();
             Check(RedboolNewGameConfirmation.IsOpen, "Saved campaign opens new-game confirmation");
             Check(PlayerPrefs.GetString(SaveKey) == sentinel && ReferenceEquals(RunState.Instance.Data, originalData), "Opening confirmation preserves saved bytes and in-memory run");
@@ -92,7 +102,15 @@ public static class RedboolSettingsSelfCheck
             Transform panel = settings.transform.Find("SettingsCanvas/SettingsModal/SettingsPanel");
             panel.Find("ApplyCamera").GetComponent<Button>().onClick.Invoke();
             Check(requested == before + 1, "UI camera apply issues exactly one request");
-            Check(panel.Find("Version").GetComponent<Text>().text.Contains(RedboolDemoSettings.Release), "Settings displays matching release");
+            Check(!panel.Find("Version").gameObject.activeSelf, "Default settings hides the developer release label");
+            Check(panel.Find("ExportDiagnostics").GetComponent<Button>()!=null, "Diagnostics remains reachable from settings without a menu footer");
+            Check(!RedboolPackageDiagnostics.CanExport, "Editor fixture has no packaged exporter and cannot access user records");
+            Check(!RedboolPackageDiagnostics.RequestExport(), "A missing packaged exporter refuses export without filesystem work");
+            panel.Find("ToggleOperator").GetComponent<Button>().onClick.Invoke();
+            Check(panel.Find("Version").gameObject.activeSelf&&canvas.Find("DuelTestButton").gameObject.activeSelf,"Settings operator toggle updates both settings and underlying menu");
+            panel.Find("ToggleOperator").GetComponent<Button>().onClick.Invoke();
+            Check(!panel.Find("Version").gameObject.activeSelf&&!canvas.Find("DuelTestButton").gameObject.activeSelf,"Returning to normal mode hides test tools immediately");
+            CaptureUi("release_settings",canvas.GetComponent<Canvas>(),settings.GetComponentInChildren<Canvas>());
             panel.Find("CloseSettings").GetComponent<Button>().onClick.Invoke();
             Check(!RedboolSettingsPanel.IsOpen, "Settings closes without a scene change");
             if (settings != null) UnityEngine.Object.DestroyImmediate(settings.gameObject);
@@ -195,5 +213,45 @@ public static class RedboolSettingsSelfCheck
             }
         }
         finally { Directory.Delete(root, true); }
+    }
+
+    static void CaptureUi(string name,params Canvas[] canvases)
+    {
+        string output=Environment.GetEnvironmentVariable("REDBOOL_SETTINGS_UI_OUTPUT");
+        if(string.IsNullOrEmpty(output))return;
+        Directory.CreateDirectory(output);
+        var modes=new RenderMode[canvases.Length];var cameras=new Camera[canvases.Length];
+        var distances=new float[canvases.Length];var scales=new float[canvases.Length];
+        var enabled=new bool[canvases.Length];
+        var camera=new GameObject("Settings fixture render camera").AddComponent<Camera>();
+        camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.025f,.035f,.04f);
+        var target=new RenderTexture(1280,720,24);target.Create();camera.targetTexture=target;
+        var previous=RenderTexture.active;Texture2D image=null;
+        try
+        {
+            for(int i=0;i<canvases.Length;i++)
+            {
+                var c=canvases[i];modes[i]=c.renderMode;cameras[i]=c.worldCamera;distances[i]=c.planeDistance;scales[i]=c.scaleFactor;
+                var scaler=c.GetComponent<CanvasScaler>();enabled[i]=scaler.enabled;scaler.enabled=false;
+                c.renderMode=RenderMode.ScreenSpaceCamera;c.worldCamera=camera;c.planeDistance=1;c.scaleFactor=2f/3f;
+            }
+            Canvas.ForceUpdateCanvases();
+            if(UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline!=null)
+                UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera,new UnityEngine.Rendering.RenderPipeline.StandardRequest {destination=target});
+            else camera.Render();
+            RenderTexture.active=target;image=new Texture2D(1280,720,TextureFormat.RGB24,false);
+            image.ReadPixels(new Rect(0,0,1280,720),0,0);image.Apply();
+            File.WriteAllBytes(Path.Combine(output,name+".png"),image.EncodeToPNG());
+        }
+        finally
+        {
+            for(int i=0;i<canvases.Length;i++)
+            {
+                var c=canvases[i];c.renderMode=modes[i];c.worldCamera=cameras[i];c.planeDistance=distances[i];c.scaleFactor=scales[i];c.GetComponent<CanvasScaler>().enabled=enabled[i];
+            }
+            RenderTexture.active=previous;camera.targetTexture=null;
+            if(image!=null)UnityEngine.Object.DestroyImmediate(image);
+            target.Release();UnityEngine.Object.DestroyImmediate(target);UnityEngine.Object.DestroyImmediate(camera.gameObject);
+        }
     }
 }

@@ -28,6 +28,8 @@ public sealed class RedboolViewWorld
     public byte gate;public float countdown;
     // 대기실·인물 선택 (RedboolPvpLobby): stage 0 대기실 / 1 선택 / 2 끝, 고르고 있는 칸, 확정 여부(비트 0 = 1P, 1 = 2P), 남은 초
     public byte stage=2,cursor0,cursor1,locked,selectSeconds;
+    public Guid selectionRun;
+    public uint selectionRevision0,selectionRevision1;
     public bool paused,resolved,fighting;
     public float remaining,fov;
     public Vector3 camera;
@@ -51,12 +53,14 @@ public sealed class RedboolViewPacket
     public byte kind;public Guid session,nonce;public ulong seq;public double time,echo;
     public RedboolViewActor actor;public RedboolViewWorld world;
     public Guid practiceRun;public byte practiceStep;
+    public Guid selectionRun;public uint selectionRevision;
+    public int selectionRound;public byte selectionCharacter;public bool selectionLocked;
 }
 public static class RedboolViewProtocol
 {
-    // 32 unifies the two incompatible v31 layouts: authoritative combat feedback
-    // plus lobby/roster/character-special state. Both laptops must use this build.
-    public const int Port=5067,MaxBytes=1200,Version=32;
+    // 33 adds revision-bound, host-authoritative keyboard/mouse selection.
+    // Camera commands and combat leases remain unchanged. Both laptops update.
+    public const int Port=5067,MaxBytes=1200,Version=33;
     const uint Magic=0x52425657;
     static float Finite(float v) { if(float.IsNaN(v)||float.IsInfinity(v)||Mathf.Abs(v)>100000) throw new InvalidDataException();return v; }
     static double Finite(double v) {if(double.IsNaN(v)||double.IsInfinity(v)||v<0) throw new InvalidDataException();return v;}
@@ -81,6 +85,7 @@ public static class RedboolViewProtocol
             if(p.kind==1)
             {
                 var x=p.world;w.Write(x.round);w.Write((byte)x.winner);w.Write(x.paused);w.Write(x.resolved);w.Write(x.fighting);w.Write(x.remaining);w.Write(x.fov);V(w,x.camera);Q(w,x.rotation);w.Write(x.gate);w.Write(x.countdown);w.Write(x.stage);w.Write(x.cursor0);w.Write(x.cursor1);w.Write(x.locked);w.Write(x.selectSeconds);
+                w.Write(x.selectionRun.ToByteArray());w.Write(x.selectionRevision0);w.Write(x.selectionRevision1);
                 w.Write((byte)x.waves.Count);foreach(var wave in x.waves) {w.Write(wave.id);V(w,wave.point);Q(w,wave.rotation);}
                 w.Write((byte)x.effects.Count);foreach(var fx in x.effects) {w.Write(fx.id);w.Write((byte)fx.kind);w.Write(fx.time);V(w,fx.point);}
             }
@@ -92,6 +97,7 @@ public static class RedboolViewProtocol
                 foreach(var q in a.bones) Q(w,q);
             }
             else if(p.kind==5) {w.Write(p.practiceRun.ToByteArray());w.Write(p.practiceStep);}
+            else if(p.kind==6) {w.Write(p.selectionRun.ToByteArray());w.Write(p.selectionRound);w.Write(p.selectionRevision);w.Write(p.selectionCharacter);w.Write(p.selectionLocked);}
             var bytes=ms.ToArray();if(bytes.Length>MaxBytes) throw new InvalidDataException("View datagram exceeds MTU budget");return bytes;
         }
     }
@@ -104,11 +110,12 @@ public static class RedboolViewProtocol
             {
                 if(r.ReadUInt32()!=Magic || r.ReadByte()!=Version) return false;
                 var n=new RedboolViewPacket {kind=r.ReadByte(),session=new Guid(r.ReadBytes(16)),nonce=new Guid(r.ReadBytes(16)),seq=r.ReadUInt64(),time=Finite(r.ReadDouble()),echo=Finite(r.ReadDouble())};
-                if(n.kind>5) return false;
+                if(n.kind>6) return false;
                 if(n.kind==1)
                 {
                     var x=new RedboolViewWorld {round=Range(r.ReadInt32(),1000000),winner=Range(r.ReadByte(),2),paused=r.ReadBoolean(),resolved=r.ReadBoolean(),fighting=r.ReadBoolean(),remaining=Finite(r.ReadSingle()),fov=Finite(r.ReadSingle()),camera=V(r),rotation=Q(r),gate=(byte)Range(r.ReadByte(),7),countdown=Finite(r.ReadSingle())};
                     x.stage=(byte)Range(r.ReadByte(),2);x.cursor0=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);x.cursor1=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);x.locked=(byte)Range(r.ReadByte(),3);x.selectSeconds=(byte)Range(r.ReadByte(),60);
+                    x.selectionRun=new Guid(r.ReadBytes(16));x.selectionRevision0=r.ReadUInt32();x.selectionRevision1=r.ReadUInt32();
                     if(x.countdown<0 ||x.countdown>1.01f) return false;
                     if(x.remaining<0||x.remaining>120.1f ||x.fov<1||x.fov>179) return false;
                     int count=Range(r.ReadByte(),8);for(int i=0;i<count;i++) x.waves.Add(new RedboolViewWave {id=r.ReadInt32(),point=V(r),rotation=Q(r)});
@@ -125,6 +132,12 @@ public static class RedboolViewProtocol
                     for(int i=0;i<a.bones.Length;i++) a.bones[i]=Q(r);n.actor=a;
                 }
                 else if(n.kind==5) {n.practiceRun=new Guid(r.ReadBytes(16));n.practiceStep=(byte)Range(r.ReadByte(),7);}
+                else if(n.kind==6) {
+                    n.selectionRun=new Guid(r.ReadBytes(16));n.selectionRound=Range(r.ReadInt32(),1000000);
+                    n.selectionRevision=r.ReadUInt32();n.selectionCharacter=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);
+                    n.selectionLocked=Range(r.ReadByte(),1)==1;
+                    if(n.selectionRun==Guid.Empty)return false;
+                }
                 if(ms.Position!=ms.Length) return false;p=n;return true;
             }
         }

@@ -35,12 +35,24 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
         public List<string> warnings=new List<string>();
     }
     Task<string> export; string message="";
+    static RedboolPackageDiagnostics instance;
     static Task<string> activeExport;
     // Completion includes faults/cancellation; never leave the menu locked
     // waiting for this component's next Update or a success-only callback.
     public static bool IsExporting => activeExport!=null&&!activeExport.IsCompleted;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetExportState(){activeExport=null;}
+    static void ResetExportState(){activeExport=null;instance=null;}
+    public static string ExportMessage => instance!=null ? instance.message : "";
+    public static bool CanExport => instance!=null && SceneManager.GetActiveScene().name==SceneRoutes.Start
+        && !IsExporting && instance.export==null
+        && !(RedboolCameraRuntime.Instance!=null && RedboolCameraRuntime.Instance.DiagnosticsPending);
+    public static bool RequestExport()
+    {
+        if(!CanExport)return false;
+        string root=Application.persistentDataPath,log=Application.consoleLogPath;
+        instance.export=Task.Run(()=>BuildExport(root,log));activeExport=instance.export;instance.message="";
+        return true;
+    }
     Task<StorageUsage> storageScan;
     CancellationTokenSource storageCancellation;
     StorageUsage storageUsage;
@@ -55,20 +67,19 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
     static void Install()
     {
         if(Application.isEditor || Application.isBatchMode || !RedboolCameraRuntime.Packaged)return;
-        var go=new GameObject("REDBOOL Diagnostic Export");DontDestroyOnLoad(go);go.AddComponent<RedboolPackageDiagnostics>();
+        if(instance!=null)return;
+        var go=new GameObject("REDBOOL Diagnostic Export");DontDestroyOnLoad(go);instance=go.AddComponent<RedboolPackageDiagnostics>();
     }
     void OnGUI()
     {
         if(SceneManager.GetActiveScene().name!=SceneRoutes.Start)return;
+        if(!RedboolDemoSettings.OperatorMode)return;
         if(RedboolSettingsPanel.IsOpen||RedboolNewGameConfirmation.IsOpen||RedboolPauseMenu.IsOpen)return;
         bool pending=RedboolCameraRuntime.Instance!=null&&RedboolCameraRuntime.Instance.DiagnosticsPending;
         GUI.enabled=export==null&&!IsExporting&&!pending;
         string label=pending?"기록 마무리 중…":export==null?"진단 기록 저장":"기록 저장 중…";
         if(GUI.Button(new Rect(Screen.width-190,Screen.height-46,174,30),label))
-        {
-            string root=Application.persistentDataPath,log=Application.consoleLogPath;
-            export=Task.Run(()=>BuildExport(root,log));activeExport=export;message="";
-        }
+            RequestExport();
         GUI.enabled=true;
         if(GUI.Button(new Rect(Screen.width-380,Screen.height-46,174,30),"기록 관리"))
         {
@@ -96,7 +107,7 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
     void Update()
     {
         bool atMenu=SceneManager.GetActiveScene().name==SceneRoutes.Start;
-        if(!atMenu&&storagePanel){storagePanel=false;CancelStorageScan();}
+        if((!atMenu||!RedboolDemoSettings.OperatorMode)&&storagePanel){storagePanel=false;CancelStorageScan();}
         if(storageScan!=null&&storageScan.IsCompleted)
         {
             if(storageScan.IsFaulted){storageUsage=new StorageUsage {partial=true};message="기록 용량을 확인하지 못했어요. 폴더에서 확인해주세요.";}
@@ -106,6 +117,7 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
         if(export!=null&&export.IsCompleted)
         {
             if(export.IsFaulted) {message="기록 저장에 실패했어요. 다시 시도해주세요.";Debug.LogWarning(export.Exception?.GetBaseException().Message);}
+            else if(export.IsCanceled)message="기록 저장이 취소됐어요. 다시 시도해주세요.";
             else {message="진단 ZIP을 저장했어요. 열린 폴더에서 확인하세요.";if(atMenu)Application.OpenURL(new Uri(Path.GetDirectoryName(export.Result)).AbsoluteUri);}
             if(ReferenceEquals(activeExport,export))activeExport=null;
             export=null;
@@ -121,7 +133,7 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
         storageScan=Task.Run(()=>MeasureStorage(root,token));
     }
     void CancelStorageScan(){storageCancellation?.Cancel();}
-    void OnDestroy(){CancelStorageScan();if(activeExport!=null&&activeExport.IsCompleted)activeExport=null;}
+    void OnDestroy(){CancelStorageScan();if(activeExport!=null&&activeExport.IsCompleted)activeExport=null;if(instance==this)instance=null;}
     void OpenRecordingFolder()
     {
         try

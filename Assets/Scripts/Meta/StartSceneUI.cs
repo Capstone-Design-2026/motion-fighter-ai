@@ -62,6 +62,8 @@ public class StartSceneUI : MonoBehaviour
         RefreshContinue();
         ShowLastMessage();
         PlayMusic();
+        RedboolDemoSettings.Changed += RefreshPresentation;
+        RefreshPresentation();
     }
 
     void Update()
@@ -340,6 +342,30 @@ public class StartSceneUI : MonoBehaviour
     }
 
     private void OnDisable() { StopRoomSearch(); }
+    private void OnDestroy() { RedboolDemoSettings.Changed -= RefreshPresentation; }
+
+    private void RefreshPresentation()
+    {
+        if(canvas==null)return;
+        bool tools=RedboolDemoSettings.OperatorMode;
+        float y=40;
+        foreach(string name in new[]{"NewGameButton","ContinueButton","DuelTestButton","PvpButton","CreditsButton","QuitButton"})
+        {
+            var item=canvas.transform.Find(name);
+            if(item==null)continue;
+            bool visible=name!="DuelTestButton"||tools;
+            item.gameObject.SetActive(visible);
+            if(!visible)continue;
+            var rect=item.GetComponent<RectTransform>();
+            rect.anchoredPosition=new Vector2(160,y);
+            y-=buttonSize.y+buttonSpacing;
+        }
+        foreach(string name in new[]{"ReleaseVersion","QuickDuelHelp"})
+        {
+            var item=canvas.transform.Find(name);
+            if(item!=null)item.gameObject.SetActive(tools);
+        }
+    }
 
     private void RefreshContinue()
     {

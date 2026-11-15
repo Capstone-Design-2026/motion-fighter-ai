@@ -50,10 +50,10 @@ public sealed class RedboolPvp : MonoBehaviour
     readonly Text[] playerLabels = new Text[2];
     readonly Text[] practiceLabels = new Text[2];
     readonly TrainingPoseGraphic[] diagrams=new TrainingPoseGraphic[2];
-    Text banner, clockLabel, roundResult;
+    Text banner, clockLabel, roundResult, roundHeadline;
+    CombatAnnouncementStyle.Palette? resultPalette;
     GameObject resultPanel;
     Button rematchButton, reselectButton;
-    double fightHintUntil=-1;   // 대전이 시작된 뒤 안내 줄을 잠깐만 보여 준다
     readonly Button[] skipButtons=new Button[2];
     readonly RectTransform[] playerPanels=new RectTransform[2];
     string lastDiagnostic;double lastDiagnosticTime;
@@ -266,13 +266,11 @@ public sealed class RedboolPvp : MonoBehaviour
         if(row!=lastDiagnostic &&now-lastDiagnosticTime>.25 || now-lastDiagnosticTime>=2)
         { Debug.Log("[REDBOOL PVP GATE] "+row+FormattableString.Invariant($" round={Round} remaining={Remaining:F2} hp1={Players[0].GetComponent<Health>().CurrentHealth} hp2={Players[1].GetComponent<Health>().CurrentHealth} age1_ms={Receivers[0].InputAgeMs:F1} age2_ms={Receivers[1].InputAgeMs:F1} source1_ms={Receivers[0].SourceAgeMs:F1} source2_ms={Receivers[1].SourceAgeMs:F1} lease1_ms={Receivers[0].LeaseRemainingMs:F1} lease2_ms={Receivers[1].LeaseRemainingMs:F1} uncertainty1_ms={Receivers[0].ClockUncertaintyMs:F1} uncertainty2_ms={Receivers[1].ClockUncertaintyMs:F1}")+" utc="+DateTime.UtcNow.ToString("o"));lastDiagnostic=row;lastDiagnosticTime=now; }
     }
-    // 대전 중(gate 0) 안내 줄은 라운드가 시작된 뒤 3초만 보여 준다. 그 밖의 단계(준비·대기·수련)는 그대로 계속 보여 준다.
+    // Active combat needs no repeated instruction strip. Preserve preparation,
+    // tutorial and connection guidance whenever play is actually waiting.
     string Banner(byte gate,float countdown)
     {
-        if(gate!=0) {fightHintUntil=-1;return GateText(gate,countdown);}
-        double now=Time.realtimeSinceStartupAsDouble;
-        if(fightHintUntil<0) fightHintUntil=now+3;
-        return now<fightHintUntil?GateText(gate,countdown):"";
+        return gate==0?"":GateText(gate,countdown);
     }
     static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 연결 복구 후 자동 재개":gate==3?"1P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==4?"2P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"신호 확인 · 잠시 후 자동 시작":"대전 시작 · 양손을 올려 막기 · 가슴 앞 X자로 필살기";
     // Resolve after the contact world: simultaneous KO must not become a 1P win.
@@ -332,7 +330,7 @@ public sealed class RedboolPvp : MonoBehaviour
             var gauge=UIFactory.CreateRect("PvpSpecialGauge"+i,panel.transform);
             UIFactory.Place(gauge,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-88),new Vector2(475,24));
             chargeBars[i]=gauge.gameObject.AddComponent<WuxiaCombatBar>();chargeBars[i].resource=true;chargeBars[i].mirror=i==1;chargeBars[i].raycastTarget=false;
-            chargeLabels[i]=WuxiaTheme.Text("PvpSpecialLabel"+i,panel.transform,"파운장 충전 중",21,TextAnchor.MiddleCenter,new Color(.66f,.93f,1f));
+            chargeLabels[i]=WuxiaTheme.Text("PvpSpecialLabel"+i,panel.transform,"필살기 충전 중",21,TextAnchor.MiddleCenter,new Color(.66f,.93f,1f));
             UIFactory.Place(chargeLabels[i].rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-118),new Vector2(500,32));
             var guide=UIFactory.CreateRect("MotionGuide"+i,canvas.transform);
             UIFactory.Place(guide,new Vector2(i==0?.25f:.75f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(220,240));
@@ -346,9 +344,15 @@ public sealed class RedboolPvp : MonoBehaviour
         UIFactory.Place(banner.rectTransform,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,25),new Vector2(1500,100));
         var result=UIFactory.CreateImage("PvpRoundResult",canvas.transform,new Color(.02f,.04f,.06f,.94f));
         resultPanel=result.gameObject;
-        UIFactory.Place(result.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(780,270));
-        roundResult=WuxiaTheme.Text("RoundResultText",result.transform,"",36,TextAnchor.MiddleCenter,WuxiaTheme.Gold);
-        UIFactory.Place(roundResult.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-20),new Vector2(750,155));
+        UIFactory.Place(result.rectTransform,new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(940,430));
+        // Use the reviewed battle lettering for the Latin headline only;
+        // Korean result/help text keeps the readable HUD font.
+        roundHeadline=WuxiaTheme.Text("RoundHeadline",result.transform,"",176,TextAnchor.MiddleCenter,Color.white);
+        UIFactory.Place(roundHeadline.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-18),new Vector2(880,202));
+        roundHeadline.resizeTextForBestFit=true;roundHeadline.resizeTextMinSize=64;roundHeadline.resizeTextMaxSize=176;
+        roundHeadline.horizontalOverflow=HorizontalWrapMode.Overflow;roundHeadline.verticalOverflow=VerticalWrapMode.Overflow;
+        roundResult=WuxiaTheme.Text("RoundResultText",result.transform,"",30,TextAnchor.MiddleCenter,WuxiaTheme.Gold);
+        UIFactory.Place(roundResult.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-238),new Vector2(900,82));
         rematchButton=UIFactory.CreateButton("PvpRematch",result.transform,"다시 대전 · R",25,new Color(.14f,.20f,.23f,1),Rematch);
         UIFactory.Place(rematchButton.GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,25),new Vector2(360,55));
         // 인물 다시 고르기(F8)도 결과 판의 단추로 둔다. 아래 안내 줄에 같은 내용을 또 쓰지 않기 위해서다.
@@ -379,7 +383,15 @@ public sealed class RedboolPvp : MonoBehaviour
     void ShowResult(bool ended,string winner,float time,int hp1,int hp2,bool remote)
     {
         resultPanel.SetActive(ended);if(!ended)return;
-        roundResult.text=(hp1<=0||hp2<=0?"K.O. · 라운드 종료":"시간 종료 · 라운드 종료")+"\n"+winner+(remote?"\n1P 화면에서 다시 대전을 선택하세요":"");
+        bool ko=hp1<=0||hp2<=0;
+        roundHeadline.text=ko?"K.O.":"TIME UP";
+        roundHeadline.resizeTextMaxSize=roundHeadline.fontSize=ko?176:128;
+        var palette=winner=="무승부"?CombatAnnouncementStyle.Palette.Ready
+            :winner==(remote?"2P 승리":"1P 승리")?CombatAnnouncementStyle.Palette.Victory:CombatAnnouncementStyle.Palette.Defeat;
+        // ShowResult runs every snapshot/frame; keep mesh decoration unchanged
+        // while the same result is on screen.
+        if(resultPalette!=palette) {CombatAnnouncementStyle.Apply(roundHeadline,palette);resultPalette=palette;}
+        roundResult.text=(ko?"라운드 종료":"시간 종료 · 라운드 종료")+" · "+winner+(remote?"\n1P 화면에서 다시 대전을 선택하세요":"");
         rematchButton.gameObject.SetActive(!remote);
         bool reselect=!remote && Lobby!=null;
         reselectButton.gameObject.SetActive(reselect);

@@ -408,8 +408,8 @@ public class CombatHUD : MonoBehaviour
         bar.gauge.fillColor = ready ? gaugeReadyColor : gaugeFillColor;
         bar.gauge.SetValues(max > 0 ? (float)current/max : 0, 0, ready);
         bar.gaugeLabel.text = ready
-            ? "파운장 준비 · 가슴 앞 X자"
-            : "파운장 충전 중";
+            ? "필살기 준비 · 가슴 앞 X자"
+            : "필살기 충전 중";
         bar.gaugeLabel.color = ready ? new Color(.66f,.93f,1f) : new Color(.83f,.88f,.88f);
     }
 

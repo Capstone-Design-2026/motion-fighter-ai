@@ -103,7 +103,7 @@ public static class CombatHUDVerification
         Check(Mathf.Abs(hp.FillRatio-(float)player.CurrentHealth/player.MaxHealth)<.0001f,"Carried / changed player health is exact");
         Check(Mathf.Abs(enemyHP.FillRatio-(float)enemy.CurrentHealth/enemy.MaxHealth)<.0001f,"Boss HP uses its own maximum");
         Check(hp.TrailRatio>hp.FillRatio&&enemyHP.TrailRatio>enemyHP.FillRatio,"Damage leaves a visible delayed trail");
-        Check(Mathf.Abs(gauge.FillRatio-2f/special.HitsToCharge)<.0001f&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text=="파운장 충전 중","Real SpecialMove charge updates the blue bar without a fraction label");
+        Check(Mathf.Abs(gauge.FillRatio-2f/special.HitsToCharge)<.0001f&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text=="필살기 충전 중","Real SpecialMove charge updates the blue bar without a fraction label");
         Check(timer.text=="88","Remaining time rounds up");
         for(var c=Capture("02_damage",1920,1080);c.MoveNext();)yield return null;
         for(var w=Wait(1.7f);w.MoveNext();)yield return null;
@@ -111,7 +111,7 @@ public static class CombatHUDVerification
         player.Heal(10);yield return null;
         Check(Mathf.Approximately(hp.TrailRatio,hp.FillRatio),"Healing clears obsolete damage trail");
         special.AddCharge(99);yield return null;
-        Check(gauge.FillRatio==1&&gauge.Ready&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text=="파운장 준비 · 가슴 앞 X자","Full charge uses the actual camera gesture instead of an inactive keyboard shortcut");
+        Check(gauge.FillRatio==1&&gauge.Ready&&rail.Find("PlayerVitals/GaugeLabel").GetComponent<Text>().text=="필살기 준비 · 가슴 앞 X자","Full charge uses the actual camera gesture instead of an inactive keyboard shortcut");
         for(var c=Capture("03_ready",1920,1080);c.MoveNext();)yield return null;
         special.ResetCharge();yield return null;
         Check(gauge.FillRatio==0&&!gauge.Ready,"Consumed/reset charge clears readiness");

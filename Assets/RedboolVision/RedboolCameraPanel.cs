@@ -7,7 +7,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
 {
     RedboolCameraRuntime cameraRuntime;
     Canvas canvas;RectTransform panel;
-    RawImage image;Text heading,hint,placeholder,combatHint;
+    RawImage image;Text heading,hint,placeholder,combatHint,calibrationStatus;
     Image progress;RectTransform track;Button calibrate,reconnect,fold,resize;
     Transform calibrateMark,reconnectMark;
     bool folded,tutorial,manualExpanded,wasCalibrated;float nextUi,nextTutorialCheck;
@@ -27,6 +27,8 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         var border=background.gameObject.AddComponent<Outline>();border.effectColor=new Color(.65f,.51f,.28f,.8f);border.effectDistance=new Vector2(1,-1);
         heading=WuxiaTheme.Text("CameraHeading",panel,"내 동작",22,TextAnchor.MiddleLeft,WuxiaTheme.Gold);
         UIFactory.Place(heading.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-8),new Vector2(210,30));
+        calibrationStatus=WuxiaTheme.Text("CalibrationStatus",panel,"",15,TextAnchor.MiddleLeft,WuxiaTheme.Paper);
+        calibrationStatus.horizontalOverflow=HorizontalWrapMode.Overflow;calibrationStatus.raycastTarget=false;
         fold=UIFactory.CreateButton("FoldCamera",panel,"접기",18,WuxiaTheme.Ink,()=> {folded=!folded;cameraRuntime.PreviewVisible=!folded;});
         UIFactory.Place(fold.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-10,-8),new Vector2(60,30));
         resize=UIFactory.CreateButton("ResizeCamera",panel,"크게",18,WuxiaTheme.Ink,()=>manualExpanded=!manualExpanded);
@@ -82,7 +84,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         float width=SmallPreview?240:316,inner=width-28;
         float previewHeight=SmallPreview?159:216;
         float footer=SmallPreview?(string.IsNullOrEmpty(guidance)?52:104):174;
-        float height=folded?footer+46:previewHeight+46+footer;
+        float height=folded?footer+70:previewHeight+70+footer;
         bool top=cave!=null&&cave.isActiveAndEnabled;
         if(selecting)
         {
@@ -100,12 +102,15 @@ public sealed class RedboolCameraPanel : MonoBehaviour
             top?new Vector2(-24,-210):new Vector2(-24,24),new Vector2(width,height));
         UIFactory.Place(heading.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-8),new Vector2(inner-110,30));
         heading.fontSize=SmallPreview?18:22;
+        UIFactory.Place(calibrationStatus.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(14,-40),new Vector2(inner,24));
+        calibrationStatus.text=CalibrationSummary(state,cameraRuntime.Running&&cameraRuntime.Fresh
+            &&string.IsNullOrEmpty(cameraRuntime.Error)&&string.IsNullOrEmpty(cameraRuntime.InputConnectionError));
         UIFactory.Place(fold.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-10,-8),new Vector2(52,30));
         UIFactory.Place(resize.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-66,-8),new Vector2(52,30));
         resize.gameObject.SetActive(calibrated&&!DetailedGuidance);
         resize.GetComponentInChildren<Text>().text=SmallPreview?"크게":"작게";
         image.gameObject.SetActive(!folded);
-        UIFactory.Place(image.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-46),new Vector2(inner,previewHeight));
+        UIFactory.Place(image.rectTransform,new Vector2(.5f,1),new Vector2(.5f,1),new Vector2(0,-70),new Vector2(inner,previewHeight));
         // The same persistent preview texture and existing adaptive cadence.
         image.texture=cameraRuntime.PreviewFresh?cameraRuntime.Preview:null;
         image.color=image.texture!=null?Color.white:new Color(.08f,.1f,.11f,1);
@@ -172,6 +177,8 @@ public sealed class RedboolCameraPanel : MonoBehaviour
                 return compact?"조금 뒤로 앉아주세요\n팔꿈치까지 보여주세요":"조금 뒤로 앉아주세요\n팔꿈치 아래까지 보이게 맞추세요";
             return compact?"양팔이 화면 안에\n들어오게 앉아주세요":"양팔이 화면 안에 들어오도록\n거리와 카메라 각도를 맞추세요";
         }
+        if(framing!=null&&(framing.code=="UNCERTAIN"||framing.code=="NO_POSE"))
+            return compact?"양손과 팔꿈치가\n가리지 않게 해주세요":"양손과 팔꿈치가 가리지 않게\n카메라에 보여주세요";
         if(state.camera_slow)
             return compact?"카메라 영상 지연\n밝기·다른 앱 확인":"카메라 영상이 느리게 들어와요\n밝기와 다른 앱을 확인해주세요";
         return null;
@@ -181,7 +188,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         if(!runtime.Running||!runtime.Fresh||!string.IsNullOrEmpty(runtime.InputConnectionError)||!string.IsNullOrEmpty(runtime.Error))return true;
         var s=runtime.Status;
         return s==null||!string.IsNullOrEmpty(s.error)||!s.calibrated||(!runtime.Synthetic&&
-            (!s.camera_connected||s.camera_slow||s.tracking!="VALID"||s.framing!=null&&s.framing.code=="OUTSIDE"));
+            (!s.camera_connected||s.camera_slow||s.tracking!="VALID"||s.framing!=null&&(s.framing.code=="OUTSIDE"||s.framing.code=="UNCERTAIN"||s.framing.code=="NO_POSE")));
     }
     RedboolCombatFeedbackCode LocalFeedback()
     {
@@ -207,6 +214,16 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         if(frame.world.resolved)return RedboolCombatFeedbackCode.RoundOver;
         byte code=frame.actors[1].feedback;
         return RedboolCombatFeedback.Valid(code)?(RedboolCombatFeedbackCode)code:RedboolCombatFeedbackCode.ViewLost;
+    }
+    public static string CalibrationSummary(RedboolCameraRuntime.CameraStatus state,bool fresh)
+    {
+        if(state==null)return "카메라 연결 확인 중";
+        if(!fresh||!string.IsNullOrEmpty(state.error)||!state.camera_connected)
+            return state.calibrated?"보정 완료 · 입력 연결 확인 중":"카메라 연결 확인 중";
+        if(!state.calibrated)return state.phase=="calibrating"?"보정 중 · 가드 유지":"보정 대기 · C로 시작";
+        if(state.tracking!="VALID")return "보정 완료 · 입력 복구 중";
+        if(state.framing!=null&&(state.framing.code=="OUTSIDE"||state.framing.code=="UNCERTAIN"||state.framing.code=="NO_POSE"))return "보정 완료 · 양팔 확인 중";
+        return state.ready?"보정 완료 · 동작 준비됨":"보정 완료 · 자세 확인 중";
     }
     public static string Explain(RedboolCameraRuntime runtime)
     {
@@ -245,6 +262,6 @@ public sealed class RedboolCameraPanel : MonoBehaviour
             if(s.recording.queue_dropped_rows>0)return "플레이 가능 · 일부 관절 기록이 빠졌어요\n누락 구간은 진단 ZIP에 표시돼요";
         }
         if(runtime.InferencePressure)return "속도 우선으로 인식 중이에요\n사람이 바뀌면 C로 재보정";
-        return "준비됐어요 · 사람이 바뀌면 C로 재보정";
+        return s.ready?"동작 준비됨 · 사람이 바뀌면 C로 재보정":"보정은 끝났어요 · 편안한 가드를 잠시 유지하세요";
     }
 }

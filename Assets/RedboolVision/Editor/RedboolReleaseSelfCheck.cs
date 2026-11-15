@@ -7,7 +7,7 @@ public static class RedboolReleaseSelfCheck
     {
         RunWithoutSocketBinding();
         RedboolViewBindingSelfCheck.Run();
-        Debug.Log("[REDBOOL V36.1 CHECK] All release self-checks passed");
+        Debug.Log("[REDBOOL V36.2 CHECK] All release self-checks passed");
     }
     // Safe to run while another player owns its normal LAN ports.
     public static void RunWithoutSocketBinding()
@@ -24,6 +24,6 @@ public static class RedboolReleaseSelfCheck
         RedboolRenderPressureSelfCheck.Run();
         RedboolCombatFeedbackSelfCheck.Run();
         RedboolCombatPresentationSelfCheck.Run();
-        Debug.Log("[REDBOOL V36.1 CHECK] Release self-checks without socket binding passed");
+        Debug.Log("[REDBOOL V36.2 CHECK] Release self-checks without socket binding passed");
     }
 }

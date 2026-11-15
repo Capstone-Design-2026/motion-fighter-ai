@@ -22,8 +22,8 @@ public static class RedboolViewSelfCheck
     }
     static void CheckLobbyCodec()
     {
-        Check(RedboolViewProtocol.Version==32,"feedback and lobby layouts use their own version32");
-        Check(RedboolPvpRoster.Count==12,"version32 roster has exactly twelve character indices");
+        Check(RedboolViewProtocol.Version==33,"feedback and lobby layouts use their own version33");
+        Check(RedboolPvpRoster.Count==12,"version33 roster has exactly twelve character indices");
         for(byte slot=2;slot<=3;slot++) for(byte character=0;character<12;character++)
         {
             var actor=Actor();actor.character=character;actor.specialSerial=(byte)(255-character);
@@ -40,15 +40,16 @@ public static class RedboolViewSelfCheck
         Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"thirteenth roster index rejected");
         valid.character=255;Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"out-of-range roster byte rejected");
         valid.character=0;valid.feedback=255;
-        Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"unknown authoritative feedback still rejected in version32");
+        Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"unknown authoritative feedback still rejected in version33");
         valid.feedback=0;
         foreach(byte serial in new byte[]{255,0}) {valid.specialSerial=serial;Check(RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out var decoded)&&decoded.actor.specialSerial==serial,"special serial wrap value preserved: "+serial);}
 
-        var world=new RedboolViewWorld {fov=60,rotation=Quaternion.identity,cursor0=0,cursor1=11,locked=3,selectSeconds=60};
+        var world=new RedboolViewWorld {fov=60,rotation=Quaternion.identity,cursor0=0,cursor1=11,locked=3,selectSeconds=60,selectionRun=Guid.NewGuid(),selectionRevision0=3,selectionRevision1=uint.MaxValue};
         for(byte stage=0;stage<=2;stage++)
         {
             world.stage=stage;
             Check(RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(WorldPacket(world)),out var decoded)
+                &&decoded.world.selectionRun==world.selectionRun&&decoded.world.selectionRevision0==3&&decoded.world.selectionRevision1==uint.MaxValue
                 &&decoded.world.stage==stage &&decoded.world.cursor0==0 &&decoded.world.cursor1==11 &&decoded.world.locked==3 &&decoded.world.selectSeconds==60,"lobby stage and boundary selections round trip: "+stage);
         }
         world.stage=3;Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(WorldPacket(world)),out _),"unknown lobby stage rejected");world.stage=2;
@@ -70,6 +71,7 @@ public static class RedboolViewSelfCheck
         b.world.stage=1;Check(!RedboolViewLink.CanBlendSnapshots(a,b),"lobby-to-match transition does not interpolate across presentation modes");b.world.stage=2;
         b.world.round=1;Check(!RedboolViewLink.CanBlendSnapshots(a,b),"rematch never interpolates old body position");b.world.round=0;
         b.world.paused=true;Check(!RedboolViewLink.CanBlendSnapshots(a,b),"pause transition remains a hard snapshot boundary");b.world.paused=false;
+        b.world.selectionRun=Guid.NewGuid();Check(!RedboolViewLink.CanBlendSnapshots(a,b),"reselection is an interpolation boundary");b.world.selectionRun=Guid.Empty;
         b.session=Guid.NewGuid();Check(!RedboolViewLink.CanBlendSnapshots(a,b),"reconnect cannot blend two host sessions");
         Check(!RedboolViewLink.CanBlendSnapshots(a,null),"incomplete view is never an interpolation input");
     }

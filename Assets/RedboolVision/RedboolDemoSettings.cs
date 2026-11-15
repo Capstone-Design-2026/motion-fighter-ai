@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>Small player preferences. Never owns a camera or changes recognition rules.</summary>
 public static class RedboolDemoSettings
 {
-    public const string Release = "v36";
+    public const string Release = "v36.2";
     const string Prefix = "REDBOOL.Settings.";
     static bool operatorMode;
     public static event Action CameraReconnectRequested;

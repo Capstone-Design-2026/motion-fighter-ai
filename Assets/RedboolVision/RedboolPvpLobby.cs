@@ -7,8 +7,7 @@ using UnityEngine.UI;
 /// PvP에 들어온 뒤 싸우기 전까지의 흐름: 대기실 → 인물 선택 → (수련은 RedboolPvp가 그대로 진행).
 ///
 /// 판단은 호스트만 한다. 손님 화면은 호스트가 보내 준 상태(RedboolViewWorld의 stage·cursor·locked)를 그대로 그린다.
-/// 인물은 카메라 동작으로 고른다(몸을 좌우로 기울여 이동, 잽·스트레이트로 확정, 양손 막기로 취소).
-/// 진행자는 호스트 키보드로도 고를 수 있다(1P: A/D·F·G, 2P: ←/→·Enter·Backspace).
+/// 각자 키보드나 마우스로 고른 뒤 명시적으로 확정한다. 카메라는 선택을 바꾸지 않는다.
 ///
 /// 자동 검사에서는 켜지 않는다(-redbool-pvp-lobby 를 줄 때만). 그래야 기존 PvP 검사가 그대로 통한다.
 /// 실제 실행에서 끄려면 --redbool-pvp-no-lobby.
@@ -30,28 +29,36 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     }
 
     public Stage Current { get; private set; } = Stage.Room;
-    public readonly int[] Cursor = { RedboolPvpRoster.Hero, RedboolPvpRoster.DefaultSecond };
-    public readonly bool[] Locked = new bool[2];
+    readonly RedboolPvpSelection selection=new RedboolPvpSelection();
+    public int[] Cursor => selection.Cursor;
+    public bool[] Locked => selection.Locked;
+    public Guid SelectionRun => selection.Run;
+    public uint[] SelectionRevision => selection.Revision;
     public float SelectRemaining { get; private set; } = SelectSeconds;
     /// <summary>인물 선택까지 끝나 수련·대전으로 넘어갔는가</summary>
     public bool Complete => Current == Stage.Done;
 
     RedboolPvp game;
-    readonly Action<string, float, string, float>[] handlers = new Action<string, float, string, float>[2];
-    readonly bool[] subscribed = new bool[2];
-    readonly double[] nextMove = new double[2];
-    readonly string[] lastAction = { "", "" };
-    double enteredSelect, confirmSince = -1;
-    bool shortened;
+    double confirmSince = -1;
+    readonly Button[] pickButtons=new Button[RedboolPvpRoster.All.Length],confirmButtons=new Button[2];
+    Text selectionHint;
+    int localPickerSlot;
+    public int LocalSlot => RedboolPvp.IsClient?1:RedboolPvp.RequireView?0:localPickerSlot;
+    bool SelectionConnected => game!=null && (RedboolPvp.IsClient
+        ? game.ViewLink!=null&&game.ViewLink.Fresh : game.ViewReady);
+    bool SelectionInteractive => Current==Stage.Select&&SelectionConnected&&!RedboolPauseMenu.BlocksStoryInput
+        && (!RedboolPvp.IsClient||game.ViewLink!=null&&!game.ViewLink.SelectionPending);
 
     // 화면
     const int Columns = 4;
+    static readonly KeyCode[] SelectionKeys={KeyCode.LeftArrow,KeyCode.RightArrow,KeyCode.UpArrow,KeyCode.DownArrow,
+        KeyCode.A,KeyCode.D,KeyCode.W,KeyCode.S,KeyCode.Return,KeyCode.KeypadEnter,KeyCode.Backspace,KeyCode.Tab};
     const float CardW = 200, CardH = 228, Gap = 14, GridY = -40;
     static readonly Color[] SideColour = { new Color(.94f, .72f, .34f), new Color(.52f, .76f, 1f) };
     static readonly Color Ink = new Color(.045f, .06f, .065f, .96f), Dim = new Color(.74f, .73f, .68f);
     Canvas canvas;
     GameObject roomRoot, selectRoot, versusRoot;
-    Text roomStatus, selectTimer, versusText;
+    Text roomStatus, selectTimer, versusText,versusSub;
     GameObject roomShareRoot;
     Text roomShareStatus, roomAddressEmpty, roomAddressNotice;
     Button roomAddressRefresh, roomAddressNext;
@@ -84,19 +91,18 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     public void Initialize(RedboolPvp owner)
     {
         game = owner;
-        for (int i = 0; i < 2; i++) { int slot = i; handlers[i] = (action, confidence, movement, strength) => OnCamera(slot, action, confidence, movement, strength); }
         BuildUi();
         captureDirectory = Application.isBatchMode ? null : Environment.GetEnvironmentVariable("REDBOOL_VIEW_CAPTURE_DIR");
         Refresh();
         if (AddressSharingVisible) RequestRoomAddresses();
     }
 
-    void OnDestroy() { for (int i = 0; i < 2; i++) Listen(i, false); }
 
     // ── 호스트: 흐름 ──
     void Update()
     {
-        if (game == null || !game.Configured || RedboolPvp.IsClient) return;
+        if (game == null || !game.Configured) return;
+        if (RedboolPvp.IsClient) { if(Current==Stage.Select) { ReadKeys();RefreshSelectionControls(); } return; }
         double now = Time.realtimeSinceStartupAsDouble;
         TickRoomAddresses(now);
         switch (Current)
@@ -108,12 +114,9 @@ public sealed class RedboolPvpLobby : MonoBehaviour
             case Stage.Select:
                 // Selection uses real-time, but a lost camera/view must not silently
                 // choose an avatar while a participant cannot see or control the room.
-                if (!game.BothPresent || !game.ViewReady || RedboolPauseMenu.BlocksStoryInput) { confirmSince = -1; break; }
                 ReadKeys();
-                SelectRemaining = Mathf.Max(0, SelectRemaining - Time.unscaledDeltaTime);
-                if (SelectRemaining <= 0) { Locked[0] = Locked[1] = true; }
-                // 한 사람이 먼저 정하면 남은 사람에게는 15초만 준다 (한 번만).
-                if (!shortened && (Locked[0] || Locked[1])) { shortened = true; SelectRemaining = Mathf.Min(SelectRemaining, AfterFirstLockSeconds); }
+                if (!game.BothPresent || !game.ViewReady || RedboolPauseMenu.BlocksStoryInput) { confirmSince = -1; break; }
+                // No timer may select or confirm on a participant's behalf.
                 if (Locked[0] && Locked[1])
                 {
                     if (confirmSince < 0) confirmSince = now;
@@ -136,11 +139,11 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         bool selecting = stage == Stage.Select;
         if (selecting)
         {
-            SelectRemaining = SelectSeconds; Locked[0] = Locked[1] = false; confirmSince = -1; shortened = false;
-            enteredSelect = Time.realtimeSinceStartupAsDouble; nextMove[0] = nextMove[1] = 0; lastAction[0] = lastAction[1] = "";
+            SelectRemaining = SelectSeconds; selection.Begin();confirmSince = -1;
         }
-        // 카메라 동작은 고르는 동안에만 듣는다. 듣는 동안에는 수신기가 인물을 움직이지 않는다(RedboolDemoReceiver.Practicing).
-        for (int i = 0; i < 2; i++) { game.Practices[i].Suspended = stage != Stage.Done; Listen(i, selecting); }
+        // Camera practice remains suspended during the picker; it never moves
+        // or confirms cards. Existing practice callbacks still consume inputs.
+        for (int i = 0; i < 2; i++) game.Practices[i].Suspended = stage != Stage.Done;
         Debug.Log("[REDBOOL PVP LOBBY] stage=" + stage);
     }
 
@@ -155,64 +158,64 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     public void ParticipantChanged(int slot)
     {
         if (slot < 0 || slot > 1 || RedboolPvp.IsClient || Current != Stage.Select) return;
-        Locked[slot] = false; confirmSince = -1; shortened = false;
-        SelectRemaining = SelectSeconds; nextMove[slot] = 0; lastAction[slot] = "";
+        selection.ParticipantChanged(slot);confirmSince=-1;
     }
 
-    void Listen(int slot, bool on)
+    // Kept as an explicit no-op seam for regression tests: body gestures are
+    // exclusively calibration/practice/combat input, never picker controls.
+    void OnCamera(int slot,string action,float confidence,string movement,float strength) { }
+
+    public bool ApplySelection(int slot,Guid run,uint revision,int character,bool confirmed)
     {
-        var receiver = game != null ? game.Receivers[slot] : null;
-        if (receiver == null || subscribed[slot] == on) return;
-        if (on) receiver.PracticeAction += handlers[slot]; else receiver.PracticeAction -= handlers[slot];
-        subscribed[slot] = on;
+        if(RedboolPvp.IsClient||Current!=Stage.Select||!SelectionConnected||RedboolPauseMenu.BlocksStoryInput)return false;
+        bool applied=selection.Apply(slot,run,revision,character,confirmed,RedboolPvpRoster.Count);
+        if(applied&&!confirmed)confirmSince=-1;
+        return applied;
     }
-
-    void OnCamera(int slot, string action, float confidence, string movement, float strength)
+    public bool ChooseLocal(int character)
     {
-        if (Current != Stage.Select || RedboolPauseMenu.BlocksStoryInput) return;
-        if (action == "UNAVAILABLE") { nextMove[slot] = 0; lastAction[slot] = ""; return; }
-        double now = Time.realtimeSinceStartupAsDouble;
-        // 좌우로 기울이면 한 칸, 계속 기울이고 있으면 0.6초마다 한 칸
-        bool leaning = (movement == "LEFT" || movement == "RIGHT") && strength >= .25f;
-        if (!leaning) nextMove[slot] = 0;
-        else if (now >= nextMove[slot]) { Move(slot, movement == "LEFT" ? -1 : 1); nextMove[slot] = now + .6; }
-        // 들어오자마자 잘못 확정되지 않게 조금 기다린다.
-        bool settled = now - enteredSelect >= .8;
-        bool sure = !float.IsNaN(confidence) && confidence >= .7f;
-        if (settled && sure && (action == "JAB" || action == "STRAIGHT")) Lock(slot, true);
-        if (action == "BLOCK" && lastAction[slot] != "BLOCK") Lock(slot, false);
-        lastAction[slot] = action;
+        if(!SelectionInteractive||Locked[LocalSlot])return false;
+        return RedboolPvp.IsClient?game.ViewLink.RequestSelection(character,false)
+            :ApplySelection(LocalSlot,SelectionRun,SelectionRevision[LocalSlot],character,false);
     }
-
+    public bool ConfirmLocal(bool confirmed)
+    {
+        if(!SelectionInteractive)return false;
+        return RedboolPvp.IsClient?game.ViewLink.RequestSelection(Cursor[LocalSlot],confirmed)
+            :ApplySelection(LocalSlot,SelectionRun,SelectionRevision[LocalSlot],Cursor[LocalSlot],confirmed);
+    }
+    public bool SelectLocalSlot(int slot)
+    {
+        if(RedboolPvp.IsClient||RedboolPvp.RequireView||Current!=Stage.Select||slot<0||slot>1)return false;
+        localPickerSlot=slot;RefreshSelectionControls();return true;
+    }
+    public bool SelectKey(KeyCode key)
+    {
+        if(!SelectionInteractive)return false;
+        if(key==KeyCode.Tab)return SelectLocalSlot(1-LocalSlot);
+        int delta=key==KeyCode.LeftArrow||key==KeyCode.A?-1:key==KeyCode.RightArrow||key==KeyCode.D?1
+            :key==KeyCode.UpArrow||key==KeyCode.W?-Columns:key==KeyCode.DownArrow||key==KeyCode.S?Columns:0;
+        if(delta!=0)return ChooseLocal(((Cursor[LocalSlot]+delta)%RedboolPvpRoster.Count+RedboolPvpRoster.Count)%RedboolPvpRoster.Count);
+        if(key==KeyCode.Return||key==KeyCode.KeypadEnter)return ConfirmLocal(true);
+        if(key==KeyCode.Backspace)return ConfirmLocal(false);
+        return false;
+    }
     void ReadKeys()
     {
-        if (!RedboolDemoSettings.OperatorMode || RedboolPauseMenu.BlocksStoryInput) return;
-        if (Input.GetKeyDown(KeyCode.A)) Move(0, -1);
-        if (Input.GetKeyDown(KeyCode.D)) Move(0, 1);
-        if (Input.GetKeyDown(KeyCode.W)) Move(0, -Columns);
-        if (Input.GetKeyDown(KeyCode.S)) Move(0, Columns);
-        if (Input.GetKeyDown(KeyCode.F)) Lock(0, true);
-        if (Input.GetKeyDown(KeyCode.G)) Lock(0, false);
-        if (Input.GetKeyDown(KeyCode.LeftArrow)) Move(1, -1);
-        if (Input.GetKeyDown(KeyCode.RightArrow)) Move(1, 1);
-        if (Input.GetKeyDown(KeyCode.UpArrow)) Move(1, -Columns);
-        if (Input.GetKeyDown(KeyCode.DownArrow)) Move(1, Columns);
-        if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) Lock(1, true);
-        if (Input.GetKeyDown(KeyCode.Backspace)) Lock(1, false);
+        if(!SelectionInteractive)return;
+        foreach(var key in SelectionKeys)
+            if(Input.GetKeyDown(key))SelectKey(key);
     }
-
-    public void Move(int slot, int delta)
+    public void Move(int slot,int delta)
     {
-        if (slot < 0 || slot > 1 || RedboolPvp.IsClient || Current != Stage.Select || Locked[slot]) return;
-        int count = RedboolPvpRoster.Count;
-        Cursor[slot] = ((Cursor[slot] + delta) % count + count) % count;
+        if(slot<0||slot>1||Locked[slot])return;
+        int count=RedboolPvpRoster.Count;
+        ApplySelection(slot,SelectionRun,SelectionRevision[slot],((Cursor[slot]+delta)%count+count)%count,false);
     }
-
-    public void Lock(int slot, bool value)
+    public void Lock(int slot,bool value)
     {
-        if (slot < 0 || slot > 1 || RedboolPvp.IsClient || Current != Stage.Select || Locked[slot] == value) return;
-        if (!value && Locked[0] && Locked[1] && confirmSince >= 0 && Time.realtimeSinceStartupAsDouble - confirmSince > ConfirmSeconds * .5f) return;   // 넘어가기 직전에는 취소하지 않는다
-        Locked[slot] = value;
+        if(slot<0||slot>1)return;
+        ApplySelection(slot,SelectionRun,SelectionRevision[slot],Cursor[slot],value);
     }
 
     // ── 손님: 호스트가 보낸 상태를 그대로 받는다 ──
@@ -220,11 +223,9 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     {
         if (frame == null) { Refresh(); return; }
         Current = (Stage)Mathf.Clamp(frame.world.stage, 0, 2);
-        for (int i = 0; i < 2; i++)
-        {
-            Cursor[i] = RedboolPvpRoster.Clamp(i == 0 ? frame.world.cursor0 : frame.world.cursor1);
-            Locked[i] = (frame.world.locked & (1 << i)) != 0;
-        }
+        selection.Remote(frame.world.selectionRun,frame.world.selectionRevision0,frame.world.selectionRevision1,
+            RedboolPvpRoster.Clamp(frame.world.cursor0),RedboolPvpRoster.Clamp(frame.world.cursor1),
+            (frame.world.locked&1)!=0,(frame.world.locked&2)!=0);
         SelectRemaining = frame.world.selectSeconds;
         Refresh(frame);
     }
@@ -392,8 +393,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         UIFactory.Stretch(select.rectTransform);
         Label(select.transform, "SelectTitle", "인 물  선 택", 48, TextAnchor.MiddleCenter, WuxiaTheme.Gold, new Vector2(.5f, 1), new Vector2(0, -50), new Vector2(900, 64));
         Label(select.transform, "SelectSub", "각자 한 명을 정하면 수련(동작 익히기)으로 넘어갑니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -100), new Vector2(1100, 34));
-        selectTimer = Label(select.transform, "Timer", "", 50, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -156), new Vector2(200, 64));
-        selectTimer.font = WuxiaTheme.DisplayFont;
+        selectTimer = Label(select.transform, "Timer", "선택한 인물을 확인하고 선택 완료를 누르세요", 22, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -156), new Vector2(1050, 44));
 
         // 가운데: 12명 (4 x 3)
         for (int i = 0; i < cards.Length; i++)
@@ -402,6 +402,9 @@ public sealed class RedboolPvpLobby : MonoBehaviour
             float x = (column - (Columns - 1) * .5f) * (CardW + Gap), y = (1 - row) * (CardH + Gap) + GridY;
             var card = UIFactory.CreateImage("Card" + i, select.transform, new Color(.075f, .09f, .095f, .97f));
             cards[i] = card.rectTransform;
+            int character=i;
+            card.raycastTarget=true;pickButtons[i]=card.gameObject.AddComponent<RedboolPvpSelectionButton>();
+            pickButtons[i].targetGraphic=card;pickButtons[i].onClick.AddListener(()=>ChooseLocal(character));
             UIFactory.Place(card.rectTransform, centre, centre, new Vector2(x, y), new Vector2(CardW, CardH));
             var who = RedboolPvpRoster.All[i];
             var portrait = Picture(card.transform, "Portrait", new Vector2(.5f, 1), new Vector2(0, -8), new Vector2(CardW - 16, 160));
@@ -439,7 +442,15 @@ public sealed class RedboolPvpLobby : MonoBehaviour
             bigLine[s] = Label(panel, "Line", "", 20, TextAnchor.UpperCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -510), new Vector2(380, 56));
             bigSpecial[s] = Label(panel, "Special", "", 25, TextAnchor.MiddleCenter, WuxiaTheme.Gold, new Vector2(.5f, 1), new Vector2(0, -598), new Vector2(400, 34));
             bigSpecialLine[s] = Label(panel, "SpecialLine", "", 18, TextAnchor.UpperCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -624), new Vector2(384, 76));
-            bigState[s] = Label(panel, "State", "", 28, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 0), new Vector2(0, 38), new Vector2(400, 40));
+            bigState[s] = Label(panel, "State", "", 22, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 0), new Vector2(0, 78), new Vector2(400, 32));
+            int slot=s;
+            var chooseSide=bigPortrait[s].gameObject.AddComponent<RedboolPvpSelectionButton>();
+            bigPortrait[s].raycastTarget=true;chooseSide.targetGraphic=bigPortrait[s];
+            chooseSide.onClick.AddListener(()=>SelectLocalSlot(slot));
+            confirmButtons[s]=CreateSelectionButton("ConfirmSelection"+(s+1),panel,"선택 완료",24,WuxiaTheme.Ink,
+                ()=> { if(!RedboolPvp.IsClient&&!RedboolPvp.RequireView)SelectLocalSlot(slot); if(slot==LocalSlot)ConfirmLocal(!Locked[slot]); });
+            UIFactory.Place(confirmButtons[s].GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,12),new Vector2(340,46));
+            WuxiaTheme.StyleButton(confirmButtons[s]);
         }
 
         // 둘 다 정했을 때 가운데에 뜨는 맞대결 표시. 인물 칸 위에 겹쳐 뜨므로 완전히 불투명하게 한다(조금만 비쳐도 뒤의 글이 읽힌다).
@@ -447,9 +458,34 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         versusRoot = versus.gameObject;
         versusText = Label(versus, "VersusText", "", 40, TextAnchor.MiddleCenter, WuxiaTheme.Paper, centre, new Vector2(0, 18), new Vector2(840, 110));
         versusText.supportRichText = true;
-        Label(versus, "VersusSub", "곧 수련을 시작합니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 38), new Vector2(800, 32));
+        versusSub=Label(versus, "VersusSub", "곧 수련을 시작합니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 38), new Vector2(800, 32));
 
-        Label(select.transform, "Hint", "몸을 좌우로 기울여 고르기   ·   잽이나 스트레이트로 확정   ·   양손 막기로 취소", 19, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(1500, 34));
+        selectionHint=Label(select.transform, "Hint", "", 20, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(1500, 34));
+    }
+
+    static Button CreateSelectionButton(string name,Transform parent,string label,int size,Color colour,UnityEngine.Events.UnityAction click)
+    {
+        var image=UIFactory.CreateImage(name,parent,colour,true);
+        var button=image.gameObject.AddComponent<RedboolPvpSelectionButton>();button.targetGraphic=image;
+        var text=WuxiaTheme.Text("Label",image.transform,label,size,TextAnchor.MiddleCenter,WuxiaTheme.Paper);
+        UIFactory.Stretch(text.rectTransform);text.raycastTarget=false;button.onClick.AddListener(click);
+        return button;
+    }
+
+    void RefreshSelectionControls()
+    {
+        bool localLocked=Locked[LocalSlot],available=SelectionInteractive;
+        foreach(var button in pickButtons)if(button!=null)button.interactable=available&&!localLocked;
+        for(int slot=0;slot<2;slot++)if(confirmButtons[slot]!=null)
+        {
+            confirmButtons[slot].gameObject.SetActive(slot==LocalSlot||!RedboolPvp.IsClient&&!RedboolPvp.RequireView);
+            confirmButtons[slot].interactable=available;
+            confirmButtons[slot].GetComponentInChildren<Text>().text=Locked[slot]?"다시 고르기":"선택 완료";
+        }
+        if(selectionHint!=null)selectionHint.text=!SelectionConnected?"연결을 기다리고 있어요 · 선택은 그대로 유지됩니다"
+            :RedboolPvp.IsClient&&game.ViewLink!=null&&game.ViewLink.SelectionPending?"선택을 적용하고 있어요"
+            :!RedboolPvp.IsClient&&!RedboolPvp.RequireView?(LocalSlot+1)+"P 선택 중 · 그림 또는 Tab으로 사람 바꾸기 · 방향키 / 마우스 · 선택 완료 / Enter"
+            :"방향키 또는 마우스로 고르기   ·   선택 완료 / Enter   ·   다시 고르기 / Backspace";
     }
 
     // 먹빛 판에 색 테두리를 두른 칸 (메뉴의 PvP 칸과 같은 모양)
@@ -538,9 +574,11 @@ public sealed class RedboolPvpLobby : MonoBehaviour
                 bigState[s].text = Locked[s] ? "확  정" : "고르는 중…";
                 bigState[s].color = Locked[s] ? SideColour[s] : Dim;
             }
-            selectTimer.text = Mathf.CeilToInt(SelectRemaining).ToString("D2");
-            selectTimer.color = SelectRemaining <= 10f ? new Color(1f, .42f, .3f) : WuxiaTheme.Paper;
+            selectTimer.text = both?"두 사람의 선택을 확인했어요":"각자 선택 완료를 누르면 수련을 시작합니다";
+            RefreshSelectionControls();
             if (versusRoot.activeSelf != both) versusRoot.SetActive(both);
+            if(both)versusSub.text=client?(frame!=null&&frame.actors[0].live&&frame.actors[1].live?"곧 수련을 시작합니다":"두 사람의 손목과 팔꿈치를 카메라에 보여주세요")
+                :game.BothPresent&&game.ViewReady?"곧 수련을 시작합니다":"두 사람의 손목과 팔꿈치를 카메라에 보여주세요";
             if (both) versusText.text = "<color=#F0B857>" + RedboolPvpRoster.Get(Cursor[0]).name + "</color>      대      <color=#85C2FF>" + RedboolPvpRoster.Get(Cursor[1]).name + "</color>";
         }
 

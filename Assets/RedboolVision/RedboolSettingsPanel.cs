@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>Explicit local settings; opening the panel performs no camera work.</summary>
 public sealed class RedboolSettingsPanel : MonoBehaviour
@@ -8,6 +9,9 @@ public sealed class RedboolSettingsPanel : MonoBehaviour
     static RedboolSettingsPanel instance;
     GameObject previousSelection;
     Text volumeLabel, fullscreenLabel, qualityLabel, cameraLabel, operatorLabel, message;
+    Text versionLabel;
+    Button exportButton;
+    string lastExportMessage;
     public static bool IsOpen => instance != null;
 
     public static void Show()
@@ -31,6 +35,7 @@ public sealed class RedboolSettingsPanel : MonoBehaviour
         if (Application.isPlaying) Destroy(old.gameObject); else DestroyImmediate(old.gameObject);
     }
     void OnDestroy() { if (instance == this) instance = null; }
+    void Update() { RefreshDiagnostics(); }
 
     void Build()
     {
@@ -38,10 +43,10 @@ public sealed class RedboolSettingsPanel : MonoBehaviour
         var shade = UIFactory.CreateImage("SettingsModal", canvas.transform, new Color(0, 0, 0, .78f), true);
         UIFactory.Stretch(shade.rectTransform);
         var panel = UIFactory.CreateImage("SettingsPanel", shade.transform, new Color(.045f, .055f, .055f, .99f), true);
-        UIFactory.Place(panel.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(940, 820));
+        UIFactory.Place(panel.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(940, 930));
         var outline = panel.gameObject.AddComponent<Outline>(); outline.effectColor = WuxiaTheme.Gold; outline.effectDistance = new Vector2(1, -1);
         Label(panel.transform, "Title", "설정", 38, 0, -28, 830, 60, TextAnchor.MiddleCenter);
-        Label(panel.transform, "Version", "REDBOOL " + RedboolDemoSettings.Release, 20, 0, -85, 830, 28, TextAnchor.MiddleCenter);
+        versionLabel=Label(panel.transform, "Version", "REDBOOL " + RedboolDemoSettings.Release, 20, 0, -85, 830, 28, TextAnchor.MiddleCenter);
 
         volumeLabel = Label(panel.transform, "Volume", "", 25, -385, -145, 300, 48);
         Button(panel.transform, "VolumeDown", "−", 20, -145, 90, () => { RedboolDemoSettings.MasterVolume -= .1f; Refresh(); });
@@ -67,9 +72,13 @@ public sealed class RedboolSettingsPanel : MonoBehaviour
         operatorLabel = Label(panel.transform, "Operator", "", 24, -385, -590, 430, 48);
         Button(panel.transform, "ToggleOperator", "전환", 230, -590, 160, () => { RedboolDemoSettings.OperatorMode = !RedboolDemoSettings.OperatorMode; Refresh(); });
         Label(panel.transform, "OperatorHint", "운영자만 사용: 시험용 키를 허용합니다. 게임을 다시 켜면 꺼집니다.", 20, -385, -640, 800, 32);
-        message = Label(panel.transform, "SettingsMessage", "", 20, -385, -680, 800, 50);
+        exportButton=Button(panel.transform,"ExportDiagnostics","진단 기록 저장",0,-700,430,()=>
+        {
+            message.text=RedboolPackageDiagnostics.RequestExport()?"진단 ZIP을 저장하고 있어요.":"메인 메뉴에서 기록 마무리가 끝난 뒤 저장해주세요.";
+        });
+        message = Label(panel.transform, "SettingsMessage", "", 20, -385, -770, 800, 60);
         message.horizontalOverflow = HorizontalWrapMode.Wrap;
-        var close = Button(panel.transform, "CloseSettings", "닫기", 0, -750, 240, Close);
+        var close = Button(panel.transform, "CloseSettings", "닫기", 0, -860, 240, Close);
         Refresh();
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(close.gameObject);
     }
@@ -81,6 +90,24 @@ public sealed class RedboolSettingsPanel : MonoBehaviour
         qualityLabel.text = "화면 품질  ·  " + (RedboolDemoSettings.LowQuality ? "낮음" : "자동");
         cameraLabel.text = "카메라  " + (RedboolDemoSettings.CameraIndex + 1) + (RedboolDemoSettings.CameraIndex == 0 ? " · 기본" : "");
         operatorLabel.text = "운영자 시험 기능  ·  " + (RedboolDemoSettings.OperatorMode ? "켜짐" : "꺼짐");
+        versionLabel.gameObject.SetActive(RedboolDemoSettings.OperatorMode);
+        RefreshDiagnostics();
+    }
+
+    void RefreshDiagnostics()
+    {
+        if(exportButton==null)return;
+        exportButton.interactable=RedboolPackageDiagnostics.CanExport;
+        bool atMenu=SceneManager.GetActiveScene().name==SceneRoutes.Start;
+        bool pending=RedboolCameraRuntime.Instance!=null&&RedboolCameraRuntime.Instance.DiagnosticsPending;
+        string label=!atMenu?"메인 메뉴에서 진단 기록 저장":pending?"기록 마무리 중…":RedboolPackageDiagnostics.IsExporting?"기록 저장 중…":"진단 기록 저장";
+        exportButton.GetComponentInChildren<Text>().text=label;
+        string exported=RedboolPackageDiagnostics.ExportMessage;
+        if(exported!=lastExportMessage)
+        {
+            lastExportMessage=exported;
+            if(!string.IsNullOrEmpty(exported))message.text=exported;
+        }
     }
 
     static Text Label(Transform parent, string name, string text, int size, float x, float y, float width, float height, TextAnchor alignment = TextAnchor.MiddleLeft)

@@ -318,41 +318,31 @@ public static class RedboolPvpLobbyCheck
         for (var w = Wait(dual ? 2.2f : .9f); w.MoveNext();) yield return null;   // 두 화면일 때는 손님 쪽이 선택 화면을 한 장 남길 시간을 준다
         Shot("2_select");
 
-        // 몸을 기울여 고르기
-        movement[0] = "RIGHT"; for (var w = Wait(.15f); w.MoveNext();) yield return null;
-        movement[0] = "NEUTRAL"; for (var w = Wait(.25f); w.MoveNext();) yield return null;
-        Check(lobby.Cursor[0] == 1, "1P가 오른쪽으로 기울이면 한 칸 옮겨 간다 (칸 " + lobby.Cursor[0] + ")");
-        movement[0] = "RIGHT"; for (var w = Wait(.8f); w.MoveNext();) yield return null;
-        movement[0] = "NEUTRAL"; for (var w = Wait(.25f); w.MoveNext();) yield return null;
-        Check(lobby.Cursor[0] == 3, "계속 기울이고 있으면 0.6초마다 한 칸씩 간다 (칸 " + lobby.Cursor[0] + ")");
-        movement[1] = "LEFT"; for (var w = Wait(.15f); w.MoveNext();) yield return null;
-        movement[1] = "NEUTRAL"; for (var w = Wait(.25f); w.MoveNext();) yield return null;
-        Check(lobby.Cursor[1] == 4, "2P가 왼쪽으로 기울이면 한 칸 옮겨 간다 (칸 " + lobby.Cursor[1] + ")");
-        Check((Game.Players[0].transform.position - start0).magnitude < .02f && (Game.Players[1].transform.position - start1).magnitude < .02f, "고르는 동안에는 인물이 걸어가지 않는다");
-
-        // 확정·취소
-        Gesture(0, "LEFT_PUNCH", "select-jab-0"); for (var w = Wait(.3f); w.MoveNext();) yield return null;
-        Check(lobby.Locked[0] && !lobby.Locked[1], "1P가 잽을 하면 확정된다");
-        Check(Game.Practices[0].Step == 0 && Game.Practices[0].Hits == 0, "고르는 동안의 잽은 수련으로 세지 않는다");
-        Check(lobby.SelectRemaining <= RedboolPvpLobby.AfterFirstLockSeconds + .01f, "한 사람이 확정하면 남은 시간이 15초로 줄어든다 (" + lobby.SelectRemaining.ToString("F1") + ")");
-        movement[0] = "RIGHT"; for (var w = Wait(.15f); w.MoveNext();) yield return null;
-        movement[0] = "NEUTRAL"; for (var w = Wait(.2f); w.MoveNext();) yield return null;
-        Check(lobby.Cursor[0] == 3, "확정한 뒤에는 기울여도 칸이 바뀌지 않는다");
+        // Body input never selects or confirms a character.
+        movement[0]="RIGHT";movement[1]="LEFT";
+        for(var w=Wait(.8f);w.MoveNext();)yield return null;
+        movement[0]=movement[1]="NEUTRAL";
+        Gesture(0,"LEFT_PUNCH","ignored-select-jab");block[1]=true;
+        for(var w=Wait(.3f);w.MoveNext();)yield return null;block[1]=false;
+        Check(lobby.Cursor[0]==RedboolPvpRoster.Hero&&lobby.Cursor[1]==RedboolPvpRoster.DefaultSecond
+            &&!lobby.Locked[0]&&!lobby.Locked[1],"선택 화면에서 기울임·펀치·막기는 인물이나 확정을 바꾸지 않는다");
+        Check((Game.Players[0].transform.position-start0).magnitude<.02f&&(Game.Players[1].transform.position-start1).magnitude<.02f,"선택 중 인물이 걸어가지 않는다");
+        Check(lobby.SelectKey(KeyCode.RightArrow)&&lobby.SelectKey(KeyCode.RightArrow)&&lobby.SelectKey(KeyCode.RightArrow),"1P 방향키가 명시적으로 칸을 이동한다");
+        lobby.Move(1,-1);Check(lobby.Cursor[0]==3&&lobby.Cursor[1]==4,"양쪽 명시 선택을 보존한다");
+        Check(lobby.SelectKey(KeyCode.Return)&&lobby.Locked[0],"Enter로 본인 선택을 확정한다");
+        Check(Game.Practices[0].Step==0&&Game.Practices[0].Hits==0,"선택 중 동작은 수련이나 공격으로 세지 않는다");
+        Check(lobby.SelectRemaining==RedboolPvpLobby.SelectSeconds&&!lobby.Locked[1],"한 명 확정으로 시간 자동확정이 생기지 않는다");
+        Check(!lobby.SelectKey(KeyCode.RightArrow)&&lobby.Cursor[0]==3,"확정 뒤 방향키는 선택을 바꾸지 않는다");
         Shot("3_select_first_locked");
-        block[0] = true; for (var w = Wait(.2f); w.MoveNext();) yield return null;
-        block[0] = false; for (var w = Wait(.25f); w.MoveNext();) yield return null;
-        Check(!lobby.Locked[0], "양손 막기로 확정을 취소한다");
-        Gesture(0, "RIGHT_PUNCH", "select-straight-0"); for (var w = Wait(.3f); w.MoveNext();) yield return null;
-        Check(lobby.Locked[0], "스트레이트로도 확정된다");
-        string oldPractice = Game.Practices[0].Run;
-        generations[0]++; calibrated[0] = false;
-        for (var w = Wait(.3f); w.MoveNext();) yield return null;
-        Check(!lobby.Locked[0] && Game.Practices[0].Run != oldPractice && Game.Practices[0].Suspended, "사람이 바뀌어 C로 보정하면 본인 선택 확정을 풀고 개인 수련을 새로 준비한다");
-        calibrated[0] = true; for (var w = Wait(.3f); w.MoveNext();) yield return null;
-        Gesture(0, "LEFT_PUNCH", "recal-select-0"); for (var w = Wait(.3f); w.MoveNext();) yield return null;
-        Check(lobby.Locked[0] && Game.Practices[0].Hits == 0, "재보정 후 선택용 잽은 수련이나 실제 공격으로 실행하지 않는다");
-        Gesture(1, "LEFT_PUNCH", "select-jab-1"); for (var w = Wait(.3f); w.MoveNext();) yield return null;
-        Check(lobby.Locked[1], "2P가 잽을 하면 확정된다");
+        Check(lobby.SelectKey(KeyCode.Backspace)&&!lobby.Locked[0],"Backspace로 명시적으로 확정을 푼다");
+        Check(lobby.SelectKey(KeyCode.Return),"다시 Enter로 확정한다");
+        string oldPractice=Game.Practices[0].Run;
+        generations[0]++;calibrated[0]=false;
+        for(var w=Wait(.3f);w.MoveNext();)yield return null;
+        Check(!lobby.Locked[0]&&Game.Practices[0].Run!=oldPractice&&Game.Practices[0].Suspended,"C로 사람이 바뀌면 확정을 풀고 개인 수련을 새로 준비한다");
+        calibrated[0]=true;for(var w=Wait(.3f);w.MoveNext();)yield return null;
+        Check(lobby.SelectKey(KeyCode.Return)&&Game.Practices[0].Hits==0,"재보정 후에도 명시 확인만 선택을 확정한다");
+        lobby.Lock(1,true);Check(lobby.Locked[1],"2P 명시 확정을 호스트가 적용한다");
         Shot("3b_select_both_locked");
         for (var w = Wait(RedboolPvpLobby.ConfirmSeconds + .4f); w.MoveNext();) yield return null;
         Check(lobby.Complete, "두 사람이 모두 확정하면 인물 선택이 끝난다");

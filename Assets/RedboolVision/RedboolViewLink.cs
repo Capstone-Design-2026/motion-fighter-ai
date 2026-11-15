@@ -27,6 +27,9 @@ public sealed class RedboolViewLink : MonoBehaviour
     ulong sequence,ack,minimumReadySequence;
     int effectId,received,invalid,sentBytes;
     bool client,initialized;
+    RedboolViewPacket selectionRequest;
+    double selectionRequestUntil,nextSelectionSend;
+    public bool SelectionPending => selectionRequest!=null;
     double nextBindAttempt;
     public bool Bound => initialized && socket!=null;
     public string BindError { get; private set; }
@@ -127,6 +130,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             // lease, ACK or snapshot can authorize play after local recovery.
             ack=0;lastHeartbeat=lastFrame=-10;nextSend=now;
             assembler.Reset();history.Clear();mirror?.ClearTransient();
+            selectionRequest=null;
             if(!client) {peer=null;peerNonce=Guid.Empty;lastHello=-10;}
             Debug.Log("[REDBOOL VIEW] "+(recovered?"local channel recovered ":"")+(client?"guest "+peer:"host :5067")+" protocol="+RedboolViewProtocol.Version);
         }
@@ -194,6 +198,7 @@ public sealed class RedboolViewLink : MonoBehaviour
                 {
                     if(assembler.Latest!=null) retiredSessions.Add(session);
                     session=p.session;assembler.Reset();history.Clear();mirror.ClearTransient();
+                    selectionRequest=null;
                 }
                 var complete=assembler.Push(p,now);
                 if(complete!=null)
@@ -202,6 +207,7 @@ public sealed class RedboolViewLink : MonoBehaviour
                     if(complete.seq%30==0) Debug.Log($"[REDBOOL VIEW APPLIED] session={complete.session:N} seq={complete.seq} round={complete.world.round} resolved={complete.world.resolved}");
                     if(p.echo>0 && now>=p.echo) RttMs=(now-p.echo)*1000;
                     ack=complete.seq;
+                    ObserveSelectionReply(complete);
                 }
             }
             else if(p.kind==0)
@@ -214,6 +220,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             }
             else if(p.kind==5 &&peer!=null &&from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&PeerReady &&p.seq<=sequence &&sequence-p.seq<=8)
                 game.SkipPractice(1,p.practiceRun.ToString("N"),p.practiceStep);
+            else if(p.kind==6) ApplySelectionPacket(p,from);
             else if(p.kind==4 && peer!=null && from.Equals(peer) &&p.nonce==peerNonce &&p.session==session &&p.seq<=sequence &&p.seq>=ack &&p.seq>=minimumReadySequence)
             {ack=p.seq;lastHeartbeat=lastHello=now;echo=p.time;}
         }
@@ -223,6 +230,49 @@ public sealed class RedboolViewLink : MonoBehaviour
         if(!client ||!Fresh ||assembler.Latest==null) return;
         var a=assembler.Latest.actors[1];if(a.step>=8)return;
         Send(new RedboolViewPacket {kind=5,session=session,nonce=nonce,seq=ack,time=Time.realtimeSinceStartupAsDouble,practiceRun=a.practiceRun,practiceStep=(byte)a.step});
+    }
+    // The sender never provides a player slot: the connected guest owns only P2.
+    bool ApplySelectionPacket(RedboolViewPacket packet,IPEndPoint from)
+    {
+        if(client||packet==null||packet.kind!=6||game==null||peer==null||!peer.Equals(from)
+            ||packet.nonce!=peerNonce||packet.session!=session||!PeerReady
+            ||packet.seq>sequence||sequence-packet.seq>8||packet.selectionRound!=game.Round)return false;
+        return game.Lobby!=null&&game.Lobby.ApplySelection(1,packet.selectionRun,packet.selectionRevision,packet.selectionCharacter,packet.selectionLocked);
+    }
+    public bool RequestSelection(int character,bool confirmed)
+    {
+        var frame=assembler.Latest;
+        if(!client||!Fresh||SelectionPending||frame==null||frame.world.stage!=1
+            ||frame.world.selectionRun==Guid.Empty||character<0||character>=RedboolPvpRoster.Count
+            ||RedboolPauseMenu.BlocksStoryInput)return false;
+        int cursor=frame.world.cursor1;bool locked=(frame.world.locked&2)!=0;
+        if((locked||confirmed)&&character!=cursor)return false;
+        if(cursor==character&&locked==confirmed)return true;
+        selectionRequest=new RedboolViewPacket {kind=6,session=session,nonce=nonce,
+            selectionRun=frame.world.selectionRun,selectionRound=frame.world.round,
+            selectionRevision=frame.world.selectionRevision1,selectionCharacter=(byte)character,selectionLocked=confirmed};
+        double now=Time.realtimeSinceStartupAsDouble;selectionRequestUntil=now+1.2;nextSelectionSend=now;
+        SendSelectionRequest(now);return true;
+    }
+    void ObserveSelectionReply(RedboolViewFrame frame)
+    {
+        if(selectionRequest==null)return;
+        var request=selectionRequest;var world=frame.world;
+        // A new person/round/selection invalidates the old click rather than
+        // silently rebasing an earlier confirmation onto a new character.
+        if(frame.session!=request.session||world.stage!=1||world.selectionRun!=request.selectionRun
+            ||world.round!=request.selectionRound||world.selectionRevision1!=request.selectionRevision
+            ||world.cursor1==request.selectionCharacter&&((world.locked&2)!=0)==request.selectionLocked)
+            selectionRequest=null;
+    }
+    void SendSelectionRequest(double now)
+    {
+        if(selectionRequest==null)return;
+        if(!Fresh||now>=selectionRequestUntil||RedboolPauseMenu.BlocksStoryInput)
+        {selectionRequest=null;return;}
+        if(now<nextSelectionSend)return;
+        nextSelectionSend=now+.12;
+        selectionRequest.seq=ack;selectionRequest.time=now;Send(selectionRequest);
     }
     void Update()
     {
@@ -240,6 +290,7 @@ public sealed class RedboolViewLink : MonoBehaviour
             Send(new RedboolViewPacket {kind=0,session=Guid.Empty,nonce=nonce,time=now});
             if(ack>0 && mirror.Ready && game.CanAcknowledgeView(assembler.Latest)) Send(new RedboolViewPacket {kind=4,session=session,nonce=nonce,seq=ack,time=now});
         }
+        if(client)SendSelectionRequest(now);
         if(client) {Time.timeScale=Fresh && assembler.Latest!=null && (!assembler.Latest.world.paused ||assembler.Latest.world.resolved)?1:0;if(!Fresh) ShowRemoteMeasured(assembler.Latest,false);}
         if(now-lastReport>=5)
         {
@@ -280,7 +331,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     public static bool CanBlendSnapshots(RedboolViewFrame a,RedboolViewFrame b)
     {
         return a!=null && b!=null && a.Complete && b.Complete && a.session==b.session
-            && a.world.round==b.world.round && a.world.paused==b.world.paused && a.world.stage==b.world.stage
+            && a.world.selectionRun==b.world.selectionRun && a.world.round==b.world.round && a.world.paused==b.world.paused && a.world.stage==b.world.stage
             && a.actors[0].character==b.actors[0].character && a.actors[1].character==b.actors[1].character;
     }
     /// <summary>인물을 바꾼 뒤 그 겉모습의 뼈대를 다시 잡는다 (호스트는 보낼 뼈대, 손님은 움직일 뼈대).</summary>
@@ -315,7 +366,8 @@ public sealed class RedboolViewLink : MonoBehaviour
         foreach(var wave in FindObjectsByType<QiWave>(FindObjectsSortMode.None)) if(wave.isActiveAndEnabled && !wave.Finished &&world.waves.Count<8) world.waves.Add(new RedboolViewWave {id=wave.GetInstanceID(),point=wave.transform.position,rotation=wave.transform.rotation});
         effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);
         var lobby=game.Lobby;
-        if(lobby!=null) {world.stage=(byte)lobby.Current;world.cursor0=(byte)lobby.Cursor[0];world.cursor1=(byte)lobby.Cursor[1];world.locked=(byte)((lobby.Locked[0]?1:0)|(lobby.Locked[1]?2:0));world.selectSeconds=(byte)Mathf.Clamp(Mathf.CeilToInt(lobby.SelectRemaining),0,60);}
+        if(lobby!=null) {world.stage=(byte)lobby.Current;world.cursor0=(byte)lobby.Cursor[0];world.cursor1=(byte)lobby.Cursor[1];world.locked=(byte)((lobby.Locked[0]?1:0)|(lobby.Locked[1]?2:0));world.selectSeconds=(byte)Mathf.Clamp(Mathf.CeilToInt(lobby.SelectRemaining),0,60);
+            world.selectionRun=lobby.SelectionRun;world.selectionRevision0=lobby.SelectionRevision[0];world.selectionRevision1=lobby.SelectionRevision[1];}
         return world;
     }
     void OnDestroy() {initialized=false;socket?.Close();socket=null;trace?.Dispose();trace=null;}

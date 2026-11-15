@@ -24,8 +24,8 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
     expected = 'Windows' if target == 'windows' else 'Darwin'
     if metadata.get('platform') != expected:
         raise ValueError('Backend platform does not match the game target.')
-    if metadata.get('release') != 'v36.1':
-        raise ValueError('v36.1 requires the rebuilt camera backend with bounded recognition continuity.')
+    if metadata.get('release') != 'v36.2':
+        raise ValueError('v36.2 requires the matching reviewed camera backend.')
     if metadata.get('recording_schema') != 'redbool.landmarks/1':
         raise ValueError('v34 requires the camera backend with landmark journal support.')
     provenance = json.loads((backend / '_internal/assets/backend-provenance.json').read_text(encoding='utf-8'))
@@ -82,13 +82,13 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
                     recognition_recording_max_bytes=134217728,
                     recognition_recording_schema='redbool.landmarks/1',
-                    lan_protocol=32)
+                    lan_protocol=33)
     (output / '시작 안내.txt').write_text(
-        f'REDBOOL {manifest["release"]} · 저사양 준비 상태·대기실 접속 주소 보완 시험판\n\n'
+        f'REDBOOL {manifest["release"]} · 동작 안내·직접 캐릭터 선택 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
-        '스토리/빠른 대전/수련에 들어가면 내 동작 패널과 카메라가 켜집니다.\n'
+        '스토리/수련/PvP에 들어가면 내 동작 패널과 카메라가 켜집니다.\n'
         '설정에서 소리·전체 화면·속도 우선 화면·카메라 번호를 선택할 수 있습니다.\n'
         '다른 카메라는 번호 선택 후 적용·다시 연결을 누르세요.\n'
         '전투에서는 피격 중단·기 부족만 짧게 보여줍니다. 수련과 운영자 모드에서는 자세히 안내합니다.\n'
@@ -99,19 +99,19 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '전체 화면 크기는 유지하고 카메라와 함께 실행하는 3D 화면의 처리량을 조절합니다.\n'
         '느린 PC는 자동으로 속도 우선 인식과 720p 3D 화면으로 전환합니다.\n'
         '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
-        '결투 바로가기는 수련을 건너뛰며 기본 보정은 C입니다.\n모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
+        '모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 v36.1을 권장합니다. 화면 통신 규약 32와 기존 v36의 전투·인식은 유지합니다.\n'
+        '양쪽 모두 v36.2를 사용하세요. 화면 통신 규약 33이며 기존 v36.1과 함께 접속할 수 없습니다.\n'
         '방장은 대기실의 상대가 입력할 주소를 복사해 전달합니다. 상대는 주소 입력 후 대전 참가를 누릅니다.\n'
         '주소가 여러 개면 상대와 연결한 Wi-Fi·유선·핫스팟에 해당하는 주소를 선택하세요.\n'
         '3개를 넘으면 다른 주소 버튼으로 넘겨 볼 수 있고, 네트워크 변경 뒤에는 새로고침을 누를 수 있습니다.\n'
         'IPv4 주소가 없다는 안내가 뜨면 네트워크 연결부터 확인하세요. 주소 표시가 통신 성공을 보장하지는 않습니다.\n'
         'Windows 방화벽 안내가 뜨면 사용하는 로컬 네트워크에서 게임 통신을 허용하세요.\n'
-        '각자 보정 후 인물을 고르고 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
+        '각자 보정 후 방향키·마우스로 인물을 고르고 선택 완료를 누르세요. 수련을 마치면 전투가 시작됩니다. 인터넷 서버는 사용하지 않습니다.\n\n'
         '카메라 접근 권한은 최초 실행 시 허용해야 합니다. 내 영상은 다른 PC로 보내지 않습니다.\n'
         '원본 영상은 녹화하지 않고 관절 좌표·인식·보정·성능 기록을 압축 저장합니다.\n'
         '관절 기록은 카메라 실행마다 최대 128MiB이며, 제한에 도달해도 게임은 계속됩니다.\n'
-        '테스트를 마친 뒤 메인 메뉴의 기록 마무리가 끝나면 진단 기록 저장을 누르세요.\n'
+        '테스트를 마친 뒤 메인 메뉴 → 설정에서 기록 마무리가 끝나면 진단 기록 저장을 누르세요.\n'
         '최근 3개 카메라 실행의 ZIP이 있는 폴더가 열립니다. PvP는 두 PC의 ZIP을 보내주세요.\n'
         '이 패키지는 첫 통합 시험판이며 실제 두 기기 카메라·성능 확인은 별도로 필요합니다.\n',
         encoding='utf-8')

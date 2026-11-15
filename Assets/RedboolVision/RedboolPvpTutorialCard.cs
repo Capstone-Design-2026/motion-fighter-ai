@@ -131,7 +131,7 @@ public sealed class RedboolPvpTutorialCard
         use.text = special ? SpecialUse(who, specialName) : "쓰임  ·  " + Use[step];
         string range = personal == 2 ? "개인 동작 범위 적용" : personal == 1 ? "동작과 복귀를 확인 중" : "기본 동작 인식";
         pips.text = "성공   " + (hits >= 1 ? "●" : "○") + "  " + (hits >= 2 ? "●" : "○") + "<size=17><color=#8C8C86>        " + range + "</color></size>";
-        note.text = !live ? "어깨와 손목을 보여주세요 · 첫 시작이나 사람이 바뀌면 C로 보정"
+        note.text = !live ? "카메라 입력 확인 중 · 보정 상태는 내 동작 화면을 확인하세요"
             : stage == 2 ? (step == 4 ? "잘했어요! 팔을 편하게 내리세요" : step == 5 || step == 6 ? "잘했어요! 몸을 가운데로 돌려 주세요" : special ? "잘했어요! 팔을 풀면 수련이 끝납니다" : "잘했어요! 다음 동작으로 넘어갑니다")
             : hits == 1 ? "좋아요! 같은 동작을 한 번 더"
             : stage == 0 ? "그림을 보며 바로 따라 해도 됩니다"
