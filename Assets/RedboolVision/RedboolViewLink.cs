@@ -151,7 +151,9 @@ public sealed class RedboolViewLink : MonoBehaviour
         if(peer==null || socket==null) return;
         var bytes=RedboolViewProtocol.Encode(packet);
         try {socket.Send(bytes,bytes.Length,peer);sentBytes+=bytes.Length;AuditPacket(packet,bytes);}
-        catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset || e.SocketErrorCode==SocketError.NetworkUnreachable || e.SocketErrorCode==SocketError.HostUnreachable) { }
+        // macOS may report EHOSTDOWN while the selected peer cannot be resolved.
+        // Keep normal retries; failed sends must never refresh a received lease.
+        catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset || e.SocketErrorCode==SocketError.NetworkUnreachable || e.SocketErrorCode==SocketError.HostUnreachable || e.SocketErrorCode==SocketError.HostDown) { }
     }
     void AuditPacket(RedboolViewPacket packet,byte[] bytes)
     {

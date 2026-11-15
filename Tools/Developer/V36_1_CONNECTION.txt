@@ -1,0 +1,29 @@
+REDBOOL v36.1 — PvP waiting-room address display
+
+The host waiting room shows eligible local IPv4 addresses with interface labels,
+copy buttons, and refresh. Guest screens never advertise the guest's own address
+as the host address. The display does not assert peer connectivity from a local IP.
+
+Local interface enumeration runs away from the render thread. The room refreshes
+at a bounded cadence; selection/combat do not start further enumeration jobs.
+No broadcast, participant input, router configuration, or firewall mutation is
+performed to obtain the list. IPv6 support is not added in this release.
+
+Loopback, unspecified, link-local, multicast, and CLAT translation-only IPv4
+addresses are excluded. Obvious VM-only adapters are not presented as a Wi-Fi
+host. Windows Wi-Fi Direct/mobile hotspot remains eligible. Multiple connected
+interfaces are labeled instead of pretending the first address is always reachable.
+
+macOS HostDown joins the existing temporary send-error filter. A failed send
+does not refresh ACKs or input leases. Later new attempts continue; no old attack
+is replayed. This prevents exception spam but cannot repair an isolated network.
+
+Camera backend remains v34.3 / b5212300b62a9ff762a01df7a712e67ef3b11edf.
+View protocol32, ports5065/5066/5067, recognition thresholds, personal calibration,
+story saves, character selection, special damage/timing, and readiness rules stay
+unchanged from v36.
+
+Validation: deterministic multi-interface/address classification, room UI checks
+and rendered layouts, existing protocol/recognition-state self-checks, and both
+desktop builds. A displayed address is a candidate for direct LAN connection;
+physical Windows/macOS network reachability still needs a real two-PC check.

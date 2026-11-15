@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,6 +52,21 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     Canvas canvas;
     GameObject roomRoot, selectRoot, versusRoot;
     Text roomStatus, selectTimer, versusText;
+    GameObject roomShareRoot;
+    Text roomShareStatus, roomAddressEmpty, roomAddressNotice;
+    Button roomAddressRefresh, roomAddressNext;
+    string[] addressCandidates = Array.Empty<string>(), addressCandidateLabels = Array.Empty<string>();
+    int addressPage;
+    readonly GameObject[] roomAddressRows = new GameObject[3];
+    readonly Text[] roomAddressValues = new Text[3], roomAddressLabels = new Text[3];
+    readonly Button[] roomAddressCopies = new Button[3];
+    readonly string[] roomAddresses = new string[3];
+    sealed class AddressResult { public RedboolLanAddress.Snapshot snapshot; public bool failed; }
+    Task<AddressResult> addressTask;
+    double nextAddressRefresh, addressCopiedUntil;
+    string addressNotice = "같은 공유기에 연결한 상대에게 주소를 알려주세요", addressCopied;
+    bool? roomStatusSharedLayout;
+    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView;
     readonly RectTransform[] cards = new RectTransform[RedboolPvpRoster.All.Length];
     readonly Texture[] portraits = new Texture[RedboolPvpRoster.All.Length];
     readonly Rect[] cardCrop = new Rect[RedboolPvpRoster.All.Length], bigCrop = new Rect[RedboolPvpRoster.All.Length];
@@ -72,6 +88,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         BuildUi();
         captureDirectory = Application.isBatchMode ? null : Environment.GetEnvironmentVariable("REDBOOL_VIEW_CAPTURE_DIR");
         Refresh();
+        if (AddressSharingVisible) RequestRoomAddresses();
     }
 
     void OnDestroy() { for (int i = 0; i < 2; i++) Listen(i, false); }
@@ -81,6 +98,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     {
         if (game == null || !game.Configured || RedboolPvp.IsClient) return;
         double now = Time.realtimeSinceStartupAsDouble;
+        TickRoomAddresses(now);
         switch (Current)
         {
             case Stage.Room:
@@ -239,7 +257,131 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         Label(room, "RoomSub", "두 사람이 모두 준비되면 인물을 고릅니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -112), new Vector2(900, 34));
         roomStatus = Label(room, "RoomStatus", "", 28, TextAnchor.MiddleCenter, WuxiaTheme.Paper, centre, new Vector2(0, -22), new Vector2(940, 200));
         roomStatus.lineSpacing = 1.35f;
+        BuildRoomAddresses(room);
         Label(room, "RoomHint", "어깨와 손목이 보이게 앉고 C 로 중앙 가드를 보정하세요", 19, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 46), new Vector2(960, 36));
+    }
+
+    void BuildRoomAddresses(Transform room)
+    {
+        var root = UIFactory.CreateRect("HostJoinAddresses", room); roomShareRoot = root.gameObject;
+        UIFactory.Place(root, new Vector2(.5f, .5f), new Vector2(.5f, 1), new Vector2(-235, 75), new Vector2(470, 240));
+        Label(root, "AddressTitle", "상대가 입력할 주소", 24, TextAnchor.MiddleLeft, WuxiaTheme.Gold,
+            new Vector2(0, 1), new Vector2(0, -14), new Vector2(245, 32), new Vector2(0, .5f));
+        roomAddressNext = UIFactory.CreateButton("NextAddresses", root, "다른 주소", 18, new Color(.16f, .18f, .17f, 1f), NextRoomAddresses);
+        UIFactory.Place(roomAddressNext.GetComponent<RectTransform>(), new Vector2(1, 1), new Vector2(1, .5f), new Vector2(-115, -14), new Vector2(90, 34));
+        roomAddressNext.gameObject.SetActive(false);
+        roomAddressRefresh = UIFactory.CreateButton("RefreshAddresses", root, "새로고침", 18, new Color(.16f, .18f, .17f, 1f), RequestRoomAddresses);
+        UIFactory.Place(roomAddressRefresh.GetComponent<RectTransform>(), new Vector2(1, 1), new Vector2(1, .5f), new Vector2(0, -14), new Vector2(105, 34));
+        roomShareStatus = Label(root, "ListenStatus", "방을 여는 중…", 18, TextAnchor.MiddleLeft, Dim,
+            new Vector2(0, 1), new Vector2(0, -47), new Vector2(470, 28), new Vector2(0, .5f));
+        for (int i = 0; i < roomAddressRows.Length; i++)
+        {
+            int slot = i;
+            var row = UIFactory.CreateRect("Address" + i, root); roomAddressRows[i] = row.gameObject;
+            UIFactory.Place(row, new Vector2(.5f, 1), new Vector2(.5f, .5f), new Vector2(0, -86 - i * 44), new Vector2(470, 42));
+            roomAddressValues[i] = Label(row, "IPv4", "", 27, TextAnchor.MiddleLeft, WuxiaTheme.Paper,
+                new Vector2(0, .5f), new Vector2(0, 0), new Vector2(245, 38), new Vector2(0, .5f));
+            roomAddressValues[i].supportRichText = false;
+            roomAddressLabels[i] = Label(row, "Interface", "", 16, TextAnchor.MiddleLeft, Dim,
+                new Vector2(0, .5f), new Vector2(250, 0), new Vector2(125, 36), new Vector2(0, .5f));
+            roomAddressLabels[i].supportRichText = false;
+            roomAddressCopies[i] = UIFactory.CreateButton("Copy", row, "복사", 19, new Color(.22f, .20f, .13f, 1f), () => CopyRoomAddress(slot));
+            UIFactory.Place(roomAddressCopies[i].GetComponent<RectTransform>(), new Vector2(1, .5f), new Vector2(1, .5f), Vector2.zero, new Vector2(80, 36));
+            row.gameObject.SetActive(false);
+        }
+        roomAddressEmpty = Label(root, "NoAddress", "주소를 확인하고 있어요…", 22, TextAnchor.MiddleLeft, WuxiaTheme.Paper,
+            new Vector2(0, 1), new Vector2(0, -128), new Vector2(470, 124), new Vector2(0, .5f));
+        roomAddressNotice = Label(root, "AddressNotice", addressNotice, 17, TextAnchor.MiddleLeft, Dim,
+            new Vector2(0, 1), new Vector2(0, -221), new Vector2(470, 36), new Vector2(0, .5f));
+    }
+
+    static AddressResult CaptureRoomAddresses()
+    {
+        // Background-only BCL enumeration. Never reads Unity state or touches UI.
+        try { return new AddressResult { snapshot = RedboolLanAddress.Capture() }; }
+        catch (Exception) { return new AddressResult { failed = true }; }
+    }
+    void RequestRoomAddresses()
+    {
+        if (!AddressSharingVisible || addressTask != null) return;
+        nextAddressRefresh = Time.realtimeSinceStartupAsDouble + 5;
+        addressTask = Task.Run(CaptureRoomAddresses);
+        roomAddressRefresh.interactable = false; roomAddressNext.interactable = false;
+        foreach (var button in roomAddressCopies) button.interactable = false;
+    }
+    void TickRoomAddresses(double now)
+    {
+        if (!AddressSharingVisible) return;
+        if (addressTask != null && addressTask.IsCompleted)
+        {
+            // CaptureRoomAddresses handles errors, including after this object is destroyed.
+            AddressResult result = addressTask.Result; addressTask = null;
+            ApplyRoomAddresses(result.snapshot, result.failed);
+        }
+        if (addressTask == null && now >= nextAddressRefresh) RequestRoomAddresses();
+    }
+    void ApplyRoomAddresses(RedboolLanAddress.Snapshot snapshot, bool failed)
+    {
+        // Snapshot exposes defensive copies; read each array once per completed scan.
+        var addresses = snapshot != null ? snapshot.Addresses : Array.Empty<string>();
+        var labels = snapshot != null ? snapshot.Labels : Array.Empty<string>();
+        addresses = addresses ?? Array.Empty<string>(); labels = labels ?? Array.Empty<string>();
+        bool same = addresses.Length == addressCandidates.Length;
+        if (same) for (int i = 0; i < addresses.Length; i++) if (addresses[i] != addressCandidates[i]) { same = false; break; }
+        if (!same) { addressPage = 0; addressCopiedUntil = 0; }
+        addressCandidates = addresses; addressCandidateLabels = labels;
+        roomAddressEmpty.text = failed || snapshot != null && !string.IsNullOrEmpty(snapshot.Error)
+            ? "주소를 확인하지 못했어요.\n연결을 확인하고 새로고침을 눌러주세요."
+            : "공유할 IPv4 주소를 찾지 못했어요.\n같은 공유기나 Windows 핫스팟에 연결해주세요.";
+        ShowRoomAddressPage();
+        roomAddressRefresh.interactable = true; roomAddressNext.interactable = true;
+    }
+    void NextRoomAddresses()
+    {
+        if (!AddressSharingVisible || addressTask != null || addressCandidates.Length <= roomAddresses.Length) return;
+        int pages = (addressCandidates.Length + roomAddresses.Length - 1) / roomAddresses.Length;
+        addressPage = (addressPage + 1) % pages; addressCopiedUntil = 0;
+        ShowRoomAddressPage(); RefreshRoomAddresses();
+    }
+    void ShowRoomAddressPage()
+    {
+        int start = addressPage * roomAddresses.Length;
+        int count = Mathf.Min(roomAddresses.Length, Mathf.Max(0, addressCandidates.Length - start));
+        for (int i = 0; i < roomAddresses.Length; i++)
+        {
+            int index = start + i;
+            roomAddresses[i] = i < count ? addressCandidates[index] : null;
+            roomAddressRows[i].SetActive(i < count);
+            roomAddressValues[i].text = i < count ? addressCandidates[index] : "";
+            string label = i < count && index < addressCandidateLabels.Length ? addressCandidateLabels[index] ?? "" : "";
+            roomAddressLabels[i].text = label.Length > 16 ? label.Substring(0, 15) + "…" : label;
+            roomAddressCopies[i].interactable = i < count;
+        }
+        roomAddressEmpty.gameObject.SetActive(count == 0);
+        bool paged = addressCandidates.Length > roomAddresses.Length;
+        roomAddressNext.gameObject.SetActive(paged);
+        addressNotice = paged ? "주소 " + (start + 1) + (count > 1 ? "–" + (start + count) : "") + " / " + addressCandidates.Length + " · 같은 공유기 주소를 사용하세요"
+            : "같은 공유기에 연결한 상대에게 주소를 알려주세요";
+    }
+    void CopyRoomAddress(int slot)
+    {
+        if (!AddressSharingVisible || addressTask != null || slot < 0 || slot >= roomAddresses.Length || string.IsNullOrEmpty(roomAddresses[slot])) return;
+        GUIUtility.systemCopyBuffer = roomAddresses[slot];
+        addressCopied = roomAddresses[slot] + " 복사됨"; addressCopiedUntil = Time.realtimeSinceStartupAsDouble + 2.5;
+        RefreshRoomAddresses();
+    }
+    void RefreshRoomAddresses()
+    {
+        bool show = AddressSharingVisible;
+        if (roomShareRoot.activeSelf != show) roomShareRoot.SetActive(show);
+        if (!show) return;
+        var link = game != null ? game.ViewLink : null;
+        string status = link == null || !link.Bound
+            ? link != null && link.PortConflict ? "방을 열지 못했어요 · 다른 게임을 닫아주세요" : "방을 여는 중…"
+            : game.ViewReady ? "상대 화면이 연결됐어요" : "상대의 참가를 기다리고 있어요";
+        if (roomShareStatus.text != status) roomShareStatus.text = status;
+        string notice = Time.realtimeSinceStartupAsDouble < addressCopiedUntil ? addressCopied : addressNotice;
+        if (roomAddressNotice.text != notice) roomAddressNotice.text = notice;
     }
 
     void BuildSelect()
@@ -354,12 +496,20 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         roomRoot.SetActive(Current == Stage.Room);
         selectRoot.SetActive(Current == Stage.Select);
 
+        RefreshRoomAddresses();
         if (Current == Stage.Room)
         {
+            bool sharing = AddressSharingVisible;
+            if (!roomStatusSharedLayout.HasValue || roomStatusSharedLayout.Value != sharing)
+            {
+                roomStatusSharedLayout = sharing; roomStatus.fontSize = sharing ? 24 : 28;
+                UIFactory.Place(roomStatus.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f),
+                    new Vector2(sharing ? 255 : 0, -22), new Vector2(sharing ? 440 : 940, 200));
+            }
             if (client) roomStatus.text = frame == null ? Row("호스트 화면", false, "연결 대기 중") : Row("1P 카메라", frame.actors[0].live, null) + "\n" + Row("2P 카메라", frame.actors[1].live, null) + "\n" + Row("2P 화면", true, null);
             else
             {
-                string view = RedboolPvp.RequireView ? "\n" + Row("2P 화면", game.ViewReady, "2P 노트북에서 대전 참가를 누르세요") : "";
+                string view = RedboolPvp.RequireView ? "\n" + Row("2P 화면", game.ViewReady, "대전 참가 대기") : "";
                 roomStatus.text = Row("1P 카메라", game.Receivers[0] != null && game.Receivers[0].PresenceReady, null) + "\n" + Row("2P 카메라", game.Receivers[1] != null && game.Receivers[1].PresenceReady, null) + view;
             }
         }
