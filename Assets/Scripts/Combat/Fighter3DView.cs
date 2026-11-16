@@ -148,6 +148,10 @@ public sealed class Fighter3DView : MonoBehaviour
             if (Time.time - stateStarted >= GuardEntry) Play(pose + "_HOLD");
         }
         else if (currentState == pose + "_HIT") Play(pose + "_HOLD");
+        // A fresh guard may return while its visual release is still blending.
+        // Resume the held pose from the current pose; gameplay guard remains immediate.
+        else if (currentState == pose + "_RELEASE" && Time.time >= stateStarted
+            && Time.time - stateStarted < GuardRelease) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         // 막는 중에 높이만 바뀌면(상대 공격에 맞춘 자동 전환) 팔을 내렸다 다시 올리지 않고 그 자세로 바로 넘어간다.
         else if (currentState != null && currentState.StartsWith("GUARD") && !currentState.EndsWith("_RELEASE")) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         else Play(pose);

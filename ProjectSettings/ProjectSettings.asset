@@ -614,7 +614,7 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
-  cameraUsageDescription: 
+  cameraUsageDescription: Heuk Un Hyeop uses the camera to recognize player movements and control the game.
   locationUsageDescription: 
   microphoneUsageDescription: 
   bluetoothUsageDescription: 
