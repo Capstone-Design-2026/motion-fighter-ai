@@ -16,7 +16,9 @@ import sys
 def main():
     root=Path(__file__).resolve().parents[1]
     sys.path.insert(0,str(root/'src'))
+    sys.path.insert(0,str(root/'scripts'))
     from redbool_demo.backend_provenance import source_provenance, PROVENANCE_FILE
+    from check_macos_minimum import audit, version, format_version
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--pose',type=Path,required=True)
     p.add_argument('--cross-pose',type=Path,required=True)
@@ -25,8 +27,12 @@ def main():
     p.add_argument('--work',type=Path,default=root/'build/camera_backend')
     p.add_argument('--build-variant',choices=('stable','online-candidate'),default='stable',
                    help='Explicit artifact identity; does not change recognition or network defaults')
+    p.add_argument('--max-macos',default='14.0',
+                   help='Oldest supported macOS: every bundled native slice must require this version or older (default:14.0)')
     p.add_argument('--check',action='store_true')
     a=p.parse_args()
+    try:macos_target=format_version(version(a.max_macos))
+    except ValueError as error:p.error(str(error))
     for model in (a.pose,a.cross_pose):
         if not model.is_file():p.error('Missing model: '+str(model))
     if a.cross_refine_pose:
@@ -54,6 +60,9 @@ def main():
               'models':{x.name:hashlib.sha256(x.read_bytes()).hexdigest() for x in sorted(asset_dir.glob('*.task'))},
               'optional_cross_refine':{'bundled':bool(a.cross_refine_pose),'default_enabled':False},
               'command':command}
+    if platform.system()=='Darwin':
+        metadata['macos_compatibility']={'status':'pending','maximum_macos':macos_target,
+            'required_architecture':'arm64','scope':'Static native deployment metadata; not older-OS runtime verification'}
     if a.check:print(json.dumps(metadata,indent=2));return
     env={**os.environ,'PYINSTALLER_CONFIG_DIR':str(a.work.resolve()/'cache'),
          'MPLCONFIGDIR':str(a.work.resolve()/'matplotlib'),
@@ -62,6 +71,18 @@ def main():
     if source_provenance(root)['source_sha256']!=provenance['source_sha256']:
         raise RuntimeError('Runtime source changed during packaging; rebuild the frozen source')
     folder=a.output.resolve()/'REDBOOLCamera'
+    if platform.system()=='Darwin':
+        # A stale success sidecar must not survive a rejected generated artifact.
+        success=folder/'backend-build.json'
+        if success.exists():success.unlink()
+        report=audit(folder,macos_target,('REDBOOLCamera',))
+        report_path=folder/'backend-macos-minimum.json'
+        report_path.write_text(json.dumps(report,indent=2),encoding='utf-8')
+        if not report['passed']:
+            raise RuntimeError('macOS native compatibility gate failed: '+str(report_path))
+        metadata['macos_compatibility'].update(status='passed',report=report_path.name,
+            report_sha256=hashlib.sha256(report_path.read_bytes()).hexdigest(),
+            native_file_count=report['native_file_count'],slice_count=report['slice_count'])
     (folder/'backend-build.json').write_text(json.dumps(metadata,indent=2),encoding='utf-8')
     executable=folder/('REDBOOLCamera.exe' if sys.platform=='win32' else 'REDBOOLCamera')
     subprocess.run([str(executable),'--check'],check=True,cwd=a.work,env=env)

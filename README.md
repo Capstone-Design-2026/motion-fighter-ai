@@ -118,7 +118,7 @@ python scripts/check_pvp_network.py --host HOST_IPV4 --seconds 20
 
 ## 패키징과 확인된 검증 범위
 
-카메라 실행 파일은 각 운영체제에서 네이티브로 빌드합니다. 별도 빌드 환경에서 `requirements-backend-build.txt`와 [v33 빌드 안내](docs/v33-integrated-camera.txt)를 사용하세요. Unity 게임과 카메라 폴더를 합치는 방법은 위 Unity 개발 문서에 있습니다.
+카메라 실행 파일은 각 운영체제에서 네이티브로 빌드합니다. Windows는 별도 빌드 환경에서 `requirements-backend-build.txt`와 [v33 빌드 안내](docs/v33-integrated-camera.txt)를 사용하세요. Mac은 [Mac 카메라 호환 빌드 안내](docs/mac-camera-compatibility.txt)와 `requirements-backend-macos.txt`를 사용하며, 모든 네이티브 라이브러리의 최소 macOS 검사에 통과해야 합니다. 현재 Mac 패키징 대상은 Apple Silicon·macOS 14 이상이며, 실제 기기 카메라 검증과는 구분합니다. Unity 게임과 카메라 폴더를 합치는 방법은 위 Unity 개발 문서에 있습니다.
 
 아래 수치는 v33 당시의 기존 검증 근거입니다. v34 관절 기록 검사는 별도 릴리스 결과와 CI에서 확인합니다.
 
