@@ -58,11 +58,11 @@
         "src/redbool_demo/backend.py": "f961b550d626c376193744ed3fac18b7157ca130be3ecdfe7a1a2b9c3524bd59",
         "src/redbool_demo/backend_assets.py": "c017806d390f6e9cb45fa7ef78656d656c2c094912dc67c5f59a1cb0fbf02c2b",
         "src/redbool_demo/backend_inference_check.py": "164ebb47c9e781ebd6ee2985987b379add66d61001315ba932dc7ae346915970",
-        "src/redbool_demo/landmark_recording.py": "1dff408eba207f63a51eb125d32aec71f3dd86dac9c8b3fc96d64c6862be0775",
+        "src/redbool_demo/landmark_recording.py": "1245ea057de3d1864a10e31557195331b58e048af1bbac3b0466328fbe56f298",
         "src/redbool_demo/landmark_replay.py": "2829dc9deb561e9acfc35061200d1497eef10356b0bece2142ead8c3cd8f42ce",
         "src/redbool_demo/backend_provenance.py": "0bda6ca22af83201caac23aeb33565b5a0f696dbcff66318265d3d0b40886866"
       },
-      "sha256": "9c9b4c3b72d41dfa3c9d760c24dbbf483a27a1b462855ff599c5753337f70164"
+      "sha256": "02c28f2500a18ae676aa50d0d754a39dcf9f8790fe9b4b5e27e59b72e35a5fef"
     }
   },
   "runtime_python_paths": [
@@ -164,7 +164,7 @@
   "online_candidate_review": {
     "base_source_commit": "dee98f0e832d6a6518b18b42a671a76adabbe348",
     "stable_manifest": "config/recognition_baseline.json",
-    "approved_scope": "Explicit opt-in online clock policy, generation-aware event metadata and receiver sequencing; default LAN and original input/event expiry remain. Recognition/calibration/Heavy/model/dependency hashes are unchanged.",
+    "approved_scope": "Explicit opt-in online clock policy, generation-aware event metadata and receiver sequencing, plus bounded Windows diagnostic index publication retry. Default LAN, original input/event expiry, recognition/calibration/model/dependency hashes remain unchanged. Optional Heavy computation is unchanged; only the journal publisher changes in that protected group.",
     "changed_files": [
       {
         "path": "src/redbool_demo/live.py",
@@ -180,6 +180,12 @@
         "path": "src/realtime_vision/transport.py",
         "base_sha256": "29ab407dc3023cc550481e6d5047977f89f392a4ab7fad771891990b9a902338",
         "candidate_sha256": "37ec1e9550b51b94669461f21b4a2059eec3657d3bff1b40a469c76653ee8091"
+      },
+      {
+        "path": "src/redbool_demo/landmark_recording.py",
+        "base_sha256": "1dff408eba207f63a51eb125d32aec71f3dd86dac9c8b3fc96d64c6862be0775",
+        "candidate_sha256": "1245ea057de3d1864a10e31557195331b58e048af1bbac3b0466328fbe56f298",
+        "scope": "Diagnostics worker index publication only: bounded 250ms retry for transient Windows reader-sharing lock; recognition and recording payload unchanged."
       }
     ]
   }

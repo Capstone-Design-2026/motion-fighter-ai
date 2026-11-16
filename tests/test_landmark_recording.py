@@ -129,7 +129,8 @@ class LandmarkJournalTests(unittest.TestCase):
                 self.assertEqual(index['health']['active_part'],'landmarks-000002.jsonl.gz.part')
                 self.assertEqual(len(list(iter_journal(journal.directory,require_complete=False))),1)
                 with self.assertRaisesRegex(ValueError,'Incomplete'):list(iter_journal(journal.directory))
-                self.assertEqual(journal.close()['state'],'complete')
+                health=journal.close()
+                self.assertEqual(health['state'],'complete',health)
                 self.assertEqual(len(list(iter_journal(journal.directory))),2)
             finally:
                 # Even a failed assertion must close owned handles before the

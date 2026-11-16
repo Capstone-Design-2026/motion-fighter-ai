@@ -23,6 +23,26 @@ MAX_BYTES = 128 * 1024 * 1024
 MAX_CHUNK_BYTES = 8 * 1024 * 1024
 
 
+def _replace_index(source, destination):
+    """Publish atomically, tolerating only short Windows reader-sharing locks.
+
+    A reader without FILE_SHARE_DELETE can briefly prevent rename on Windows.
+    Waiting belongs to the diagnostics worker, never the inference producer.
+    The old index remains intact until replace succeeds; permanent failures
+    still reach the writer's normal error/coverage reporting.
+    """
+    deadline = time.monotonic() + .250
+    for attempt in range(26):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError as exc:
+            remaining = deadline - time.monotonic()
+            if getattr(exc, 'winerror', None) not in (5, 32, 33) or remaining <= 0 or attempt == 25:
+                raise
+            time.sleep(min(.010, remaining))
+
+
 def _json_default(value):
     if is_dataclass(value):
         return asdict(value)
@@ -185,7 +205,7 @@ class LandmarkJournal:
             out.write(_encode(self._index(final)))
             out.flush()
             os.fsync(out.fileno())
-        os.replace(temporary, self.directory / INDEX)
+        _replace_index(temporary, self.directory / INDEX)
         self._last_index_write = time.monotonic()
 
     def _omit(self, rows, reason):

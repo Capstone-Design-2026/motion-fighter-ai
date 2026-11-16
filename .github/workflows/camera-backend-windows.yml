@@ -50,7 +50,7 @@ jobs:
       - name: Bounded X refinement and release regression tests
         run: python -m unittest -v test_x_latency_contract test_heavy_auxiliary test_heavy_recording test_heavy_assets test_refined_cross test_refined_release_contract test_static_cross_proof test_cross_miss_safety test_preview_pressure test_backend_optional_inference
       - name: Online profile and provenance regression tests
-        run: python -m unittest -v test_online_transport test_online_build_provenance
+        run: python -m unittest -v test_online_transport test_online_build_provenance test_journal_windows_sharing
       - name: Offline transport deadline and ordering comparison
         run: python scripts/compare_online_transport.py --output dist/camera_backend/online-transport-checks
       - name: Build native executable and check assets

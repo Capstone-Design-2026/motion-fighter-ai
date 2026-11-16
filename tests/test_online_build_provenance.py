@@ -92,10 +92,11 @@ class OnlineBuildProvenanceTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, 'Executed binary'):
             checker.verify(exe, 'a' * 40)
 
-    def test_online_manifest_only_changes_the_three_reviewed_wire_inputs(self):
+    def test_online_manifest_only_changes_reviewed_wire_and_diagnostic_inputs(self):
         base = json.loads((ROOT / 'config/recognition_baseline.json').read_text())
         online = json.loads((ROOT / 'config/recognition_baseline_online.json').read_text())
-        expected = {'src/redbool_demo/live.py', 'src/redbool_demo/transport.py', 'src/realtime_vision/transport.py'}
+        expected = {'src/redbool_demo/live.py', 'src/redbool_demo/transport.py', 'src/realtime_vision/transport.py',
+                    'src/redbool_demo/landmark_recording.py'}
         self.assertEqual(base['runtime_python_paths'], online['runtime_python_paths'])
         self.assertEqual(base['models'], online['models'])
         self.assertEqual(base['dependency_contract'], online['dependency_contract'])

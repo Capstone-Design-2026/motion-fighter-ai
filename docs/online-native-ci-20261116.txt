@@ -8,14 +8,28 @@ and the distinct REDBOOLCamera-OnlineCandidate-Windows-x64 artifact name.
 
 Reviewed baseline delta
 config/recognition_baseline.json is preserved byte for byte.
-config/recognition_baseline_online.json independently records only three reviewed changes:
+config/recognition_baseline_online.json independently records three reviewed wire changes and one diagnostic correction:
 - src/redbool_demo/live.py: explicit network profile, generation-aware event wiring and diagnostics.
 - src/redbool_demo/transport.py: opt-in online event metadata.
 - src/realtime_vision/transport.py: opt-in online clock policy and receiver sequencing.
-The recognition, calibration, optional-refinement, model and dependency hashes are unchanged.
+- src/redbool_demo/landmark_recording.py: bounded index-publication retry for Windows reader sharing.
+The recognition, calibration, model and dependency hashes are unchanged. Heavy inference remains unchanged.
 The default profile remains LAN. Original capture/event expiry is not extended.
 The exact reviewed before/after fingerprints and scope live in online_candidate_review.
 The new manifest is not generated automatically by CI and is not a generic gate bypass.
+
+Windows recording correction
+CI run 43837156097 failed journal close with state=error while the test read the index
+concurrently. The original assertion did not expose health.error, so that particular
+error code cannot be retrospectively established. Windows explicitly permits read handles
+to block rename when FILE_SHARE_DELETE is omitted. A positive-control native test now
+opens such a handle and verifies that the original os.replace fails, then that the
+bounded retry succeeds after the reader closes. This fixes a portable publication defect,
+not an assumed recognition failure. Only winerror5/32/33 PermissionError is retried,
+for at most250ms on the diagnostics worker; permanent or unrelated errors still report
+error and retain coverage. The producer, model, observation times and input TTLs are unchanged.
+Native Windows test evidence is required from the subsequent CI run; it was not run on Mac.
+Reference: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
 
 Build path
 Use only branch codex/online-transport-20261116. Its workflow has a push trigger for
