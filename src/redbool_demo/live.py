@@ -17,6 +17,7 @@ import time
 import uuid
 from .six_engine import SixGestureEngine as DemoEngine
 from .transport import DemoSender
+from realtime_vision.transport import network_policy
 from realtime_vision.clock import now_ns, metadata as clock_metadata
 from .camera_diagnostics import CaptureCadence, camera_properties
 from .camera_profile import eligible as profile_eligible, select_startup_profile, format_name
@@ -103,7 +104,8 @@ def run(a):
     stream=a.stream_id or uuid.uuid4().hex
     out=a.output/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+stream[:8])
     out.mkdir(parents=True,exist_ok=False)
-    sender=DemoSender(a.host,a.port,stream,a.actor,clock_ns=now_ns)
+    network_profile=getattr(a,'network_profile','lan')
+    sender=DemoSender(a.host,a.port,stream,a.actor,clock_ns=now_ns,network_profile=network_profile)
     log=AsyncLog(out/'trace.jsonl')
     if recording=='diagnostics':
         from .diagnostics_recording import DiagnosticsRecorder,DiagnosticLog
@@ -112,6 +114,7 @@ def run(a):
     slot=Latest();stop=threading.Event();errors=[]
     runtime_clock={**clock_metadata(),'origin_ns':now_ns(),'origin_utc':datetime.now().astimezone().isoformat()}
     log.write({'type':'runtime_clock',**runtime_clock})
+    log.write({'type':'network_profile',**network_policy(network_profile)})
     if recording=='diagnostics':
         from .backend_provenance import capabilities
         capability=capabilities()
@@ -198,6 +201,7 @@ def run(a):
                         if hasattr(engine,'tutorial_context'):
                             engine.tutorial_context(sender.tutorial_context(),now_ns())
                     stamp=engine.last_capture;logs=engine.take_logs();armed=engine.calibrated
+                    calibration_generation=getattr(engine,'calibration_generation',0)
                 for item in logs:log.write({'type':'engine','log':item})
                 if not armed:sender.events.clear()
                 for ev in events:
@@ -205,7 +209,8 @@ def run(a):
                     gesture=ev.reason.get('gesture',ev.side+'_PUNCH')
                     counts[gesture]=counts.get(gesture,0)+1
                     display.update(event=gesture,event_ns=ev.committed_ns)
-                    sender.offer(ev)
+                    if network_profile=='online':sender.offer(ev,calibration_generation=calibration_generation)
+                    else:sender.offer(ev)
                 now=now_ns();fresh=stamp is not None and 0<=now-stamp<150_000_000
                 if sender.clock:
                     ttl=max(1,min(150,int((stamp+150_000_000-now)//1_000_000))) if fresh else 150
@@ -213,7 +218,7 @@ def run(a):
                         movement=state.movement if fresh else 'NEUTRAL',movement_strength=float(state.movement_strength) if fresh else 0.,
                         tracking=state.tracking if fresh else "STALE",fsm_state=state.attack_state,capture_ns=stamp,
                         calibration_version=1,calibrated=bool(armed),
-                        calibration_generation=getattr(engine,'calibration_generation',0),
+                        calibration_generation=calibration_generation if network_profile=='online' else getattr(engine,'calibration_generation',0),
                         personal_status=engine.trainer.status if hasattr(engine,'trainer') else 'BASELINE V26'))
                 # Deliver a fresh BLOCK release before an attack from that frame.
                 for item in sender.service():log.write(item)
@@ -545,6 +550,7 @@ def run(a):
             'capture_to_engine_ms_p50_p95':np.percentile(age_samples,[50,95]).tolist() if age_samples else [],
             'opencv_threads':1,'frame_policy':'latest camera sample; preview throttling never skips recognition or recording'}
         report={'performance':performance,'framing':dict(framing_counts),'stream_id':stream,'counts':counts,'delivery':dict(sender.delivery),'errors':errors,
+            'transport':sender.transport_diagnostics() if network_profile=='online' else network_policy(network_profile),
             'camera_slot_drops':slot.dropped,'duration_seconds':time.monotonic()-started,
             'recording_mode':recording,'recording':recording_health,'session':str(recorder.directory) if recorder else None,'unity_screen_verified':False,
             'guided_check':{'completed':guide.completed,'interrupted':guide.interrupted,'steps_finished':guide.index,'self_paced':guide.self_paced} if guide else None}
@@ -565,6 +571,8 @@ def main(argv=None,bridge_instance=None):
     p.add_argument('--personal-calibration',action='store_true',help='Bounded per-person tutorial ranges; C resets the profile')
     p.add_argument('--guard-model',type=Path,help='Optional learned confirmation for relaxed guard; match Pose variant')
     p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=5065)
+    p.add_argument('--network-profile',choices=['lan','online'],default='lan',
+        help='Transport clock policy only; online permits higher uncertainty without extending input/event freshness')
     p.add_argument('--actor',default='DEV01');p.add_argument('--stream-id');p.add_argument('--camera',type=int,default=0)
     p.add_argument('--backend',default='auto');p.add_argument('--seconds',type=float,default=180)
     p.add_argument('--guided',action='store_true',help='Self-paced prompts: SPACE advances after each action/guard; saves instructions, not ground truth')

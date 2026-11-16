@@ -13,6 +13,17 @@ SYNC_RECOVERY_NS=200_000_000
 # Increase the uncertainty of an old sample by 1 ms per second. Selecting a
 # quieter exchange must never silently refresh that sample's original expiry.
 CLOCK_DRIFT_DIVISOR=1000
+NETWORK_CLOCK_LIMITS_NS={'lan':25_000_000,'online':75_000_000}
+
+
+def network_policy(profile='lan'):
+    """Transport-only policy. A usable clock is not proof that input is fresh."""
+    if profile not in NETWORK_CLOCK_LIMITS_NS:
+        raise ValueError('Network profile must be lan or online')
+    return {'network_profile':profile,
+            'max_clock_uncertainty_ns':NETWORK_CLOCK_LIMITS_NS[profile],
+            'max_input_lease_ms':MAX_LEASE_MS,'clock_max_age_ns':CLOCK_MAX_AGE_NS,
+            'scope':'Clock synchronization only; original capture/event deadlines still apply; not a latency guarantee'}
 
 
 def clock_estimate(t1,t2,t3,t4):
@@ -23,14 +34,19 @@ def clock_estimate(t1,t2,t3,t4):
 
 class ReceiverState:
     """Reference receiver. Time arguments use receiver's own monotonic clock."""
-    def __init__(self,stream_id,actor_id):
+    def __init__(self,stream_id,actor_id,*,network_profile='lan'):
+        self.network_profile=network_profile
+        self.max_clock_uncertainty_ns=network_policy(network_profile)['max_clock_uncertainty_ns']
         self.stream_id=stream_id;self.actor_id=actor_id;self.last_sequence=0
+        self.last_state_sequence=0;self.last_event_sequence=0
+        self.calibration_generation=None;self.generation_capture_ns=0;self.live=False
         self.seen=set();self.syncs={};self.block=False;self.movement='NEUTRAL';self.strength=0.
         self.deadline=0;self.attacks=[];self.counts=Counter()
     def tick(self,now):
         if now>=self.deadline:
             if self.block or self.movement!='NEUTRAL':self.counts['lease_expiry']+=1
             self.block=False;self.movement='NEUTRAL';self.strength=0.
+            self.live=False
     def accept(self,p,received_ns,applied_ns=None):
         now=received_ns if applied_ns is None else applied_ns;self.tick(now)
         def reject(reason):self.counts[reason]+=1;return {'status':reason}
@@ -43,43 +59,76 @@ class ReceiverState:
             self.syncs[ident]=received_ns
             return {'status':'SYNC','sync_id':ident,'sender_ns':p['sent_ns'],'receiver_ns':received_ns}
         seq=p.get('sequence')
-        if type(seq) is not int or seq<=self.last_sequence:return reject('old_sequence')
-        if p.get('kind') not in ('STATE','ATTACK'):return reject('bad_kind')
+        one_shot=p.get('kind')=='ATTACK' or self.network_profile=='online' and p.get('kind')=='GESTURE'
+        floor=(self.last_state_sequence if p.get('kind')=='STATE' else self.last_event_sequence) if self.network_profile=='online' else self.last_sequence
+        if type(seq) is not int or seq<=floor:return reject('old_sequence')
+        if p.get('kind')!='STATE' and not one_shot:return reject('bad_kind')
         sid=p.get('sync_id');uncertainty=p.get('clock_uncertainty_ns');offset=p.get('receiver_offset_ns');sent=p.get('sent_ns');ttl=p.get('ttl_ms')
         if sid not in self.syncs or now-self.syncs[sid]>5_000_000_000:return reject('unsynchronized')
-        if any(type(v) is not int for v in (uncertainty,offset,sent,ttl)) or not 0<=uncertainty<=25_000_000 or not 0<ttl<=MAX_LEASE_MS:return reject('invalid_timing')
+        if any(type(v) is not int for v in (uncertainty,offset,sent,ttl)) or not 0<=uncertainty<=self.max_clock_uncertainty_ns or not 0<ttl<=MAX_LEASE_MS:return reject('invalid_timing')
         age=now-(sent+offset)
         if age < -uncertainty or age+uncertainty>=ttl*1_000_000:return reject('expired')
         deadline=sent+offset+ttl*1_000_000-uncertainty
-        if p['kind']=='ATTACK':
+        if one_shot:
+            if self.network_profile=='online':
+                expiry=p.get('event_expires_ns')
+                if type(expiry) is not int or now+uncertainty>=expiry+offset:return reject('expired')
+                commit=p.get('commit_ns');capture=p.get('capture_ns')
+                if (type(commit) is not int or type(capture) is not int or not 0<capture<=commit<=sent
+                        or not commit<expiry<=commit+MAX_LEASE_MS*1_000_000):return reject('invalid_timing')
             eid=p.get('event_id')
-            if not isinstance(eid,str) or not eid or len(eid)>200 or p.get('side') not in ('LEFT','RIGHT'):return reject('bad_event')
+            side_valid=p.get('side') in ('LEFT','RIGHT') or self.network_profile=='online' and p.get('kind')=='GESTURE' and p.get('gesture')=='SPECIAL' and p.get('side')=='BOTH'
+            if not isinstance(eid,str) or not eid or len(eid)>200 or not side_valid:return reject('bad_event')
             if eid in self.seen:return reject('duplicate_event')
+            if self.network_profile=='online' and (not self.live or p.get('calibration_generation')!=self.calibration_generation
+                    or p['capture_ns']<self.generation_capture_ns):return reject('input_locked')
             if len(self.seen)>=10000:return reject('dedup_capacity_restart_required')
             self.seen.add(eid);self.attacks.append({'event_id':eid,'side':p['side'],'received_ns':received_ns,'applied_ns':now})
         else:
+            if self.network_profile=='online':
+                capture=p.get('capture_ns')
+                if type(capture) is not int or not 0<capture<=sent:return reject('invalid_timing')
+                deadline=min(deadline,capture+offset+MAX_LEASE_MS*1_000_000-uncertainty)
+                if now>=deadline:return reject('expired')
+                generation=p.get('calibration_generation')
+                if (type(generation) is int and self.calibration_generation is not None
+                        and generation<self.calibration_generation):return reject('input_locked')
             if type(p.get('block_active')) is not bool or p.get('movement') not in ('LEFT','RIGHT','NEUTRAL'):return reject('bad_state')
             strength=p.get('movement_strength')
             if type(strength) not in (int,float) or not math.isfinite(strength) or not 0<=strength<=1:return reject('bad_strength')
             self.block=p['block_active'];self.movement=p['movement'];self.strength=float(strength);self.deadline=deadline
-        self.last_sequence=seq;self.counts['accepted_'+p['kind']]+=1
+            if self.network_profile=='online':
+                generation=p.get('calibration_generation')
+                valid=type(generation) is int and p.get('calibrated') is True and p.get('tracking')=='VALID'
+                if generation!=self.calibration_generation:
+                    self.calibration_generation=generation;self.generation_capture_ns=0
+                if valid and self.generation_capture_ns==0:self.generation_capture_ns=capture
+                self.live=valid
+                if not valid:self.block=False;self.movement='NEUTRAL';self.strength=0.
+        self.last_sequence=max(self.last_sequence,seq)
+        if p['kind']=='STATE':self.last_state_sequence=seq
+        else:self.last_event_sequence=seq
+        self.counts['accepted_'+p['kind']]+=1
         return {'status':'APPLIED','event_id':p.get('event_id'),'sequence':seq,'receiver_ns':received_ns,'applied_ns':now}
 
 
 class Sender:
-    def __init__(self,host,port,stream_id,actor_id,*,clock_ns=None):
+    def __init__(self,host,port,stream_id,actor_id,*,clock_ns=None,network_profile='lan'):
+        self.network_profile=network_profile
+        self.max_clock_uncertainty_ns=network_policy(network_profile)['max_clock_uncertainty_ns']
         self.clock_ns=clock_ns or (lambda:time.monotonic_ns())
         self.target=(socket.gethostbyname(host),port);self.stream_id=stream_id;self.actor_id=actor_id;self.sequence=0
         self.sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);self.sock.bind(('0.0.0.0',0));self.sock.setblocking(False)
         self.pending={};self.clock=None;self.last_sync=0;self.counts=Counter()
         self.clock_samples=[];self.clock_diagnostics=[]
+        self.last_sync_rtt_ns=None
     def _select_clock(self,now):
         previous=self.clock
         self.clock_samples=[s for s in self.clock_samples if 0<=now-s['updated_ns']<=CLOCK_MAX_AGE_NS]
         candidates=[]
         for sample in self.clock_samples:
             uncertainty=sample['clock_uncertainty_ns']+(now-sample['updated_ns']+CLOCK_DRIFT_DIVISOR-1)//CLOCK_DRIFT_DIVISOR
-            if uncertainty<=25_000_000:
+            if uncertainty<=self.max_clock_uncertainty_ns:
                 candidates.append({**sample,'clock_uncertainty_ns':uncertainty})
         self.clock=min(candidates,key=lambda s:(s['clock_uncertainty_ns'],-s['updated_ns'])) if candidates else None
         old_id=previous.get('sync_id') if previous else None
@@ -89,7 +138,8 @@ class Sender:
         self.counts['clock_'+state]+=1
         self.clock_diagnostics.append({'type':'clock_sync','state':state,'timestamp_ns':now,
             'sync_id':new_id,'uncertainty_ns':self.clock['clock_uncertainty_ns'] if self.clock else None,
-            'sample_age_ns':now-self.clock['updated_ns'] if self.clock else None})
+            'sample_age_ns':now-self.clock['updated_ns'] if self.clock else None,
+            'network_profile':self.network_profile,'max_uncertainty_ns':self.max_clock_uncertainty_ns})
         self.clock_diagnostics=self.clock_diagnostics[-32:]
     def send(self,kind,**fields):
         now=self.clock_ns();self._select_clock(now);self.sequence+=1
@@ -131,12 +181,21 @@ class Sender:
                 if not isinstance(ack,dict):raise ValueError('ACK must be an object')
                 if ack.get('version')!=2 or ack.get('stream_id')!=self.stream_id:continue
                 rows.append({'type':'ack','ack':ack,'ack_receive_ns':t4})
+                if self.network_profile=='online':
+                    status=ack.get('status')
+                    if isinstance(status,str) and len(status)<=64:self.counts['ack_'+status]+=1
                 sid=ack.get('sync_id')
                 if ack.get('status')=='SYNC' and sid in self.pending:
                     t1=self.pending.pop(sid)
                     if ack['sender_ns']!=t1:continue
                     offset,uncertainty=clock_estimate(t1,ack['receiver_ns'],ack['ack_sent_ns'],t4)
-                    if uncertainty<=25_000_000:
+                    self.last_sync_rtt_ns=(t4-t1)-(ack['ack_sent_ns']-ack['receiver_ns'])
+                    if self.network_profile=='online':
+                        rows.append({'type':'network_clock_sample','network_profile':self.network_profile,
+                            'timestamp_ns':t4,'sync_id':sid,'corrected_rtt_ns':self.last_sync_rtt_ns,
+                            'uncertainty_ns':uncertainty,'max_uncertainty_ns':self.max_clock_uncertainty_ns,
+                            'accepted':uncertainty<=self.max_clock_uncertainty_ns})
+                    if uncertainty<=self.max_clock_uncertainty_ns:
                         self.counts['sync_sample_accepted']+=1
                         self.clock_samples.append({'sync_id':sid,'receiver_offset_ns':offset,'clock_uncertainty_ns':uncertainty,'updated_ns':t4})
                     else:self.counts['sync_sample_uncertain']+=1
@@ -144,4 +203,10 @@ class Sender:
         self._select_clock(self.clock_ns())
         rows.extend(self.clock_diagnostics);self.clock_diagnostics.clear()
         return rows
+    def transport_diagnostics(self):
+        now=self.clock_ns();self._select_clock(now)
+        return {**network_policy(self.network_profile),'synchronized':self.clock is not None,
+                'clock_uncertainty_ns':self.clock['clock_uncertainty_ns'] if self.clock else None,
+                'clock_sample_age_ns':now-self.clock['updated_ns'] if self.clock else None,
+                'last_sync_corrected_rtt_ns':self.last_sync_rtt_ns,'counts':dict(self.counts)}
     def close(self):self.sock.close()

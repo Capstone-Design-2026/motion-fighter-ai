@@ -1,0 +1,78 @@
+Online transport candidate — 2026-11-16
+
+Scope
+This isolated candidate changes transport policy and wiring. The default remains
+LAN. Recognition engines, thresholds, calibration, models, optional Heavy policy,
+capture cadence and the publisher's guard-release-before-attack order are unchanged.
+No server deployment, camera measurement or actual Internet test is claimed here.
+
+Entry points
+  python -m redbool_demo.live --network-profile online [existing role/asset flags]
+  camera_backend --network-profile online [existing Unity-owned bridge flags]
+  python scripts/run_personal_camera.py --network-profile online --player 2 --host HOST
+
+The packaged backend already forwards unknown bootstrap flags to the live parser;
+its model defaults are unchanged. The standalone helper's --host is still a UDP
+endpoint, not a room code. The Unity online bridge owns room membership/relay.
+Python Sender(..., network_profile='online') selects the same explicit profile.
+Omitting it selects network_profile='lan'. Both endpoints must use compatible
+online transport policy. Selecting this flag alone does not make public UDP secure.
+
+Policy
+LAN maximum clock uncertainty: 25 ms, unchanged.
+Online maximum clock uncertainty: 75 ms, explicitly selected.
+Both keep corrected synchronization RTT / 2 + 1 ms uncertainty, drift of 1 ms/s,
+the original 3-second sample lifetime, the existing bounded recovery probes,
+the 150 ms capture-based STATE lease and 150 ms commit-based event expiry.
+Retries retain event ID, original capture/commit/expiry, at most three sends and
+at least 35 ms between attempts. No local fake SYNC, new event timestamp or
+renewed event deadline is introduced. Publisher frequency remains unchanged.
+
+Online one-shots include calibration_generation from the publisher's same-lock
+engine snapshot. A receiver must require the current valid generation and reject
+source captures before that generation's first valid input. Reset cannot recall
+an in-flight UDP datagram; the receiver gate prevents it from starting an action.
+LAN one-shot wire fields are unchanged. Online receiver sequencing distinguishes
+STATE from one-shots while retaining the sender's global sequence numbers.
+This prevents newer STATE traffic from making an otherwise fresh event old.
+It is packet sequencing, not rollback or an ordered delivery guarantee for all
+events; a retry uses a newer packet number but the original event deadline.
+
+Synchronization is not playability
+A new online sync sample mathematically requires corrected RTT <=148 ms; aging
+requires additional headroom. This is NOT an acceptable gameplay RTT promise.
+Input still needs age + uncertainty < remaining original source/event lifetime.
+For example, symmetric 120 ms RTT produces 61 ms initial uncertainty. A source
+already 40 ms old, plus 60 ms outward travel and 10 ms receiver scheduling, is
+171 ms old after adding uncertainty and is rejected despite successful sync.
+At higher latency a synchronized connection may have no usable input budget.
+The guest display return path, interpolation, loss, frame scheduling and rendering
+are separate costs. This profile neither predicts gameplay nor eliminates them.
+
+Diagnostics
+trace.jsonl adds network_profile policy and online network_clock_sample rows with
+corrected RTT, measured uncertainty, acceptance and the selected maximum.
+Clock-selection rows identify profile and maximum. summary.json adds transport
+policy; online includes current clock age/uncertainty, last corrected sync RTT,
+and send/receive/ACK-status counters. A synchronization success is never recorded
+as proof that an event landed or that a frame was displayed.
+
+Deterministic verification
+tests/test_online_transport.py uses a virtual bidirectional command datagram link
+and an independent receiver clock. It exercises the actual sender, serialized
+packets, delay, jitter, packet/ACK loss, reordering, clock aging, unchanged event
+deadlines, guard expiry and calibration reset. It creates no sockets, webcam,
+native model, or game. The reference receiver models input timing/sequence gates;
+it does not model Fighter readiness/damage, authenticated relay transport, or the
+Unity view channel. Unity and full two-path online tests are separate requirements.
+
+Run from this Python directory with the existing development interpreter:
+  PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests python -m unittest -v \
+    test_online_transport test_transport_clock_recovery test_late_ack_diagnostics \
+    test_backend_entry test_live_clock test_recognition_baseline
+
+The reviewed recognition manifest is intentionally not rewritten. Full source
+baseline validation flags the three reviewed live/transport files in this
+candidate. All recognition and calibration-diagnostics hashes are separately
+verified unchanged by test_online_transport. This is not a new recognition-quality
+or latency claim; changed baseline groups still require release review.

@@ -23,6 +23,8 @@ def main():
     p.add_argument('--cross-refine-pose',type=Path,help='Optionally bundle verified Heavy; runtime remains default-off')
     p.add_argument('--output',type=Path,default=root/'dist/camera_backend')
     p.add_argument('--work',type=Path,default=root/'build/camera_backend')
+    p.add_argument('--build-variant',choices=('stable','online-candidate'),default='stable',
+                   help='Explicit artifact identity; does not change recognition or network defaults')
     p.add_argument('--check',action='store_true')
     a=p.parse_args()
     for model in (a.pose,a.cross_pose):
@@ -39,6 +41,7 @@ def main():
     if a.cross_refine_pose:shutil.copy2(a.cross_refine_pose,heavy_target)
     elif heavy_target.exists():heavy_target.unlink()  # generated build workspace only
     provenance=source_provenance(root)
+    provenance['build_variant']=a.build_variant
     (asset_dir/PROVENANCE_FILE).write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     command=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--console',
              '--name','REDBOOLCamera','--paths',str(root/'src'),'--distpath',str(a.output.resolve()),

@@ -1,0 +1,186 @@
+{
+  "schema": "redbool.recognition-baseline/1",
+  "source_hash_algorithm": "sha256-crlf-to-lf-v1",
+  "baseline_commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b",
+  "baseline_status": "ONLINE_TRANSPORT_CANDIDATE_REVIEWED_DELTA_ONLY",
+  "quality_claim": "Reviewed source and transport-policy candidate only. Recognition/calibration/model hashes match the stable v36.3 manifest. This does not prove Internet playability, latency, or recognition accuracy.",
+  "benchmark_run_ref": "docs/online-transport-validation-20261116.json",
+  "prior_comparison_ref": "docs/x-release-review-20261116.json",
+  "inventory_policy": "Explicit inventory of src Python paths. Adding/removing a runtime Python path fails pending review; non-protected existing diagnostic file contents may change. Tests/docs/cache files are not runtime inventory. Source hash groups only protect listed files. No automatic manifest regeneration.",
+  "groups": {
+    "recognition": {
+      "files": {
+        "src/redbool_demo/six_engine.py": "7d4e180237ec75fdf410ee3f6f6b743b984369326be2940e3f461483ce541b3d",
+        "src/redbool_demo/engine.py": "3faa74071882de13e3e08dfdf30dd09974c8ef2b06b6a69f91e14bd3d08d563a",
+        "src/redbool_demo/personal.py": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+        "src/redbool_demo/special.py": "af158eaf40e27ef96e53d4179fb043907cec8baf503616af5eadadab24f37a04",
+        "src/redbool_demo/high_guard_raise.py": "ac6b51e25c41ad61c4d0a4f9e13b11b4898078cf48f988fcf4f3016dee3c3ea5",
+        "src/redbool_demo/lateral.py": "0e669ea252145e96505aa61a683d16fb2b1b120f93b0272f9bc0e4967472ac8b",
+        "src/redbool_demo/auxiliary_pose.py": "3feebeed07a388b29e730da3ee3fa7500619faaffe51c3d9aa24c1c4a9879dcc",
+        "src/action_engine/core.py": "f07e1c24649e9c809d2d950dc2881ef582bcb27b1f2ae936a04ddd6dc81cb03e",
+        "src/action_engine/experimental.py": "e16622b74c45ea24f04b6b1067738bde3ec5d97e7a55b7dd206125708e5dc962",
+        "src/action_engine/types.py": "527a0d2e822dae976ecb942262b4d34d883e966863a504e2a4823653993cba3c",
+        "src/vision_v2/preprocess.py": "e8795b42cd03a1805519c4335b8996c1fc1b1f620c5521046d2c2c04da899e0a",
+        "src/movement.py": "82835bcd247ad180669e43144dd57e4e1dbb4a1802690a1447ea6293be984644",
+        "src/redbool_demo/static_special.py": "7bd71dbbe7b3eba50bc49a0fd06300edd9d13e0e3096fcaebe9e61b74210f74d",
+        "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6"
+      },
+      "sha256": "140a8e9e5d080b801f2f51e2f110a79d8f7a9621c5bf306fcc44da79216dfb9a"
+    },
+    "calibration_diagnostics": {
+      "files": {
+        "src/redbool_demo/calibration_feedback.py": "17f078d910d701322dad6ae1b1109fad3ffc58a1b07d266ab8477e3cbacfa261"
+      },
+      "sha256": "43c240b28cecf80bc47ea145b5d7ab1e10889641a6fe17516b08885dc7c1afb1"
+    },
+    "capture_and_clock": {
+      "files": {
+        "src/redbool_demo/live.py": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
+        "src/redbool_demo/camera_profile.py": "b91b312d38ecfb1d196a0dbd5480f5802bf30fad557d982a8f70358cc447db4f",
+        "src/redbool_demo/performance_policy.py": "1f4e6f23a3c9bb4093f2653eaccb56fb73c3ace42400a574538b4d5f3135203c",
+        "src/pose_capture.py": "a58df416945bd191308417376373350ebad8a737dcfc33edae94e67c41097616",
+        "src/realtime_vision/clock.py": "1081900b20f990cbbcf98e8ebfa3dc1a6e49341663007e1fbd6b7103c4f93953",
+        "src/realtime_vision/live.py": "8092c8bedbf79e619985ad558de650275468c9caa37cb7fc7d8e7efe94084602",
+        "src/redbool_demo/local_bridge.py": "e15183e7d4dc0e733980e095105224f89b69999493a5df2cad3d744decd471f6",
+        "src/redbool_demo/heavy_auxiliary.py": "1ded0cd2829cc832be731ed55408a58f1c033a62a0efc4b0a62ca6446899334a"
+      },
+      "sha256": "c22001a63d03f3212e1c98f17e8af638cf83268885f6f13e2321378fe89a61fb"
+    },
+    "bounded_transport": {
+      "files": {
+        "src/redbool_demo/transport.py": "136269be83dad991dc69b7329e70598c08e39dda0a5030fdec7f5ba4d8d210f5",
+        "src/realtime_vision/transport.py": "37ec1e9550b51b94669461f21b4a2059eec3657d3bff1b40a469c76653ee8091"
+      },
+      "sha256": "1a8c4efc228d5c33f21a2c9a8f0612ecfdc484e4eb4c87dc7952ca4f0c69cbc3"
+    },
+    "optional_refinement_integration": {
+      "files": {
+        "src/redbool_demo/backend.py": "f961b550d626c376193744ed3fac18b7157ca130be3ecdfe7a1a2b9c3524bd59",
+        "src/redbool_demo/backend_assets.py": "c017806d390f6e9cb45fa7ef78656d656c2c094912dc67c5f59a1cb0fbf02c2b",
+        "src/redbool_demo/backend_inference_check.py": "164ebb47c9e781ebd6ee2985987b379add66d61001315ba932dc7ae346915970",
+        "src/redbool_demo/landmark_recording.py": "1dff408eba207f63a51eb125d32aec71f3dd86dac9c8b3fc96d64c6862be0775",
+        "src/redbool_demo/landmark_replay.py": "2829dc9deb561e9acfc35061200d1497eef10356b0bece2142ead8c3cd8f42ce",
+        "src/redbool_demo/backend_provenance.py": "0bda6ca22af83201caac23aeb33565b5a0f696dbcff66318265d3d0b40886866"
+      },
+      "sha256": "9c9b4c3b72d41dfa3c9d760c24dbbf483a27a1b462855ff599c5753337f70164"
+    }
+  },
+  "runtime_python_paths": [
+    "src/action_engine/__init__.py",
+    "src/action_engine/ablation.py",
+    "src/action_engine/adapters.py",
+    "src/action_engine/core.py",
+    "src/action_engine/experimental.py",
+    "src/action_engine/types.py",
+    "src/calibrate_movement.py",
+    "src/collect_data.py",
+    "src/collect_gesture_pilot.py",
+    "src/config.py",
+    "src/continuous_events/__init__.py",
+    "src/continuous_events/protocol.py",
+    "src/continuous_events/quality.py",
+    "src/continuous_events/viewer.py",
+    "src/demo_eval/__init__.py",
+    "src/demo_eval/realtime.py",
+    "src/event_ground_truth/__init__.py",
+    "src/event_ground_truth/assisted.py",
+    "src/event_ground_truth/evaluate.py",
+    "src/event_ground_truth/pose_compare.py",
+    "src/event_ground_truth/schema.py",
+    "src/merge_csv.py",
+    "src/movement.py",
+    "src/package_pilot_session.py",
+    "src/pose_capture.py",
+    "src/realtime_vision/__init__.py",
+    "src/realtime_vision/clock.py",
+    "src/realtime_vision/live.py",
+    "src/realtime_vision/transport.py",
+    "src/redbool_demo/__init__.py",
+    "src/redbool_demo/auxiliary_pose.py",
+    "src/redbool_demo/backend.py",
+    "src/redbool_demo/backend_assets.py",
+    "src/redbool_demo/backend_cache.py",
+    "src/redbool_demo/backend_inference_check.py",
+    "src/redbool_demo/backend_provenance.py",
+    "src/redbool_demo/calibration_feedback.py",
+    "src/redbool_demo/camera_diagnostics.py",
+    "src/redbool_demo/camera_profile.py",
+    "src/redbool_demo/compact_video.py",
+    "src/redbool_demo/diagnostics_recording.py",
+    "src/redbool_demo/engine.py",
+    "src/redbool_demo/framing.py",
+    "src/redbool_demo/guided.py",
+    "src/redbool_demo/heavy_auxiliary.py",
+    "src/redbool_demo/high_guard_raise.py",
+    "src/redbool_demo/key_input.py",
+    "src/redbool_demo/landmark_recording.py",
+    "src/redbool_demo/landmark_replay.py",
+    "src/redbool_demo/lateral.py",
+    "src/redbool_demo/learned.py",
+    "src/redbool_demo/live.py",
+    "src/redbool_demo/local_bridge.py",
+    "src/redbool_demo/performance_policy.py",
+    "src/redbool_demo/personal.py",
+    "src/redbool_demo/probe.py",
+    "src/redbool_demo/refined_special.py",
+    "src/redbool_demo/six_engine.py",
+    "src/redbool_demo/special.py",
+    "src/redbool_demo/static_special.py",
+    "src/redbool_demo/train.py",
+    "src/redbool_demo/transport.py",
+    "src/replay_session.py",
+    "src/run_inference.py",
+    "src/send_unity.py",
+    "src/session_recording.py",
+    "src/train_mlp.py",
+    "src/vision_v2/__init__.py",
+    "src/vision_v2/preprocess.py",
+    "src/vision_v2/temporal_models.py"
+  ],
+  "models": {
+    "pose_landmarker.task": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
+    "local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task": "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1"
+  },
+  "model_check_policy": "Raw-byte SHA256; separate --check-models invocation after verified models downloaded. Source-only mode explicitly reports not_checked.",
+  "dependency_contract": {
+    "files": {
+      "requirements-backend-build.txt": "7eacac6d316f9f7585f58b5e9430ef6d4b061491ad87ccfa65497a08e04beaf9"
+    },
+    "sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
+    "scope": "Packaged backend dependency pins only; development/training requirements.txt is not protected."
+  },
+  "selected_release": "v36.3 X latency test release; original core and game modes preserved",
+  "selection_date": "2026-11-16",
+  "benchmark_sha256": "a2a559f1930bc2a99589aeb0d6cea9ec88fbd5fc2182c368c3be746c12ae30a2",
+  "selection_limit": "Current recorded-data choice. Not a universal recognition accuracy or two-PC live-performance guarantee.",
+  "optional_model_contract": {
+    "asset": {
+      "path": "local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_heavy.task",
+      "sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+      "default_enabled": false
+    },
+    "policy": "Not required by the default model check or automatic discovery. Explicit runtime/native-check selection verifies raw bytes through protected backend_assets.py before load."
+  },
+  "online_candidate_review": {
+    "base_source_commit": "dee98f0e832d6a6518b18b42a671a76adabbe348",
+    "stable_manifest": "config/recognition_baseline.json",
+    "approved_scope": "Explicit opt-in online clock policy, generation-aware event metadata and receiver sequencing; default LAN and original input/event expiry remain. Recognition/calibration/Heavy/model/dependency hashes are unchanged.",
+    "changed_files": [
+      {
+        "path": "src/redbool_demo/live.py",
+        "base_sha256": "2c22cf7da24b40cd7aa3a4cc23f03711c0b6f1e141db4cf23e609ce982d834d0",
+        "candidate_sha256": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5"
+      },
+      {
+        "path": "src/redbool_demo/transport.py",
+        "base_sha256": "443c5ed5ad6f4670bca4500c9710eb63da9da6b8236365900d1c7e27d7966f49",
+        "candidate_sha256": "136269be83dad991dc69b7329e70598c08e39dda0a5030fdec7f5ba4d8d210f5"
+      },
+      {
+        "path": "src/realtime_vision/transport.py",
+        "base_sha256": "29ab407dc3023cc550481e6d5047977f89f392a4ab7fad771891990b9a902338",
+        "candidate_sha256": "37ec1e9550b51b94669461f21b4a2059eec3657d3bff1b40a469c76653ee8091"
+      }
+    ]
+  }
+}

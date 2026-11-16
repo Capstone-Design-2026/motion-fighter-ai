@@ -45,10 +45,11 @@ class DemoSender(Sender):
         now=self.clock_ns() if now_ns is None else now_ns
         return dict(self.tutorial) if self.tutorial and 0<=now-self.tutorial['sent_ns']<=500_000_000 else None
 
-    def offer(self,event):
+    def offer(self,event,*,calibration_generation=None):
         if len(self.events)>=32:
             self.delivery['queue_full']+=1;return
-        self.events.setdefault(event.event_id,{'event':event,'sent':0,'last':0})
+        self.events.setdefault(event.event_id,{'event':event,'sent':0,'last':0,
+            'calibration_generation':calibration_generation})
 
     def service(self):
         rows=super().service();now=self.clock_ns()
@@ -86,10 +87,12 @@ class DemoSender(Sender):
                 self.last_status='EVENT EXPIRED WITHOUT ACK';self.last_status_event_id=eid;continue
             if self.clock and item['sent']<3 and now-item['last']>=35_000_000:
                 gesture=event.reason.get('gesture')
+                context=({'calibration_generation':item['calibration_generation']}
+                    if self.network_profile=='online' and item['calibration_generation'] is not None else {})
                 rows.append(self.send('GESTURE' if gesture else 'ATTACK',ttl_ms=min(150,remaining),event_id=eid,side=event.side,
                     gesture=gesture,
                     event_expires_ns=event.expires_ns,commit_ns=event.committed_ns,
-                    capture_ns=event.source_capture_ns,source_frame_id=event.source_frame_id))
+                    capture_ns=event.source_capture_ns,source_frame_id=event.source_frame_id,**context))
                 item['last']=now;item['sent']+=1
                 self.delivery['transmissions']+=1
         return rows

@@ -5,6 +5,7 @@ root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--player',choices=['1','2','story'],default='story')
 p.add_argument('--host');p.add_argument('--camera',type=int,default=0)
+p.add_argument('--network-profile',choices=['lan','online'],default='lan')
 p.add_argument('--seconds',type=float,default=1800);p.add_argument('--check',action='store_true')
 p.add_argument('--recording',choices=['review','logs','lossless'],default='review')
 a=p.parse_args()
@@ -18,6 +19,7 @@ if a.player=='2' and not a.host and not a.check:
 a.host=a.host or '127.0.0.1'
 actor='DEV01' if a.player=='story' else 'P'+a.player
 args=[sys.executable,'-m','redbool_demo.live','--personal-calibration','--host',a.host,
+      '--network-profile',a.network_profile,
       '--port','5066' if a.player=='2' else '5065','--actor',actor,'--movement','--mirror',
       '--recording',a.recording,'--camera',str(a.camera),'--seconds',str(a.seconds),'--pose',str(root/'pose_landmarker.task'),
       '--cross-pose',str(root/'local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task'),
