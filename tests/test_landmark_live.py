@@ -17,6 +17,61 @@ from redbool_demo.landmark_recording import iter_journal
 from test_chest_special import pose
 
 
+class CalibratedCrossScript:
+    """Fixture phases follow readiness, never a camera counter or an event.
+
+    The camera writes this pose code into each captured image. Every fake model
+    reads that immutable code, even if the script advances before inference.
+    """
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.lock = threading.RLock()
+        self.phase = 'waiting'
+        self.cross_since = self.return_since = None
+        self.pause_frame = self.finish_frame = None
+        self.started = False
+        self.commands = []
+
+    def observe(self, *, calibrated, helper_ready, frame_id):
+        with self.lock:
+            if self.phase == 'waiting' and self.started and calibrated and helper_ready:
+                self.phase = 'cross'
+            elif self.phase == 'recalibrating' and calibrated:
+                self.phase, self.finish_frame = 'finished', frame_id
+
+    def pose_code(self):
+        with self.lock:
+            now = self.clock()
+            if self.phase == 'cross':
+                if self.cross_since is None:
+                    self.cross_since = now
+                if now - self.cross_since < 1.2:
+                    return 1
+                self.phase, self.return_since = 'returning', now
+            if self.phase == 'returning' and now - self.return_since >= .25:
+                self.phase = 'pause_ready'
+            return 0
+
+    def command(self, frame_id):
+        with self.lock:
+            command = None
+            if not self.started and frame_id >= 1:
+                self.started = True
+                command = 'calibrate'
+            elif self.phase == 'pause_ready':
+                self.phase, self.pause_frame = 'paused', frame_id
+                command = 'pause'
+            elif self.phase == 'paused' and frame_id >= self.pause_frame + 5:
+                self.phase = 'recalibrating'
+                command = 'calibrate'
+            elif self.phase == 'finished' and frame_id >= self.finish_frame + 20:
+                self.phase = 'stopped'
+                command = 'stop'
+            if command:
+                self.commands.append(command)
+            return command
+
+
 class LandmarkLiveTests(unittest.TestCase):
     def test_terminal_unicode_and_broken_pipe_are_nonfatal(self):
         from redbool_demo.live import _print_status
@@ -43,19 +98,39 @@ class LandmarkLiveTests(unittest.TestCase):
              patch('redbool_demo.heavy_auxiliary.BoundedHeavyAuxiliary.PENDING_NS',0):
             self._check_live(overload=False,refine=True)
 
+    def test_opt_in_heavy_waits_for_calibration_after_delayed_control(self):
+        # Capture continues during this delay. The old capture-60..109 script
+        # started X before guard calibration and produced no event on both the
+        # original and optimized engine. No production timing limit is relaxed.
+        with patch('redbool_demo.heavy_auxiliary.BoundedHeavyAuxiliary.WINDOW',2), \
+             patch('redbool_demo.heavy_auxiliary.BoundedHeavyAuxiliary.PENDING_NS',0):
+            self._check_live(overload=False,refine=True,calibration_delay=.65)
+
     def test_startup_probe_frames_never_enter_engine_or_journal(self):
         self._check_live(overload=False,profiling=True)
 
     def test_cancel_during_startup_probe_releases_owned_camera_without_observations(self):
         self._check_live(overload=False,profiling=True,cancel_profile=True)
 
-    def _check_live(self, overload, profiling=False, cancel_profile=False,refine=False):
+    def _check_live(self, overload, profiling=False, cancel_profile=False,refine=False,
+                    calibration_delay=0.):
         from redbool_demo.live import run
         from redbool_demo.camera_profile import select_startup_profile
+        from redbool_demo.engine import DemoEngine
+        from redbool_demo.heavy_auxiliary import BoundedHeavyAuxiliary
         from mediapipe.tasks.python.vision import PoseLandmarker
-        models=[]
+        models=[]; helpers=[]; script=CalibratedCrossScript() if refine else None
+        original_calibrate=DemoEngine.request_calibration;calibration_calls=0
+        def calibrate(engine):
+            nonlocal calibration_calls
+            result=original_calibrate(engine);calibration_calls+=1
+            if calibration_calls==1 and calibration_delay:time.sleep(calibration_delay)
+            return result
+        def helper(*args,**kwargs):
+            value=BoundedHeavyAuxiliary(*args,**kwargs);helpers.append(value);return value
         class Camera:
             frame=0
+            def __init__(self):self.pose_codes={}
             def set(self,*args):return True
             def get(self,*args):return 30.
             def getBackendName(self):return 'DSHOW' if profiling else 'SYNTHETIC_NO_DEVICE'
@@ -64,16 +139,19 @@ class LandmarkLiveTests(unittest.TestCase):
                 if cancel_profile and self.frame>=4:bridge.stop_requested.set()
                 bgr=np.zeros((480,640,3) if profiling else (48,64,3),dtype=np.uint8)
                 bgr[0,0,0]=self.frame%256;bgr[0,0,1]=self.frame//256
+                code=script.pose_code() if script else int(60<=self.frame<110)
+                self.pose_codes[self.frame]=code;bgr[0,1,0]=code
                 return True,bgr
             def release(self):self.released=True
         class Model:
-            def __init__(self):self.calls=[];self.index=len(models);models.append(self)
+            def __init__(self):self.calls=[];self.pose_calls=[];self.index=len(models);models.append(self)
             def detect_for_video(self,image,*args):
                 # Independent models may run at different rates. Their fake
                 # observations must describe this captured image, not callcount.
                 if overload and self.index:time.sleep(.145)
                 rgb=image.numpy_view();sample=int(rgb[0,0,2])+256*int(rgb[0,0,1])
-                self.calls.append(sample);o=pose('cross' if 60<=sample<110 else 'guard')
+                code=int(rgb[0,1,2]);self.calls.append(sample);self.pose_calls.append((sample,code))
+                o=pose('cross' if code else 'guard')
                 points=[types.SimpleNamespace(x=p[0],y=p[1],z=p[2],visibility=.99,presence=.98) for p in o.landmarks]
                 return types.SimpleNamespace(pose_landmarks=[points],pose_world_landmarks=[points])
             def detect(self,*args):return self.detect_for_video(*args)
@@ -87,7 +165,11 @@ class LandmarkLiveTests(unittest.TestCase):
             def close(self):self.closed=True
         class Bridge:
             def __init__(self):self.stop_requested=threading.Event();self.data=dict(preview_encoded=0,preview_target_fps=15.);self.done=set();self.history=[];self.preview_limits=[]
-            def update(self,**kw):self.data.update(kw);self.history.append(dict(kw))
+            def update(self,**kw):
+                self.data.update(kw);self.history.append(dict(kw))
+                if script and 'calibrated' in kw:
+                    script.observe(calibrated=kw['calibrated'],frame_id=kw['frame_id'],
+                        helper_ready=bool(helpers and helpers[0].snapshot()['ready']))
             def limit_preview_fps(self,fps):
                 self.preview_limits.append(fps)
                 self.data['preview_target_fps']=min(self.data['preview_target_fps'],fps)
@@ -96,6 +178,10 @@ class LandmarkLiveTests(unittest.TestCase):
             def snapshot(self):return dict(self.data)
             def take_command(self):
                 fid=self.data.get('frame_id',0)
+                if script:
+                    command=script.command(fid)
+                    if command=='stop':self.stop_requested.set();return None
+                    return command
                 for target,cmd in [(1,'calibrate'),(120,'pause'),(125,'calibrate')]:
                     if fid>=target and target not in self.done:self.done.add(target);return cmd
                 if fid>=180:self.stop_requested.set()
@@ -110,6 +196,8 @@ class LandmarkLiveTests(unittest.TestCase):
                 guided=False,recording='diagnostics',preview_fps=15,headless=True,bridge_instance=bridge,mirror=True)
             with patch('continuous_events.protocol.verify_pose_asset'),patch('pose_capture.open_camera',return_value=camera),\
                  patch('redbool_demo.backend_assets.verify_pose_asset'),\
+                 patch.object(DemoEngine,'request_calibration',calibrate), \
+                 patch('redbool_demo.heavy_auxiliary.BoundedHeavyAuxiliary',side_effect=helper), \
                  patch.object(PoseLandmarker,'create_from_options',side_effect=lambda *a,**kw:Model()),\
                  patch('redbool_demo.live.DemoSender',Sender), \
                  patch('redbool_demo.live.profile_eligible',return_value=profiling), \
@@ -160,6 +248,13 @@ class LandmarkLiveTests(unittest.TestCase):
                 'Recalibration retains an overload latch, otherwise it reenables auxiliaries')
             self.assertEqual(len(models),4 if refine else 3,'All models are created once and reused')
             if refine:
+                self.assertEqual(script.commands,['calibrate','pause','calibrate','stop'])
+                cross=[row for row in frames if camera.pose_codes[row['frame']['camera_frame_id']]]
+                self.assertTrue(cross)
+                self.assertTrue(all(row['expected']['calibrated'] for row in cross),
+                    'Synthetic X starts only after actual calibration and helper readiness')
+                self.assertGreaterEqual(cross[-1]['observation'][3]-cross[0]['observation'][3],
+                    1_000_000_000,'The fixed X fixture must provide more than the unchanged700ms hold')
                 heavy=[row for row in frames if row['frame'].get('heavy_image') is not None]
                 self.assertGreater(len(heavy),0)
                 self.assertTrue(any(row['frame'].get('heavy_image') is None for row in frames))
@@ -171,6 +266,10 @@ class LandmarkLiveTests(unittest.TestCase):
                     self.assertLessEqual(data['end_ns']-row['observation'][3],120_000_000)
                 self.assertFalse(summary['performance']['optional_refine']['worker_alive'])
             else:self.assertTrue(all('heavy_image' not in row['frame'] for row in frames))
+            for model in models:
+                self.assertTrue(all(code==camera.pose_codes[sample]
+                    for sample,code in model.pose_calls if sample),
+                    'Every model reads the original captured pose code, not mutable fixture state')
             probe_reads=summary['performance']['camera_properties'].get('startup_profile',{}).get('probe_reads',0)
             self.assertEqual(probe_reads,14 if profiling else 0)
             if profiling:
