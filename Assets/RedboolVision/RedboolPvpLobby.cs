@@ -73,7 +73,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     double nextAddressRefresh, addressCopiedUntil;
     string addressNotice = "같은 공유기에 연결한 상대에게 주소를 알려주세요", addressCopied;
     bool? roomStatusSharedLayout;
-    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView;
+    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView && !RedboolPvp.Online;
     readonly RectTransform[] cards = new RectTransform[RedboolPvpRoster.All.Length];
     readonly Texture[] portraits = new Texture[RedboolPvpRoster.All.Length];
     readonly Rect[] cardCrop = new Rect[RedboolPvpRoster.All.Length], bigCrop = new Rect[RedboolPvpRoster.All.Length];

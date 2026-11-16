@@ -1,0 +1,90 @@
+OnlinePreview candidate packaging · coordinator instructions
+
+This helper does not build, launch, download, restore or overwrite. Its default
+work is explicit: fingerprint reads, validate reads, assemble alone copies/signs
+and optionally archives. No actual package has been assembled by preparing it.
+Requires Python 3.11+. Keep the original v36.3 packages untouched.
+
+Before final build/checks
+1. Freeze the intended Unity source and clean committed Python candidate.
+2. Use build_unity_preserving_current.py capture/build with BOTH ignored assets:
+   --asset Assets/Resources/RedboolOnlineConfig.json
+   --asset Assets/Resources/RedboolOnlineConfig.json.meta
+   The SDK, Standalone define and all other Unity inputs must also be captured.
+   Build-info must identify OnlinePreview, view protocol 33 and that runtime.
+   The Python backend deliberately retains release v36.3 but MUST explicitly
+   identify build_variant=online-candidate; all provenance must match its commit.
+3. Retain the official Photon 5.1.21 ZIP. Its pinned SHA-256 is in the example.
+   Imported .cs/.dll/.asmdef files are compared directly to its Assets/Photon
+   entries; no fake SDK or just-presence check qualifies. The built native game
+   must also contain Photon.Realtime.dll and PhotonClient.dll.
+4. Use new, unassembled Unity outputs (no StreamingAssets/RedboolCamera yet).
+   Mac and Windows are separate builds with source-preservation.json and
+   build-info.json beside each native entry.
+
+Record the exact identities before real checks, then verify them afterward:
+  PYTHONDONTWRITEBYTECODE=1 python3 Tools/Online/assemble_online_preview.py fingerprint \
+    --unity-project "$ONLINE_UNITY" --python-project "$ONLINE_PYTHON" \
+    --player "$NEW_PLAYER" --backend "$NATIVE_CANDIDATE_BACKEND" --target mac
+
+Use a different set of variables for the Windows target and --target windows.
+This reads artifact bytes to hash them; it neither duplicates nor archives them.
+Copy its identities object into a NEW gate JSON outside the project. The gate
+file is a coordinator attestation: the selected reports must really have run
+against those identities. Do not regenerate identities to bless changed inputs
+or attach older passing reports to a new build. No AppID value goes in the gate,
+readme or package provenance; only the resource hash is recorded.
+
+Fill online_preview_gates.example.json with actual paths and file SHA-256s:
+- cloud: actual RedboolPhotonCloudCheck report, every check passed, real relay
+  probes delivered/echoed, no remaining lifecycle/join failure.
+- native_game: native_online_compare.py comparison.json, actual LAN AND online
+  processes, matching snapshots and APPLIED attacks for both players. Offline
+  latency-comparison.json and stale candidate-status.json do not qualify.
+- protocol/anticipation: current real-SDK native Editor checks, 121/1467 minimum.
+- backend_online: actual check_online_backend.py online-option/provenance check.
+- backend_native: actual check_camera_backend.py lifecycle report, including
+  native Lite/Full inference and explicit bundled Heavy IMAGE inference.
+- Windows: completed successful exact-Python-HEAD CI run JSON (gh run view --json
+  databaseId,headSha,status,conclusion) and selected artifact API metadata. The
+  artifact must be REDBOOLCamera-OnlineCandidate-Windows-x64, non-expired, from
+  that run/HEAD. The extracted backend hashes/provenance must independently match.
+
+Windows test-preview exception (not a Windows gameplay pass)
+If native Windows gameplay cannot run here, explicitly set:
+  windows_game_validation: pending_external_windows_game_validation
+Fill native_mac_reference with the actual checked Mac app, its full player-tree
+fingerprint, and hashes of its build-info/source-preservation JSONs. Its exact
+Unity input hashes (including SDK/config), commit and runtime must match the new
+Windows build. Point native_game to that Mac comparison report. Windows native
+backend CI/inference still must pass. Manifest/readme then explicitly show Mac
+game checks passed and Windows game/FPS awaiting external validation.
+If a real Windows gameplay comparison exists instead, set passed_native_windows
+and select its matching report. Mac packaging ignores these Windows-only fields.
+Every package remains production_ready=false; none certifies physical camera to
+screen delay, two distant laptops, or whole-game FPS with cameras.
+
+Read-only preflight after all required checks genuinely pass:
+  PYTHONDONTWRITEBYTECODE=1 python3 Tools/Online/assemble_online_preview.py validate \
+    --unity-project "$ONLINE_UNITY" --python-project "$ONLINE_PYTHON" \
+    --player "$NEW_PLAYER" --backend "$NATIVE_CANDIDATE_BACKEND" --target mac \
+    --gates "$REVIEWED_GATE_JSON" --output "$FRESH_ONLINEPREVIEW_OUTPUT"
+
+Final assembly only when the coordinator authorizes the concrete candidate:
+  PYTHONDONTWRITEBYTECODE=1 python3 Tools/Online/assemble_online_preview.py assemble \
+    --unity-project "$ONLINE_UNITY" --python-project "$ONLINE_PYTHON" \
+    --player "$NEW_PLAYER" --backend "$NATIVE_CANDIDATE_BACKEND" --target mac \
+    --gates "$REVIEWED_GATE_JSON" --output "$FRESH_ONLINEPREVIEW_OUTPUT" \
+    --archive "$FRESH_ONLINEPREVIEW_ZIP"
+
+Use --target windows for that package. Archive is optional and must be a fresh
+path outside the package. Mac uses ditto --keepParent --sequesterRsrc, then checks
+every symbolic link in the ZIP; app and backend copying preserve links. Mac is
+ad-hoc signed locally, not Developer ID notarized. Windows keeps the exe, Data
+and Unity support folders together; its one-click instructions require fully
+extracting the ZIP and keeping the whole folder. No original input is changed.
+A failed assembly may leave its new partial output for diagnosis; choose a new
+output on retry, rather than allowing an overwrite.
+
+Fixture-only checks (small temporary fake files; no real payloads):
+  PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v Tools/Online/test_assemble_online_preview.py

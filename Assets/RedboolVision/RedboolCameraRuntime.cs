@@ -60,6 +60,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     Process child,stoppingChild; StreamWriter childLog;
     Coroutine statusRoutine,previewRoutine;
     string role,address="127.0.0.1",token,url; int generation,port;
+    int inputPort;
+    bool onlineInput;
     bool restartRequested,quitting,commandPending;
     double lastStatus=-100,lastPreview=-100;
     long previewSequence=-1; readonly object logLock=new object();
@@ -95,9 +97,19 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         if(FindAnyObjectByType<CaveTutorial>()!=null || FindAnyObjectByType<RedboolBattlePreparation>()!=null) return "DEV01";
         return null;
     }
+    static int DesiredInputPort(string wanted) => wanted=="P2" && RedboolPvp.Online
+        ? RedboolOnlineInputBridge.LocalPort : wanted=="P2"?5066:5065;
+    bool TransportMatches(string wanted) => inputPort==DesiredInputPort(wanted)
+        && onlineInput==(wanted=="P2" && RedboolPvp.Online);
     bool LocalReceiversReady(string wanted,bool retainStoryCamera,out string issue,out bool fault)
     {
         issue=null;fault=false;
+        if(wanted=="P2" && RedboolPvp.Online)
+        {
+            bool ready=RedboolOnlineInputBridge.LocalPort>0;
+            if(!ready) {issue="온라인 입력 연결을 준비하고 있어요 · 계속되면 메뉴에서 다시 참가해주세요";fault=true;}
+            return ready;
+        }
         if(wanted==null||wanted=="P2")return true; // The guest sends to its chosen remote host.
         var scene=SceneManager.GetActiveScene();
         var receivers=FindObjectsByType<RedboolDemoReceiver>(FindObjectsInactive.Include,FindObjectsSortMode.None);
@@ -157,9 +169,10 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         {
             string wanted=DesiredRole();string host=wanted=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
             ShowPanel=wanted!=null && (RedboolPvp.Active || FindAnyObjectByType<CaveTutorial>()!=null || FindAnyObjectByType<RedboolBattlePreparation>()!=null);
-            if(wanted!=role || host!=address || restartRequested)
+            if(wanted!=role || host!=address || !TransportMatches(wanted) || restartRequested)
             {
                 restartRequested=false;yield return StopOwned();role=wanted;address=host;
+                inputPort=DesiredInputPort(wanted);onlineInput=wanted=="P2" && RedboolPvp.Online;
                 InputConnectionBlocked=false;InputConnectionError=null;
                 if(role!=null) yield return StartAuthorized();
             }
@@ -196,7 +209,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     {
         string initialRole=DesiredRole();
         string initialAddress=initialRole=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
-        if(quitting || restartRequested || role!=initialRole || address!=initialAddress)yield break;
+        if(quitting || restartRequested || role!=initialRole || address!=initialAddress || !TransportMatches(initialRole))yield break;
         if(!CheckReceiverGate(role,false)){InputConnectionBlocked=true;yield break;}
         // macOS support was added in Unity2023.1.0a19 (official release notes);
         // this Unity6 main-thread preflight avoids OpenCV's first-use permission
@@ -217,7 +230,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         }
         string wanted=DesiredRole();
         string wantedAddress=wanted=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
-        if(quitting || restartRequested || role!=wanted || address!=wantedAddress)yield break;
+        if(quitting || restartRequested || role!=wanted || address!=wantedAddress || !TransportMatches(wanted))yield break;
         if(!CheckReceiverGate(role,false)){InputConnectionBlocked=true;yield break;}
         InputConnectionBlocked=false;StartOwned();
     }
@@ -321,10 +334,11 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         Directory.CreateDirectory(output);
         var arguments=new List<string> {"--headless","--bridge-port",port.ToString(),"--bridge-token",token,
             "--parent-pid",Process.GetCurrentProcess().Id.ToString(),"--actor",role,"--host",address,
-            "--port",role=="P2"?"5066":"5065","--personal-calibration","--movement","--mirror",
+            "--port",inputPort.ToString(),"--personal-calibration","--movement","--mirror",
             "--camera",RedboolDemoSettings.CameraIndex.ToString(),"--cross-refine-pose","bundled",
             "--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
         if(Synthetic) arguments.Add("--synthetic-bridge-check");
+        if(onlineInput) {arguments.Add("--network-profile");arguments.Add("online");}
         var escaped=new List<string>();foreach(string arg in arguments) escaped.Add(Quote(arg));
         var info=new ProcessStartInfo(BackendPath,string.Join(" ",escaped)) { UseShellExecute=false,CreateNoWindow=true,
             WorkingDirectory=Path.GetDirectoryName(BackendPath),RedirectStandardOutput=true,RedirectStandardError=true,

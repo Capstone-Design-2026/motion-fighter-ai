@@ -7,13 +7,21 @@ using System.Security.Cryptography;
 using System.Net.Sockets;
 using UnityEngine;
 
-/// <summary>LAN display channel only. Camera commands still go directly to authoritative P1/P2 receivers.</summary>
+/// <summary>LAN UDP or authenticated Photon display transport; gameplay remains authoritative on P1.</summary>
 [DefaultExecutionOrder(450)]
 public sealed class RedboolViewLink : MonoBehaviour
 {
     RedboolPvp game;
     UdpClient socket;
     IPEndPoint peer;
+    bool online;
+    RedboolPhotonSession onlineSession;
+    int onlineEpoch;
+    bool OnlineOwnerValid => !online || (RedboolPvp.Active && RedboolPvp.Online && RedboolPvp.Instance==game
+        && onlineSession!=null && onlineSession.ConnectionEpoch==onlineEpoch);
+    readonly Queue<byte[]> onlineInbox=new Queue<byte[]>();
+    double onlineArrival=-1,onlineJitter;
+    public double InterpolationMs => online?Math.Max(33,Math.Min(75,33+onlineJitter*2000)):50;
     Guid session=Guid.NewGuid(),nonce=Guid.NewGuid(),peerNonce;
     readonly HashSet<Guid> retiredSessions=new HashSet<Guid>();
     readonly RedboolViewAssembler assembler=new RedboolViewAssembler();
@@ -31,7 +39,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     double selectionRequestUntil,nextSelectionSend;
     public bool SelectionPending => selectionRequest!=null;
     double nextBindAttempt;
-    public bool Bound => initialized && socket!=null;
+    public bool Bound => initialized && (online?onlineSession!=null&&onlineSession.InRoom:socket!=null);
     public string BindError { get; private set; }
     public bool PortConflict { get; private set; }
     public string ConnectionIssue => string.IsNullOrEmpty(BindError) ? null : PortConflict
@@ -89,15 +97,23 @@ public sealed class RedboolViewLink : MonoBehaviour
     public bool Fresh => Bound && client && assembler.Latest!=null && Time.realtimeSinceStartupAsDouble-lastFrame<.25;
     public double RttMs {get;private set;}
     public RedboolViewFrame Latest => assembler.Latest;
+    public static int ResolvePeerPort(bool isOnline,string[] args)
+    {
+        if(!isOnline && args!=null) {
+            int index=Array.IndexOf(args,"--redbool-view-port");
+            if(index>=0 && index+1<args.Length && int.TryParse(args[index+1],out var value) && value>0 && value<=65535)return value;
+        }
+        return RedboolViewProtocol.Port;
+    }
     public void Initialize(RedboolPvp owner)
     {
-        game=owner;client=RedboolPvp.IsClient;
+        game=owner;client=RedboolPvp.IsClient;online=RedboolPvp.Online;
+        if(online) {onlineSession=RedboolPhotonSession.Instance;if(onlineSession==null)throw new InvalidOperationException("Online room must exist before arena initialization");onlineEpoch=onlineSession.ConnectionEpoch;onlineSession.Message+=ReceiveOnline;}
         traceFile=Environment.GetEnvironmentVariable("REDBOOL_VIEW_TRACE_FILE");captureDirectory=Environment.GetEnvironmentVariable("REDBOOL_VIEW_CAPTURE_DIR");
         if(!String.IsNullOrEmpty(traceFile)) trace=new StreamWriter(traceFile,false);
         if(!String.IsNullOrEmpty(captureDirectory)) Directory.CreateDirectory(captureDirectory);
         if(client) {
-            int port=RedboolViewProtocol.Port;var args=Environment.GetCommandLineArgs();int index=Array.IndexOf(args,"--redbool-view-port");
-            if(index>=0 && index+1<args.Length &&int.TryParse(args[index+1],out var parsed) &&parsed>0 &&parsed<=65535) port=parsed;
+            int port=ResolvePeerPort(online,Environment.GetCommandLineArgs());
             peer=new IPEndPoint(IPAddress.Parse(RedboolPvp.HostAddress),port);
         }
         for(int i=0;i<2;i++)
@@ -114,6 +130,7 @@ public sealed class RedboolViewLink : MonoBehaviour
     }
     void TryOpenSocket(double now)
     {
+        if(online)return;
         if(!initialized || socket!=null || now<nextBindAttempt)return;
         nextBindAttempt=now+1; // unscaled: the match is intentionally paused while disconnected
         UdpClient candidate=null;
@@ -152,12 +169,19 @@ public sealed class RedboolViewLink : MonoBehaviour
     }
     void Send(RedboolViewPacket packet)
     {
-        if(peer==null || socket==null) return;
+        if(peer==null || !Bound) return;
         var bytes=RedboolViewProtocol.Encode(packet);
+        if(online) {if(!OnlineOwnerValid)return;onlineSession.Send(2,bytes);sentBytes+=bytes.Length;AuditPacket(packet,bytes);return;}
         try {socket.Send(bytes,bytes.Length,peer);sentBytes+=bytes.Length;AuditPacket(packet,bytes);}
         // macOS may report EHOSTDOWN while the selected peer cannot be resolved.
         // Keep normal retries; failed sends must never refresh a received lease.
         catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset || e.SocketErrorCode==SocketError.NetworkUnreachable || e.SocketErrorCode==SocketError.HostUnreachable || e.SocketErrorCode==SocketError.HostDown) { }
+    }
+    void ReceiveOnline(byte channel,byte[] data)
+    {
+        if(!online || !OnlineOwnerValid || channel!=2 || data==null || data.Length>RedboolViewProtocol.MaxBytes)return;
+        if(onlineInbox.Count>=128)onlineInbox.Dequeue();
+        onlineInbox.Enqueue(data);
     }
     void AuditPacket(RedboolViewPacket packet,byte[] bytes)
     {
@@ -173,11 +197,16 @@ public sealed class RedboolViewLink : MonoBehaviour
         for(int i=0;i<128;i++)
         {
             IPEndPoint from=new IPEndPoint(IPAddress.Any,0);byte[] data;
-            try {data=socket.Receive(ref from);}
+            if(online)
+            {
+                if(onlineInbox.Count==0)break;
+                data=onlineInbox.Dequeue();from=new IPEndPoint(IPAddress.Loopback,RedboolViewProtocol.Port);
+            }
+            else try {data=socket.Receive(ref from);}
             catch(SocketException e) when(e.SocketErrorCode==SocketError.WouldBlock || e.SocketErrorCode==SocketError.ConnectionReset) {break;}
             // A camera-free LAN check must never pair a player, reset practice,
             // or steal the display peer. Echo only a small bounded nonce.
-            if(!client && data.Length==48 && Encoding.ASCII.GetString(data,0,16)=="REDBOOL_PING_V1:") {
+            if(!online && !client && data.Length==48 && Encoding.ASCII.GetString(data,0,16)=="REDBOOL_PING_V1:") {
                 string token=Encoding.ASCII.GetString(data,16,32);
                 if(Guid.TryParseExact(token,"N",out _)) {
                     byte[] reply=Encoding.ASCII.GetBytes("REDBOOL_PONG_V1:"+token);
@@ -185,7 +214,7 @@ public sealed class RedboolViewLink : MonoBehaviour
                 }
                 continue;
             }
-            if(!client && Encoding.ASCII.GetString(data)=="REDBOOL_DISCOVER_V1") {
+            if(!online && !client && Encoding.ASCII.GetString(data)=="REDBOOL_DISCOVER_V1") {
                 byte[] reply=Encoding.UTF8.GetBytes("{\"service\":\"REDBOOL\",\"view_version\":"+RedboolViewProtocol.Version+",\"view_port\":5067,\"p2_port\":5066}");
                 socket.Send(reply,reply.Length,from);continue;
             }
@@ -203,6 +232,7 @@ public sealed class RedboolViewLink : MonoBehaviour
                 var complete=assembler.Push(p,now);
                 if(complete!=null)
                 {
+                    if(online) {if(onlineArrival>=0)onlineJitter=onlineJitter*.9+Math.Abs(now-onlineArrival-1.0/30)*.1;onlineArrival=now;}
                     received++;lastFrame=now;TraceFrame(complete);RedboolFrameMetrics.NoteLiveInput();history.Add(complete);if(history.Count>8) history.RemoveAt(0);
                     if(complete.seq%30==0) Debug.Log($"[REDBOOL VIEW APPLIED] session={complete.session:N} seq={complete.seq} round={complete.world.round} resolved={complete.world.resolved}");
                     if(p.echo>0 && now>=p.echo) RttMs=(now-p.echo)*1000;
@@ -276,9 +306,10 @@ public sealed class RedboolViewLink : MonoBehaviour
     }
     void Update()
     {
-        if(!initialized) return;
+        if(!initialized || !OnlineOwnerValid) {CancelOnlineAnticipation();return;}
         double now=Time.realtimeSinceStartupAsDouble;
-        if(socket==null) {
+        if(online && !Bound) {CancelOnlineAnticipation();lastFrame=lastHeartbeat=-10;if(client) {Time.timeScale=0;ShowRemoteMeasured(null,false);}return;}
+        if(!online && socket==null) {
             TryOpenSocket(now);
             if(socket==null) {if(client) {Time.timeScale=0;ShowRemoteMeasured(null,false);}return;}
         }
@@ -294,20 +325,20 @@ public sealed class RedboolViewLink : MonoBehaviour
         if(client) {Time.timeScale=Fresh && assembler.Latest!=null && (!assembler.Latest.world.paused ||assembler.Latest.world.resolved)?1:0;if(!Fresh) ShowRemoteMeasured(assembler.Latest,false);}
         if(now-lastReport>=5)
         {
-            Debug.Log(FormattableString.Invariant($"[REDBOOL VIEW METRIC] client={client} seq={(client?ack:sequence)} complete={received} invalid={invalid} bytes={sentBytes} fresh={(client?Fresh:PeerReady)} rtt_ms={RttMs:F2}"));
+            Debug.Log(FormattableString.Invariant($"[REDBOOL VIEW METRIC] client={client} seq={(client?ack:sequence)} complete={received} invalid={invalid} bytes={sentBytes} fresh={(client?Fresh:PeerReady)} rtt_ms={RttMs:F2} route={(online?"photon":"lan")} interpolation_ms={InterpolationMs:F2} photon_rtt_ms={(onlineSession!=null?onlineSession.RttMs:0)}"));
             ReportGuestTiming();lastReport=now;sentBytes=0;
         }
     }
     void LateUpdate()
     {
-        if(!Bound) return;
+        if(!Bound || !OnlineOwnerValid) {CancelOnlineAnticipation();return;}
         double now=Time.realtimeSinceStartupAsDouble;
         if(!String.IsNullOrEmpty(captureDirectory) &&game.Fighting &&now-lastCapture>8 &&captureCount<3)
         {lastCapture=now;ScreenCapture.CaptureScreenshot(Path.Combine(captureDirectory,(client?"guest":"host")+(captureCount++)+".png"));}
         if(client)
         {
-            if(!Fresh || history.Count==0) {SampleGuest(0);return;}
-            var latest=history[history.Count-1];double target=latest.time+now-latest.arrival-.05;
+            if(!Fresh || history.Count==0) {if(online)mirror.GetComponent<RedboolOnlineAnticipation>()?.Cancel();SampleGuest(0);return;}
+            var latest=history[history.Count-1];double target=latest.time+now-latest.arrival-InterpolationMs/1000.0;
             var a=history[0];var b=a;
             foreach(var frame in history) {b=frame;if(frame.time>=target) break;a=frame;}
             double span=b.time-a.time;
@@ -328,6 +359,7 @@ public sealed class RedboolViewLink : MonoBehaviour
         for(byte i=0;i<2;i++) {captured.actors[i]=CaptureActor(i);Send(new RedboolViewPacket {kind=(byte)(2+i),session=session,nonce=peerNonce,seq=sequence,time=now,echo=echo,actor=captured.actors[i]});}
         TraceFrame(captured);
     }
+    void CancelOnlineAnticipation() {if(online && mirror!=null)mirror.GetComponent<RedboolOnlineAnticipation>()?.Cancel();}
     public static bool CanBlendSnapshots(RedboolViewFrame a,RedboolViewFrame b)
     {
         return a!=null && b!=null && a.Complete && b.Complete && a.session==b.session
@@ -370,5 +402,5 @@ public sealed class RedboolViewLink : MonoBehaviour
             world.selectionRun=lobby.SelectionRun;world.selectionRevision0=lobby.SelectionRevision[0];world.selectionRevision1=lobby.SelectionRevision[1];}
         return world;
     }
-    void OnDestroy() {initialized=false;socket?.Close();socket=null;trace?.Dispose();trace=null;}
+    void OnDestroy() {initialized=false;if(onlineSession!=null)onlineSession.Message-=ReceiveOnline;onlineInbox.Clear();socket?.Close();socket=null;trace?.Dispose();trace=null;}
 }

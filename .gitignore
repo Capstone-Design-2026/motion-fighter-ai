@@ -21,6 +21,10 @@
 .DS_Store
 Thumbs.db
 
+# Per-team Photon application identifier; keep local config out of source history.
+/Assets/Resources/RedboolOnlineConfig.json
+/Assets/Resources/RedboolOnlineConfig.json.meta
+
 # 무대 그림의 가공본: StageConcepts/tools 의 스크립트로 원본에서 다시 만들 수 있고,
 # 게임이 실제로 쓰는 사본은 Assets/Environments/HybridStages 에 들어 있다.
 StageConcepts/Backdrops/x2/

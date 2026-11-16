@@ -14,9 +14,11 @@ public sealed class RedboolViewMirror : MonoBehaviour
     readonly Renderer[][] renderers=new Renderer[2][];
     readonly HeroPunchSurfaceVisibility[][] punchSurfaces=new HeroPunchSurfaceVisibility[2][];
     int lastEffect;
+    RedboolOnlineAnticipation anticipation;
     public void Initialize(RedboolPvp owner,Fighter3DView[] presentation,Transform[][] rig)
     {
         game=owner;tint=new MaterialPropertyBlock();views=presentation;bones=rig;assets=QiPalmAssets.Load();
+        if(RedboolPvp.Online && RedboolPvp.IsClient)anticipation=gameObject.AddComponent<RedboolOnlineAnticipation>();
         for(int i=0;i<2;i++)
         {
             var p=game.Players[i];p.ClearExternalInput();p.enabled=false;
@@ -37,6 +39,7 @@ public sealed class RedboolViewMirror : MonoBehaviour
     /// <summary>손님 화면에서 인물의 겉모습이 바뀐 뒤: 새 겉모습도 스스로 움직이지 않게 하고 색을 다시 입힌다.</summary>
     public void Rebind(int i)
     {
+        anticipation?.Cancel();
         if(i<0 ||i>=views.Length) return;
         ClearActorTransient(i);
         views[i].enabled=false;views[i].modelAnimator.enabled=false;
@@ -59,6 +62,7 @@ public sealed class RedboolViewMirror : MonoBehaviour
     }
     public void ClearTransient()
     {
+        anticipation?.Cancel();
         foreach(var wave in waves.Values) if(wave) Destroy(wave);waves.Clear();
         for(int i=0;i<2;i++) ClearActorTransient(i);
         lastEffect=0;
@@ -72,6 +76,7 @@ public sealed class RedboolViewMirror : MonoBehaviour
             v.visualRoot.position=Vector3.Lerp(x.visual,y.visual,t);v.visualRoot.rotation=Quaternion.Slerp(x.rotation,y.rotation,t);v.visualRoot.localScale=Vector3.Lerp(x.scale,y.scale,t);
             for(int j=0;j<bones[i].Length;j++) if(bones[i][j]) bones[i][j].localRotation=Quaternion.Slerp(x.bones[j],y.bones[j],t);
             if(bones[i][0]) bones[i][0].localPosition=Vector3.Lerp(x.hips,y.hips,t);
+            if(i==1 && anticipation!=null)anticipation.Apply(v.modelAnimator,bones[i],y,b.world);
             foreach(var surface in punchSurfaces[i]) surface.ApplyRemoteSurface(y.punchSurface);
             if(serial[i]>=0 && y.attackSerial!=serial[i]) CombatSfx.PlayAttack();serial[i]=y.attackSerial;
             var left=bones[i][(int)HumanBodyBones.LeftHand];var right=bones[i][(int)HumanBodyBones.RightHand];

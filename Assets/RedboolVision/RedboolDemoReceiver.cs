@@ -21,6 +21,9 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public PlayerController player;
     public RedboolBattlePreparation Preparation { get; set; }
     public bool PvpOwned;
+    // Only the authenticated Photon P2 channel may supply online packets.
+    public bool OnlineRemoteInput;
+    long onlineStateSequence,onlineEventSequence,onlineGenerationCapture;
     public Func<bool> ExternalGate;
     public Func<RedboolPracticeContext> PracticeContext;
     public event Action<string,float,string,float> PracticeAction;
@@ -111,7 +114,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         return Mathf.Lerp(.65f, 1f, Mathf.InverseLerp(.35f, 1f, strength));
     }
     public string Status { get; private set; } = "WAITING";
-    public bool Bound => isActiveAndEnabled && running && udp!=null;
+    public bool Bound => isActiveAndEnabled && running && (udp!=null || OnlineRemoteInput);
     public string BindError { get; private set; }
     public bool PortConflict { get; private set; }
     bool quietBindRetry;
@@ -147,12 +150,12 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private EnemyAI diagnosticsEnemy;
     private string inputFeedback = "", feedbackEvent;
     private float feedbackUntil;
-    private struct Received { public string json; public long time; public IPEndPoint peer; }
+    private struct Received { public string json; public long time; public IPEndPoint peer; public Action<byte[]> reply; public Func<bool> valid; }
     [Serializable] private class Packet {
         public int version, ttl_ms, calibration_version, calibration_generation;
         public string personal_status;
         public string kind, stream_id, actor_id, capture_epoch, sync_id, event_id, side, movement, gesture, fsm_state, tracking;
-        public long sequence, sent_ns, capture_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
+        public long sequence, sent_ns, capture_ns, commit_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
         public bool block_active, calibrated;
         public float movement_strength;
     }
@@ -194,14 +197,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         try {
             BindError=null;PortConflict=false;
             StreamId=expectedStreamId; sequence=deadline=presenceDeadline=lastLiveNs=0; pairedPeer=null;
+            onlineStateSequence=onlineEventSequence=onlineGenerationCapture=0;
             hasState=false;sourceCaptureNs=lastUncertaintyNs=0;
             combatFeedback.Reset();
             syncs.Clear();outcomes.Clear();
-            udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
-            RedboolSocketOwnership.PreventInheritance(udp.Client,"UDP "+bindAddress+":"+port);
-            udp.Client.ReceiveTimeout=100;
+            if(!OnlineRemoteInput) {
+                udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
+                RedboolSocketOwnership.PreventInheritance(udp.Client,"UDP "+bindAddress+":"+port);
+                udp.Client.ReceiveTimeout=100;
+            }
             listeners[port]=this;
-            running=true;var boundSocket=udp;worker=new Thread(()=>Receive(boundSocket)) { IsBackground=true };worker.Start();
+            running=true;
+            if(udp!=null) {var boundSocket=udp;worker=new Thread(()=>Receive(boundSocket)) { IsBackground=true };worker.Start();}
             DisableLegacy();
             Status="WAITING FOR PYTHON :"+port;
             if(quietBindRetry)UnityEngine.Debug.Log("[REDBOOL RECEIVER] local port recovered :"+port);
@@ -225,12 +232,20 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         while(running) {
             try {
                 var peer=new IPEndPoint(IPAddress.Any,0);var bytes=boundSocket.Receive(ref peer);
+                if(OnlineRemoteInput)continue;
                 if(bytes.Length>8192) continue;
                 if(inbox.Count>=128) { Received dropped;inbox.TryDequeue(out dropped);QueueDrops++; }
                 inbox.Enqueue(new Received { json=Encoding.UTF8.GetString(bytes),time=NowNs(),peer=peer });
             } catch(SocketException) { if(!running) break; }
               catch(ObjectDisposedException) { break; }
         }
+    }
+    public void InjectOnline(byte[] bytes,IPEndPoint peer,Func<bool> valid,Action<byte[]> reply)
+    {
+        if(!OnlineRemoteInput || !RedboolPvp.Online || !PvpOwned || expectedActorId!="P2"
+            || !isActiveAndEnabled || bytes==null || bytes.Length>8192 || reply==null || valid==null || !valid())return;
+        if(inbox.Count>=128) {Received dropped;inbox.TryDequeue(out dropped);QueueDrops++;}
+        inbox.Enqueue(new Received {json=Encoding.UTF8.GetString(bytes),time=NowNs(),peer=peer,reply=reply,valid=valid});
     }
     private void Update() {
         if(player==null && !PvpOwned) player=FindAnyObjectByType<PlayerController>();
@@ -268,6 +283,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(fighter.SetVisionGuard(held) && !wasHeld) GuardsStarted++;
     }
     private void Process(Packet p,Received item) {
+        if(OnlineRemoteInput && (item.valid==null || !item.valid()))return;
         if(p==null || p.version!=2 || p.actor_id!=expectedActorId || String.IsNullOrEmpty(p.stream_id)
             || p.stream_id.Length>100 || p.capture_epoch!=p.stream_id) return;
         long now=NowNs();
@@ -276,6 +292,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             bool newRun=p.stream_id!=StreamId;
             if(newRun && (String.IsNullOrEmpty(expectedStreamId) && now-lastLiveNs>500000000L)) {
                 Safe();combatFeedback.Reset();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
+                onlineStateSequence=onlineEventSequence=onlineGenerationCapture=0;
             }
             if(p.stream_id!=StreamId) return;
             if(pairedPeer==null) pairedPeer=item.peer;
@@ -289,17 +306,24 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         string status;
         if(p.kind!="STATE" && !oneShot) status="BAD_KIND";
         else if(p.sync_id==null || !syncs.ContainsKey(p.sync_id) || now-syncs[p.sync_id]>5000000000L) status="UNSYNCHRONIZED";
-        else if(p.ttl_ms<=0 || p.ttl_ms>150 || p.clock_uncertainty_ns<0 || p.clock_uncertainty_ns>25000000L) status="INVALID_TIMING";
+        else if(p.ttl_ms<=0 || p.ttl_ms>150 || p.clock_uncertainty_ns<0 || p.clock_uncertainty_ns>(OnlineRemoteInput?75000000L:25000000L)) status="INVALID_TIMING";
         else if(now-(p.sent_ns+p.receiver_offset_ns)<-p.clock_uncertainty_ns
             || now-(p.sent_ns+p.receiver_offset_ns)+p.clock_uncertainty_ns>=p.ttl_ms*1000000L) status="EXPIRED";
         else if(oneShot && (p.event_expires_ns<=0 || now+p.clock_uncertainty_ns>=p.event_expires_ns+p.receiver_offset_ns)) status="EXPIRED";
+        else if(OnlineRemoteInput && oneShot && (p.capture_ns<=0 || p.capture_ns>p.commit_ns || p.commit_ns>p.sent_ns
+            || p.event_expires_ns>p.commit_ns+150000000L || p.event_expires_ns<=p.commit_ns)) status="INVALID_TIMING";
+        else if(OnlineRemoteInput && !oneShot && p.calibrated && p.tracking=="VALID" && (p.capture_ns<=0 || p.capture_ns>p.sent_ns)) status="INVALID_TIMING";
+        else if(OnlineRemoteInput && !oneShot && p.capture_ns>0 && now+p.clock_uncertainty_ns>=p.capture_ns+p.receiver_offset_ns+150000000L) status="EXPIRED";
+        else if(OnlineRemoteInput && !oneShot && hasState && p.calibration_generation<CalibrationGeneration) status="INPUT_LOCKED";
+        else if(OnlineRemoteInput && oneShot && (!hasState || onlineGenerationCapture<=0 || p.calibration_generation!=CalibrationGeneration
+            || p.capture_ns<onlineGenerationCapture)) status="INPUT_LOCKED";
         else if(oneShot && p.event_id!=null && outcomes.ContainsKey(p.event_id)) status=outcomes[p.event_id];
-        else if(p.sequence<=sequence) status="OLD_SEQUENCE";
+        else if(p.sequence<=(OnlineRemoteInput?(oneShot?onlineEventSequence:onlineStateSequence):sequence)) status="OLD_SEQUENCE";
         else if(oneShot) {
             if(String.IsNullOrEmpty(p.event_id) || p.event_id.Length>200 || (p.side!="LEFT" && p.side!="RIGHT" && !(p.kind=="GESTURE" && p.gesture=="SPECIAL" && p.side=="BOTH"))) status="BAD_EVENT";
             else if(outcomes.Count>=10000) status="RESTART_REQUIRED";
             else {
-                sequence=p.sequence;lastLiveNs=now;
+                sequence=OnlineRemoteInput?Math.Max(sequence,p.sequence):p.sequence;if(OnlineRemoteInput)onlineEventSequence=p.sequence;lastLiveNs=now;
                 string action=ResolveAction(p);
                 LastGesture=p.kind=="GESTURE" ? p.gesture : p.side+"_PUNCH";
                 Fighter fighter=player!=null ? player.GetComponent<Fighter>() : null;
@@ -338,13 +362,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             || Single.IsNaN(p.movement_strength) || Single.IsInfinity(p.movement_strength)
             || p.movement_strength<0 || p.movement_strength>1) status="BAD_STATE";
         else {
-            sequence=p.sequence;lastLiveNs=now;
+            sequence=OnlineRemoteInput?Math.Max(sequence,p.sequence):p.sequence;if(OnlineRemoteInput)onlineStateSequence=p.sequence;lastLiveNs=now;
             bool calibrated=p.calibration_version==1 && p.calibrated;
+            if(OnlineRemoteInput) {
+                if(CalibrationGeneration!=p.calibration_generation)onlineGenerationCapture=0;
+                if(onlineGenerationCapture==0 && calibrated && p.tracking=="VALID")onlineGenerationCapture=p.capture_ns;
+            }
             bool leaseOnlyStale=lastCalibrated && calibrated && rawSourceCaptureNs>0 && p.capture_ns==rawSourceCaptureNs
                 && CalibrationGeneration==p.calibration_generation && p.tracking=="STALE";
             long retainedPresence=RedboolPracticeContinuity.PreservePresence(presenceDeadline,now,lastCalibrated,calibrated,
                 rawSourceCaptureNs,p.capture_ns,CalibrationGeneration,p.calibration_generation,p.tracking,StreamId,p.stream_id);
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
+            if(OnlineRemoteInput && p.capture_ns>0)deadline=Math.Min(deadline,p.capture_ns+p.receiver_offset_ns+150000000L-p.clock_uncertainty_ns);
             hasState=true;lastCalibrated=calibrated;lastTracking=p.tracking;
             rawSourceCaptureNs=p.capture_ns;
             sourceCaptureNs=p.capture_ns>0?p.capture_ns+p.receiver_offset_ns:0;
@@ -423,7 +452,8 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             game_move_input=currentMove,
             game_walk_stride=view!=null && view.Walk!=null ? view.Walk.StepLength : 0,
             game_walk_state=view!=null ? view.CurrentState : "" };
-        byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
+        byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));
+        if(item.reply!=null)item.reply(bytes);else udp.Send(bytes,bytes.Length,item.peer);
     }
     public void ClearInput() { Safe(); }
     private void Safe(bool preservePresence=false) {

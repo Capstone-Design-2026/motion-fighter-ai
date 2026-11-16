@@ -3,13 +3,14 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// <summary>One authoritative LAN arena, two isolated input leases, no campaign writes.</summary>
+/// <summary>One authoritative arena, two isolated input leases, LAN or Photon transport, no campaign writes.</summary>
 [DefaultExecutionOrder(200)]
 public sealed class RedboolPvp : MonoBehaviour
 {
     public const string ArenaScene = "UndergroundPit";
     public static bool Active { get; private set; }
     public static bool IsClient { get; private set; }
+    public static bool Online { get; private set; }
     public static string HostAddress { get; private set; } = "127.0.0.1";
     public static bool RequireView { get; private set; }
     public RedboolViewLink ViewLink { get; private set; }
@@ -79,7 +80,7 @@ public sealed class RedboolPvp : MonoBehaviour
     public bool CanFight => Fighting && !Resolved && !paused && BothPresent && warmup==null && (!RequireView || ViewLink != null && ViewLink.PeerReady);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatic() { Active=false; Instance=null; IsClient=false; RequireView=false; HostAddress="127.0.0.1"; }
+    static void ResetStatic() { Active=false; Instance=null; IsClient=false; Online=false; RequireView=false; HostAddress="127.0.0.1"; }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void CommandLineEntry()
     {
@@ -88,19 +89,33 @@ public sealed class RedboolPvp : MonoBehaviour
         if(join>=0 && join+1<args.Length) Join(args[join+1]);
         else if(Array.IndexOf(args,"--redbool-pvp")>=0) { RequireView=Array.IndexOf(args,"--redbool-require-view")>=0; Begin(); }
     }
-    public static void HostDual() { RequireView=true;Begin(); }
+    public static void HostDual() { Online=false;IsClient=false;RequireView=true;Begin(); }
+    public static void HostOnline()
+    {
+        var session=RedboolPhotonSession.Instance;
+        if(session==null || !session.InRoom || !session.IsHost)return;
+        Online=true;IsClient=false;RequireView=true;HostAddress="127.0.0.1";Begin();
+    }
+    public static void JoinOnline()
+    {
+        var session=RedboolPhotonSession.Instance;
+        if(session==null || !session.InRoom || session.IsHost)return;
+        Online=true;IsClient=true;RequireView=true;HostAddress="127.0.0.1";Begin();
+    }
     public static void Join(string address)
     {
         if(!System.Net.IPAddress.TryParse(address,out var ip) || ip.AddressFamily!=System.Net.Sockets.AddressFamily.InterNetwork) throw new ArgumentException("Host IPv4 required");
-        IsClient=true;HostAddress=address;Begin();
+        Online=false;IsClient=true;HostAddress=address;Begin();
     }
     public static void Begin()
     {
         RedboolDuelTest.End();
         if(Instance!=null) return;
         Active=true;
-        var go=new GameObject("REDBOOL Two Player LAN");
+        var go=new GameObject(Online?"REDBOOL Two Player Online":"REDBOOL Two Player LAN");
         Instance=go.AddComponent<RedboolPvp>(); DontDestroyOnLoad(go);
+        if(Online)RedboolOnlineInputBridge.Attach(Instance);
+        if(Online)RedboolPhotonSession.Instance.RoomLeft+=Instance.OnlineRoomClosed;
         SceneManager.sceneLoaded+=Instance.SceneLoaded;
         Time.timeScale=1;Time.fixedDeltaTime=.02f;HitImpact.ReleaseTimeControl();
         SceneManager.LoadScene(Arena);
@@ -140,6 +155,7 @@ public sealed class RedboolPvp : MonoBehaviour
             var receiver=host.AddComponent<RedboolDemoReceiver>();
             receiver.port=5065+i;receiver.expectedActorId="P"+(i+1);receiver.player=p;
             receiver.PvpOwned=true;receiver.Opponent=Players[1-i].GetComponent<Fighter>();
+            receiver.OnlineRemoteInput=Online && i==1;
             Practices[i].Suspended=RedboolPvpLobby.Enabled;
             receiver.ExternalGate=()=>CanFight;
             receiver.PracticeContext=()=>Lobby!=null && !Lobby.Complete
@@ -428,7 +444,7 @@ public sealed class RedboolPvp : MonoBehaviour
         remoteFresh=fresh;
         if(frame!=null) {remoteSession=frame.session;remoteRound=frame.world.round;}
         if(!string.IsNullOrEmpty(ViewLink?.ConnectionIssue)) {banner.text=ViewLink.ConnectionIssue;resultPanel.SetActive(false);return;}
-        if(frame==null) { banner.text="호스트 연결 대기 · "+HostAddress+" · 방이 열려 있는지 확인하세요 · Esc: 메뉴";resultPanel.SetActive(false);Lobby?.ShowRemote(null);return; }
+        if(frame==null) { banner.text=Online?"상대 화면을 연결하고 있어요 · 잠시 기다려주세요 · Esc: 메뉴":"호스트 연결 대기 · "+HostAddress+" · 방이 열려 있는지 확인하세요 · Esc: 메뉴";resultPanel.SetActive(false);Lobby?.ShowRemote(null);return; }
         paused=frame.world.paused;
         Remaining=frame.world.remaining;Resolved=frame.world.resolved;Fighting=frame.world.fighting;Round=frame.world.round;
         for(int i=0;i<2;i++)
@@ -558,15 +574,20 @@ public sealed class RedboolPvp : MonoBehaviour
     }
     public void Leave(bool menu)
     {
-        Active=false;IsClient=false;RequireView=false;configured=false;SceneManager.sceneLoaded-=SceneLoaded;
+        bool wasOnline=Online;
+        if(wasOnline && RedboolPhotonSession.Instance!=null)RedboolPhotonSession.Instance.RoomLeft-=OnlineRoomClosed;
+        Active=false;IsClient=false;Online=false;RequireView=false;configured=false;SceneManager.sceneLoaded-=SceneLoaded;
+        if(wasOnline)RedboolPhotonSession.Instance?.Leave();
         HitImpact.ReleaseTimeControl();Time.timeScale=1;Time.fixedDeltaTime=.02f;
         Instance=null;Destroy(gameObject);
         if(menu) SceneRoutes.LoadStart();
     }
+    void OnlineRoomClosed() {if(Online && Instance==this)Leave(true);}
     void OnDestroy()
     {
+        if(RedboolPhotonSession.Instance!=null)RedboolPhotonSession.Instance.RoomLeft-=OnlineRoomClosed;
         if (warmup != null) warmup.Cancel();
         SceneManager.sceneLoaded-=SceneLoaded;
-        if(Instance==this) {Instance=null;Active=false;Time.timeScale=1;Time.fixedDeltaTime=.02f;}
+        if(Instance==this) {Instance=null;Active=false;IsClient=false;Online=false;RequireView=false;Time.timeScale=1;Time.fixedDeltaTime=.02f;}
     }
 }
