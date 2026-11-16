@@ -243,6 +243,7 @@ class PackageChecks(unittest.TestCase):
             info = plistlib.load(stream)
         self.assertEqual(info['CFBundleName'], '흑운협')
         self.assertEqual(info['CFBundleDisplayName'], '흑운협')
+        self.assertEqual(info['LSMinimumSystemVersion'], '14.0')
         self.assertEqual(info['CFBundleExecutable'], original_info['CFBundleExecutable'])
         self.assertEqual(info['CFBundleIdentifier'], original_info['CFBundleIdentifier'])
         self.assertEqual((bundled / 'Contents/Resources/Data/app.info').read_bytes(),
