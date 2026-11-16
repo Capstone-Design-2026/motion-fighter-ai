@@ -1,0 +1,5 @@
+# Native backend packaging only. Do not replace the existing development environment.
+mediapipe==0.10.35
+opencv-contrib-python==4.13.0.92
+numpy==2.4.6
+pyinstaller==6.22.3

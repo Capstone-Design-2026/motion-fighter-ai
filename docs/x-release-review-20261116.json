@@ -1,0 +1,886 @@
+{
+  "date": "2026-11-16",
+  "status": "SELECTED_EXPLICIT_OPTION_SOURCE_APPLIED",
+  "additional_recording": false,
+  "production_root": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_v34_20261114/python",
+  "source_default": "Existing Lite+Full; explicit Heavy option only",
+  "prior_selected_source": "cfaa7f158b6d67bf8e4afbc22e4d3e686424f05953f164fe51cd42581e90b3e1",
+  "tested_candidate": "6a81c2938bf05a7ced92f43fd902fb1ee5ea11c74a97ed86ee952f31fb2fe273",
+  "cause": {
+    "session": "two_person_latest",
+    "frames": 13806,
+    "baseline_control_hash": "2389eb215ef2137bd74e1ee9e8db40d4a594e25c9d07ade8d2439c0d69838d5c",
+    "heavy_previous_control_hash": "c4c52c2aef014fbc27117ca25c2024b633affd3d1809483ccbfcb7ba4bfa63a7",
+    "baseline_hash_matches_prior": true,
+    "heavy_hash_matches_prior": true,
+    "baseline_release_start": {
+      "frame": 6086,
+      "seconds": 203.353210958
+    },
+    "baseline_release_complete": {
+      "frame": 6092,
+      "seconds": 203.553294,
+      "dwell_ms": 200.083042
+    },
+    "baseline_ordinary_first_uninhibited": {
+      "frame": 6093,
+      "seconds": 203.586679333
+    },
+    "heavy_previous_release_start": {
+      "frame": 6267,
+      "seconds": 209.45439675
+    },
+    "heavy_previous_release_complete": {
+      "frame": 6273,
+      "seconds": 209.653991542,
+      "dwell_ms": 199.594792
+    },
+    "release_completion_delay_ms": 6100.697542,
+    "block_entering": {
+      "frame": 6265,
+      "seconds": 209.388950042
+    },
+    "block_held": {
+      "frame": 6269,
+      "seconds": 209.521221167
+    },
+    "lost_block_frames": [
+      6269,
+      6270,
+      6271,
+      6272,
+      6273,
+      6274,
+      6275,
+      6276
+    ],
+    "explanation": "Original three-model separated evidence clears ownership at203.553s. Heavy-specific release tightens this same ownership gate until209.654s, resetting block state every frame. At209.389s actual high block starts, but original held output209.521–209.754 is wholly lost before invalid tracking. The regression is input suppression coupled to special re-fire protection, not merely a Heavy request gap."
+  },
+  "change": "Separate fresh visible-release guard for repeated SPECIAL from original ordinary block/attack recovery. Heavy must remain current-frame; missing/late helper never supplies geometry or positive release.",
+  "fixed_observation_regression": {
+    "status": "PASS",
+    "scope": {
+      "legacy": {
+        "sessions": 9,
+        "frames": 90575,
+        "events_before": 550,
+        "events_after": 550,
+        "all_event_fields_identical": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      },
+      "modern_prior37": {
+        "sessions": 37,
+        "frames": 146076,
+        "events_before": 407,
+        "events_after": 407,
+        "all_event_fields_identical": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      },
+      "new278": {
+        "sessions": 3,
+        "frames": 6270,
+        "events_before": 10,
+        "events_after": 10,
+        "all_event_fields_identical": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      },
+      "personal_stress": {
+        "sessions": 1,
+        "frames": 13806,
+        "events_before": 98,
+        "events_after": 98,
+        "all_event_fields_identical": true,
+        "controls_equal": true,
+        "calibrations_equal": true,
+        "profiles_equal": true
+      }
+    },
+    "timing_summary": {
+      "source_capture_delta_ms": {
+        "samples": 1065,
+        "minimum_ms": 0.0,
+        "maximum_ms": 0.0
+      },
+      "commit_delta_ms": {
+        "samples": 1065,
+        "minimum_ms": 0.0,
+        "maximum_ms": 0.0
+      },
+      "capture_to_commit_change_ms": {
+        "samples": 1065,
+        "minimum_ms": 0.0,
+        "maximum_ms": 0.0
+      },
+      "expiry_delta_ms": {
+        "samples": 417,
+        "minimum_ms": 0.0,
+        "maximum_ms": 0.0
+      }
+    },
+    "gt139": {
+      "before": 136,
+      "after": 136,
+      "conditions": 139
+    },
+    "personal_gt": {
+      "before": 19,
+      "after": 19,
+      "conditions": 19
+    },
+    "new278_static_release": {
+      "events_identical_to_selected": true,
+      "all_detailed_frame_bytes_identical_to_selected": true,
+      "after_release_frame2542": {
+        "owned": false,
+        "latched": false,
+        "previous": null,
+        "confirmed_ns": 0,
+        "since": null,
+        "last_strict": null
+      },
+      "special_frame2483_preserved": true
+    },
+    "limitations": [
+      "These historical journals contain no new Heavy observations; Heavy-specific correctness requires the separate targeted fixtures.",
+      "Timing deltas are decision times under identical recorded coordinates/clocks, not physical motion onset latency or new hardware performance.",
+      "Unlabelled free-play event preservation is regression evidence, not a measured recognition accuracy.",
+      "The three original documented X misses remain unless separately checked with newly estimated RGB landmarks."
+    ]
+  },
+  "heavy_coordinate_comparison": {
+    "frames": 90575,
+    "baseline_events": 550,
+    "candidate_events": 558,
+    "gt_before": 136,
+    "gt_after": 136,
+    "gt_count": 139,
+    "coordinate_only": true,
+    "worker_deadline_claim": false,
+    "scope": "Existing original clocks, identity, Lite+Full pose inputs preserved. Current policy is ideal same-frame Heavy availability once pending; actual helper health and deadline completion tested separately. Four-person source has only partial lossy RGB.",
+    "gt_scoring_note": "Fixed139 ground truth unchanged. Aggregate honors existing exclusive=false positive window (three_person-012): exactly one expected gesture permitted alongside unrelated gesture. Raw replay local score used strict list equality; aggregate corrects reporting only, not events/controls."
+  },
+  "heavy_event_evidence": "Eight newly emitted SPECIAL poses reviewed in original RGB. This is post-hoc review, not a held-out accuracy estimate. Two earlier SPECIAL decisions shifted earlier; normal attack events unchanged.",
+  "heavy_control_comparison": {
+    "block": 0,
+    "movement": 0,
+    "movement_strength": 0,
+    "tracking": 0,
+    "attack_state": 306
+  },
+  "not_done": [
+    "No Windows native or frozen-package check",
+    "No Unity-plus-camera or two-PC live performance check",
+    "No new app/exe build",
+    "No Git commit or push"
+  ],
+  "evidence": {
+    "parity": "regression/runs/split_repeat_v1/selected_baseline_parity.json",
+    "heavy_coordinates": "coordinate_regression_summary.json",
+    "rgb_review": "changed_event_rgb_review.json",
+    "source_changes": "applied_files.json"
+  },
+  "native_target": {
+    "scope": "Actual saved RGB and new real capture/processing timestamps; original cached engine prefix restored; no forced pending, no physical camera, no Unity/UDP/preview/journal; Mac CPU only. Two unchanged A/B repetitions.",
+    "core_sha256": "7d4e180237ec75fdf410ee3f6f6b743b984369326be2940e3f461483ce541b3d",
+    "prefixes_equal": true,
+    "all_new_times": true,
+    "runs": [
+      {
+        "name": "A1_base",
+        "optional": false,
+        "prefix_hash": "9de5fc0d232fd82a0038636bbfdacc8421245f32f7b9ef38dacf9a9662768b9b",
+        "capture_frames": 360,
+        "processed_frames": 360,
+        "latest_only_skipped": 0,
+        "processing_fps": 30.037019793368028,
+        "acquisition_fps": 29.995593822729134,
+        "age_ms_p50_p95_max": [
+          17.289458500000002,
+          19.357077100000005,
+          61.079041
+        ],
+        "age_over120": 0,
+        "processed_source_gap_ms_p50_p95_max": [
+          33.33275,
+          36.6181416,
+          38.262958
+        ],
+        "source_gap_over100": 0,
+        "heavy_submitted": 0,
+        "heavy_accepted": 0,
+        "heavy_wait_ms_p50_p95_max": [
+          0.000209,
+          0.000333,
+          0.000458
+        ],
+        "first_disabled_frame": null,
+        "events": [],
+        "helper_final": null,
+        "run": "native_target_v1",
+        "ordinary_events": [],
+        "context_regions": [
+          {
+            "label": "first_reviewed_X_context",
+            "start": 350,
+            "end": 356,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": []
+          },
+          {
+            "label": "second_reviewed_X_context",
+            "start": 356,
+            "end": 362,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": []
+          }
+        ]
+      },
+      {
+        "name": "B1_optional",
+        "optional": true,
+        "prefix_hash": "9de5fc0d232fd82a0038636bbfdacc8421245f32f7b9ef38dacf9a9662768b9b",
+        "capture_frames": 360,
+        "processed_frames": 360,
+        "latest_only_skipped": 0,
+        "processing_fps": 30.038749779447468,
+        "acquisition_fps": 29.997732832350707,
+        "age_ms_p50_p95_max": [
+          17.7191875,
+          28.2916774,
+          31.153
+        ],
+        "age_over120": 0,
+        "processed_source_gap_ms_p50_p95_max": [
+          33.333209,
+          36.884628799999994,
+          38.366208
+        ],
+        "source_gap_over100": 0,
+        "heavy_submitted": 156,
+        "heavy_accepted": 138,
+        "heavy_wait_ms_p50_p95_max": [
+          0.000292,
+          9.680793400000008,
+          12.547583
+        ],
+        "first_disabled_frame": null,
+        "events": [
+          {
+            "frame": 10650,
+            "source_video_t": 355.401725083,
+            "actual_capture_t": 355.404894417,
+            "gesture": "SPECIAL",
+            "reason": {
+              "gesture": "SPECIAL",
+              "method": "chest_cross_dwell",
+              "hold_ms": 700
+            },
+            "age_ms": 24.282208,
+            "expired": false
+          },
+          {
+            "frame": 10785,
+            "source_video_t": 359.901458916,
+            "actual_capture_t": 359.900368125,
+            "gesture": "SPECIAL",
+            "reason": {
+              "gesture": "SPECIAL",
+              "method": "chest_cross_dwell",
+              "hold_ms": 700
+            },
+            "age_ms": 23.811125,
+            "expired": false
+          }
+        ],
+        "helper_final": {
+          "ready": true,
+          "warming": false,
+          "healthy": false,
+          "active": false,
+          "disabled": false,
+          "disable_reason": "",
+          "generation": 1,
+          "queued": 0,
+          "running": 0,
+          "last_job_ms": 23.794083,
+          "counts": {
+            "submitted": 156,
+            "result_wait_expired": 3,
+            "discarded_old_job": 3,
+            "accepted": 138,
+            "late_result": 15,
+            "reset_closed": 1
+          },
+          "worker_alive": false
+        },
+        "run": "native_target_v1",
+        "ordinary_events": [],
+        "context_regions": [
+          {
+            "label": "first_reviewed_X_context",
+            "start": 350,
+            "end": 356,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": [
+              {
+                "frame": 10650,
+                "source_video_t": 355.401725083,
+                "actual_capture_t": 355.404894417,
+                "gesture": "SPECIAL",
+                "reason": {
+                  "gesture": "SPECIAL",
+                  "method": "chest_cross_dwell",
+                  "hold_ms": 700
+                },
+                "age_ms": 24.282208,
+                "expired": false
+              }
+            ]
+          },
+          {
+            "label": "second_reviewed_X_context",
+            "start": 356,
+            "end": 362,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": [
+              {
+                "frame": 10785,
+                "source_video_t": 359.901458916,
+                "actual_capture_t": 359.900368125,
+                "gesture": "SPECIAL",
+                "reason": {
+                  "gesture": "SPECIAL",
+                  "method": "chest_cross_dwell",
+                  "hold_ms": 700
+                },
+                "age_ms": 23.811125,
+                "expired": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "A1_base",
+        "optional": false,
+        "prefix_hash": "9de5fc0d232fd82a0038636bbfdacc8421245f32f7b9ef38dacf9a9662768b9b",
+        "capture_frames": 360,
+        "processed_frames": 360,
+        "latest_only_skipped": 0,
+        "processing_fps": 30.032891544796335,
+        "acquisition_fps": 29.992424930197483,
+        "age_ms_p50_p95_max": [
+          17.292834,
+          23.533828850000003,
+          62.442541
+        ],
+        "age_over120": 0,
+        "processed_source_gap_ms_p50_p95_max": [
+          33.333375,
+          35.3287535,
+          36.743375
+        ],
+        "source_gap_over100": 0,
+        "heavy_submitted": 0,
+        "heavy_accepted": 0,
+        "heavy_wait_ms_p50_p95_max": [
+          0.000208,
+          0.000333,
+          0.003334
+        ],
+        "first_disabled_frame": null,
+        "events": [],
+        "helper_final": null,
+        "run": "native_target_v2",
+        "ordinary_events": [],
+        "context_regions": [
+          {
+            "label": "first_reviewed_X_context",
+            "start": 350,
+            "end": 356,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": []
+          },
+          {
+            "label": "second_reviewed_X_context",
+            "start": 356,
+            "end": 362,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": []
+          }
+        ]
+      },
+      {
+        "name": "B1_optional",
+        "optional": true,
+        "prefix_hash": "9de5fc0d232fd82a0038636bbfdacc8421245f32f7b9ef38dacf9a9662768b9b",
+        "capture_frames": 360,
+        "processed_frames": 359,
+        "latest_only_skipped": 1,
+        "processing_fps": 29.944223462145697,
+        "acquisition_fps": 29.987429608641662,
+        "age_ms_p50_p95_max": [
+          17.571958,
+          27.082866099999993,
+          81.246583
+        ],
+        "age_over120": 0,
+        "processed_source_gap_ms_p50_p95_max": [
+          33.3329375,
+          36.590852649999995,
+          66.11875
+        ],
+        "source_gap_over100": 0,
+        "heavy_submitted": 155,
+        "heavy_accepted": 152,
+        "heavy_wait_ms_p50_p95_max": [
+          0.000292,
+          8.6487084,
+          12.553125
+        ],
+        "first_disabled_frame": null,
+        "events": [
+          {
+            "frame": 10664,
+            "source_video_t": 355.868851375,
+            "actual_capture_t": 355.871551916,
+            "gesture": "SPECIAL",
+            "reason": {
+              "gesture": "SPECIAL",
+              "method": "chest_cross_dwell",
+              "hold_ms": 700
+            },
+            "age_ms": 23.748209,
+            "expired": false
+          },
+          {
+            "frame": 10779,
+            "source_video_t": 359.702823291,
+            "actual_capture_t": 359.704885916,
+            "gesture": "SPECIAL",
+            "reason": {
+              "gesture": "SPECIAL",
+              "method": "chest_cross_dwell",
+              "hold_ms": 700
+            },
+            "age_ms": 23.696584,
+            "expired": false
+          }
+        ],
+        "helper_final": {
+          "ready": true,
+          "warming": false,
+          "healthy": false,
+          "active": false,
+          "disabled": false,
+          "disable_reason": "",
+          "generation": 1,
+          "queued": 0,
+          "running": 0,
+          "last_job_ms": 23.305458,
+          "counts": {
+            "submitted": 155,
+            "result_wait_expired": 1,
+            "discarded_old_job": 1,
+            "accepted": 152,
+            "late_result": 2,
+            "reset_closed": 1
+          },
+          "worker_alive": false
+        },
+        "run": "native_target_v2",
+        "ordinary_events": [],
+        "context_regions": [
+          {
+            "label": "first_reviewed_X_context",
+            "start": 350,
+            "end": 356,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": [
+              {
+                "frame": 10664,
+                "source_video_t": 355.868851375,
+                "actual_capture_t": 355.871551916,
+                "gesture": "SPECIAL",
+                "reason": {
+                  "gesture": "SPECIAL",
+                  "method": "chest_cross_dwell",
+                  "hold_ms": 700
+                },
+                "age_ms": 23.748209,
+                "expired": false
+              }
+            ]
+          },
+          {
+            "label": "second_reviewed_X_context",
+            "start": 356,
+            "end": 362,
+            "scope": "inspection partition, not changed original ground truth",
+            "special_events": [
+              {
+                "frame": 10779,
+                "source_video_t": 359.702823291,
+                "actual_capture_t": 359.704885916,
+                "gesture": "SPECIAL",
+                "reason": {
+                  "gesture": "SPECIAL",
+                  "method": "chest_cross_dwell",
+                  "hold_ms": 700
+                },
+                "age_ms": 23.696584,
+                "expired": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "rgb_review": {
+      "image": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/three_person_native_event_review.jpg",
+      "sha256": "820aa62b0ce5021835046c0b41167692fcc1aafdd55d35e8301122b406b8edc1",
+      "event_frame_reviews": [
+        {
+          "frame": 10650,
+          "t": 355.401725083,
+          "pose": "X held; crossed forearms remain visible, not fully released"
+        },
+        {
+          "frame": 10664,
+          "t": 355.868851375,
+          "pose": "X held; crossed forearms remain visible, not fully released"
+        },
+        {
+          "frame": 10779,
+          "t": 359.702823291,
+          "pose": "X held; crossed forearms remain visible, not fully released"
+        },
+        {
+          "frame": 10785,
+          "t": 359.901458916,
+          "pose": "X held; crossed forearms remain visible, not fully released"
+        }
+      ],
+      "later_release_samples": [
+        {
+          "frame": 10669,
+          "t": 356.037,
+          "pose": "hands begin separating/uncrossing"
+        },
+        {
+          "frame": 10793,
+          "t": 360.17,
+          "pose": "uncrossing starts; not the stable preceding hold"
+        }
+      ],
+      "original_gt_scoring_changed": false
+    },
+    "limitations": [
+      "12-second restored-context experiment, not full-session real-time replay",
+      "Windows native backend / weak-PC and Unity-rendering concurrent overhead not measured",
+      "Original139GT and allowed +/-1second scoring windows are unchanged; restored X events remain late",
+      "Actual observed wait can exceed configured10ms by OS scheduling; measured maximum12.553125ms, no120ms evidence expiry in this experiment"
+    ]
+  },
+  "source_native_check": {
+    "passed": true,
+    "camera_opened": false,
+    "game_packets": 0,
+    "input": "synthetic blank640x480RGB",
+    "scope": "native model creation and inference dependency check, not recognition accuracy or game latency",
+    "frozen": false,
+    "platform": "Darwin",
+    "architecture": "arm64",
+    "python": "3.11.17",
+    "mediapipe": "0.10.35",
+    "opencv": "4.13.0",
+    "numpy": "2.4.6",
+    "models": [
+      {
+        "variant": "Lite",
+        "mode": "VIDEO",
+        "initialize_ms": 119.89016702864319,
+        "detect_ms": [
+          10.75279200449586,
+          6.089583970606327,
+          6.087166955694556
+        ],
+        "detected_pose_counts": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "variant": "Full",
+        "mode": "VIDEO",
+        "initialize_ms": 51.15033406764269,
+        "detect_ms": [
+          6.678250036202371,
+          6.2941670184955,
+          6.068999995477498
+        ],
+        "detected_pose_counts": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "variant": "Full",
+        "mode": "IMAGE",
+        "initialize_ms": 55.397416930645704,
+        "detect_ms": [
+          6.799624999985099,
+          6.508916965685785,
+          6.486958009190857
+        ],
+        "detected_pose_counts": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "variant": "Heavy",
+        "mode": "IMAGE",
+        "initialize_ms": 63.271749997511506,
+        "detect_ms": [
+          6.683083018288016,
+          6.571957957930863,
+          6.105125066824257
+        ],
+        "detected_pose_counts": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "tests": {
+    "production_focused": {
+      "count": 75,
+      "passed": true,
+      "log": "production_tests.log"
+    },
+    "recorded_regression_focused": {
+      "count": 51,
+      "passed": true,
+      "log": "regression/runs/split_repeat_v1/unit.log"
+    },
+    "fake_live_and_exact_journal_replay": {
+      "count": 6,
+      "passed": true,
+      "scope": "Synthetic camera and models, no physical device; exact copied live source"
+    },
+    "note": "Test groups overlap; counts must not be summed as unique tests."
+  },
+  "applied_files": [
+    {
+      "path": "src/redbool_demo/backend.py",
+      "before_sha256": "701dcbb68c471d47f06faf874e96aa27d567f092721b3e012c37f8c111fc635a",
+      "after_sha256": "f961b550d626c376193744ed3fac18b7157ca130be3ecdfe7a1a2b9c3524bd59",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/backend.py"
+    },
+    {
+      "path": "src/redbool_demo/backend_assets.py",
+      "before_sha256": "1a80eb44b46190a9dbce4f882d7dce0492bdbca56ae6f6c4968ff2e60dac2ab6",
+      "after_sha256": "c017806d390f6e9cb45fa7ef78656d656c2c094912dc67c5f59a1cb0fbf02c2b",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/backend_assets.py"
+    },
+    {
+      "path": "src/redbool_demo/heavy_auxiliary.py",
+      "before_sha256": null,
+      "after_sha256": "7307b03b3d2f80f1fd68c3055660872d6f7f90a8e437f562e9690711d4196ff4",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/heavy_auxiliary.py"
+    },
+    {
+      "path": "src/redbool_demo/landmark_recording.py",
+      "before_sha256": "df85c98462f284623c8d13248e0eb211ee68a3ee72a2ef7a5fd15874e3b1fb7d",
+      "after_sha256": "1dff408eba207f63a51eb125d32aec71f3dd86dac9c8b3fc96d64c6862be0775",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/landmark_recording.py"
+    },
+    {
+      "path": "src/redbool_demo/landmark_replay.py",
+      "before_sha256": "28c83f6c3d9cca677aaf8ac4fbd9a2dafa30ebc99d9b19b37292a5f25b942e91",
+      "after_sha256": "2829dc9deb561e9acfc35061200d1497eef10356b0bece2142ead8c3cd8f42ce",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/landmark_replay.py"
+    },
+    {
+      "path": "src/redbool_demo/live.py",
+      "before_sha256": "338bb981fd80402eb586f71a3a80ebb224324057eee323268bd3a7f6e31a9779",
+      "after_sha256": "dde402e8dc221229a4b029fd78146f2c816907305fd7452b616b33841810e08f",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/live.py"
+    },
+    {
+      "path": "src/redbool_demo/personal.py",
+      "before_sha256": "093228ce18965d9ad8094925d5c290c46f62abb0106894caf4115ad9d3dcfb26",
+      "after_sha256": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/personal.py"
+    },
+    {
+      "path": "src/redbool_demo/refined_special.py",
+      "before_sha256": null,
+      "after_sha256": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/refined_special.py"
+    },
+    {
+      "path": "src/redbool_demo/six_engine.py",
+      "before_sha256": "c977bb87647363c93cba4ab343645a966439ca99954474d9ef5e52d0c0846d59",
+      "after_sha256": "7d4e180237ec75fdf410ee3f6f6b743b984369326be2940e3f461483ce541b3d",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/src/redbool_demo/six_engine.py"
+    },
+    {
+      "path": "scripts/setup_demo_models.py",
+      "before_sha256": "474ff86d8bbc17e7ba2454afae3d88a217ea5d1f0bb083c8c4a6b665e0ea4c23",
+      "after_sha256": "7b51b90edb96da2efa8681c5371c4893bf24c81f331138394a68d8f314cf0a56",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/scripts/setup_demo_models.py"
+    },
+    {
+      "path": "scripts/build_camera_backend.py",
+      "before_sha256": "fd30290356ff721f02f62b1c507ae7bda9032a950e6436ea506da146045f5815",
+      "after_sha256": "e75d8c2aa4f5333cca9474c28769ebdbdc2fa0ff9e25616260ca89565352fdd2",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/scripts/build_camera_backend.py"
+    },
+    {
+      "path": "tests/test_refined_cross.py",
+      "before_sha256": null,
+      "after_sha256": "26554e650797dcea1a1b89286934c74f3eaa242ff8fa7ef0dd86b8f7b12e6efe",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/tests/test_refined_cross.py"
+    },
+    {
+      "path": "tests/test_heavy_auxiliary.py",
+      "before_sha256": null,
+      "after_sha256": "9a7951d18897f5110568d8165256c544d9f005fba652e8a316a078ac0188342e",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/tests/test_heavy_auxiliary.py"
+    },
+    {
+      "path": "tests/test_heavy_recording.py",
+      "before_sha256": null,
+      "after_sha256": "9a32ed75d1d5d90b085f456560accfcdf2987788d289da512259aa23f4aa604e",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/tests/test_heavy_recording.py"
+    },
+    {
+      "path": "tests/test_heavy_assets.py",
+      "before_sha256": null,
+      "after_sha256": "4493aefc53ad6583fa39ee743a66e65b26254997d5224aad60b11739e16108e4",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/tests/test_heavy_assets.py"
+    },
+    {
+      "path": "tests/test_landmark_live.py",
+      "before_sha256": "95d633281af797c83ceb454bd651ccf661002ccd8c1d66e5c91c4210a7a12c11",
+      "after_sha256": "e8a47834e66036a04f844ed013ee28e22e728c10f4e0613dec1445c20ffa4ee8",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/candidate/tests/test_landmark_live.py"
+    },
+    {
+      "path": "tests/test_refined_release_contract.py",
+      "before_sha256": null,
+      "after_sha256": "18b484a96fe4153b4cdbaa3a45fd266fed9398dcd7d24e3b5cbf86929cee3b2b",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/audit/staging_tests/test_refined_release_contract.py"
+    },
+    {
+      "path": "src/redbool_demo/backend_inference_check.py",
+      "before_sha256": "5c99bddb9098edc47f7a0442e97d340ef88f8976fcd3b1e55992d95309f6f079",
+      "after_sha256": "164ebb47c9e781ebd6ee2985987b379add66d61001315ba932dc7ae346915970",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/audit/packaging_candidate/src/redbool_demo/backend_inference_check.py"
+    },
+    {
+      "path": "tests/test_backend_optional_inference.py",
+      "before_sha256": null,
+      "after_sha256": "b99eda9dbc9b91c4d582035229e0567963f5f41035d6d0b054580a464e562c4d",
+      "source": "/Users/bin/Documents/ChatGPT/REDBOOL 2/review_x_release_20261116/audit/packaging_candidate/tests/test_backend_optional_inference.py"
+    }
+  ],
+  "selection": {
+    "default_recognition": "Keep current Lite + Full and selected slow-X path",
+    "explicit_refinement": "Available through --cross-refine-pose after exact asset verification and existing health/age/overload gates",
+    "automatic_enable": false,
+    "why_not_default": "Recovered X is still late; no Windows native package or game-plus-camera performance validation. Preserve working defaults.",
+    "original_139_score": "136/139 unchanged; recovered targets remain outside original timing windows",
+    "remaining_unresolved": "139.8s attempt has insufficient visible separated-wrist proof after previous X. Do not infer release from hidden hands."
+  },
+  "source_sha256": {
+    "src/action_engine/__init__.py": "42b502b71e1863b59efb63cee07c6e441df88b02919d262f987f7593d4baef06",
+    "src/action_engine/ablation.py": "d538f7001f816d561caa708ec063b1c297b633a194df0fb444bd41f64277c038",
+    "src/action_engine/adapters.py": "2567fbcc4e086473dca55fc2f006526a2f28b2e97271fbed8c23b30f562c64e0",
+    "src/action_engine/core.py": "f07e1c24649e9c809d2d950dc2881ef582bcb27b1f2ae936a04ddd6dc81cb03e",
+    "src/action_engine/experimental.py": "e16622b74c45ea24f04b6b1067738bde3ec5d97e7a55b7dd206125708e5dc962",
+    "src/action_engine/types.py": "527a0d2e822dae976ecb942262b4d34d883e966863a504e2a4823653993cba3c",
+    "src/calibrate_movement.py": "4f4c3b4ea867af2eab3a0ac9ef1dbee458807872848814b3881e74b1b180cdc7",
+    "src/collect_data.py": "2a3839debe361f95347799fb3222d653ac4b9960ace00fa080b2246dd49e0cfc",
+    "src/collect_gesture_pilot.py": "39f8340eecc2e1c56f05543c361051bcbb5b88733ef8818f1242d3a823278b86",
+    "src/config.py": "601aedefa31101498872fc264a232b64868edfc9d7860d762e4aef00169f1818",
+    "src/continuous_events/__init__.py": "7d1eea5e0a0fe06618a5f1c81f80b64c5dab9e4387174bf141142fe741ea698f",
+    "src/continuous_events/protocol.py": "83c6485dc4cfd8b288053f2b264886931ca533d095cc87ba2bc8b5e99b1d04e0",
+    "src/continuous_events/quality.py": "f2a0ebc460b87073c9be7d02697524a67861c9b176eee85abf0dd08350032c44",
+    "src/continuous_events/viewer.py": "66449804537b889c55f244641e73662ae8f3e896500fde6587281a0f97773946",
+    "src/demo_eval/__init__.py": "7f5c85dd93daceb3a8a3fe84b2dd9fd0121730bb1251f47dd26faa60d1968224",
+    "src/demo_eval/realtime.py": "5be730597e37fbcb4de7ebab7823dcde158ac0612f63b39ec33c37c451a3e81b",
+    "src/event_ground_truth/__init__.py": "786e0092eafe3ee11b280d570f0bb6523c42e097790e1c959df4751104b8c72c",
+    "src/event_ground_truth/assisted.py": "d78b32b6520f1a2bd2fdc27c89e63d6e6228ba5b5a652534ff612e1a65e30631",
+    "src/event_ground_truth/evaluate.py": "aa1c49e84aa7a1e650dc311cca0ea6c43d56b19f3b50913be545465ead13a43e",
+    "src/event_ground_truth/pose_compare.py": "4f29f9757cdcff16976e22d7c5fefb55d67b74d9c5d2af914106d5f7d0aea795",
+    "src/event_ground_truth/schema.py": "0e7912beb02f6710e6eed3364e056768a476d90ea8d491aaecf248e3401c1084",
+    "src/merge_csv.py": "c027e6da37d526f520d8e6eadbfa1caeb8563f9c39ea034c614925eb7e4fd7c0",
+    "src/movement.py": "82835bcd247ad180669e43144dd57e4e1dbb4a1802690a1447ea6293be984644",
+    "src/package_pilot_session.py": "4b6fba4f7d7ec176e2bb7ff5f9015daf3913b05dbf8b55451247458dff55fcf4",
+    "src/pose_capture.py": "a58df416945bd191308417376373350ebad8a737dcfc33edae94e67c41097616",
+    "src/realtime_vision/__init__.py": "7856e50cf76984f9c3adc131b7f16a11d4d0b0e082908abfba56e949c2702dc9",
+    "src/realtime_vision/clock.py": "1081900b20f990cbbcf98e8ebfa3dc1a6e49341663007e1fbd6b7103c4f93953",
+    "src/realtime_vision/live.py": "8092c8bedbf79e619985ad558de650275468c9caa37cb7fc7d8e7efe94084602",
+    "src/realtime_vision/transport.py": "29ab407dc3023cc550481e6d5047977f89f392a4ab7fad771891990b9a902338",
+    "src/redbool_demo/__init__.py": "00f6c08b58e5ec023ff0162e396e87479112f182b1cc5320654d408d363d23bf",
+    "src/redbool_demo/auxiliary_pose.py": "3feebeed07a388b29e730da3ee3fa7500619faaffe51c3d9aa24c1c4a9879dcc",
+    "src/redbool_demo/backend.py": "f961b550d626c376193744ed3fac18b7157ca130be3ecdfe7a1a2b9c3524bd59",
+    "src/redbool_demo/backend_assets.py": "c017806d390f6e9cb45fa7ef78656d656c2c094912dc67c5f59a1cb0fbf02c2b",
+    "src/redbool_demo/backend_cache.py": "d7740fe885317fb802b4617bc2db13d790c69fa777aae17647945916ca0d6289",
+    "src/redbool_demo/backend_inference_check.py": "164ebb47c9e781ebd6ee2985987b379add66d61001315ba932dc7ae346915970",
+    "src/redbool_demo/backend_provenance.py": "eb1b2b8cee04e46e1bfd1f43cc2ce3c84017c1bddadee5bab743f11b249a6f90",
+    "src/redbool_demo/calibration_feedback.py": "17f078d910d701322dad6ae1b1109fad3ffc58a1b07d266ab8477e3cbacfa261",
+    "src/redbool_demo/camera_diagnostics.py": "16313eefa3fefc24cede1ef9cb2b0df7868ab251e9fa1e05eba3eddc44cf3701",
+    "src/redbool_demo/camera_profile.py": "b91b312d38ecfb1d196a0dbd5480f5802bf30fad557d982a8f70358cc447db4f",
+    "src/redbool_demo/compact_video.py": "2bfc892186b20f0a796243ba72a51de9b12606686dbf62fbe059eb484dcbfb84",
+    "src/redbool_demo/diagnostics_recording.py": "61e0aafb572e8f85a12214d8c94e2fa4621819fb5335d66bda34ea15577e9003",
+    "src/redbool_demo/engine.py": "3faa74071882de13e3e08dfdf30dd09974c8ef2b06b6a69f91e14bd3d08d563a",
+    "src/redbool_demo/framing.py": "6f6712f17d8a4146d9f00f2d0c38ded7ea57401478ce9cbe2db33af33e38c8f8",
+    "src/redbool_demo/guided.py": "04ee0e8ac5484daa53fa7b1c6e9be023c9f00f444a34b9da7b4524af1853c159",
+    "src/redbool_demo/heavy_auxiliary.py": "7307b03b3d2f80f1fd68c3055660872d6f7f90a8e437f562e9690711d4196ff4",
+    "src/redbool_demo/high_guard_raise.py": "ac6b51e25c41ad61c4d0a4f9e13b11b4898078cf48f988fcf4f3016dee3c3ea5",
+    "src/redbool_demo/key_input.py": "bd79d33342957af13357deed5d61b026d7d1c8ed3006d2757f1087a7f873915a",
+    "src/redbool_demo/landmark_recording.py": "1dff408eba207f63a51eb125d32aec71f3dd86dac9c8b3fc96d64c6862be0775",
+    "src/redbool_demo/landmark_replay.py": "2829dc9deb561e9acfc35061200d1497eef10356b0bece2142ead8c3cd8f42ce",
+    "src/redbool_demo/lateral.py": "0e669ea252145e96505aa61a683d16fb2b1b120f93b0272f9bc0e4967472ac8b",
+    "src/redbool_demo/learned.py": "4714c9fcbd673796415bd5e20faaf2aae7ce5a4b229fba8529d047136d014f22",
+    "src/redbool_demo/live.py": "dde402e8dc221229a4b029fd78146f2c816907305fd7452b616b33841810e08f",
+    "src/redbool_demo/local_bridge.py": "e15183e7d4dc0e733980e095105224f89b69999493a5df2cad3d744decd471f6",
+    "src/redbool_demo/performance_policy.py": "1f4e6f23a3c9bb4093f2653eaccb56fb73c3ace42400a574538b4d5f3135203c",
+    "src/redbool_demo/personal.py": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+    "src/redbool_demo/probe.py": "431defd894e815e111abcbc841778dce3321074dbd988403a955d1f17222587c",
+    "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6",
+    "src/redbool_demo/six_engine.py": "7d4e180237ec75fdf410ee3f6f6b743b984369326be2940e3f461483ce541b3d",
+    "src/redbool_demo/special.py": "af158eaf40e27ef96e53d4179fb043907cec8baf503616af5eadadab24f37a04",
+    "src/redbool_demo/static_special.py": "7bd71dbbe7b3eba50bc49a0fd06300edd9d13e0e3096fcaebe9e61b74210f74d",
+    "src/redbool_demo/train.py": "90f756f7655a5bd539c95afc1adfe19dae6f736f37ac60956e80e455c802e30f",
+    "src/redbool_demo/transport.py": "443c5ed5ad6f4670bca4500c9710eb63da9da6b8236365900d1c7e27d7966f49",
+    "src/replay_session.py": "fc79e493bc87baa201c026db739fb5aadcf3c721aec83ccc8ce2c32a763b52f7",
+    "src/run_inference.py": "ee237181b3879c9217c86a0c168780d32f1d1907f1db1d1951550618b05eb740",
+    "src/send_unity.py": "8a7d3290697bbd0baac565ad8c058dfb7de4ea30e99ca41bb9d4fe370346c591",
+    "src/session_recording.py": "ae67bdcc642459e7de146bb94cbd89385dec81d646ab1b3570616625278fdb2a",
+    "src/train_mlp.py": "8202ba43fd012ab581e289e2476d685722cf55ea1f88776eeb96c78f348d0532",
+    "src/vision_v2/__init__.py": "d7bbf75c517f31f1d2efa8382752e0db6ce00aed3e29c9893dd814d2e7aa52e9",
+    "src/vision_v2/preprocess.py": "e8795b42cd03a1805519c4335b8996c1fc1b1f620c5521046d2c2c04da899e0a",
+    "src/vision_v2/temporal_models.py": "7d6e4869c7d053ea6a398bd6a936de113fbf124190ac664972d4c4d097c38347"
+  },
+  "optional_asset": {
+    "path": "local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_heavy.task",
+    "sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+    "default_enabled": false
+  }
+}

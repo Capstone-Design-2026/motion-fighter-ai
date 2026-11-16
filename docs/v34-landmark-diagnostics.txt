@@ -1,0 +1,48 @@
+REDBOOL v34 — 관절 진단 기록과 재생
+
+원본 영상 없이 누락을 분석하기 위한 기록입니다. 관절 좌표는 모델 추정값이며,
+사용자의 실제 의도/모든 동작의 정확도에 대한 정답 라벨은 아닙니다.
+인식 모델·기준·v26 기반 개인 보정 동작은 v33과 동일하게 유지합니다.
+
+통합 게임의 diagnostics 기본 모드
+- 처리한 Lite 이미지/월드 관절 33개, visibility/presence, Full VIDEO/IMAGE
+  보조 관절, 프레임/모델/시각을 JSON 원래 정밀도로 기록합니다.
+- process/publisher/calibrate/pause/movement 순서와 실제 엔진 시계 읽기를
+  저장하므로 완전한 기록에서는 watchdog/복귀/개인 보정을 같은 순서로 재생합니다.
+- 별도 스레드가 gzip level1로 압축합니다. 대기열은 제한되며 게임 처리를 기다리게
+  하지 않습니다. 약 2초/60처리프레임마다 완성된 묶음을 닫습니다.
+- 카메라 실행당 압축 관절 기록 최대128MiB. 제한·저장 오류·대기열 누락은 명시합니다.
+  저장할 수 없더라도 게임을 중단하지 않습니다. 기존 기록을 자동 삭제하지 않습니다.
+- 실제 처리하지 않은 카메라 프레임을 복구하거나 새 추론을 만들지는 않습니다.
+
+저장/전달
+- Unity Application.persistentDataPath/CameraDiagnostics 아래 실행 폴더의
+  recognition/landmarks.index.json 및 landmarks-000001.jsonl.gz 같은 파일입니다.
+- 게임에서 메인 메뉴로 돌아가 기록 마무리를 기다린 뒤 진단 기록 저장을 누릅니다.
+  최근3개 실행의 완성된 압축파일·기존 진단 로그를 ZIP으로 내보냅니다.
+- 쓰는 중인 .part는 제외합니다. 파일 크기/해시를 확인하며 통째로 복사합니다.
+  export_report.json에 내보내지 못한 항목과 이유를 기록합니다. PvP는 양쪽 ZIP이 필요합니다.
+- 기존 v33.1 ZIP에는 관절 좌표가 없으므로 새 기록을 소급 복원할 수 없습니다.
+
+카메라 없는 정확 재생 (개발 환경, 저장소 루트)
+  PYTHONPATH=src python -m redbool_demo.landmark_replay /path/to/recognition
+Windows PowerShell
+  $env:PYTHONPATH = "src"
+  python -m redbool_demo.landmark_replay C:\path\to\recognition
+
+완전성/순서/해시가 맞는 기록만 재생합니다. 기록한 엔진 구성과 같은 소스를
+사용해야 합니다. v34.1부터는 Windows/x64와 Mac/arm64의 수학 함수에서 생기는
+아주 작은 실수 차이만 1e-12 허용치로 비교하고 그 개수·최대 차이를 따로 보고합니다.
+관절 입력은 반올림하지 않습니다. 동작 결정·이벤트 순서·정수 시각·보정 설정은
+정확히 같아야 합니다. --strict-floats를 붙이면 실수 값도 정확히 비교합니다.
+통과는 기록 당시와 같은 처리 결과라는 뜻이며 인식 정확도 수치가 아닙니다.
+누락된 기록은 완전한 재생으로 간주하지 않고 구간/상태를 따로 분석합니다.
+
+v34.1은 보조 모델 정보가 있을 때 원래 카메라 프레임 번호가 누락되던 기록 병합을
+수정했습니다. 기존 v34 기록도 처리 프레임 번호와 시각이 있어 재생할 수 있지만,
+이미 빠진 카메라 획득 번호를 소급해 복원하지는 않습니다. 인식 동작은 바꾸지 않습니다.
+
+카메라 빌드는 기존 docs/v33-integrated-camera.txt의 네이티브 절차를 사용합니다.
+v34 백엔드의 --check와 backend-build.json에는 기록 스키마가 명시됩니다.
+Unity 조립기는 redbool.landmarks/1이 없는 구버전 백엔드를 거부합니다.
+화면 통신 규약은30이며 양쪽 게임을 v34로 업데이트합니다. 카메라 입력 UDP 규약은 유지합니다.

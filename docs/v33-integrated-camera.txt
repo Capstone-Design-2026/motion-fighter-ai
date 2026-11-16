@@ -1,0 +1,38 @@
+REDBOOL v33 — integrated camera backend
+
+Scope
+- Unity starts one owned camera process when entering combat or PvP, displays its preview and calibration controls, and stops it when leaving or closing the game.
+- v26 recognition plus the reviewed v32 rules remain the baseline. The only recognition-related change fixes a diagonal punch transition cancelling a valid personal-training cycle; existing event decisions were unchanged in the reviewed Windows export.
+- Tutorial personalization still requires two independent, consistent geometry cycles. It does not learn arbitrary failed gestures or guarantee accuracy from two hits.
+- Framing feedback adds the tracked joints' outside_edges so Unity can distinguish hands below the image from other framing problems.
+
+Runtime and storage
+- Packaged entry: redbool_demo.backend. Defaults: Lite primary pose, Full auxiliary X geometry, personal calibration, movement, headless mode, 8 fps local preview, diagnostics recording.
+- The preview runs separately from full-rate recognition. It uses authenticated HTTP bound only to 127.0.0.1; camera images are not transmitted to the opponent.
+- GET /status and /preview.jpg require X-REDBOOL-Token. POST /control accepts calibrate, pause or stop with a unique request_id. Unity supplies an ephemeral port/token and --parent-pid.
+- Diagnostics mode stores event/state/health summaries, not raw video or landmark-frame observations. It cannot support visual ground truth or recognition replay. Explicit developer --recording review, logs or lossless remains available in redbool_demo.live.
+- PvP keeps the existing LAN protocol and two-screen host/client flow. This backend adds no external server requirement.
+
+Developer build (native OS, Python 3.11)
+  python -m pip install -r requirements-backend-build.txt
+  python scripts/setup_demo_models.py
+  python scripts/build_camera_backend.py --pose pose_landmarker.task --cross-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task
+
+Camera-free native validation
+  Windows:
+    python scripts/check_camera_backend.py --executable dist/camera_backend/REDBOOLCamera/REDBOOLCamera.exe --output dist/camera_backend/check-result.json
+  macOS:
+    python scripts/check_camera_backend.py --executable dist/camera_backend/REDBOOLCamera/REDBOOLCamera --output dist/camera_backend/check-result.json
+
+The validation loads Lite VIDEO plus Full VIDEO/IMAGE on synthetic RGB, then checks authenticated preview/control and clean process exit. It never opens a webcam or sends attacks. This validates packaging and lifecycle, not physical-camera recognition or Wi-Fi quality.
+
+GitHub packaging
+- Workflow: .github/workflows/camera-backend-windows.yml, on the development branch codex/tutorial-personal-pvp-20261112.
+- Artifact: REDBOOLCamera-Windows-x64. Keep the entire REDBOOLCamera directory together; the executable depends on its bundled libraries and model assets.
+- Unity packaging copies that complete directory into its expected CameraBackend location. The Python backend build by itself is not a complete game build.
+- On macOS preserve bundle symlinks. Do not replace the existing developer Python environment with this separate packaging environment.
+
+Validation before promotion
+- 249 unique Python regression tests passed, including all 206 prior v32 cases and the new personal-cycle/framing tests.
+- The Windows tutorial excerpt reproduced all 29 recorded events without changing their labels; one valid STRAIGHT personal-cycle sample was recovered (1 to 2). Its observed range did not require a threshold override, so no measured accuracy gain is claimed from that excerpt.
+- Default diagnostics deliberately trades replay capability for small files. Collect explicit review data only when a future recognition issue requires visual confirmation.

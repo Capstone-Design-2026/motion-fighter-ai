@@ -190,7 +190,16 @@ class SyntheticLiveTests(unittest.TestCase):
                 self.assertEqual([c.args[0].running_mode.name for c in factory.call_args_list],['VIDEO','VIDEO','IMAGE'])
                 self.assertEqual(m['recording_config']['cross_redetect']['mode'],'IMAGE')
                 rows=[json.loads(x) for x in (session/'frames.jsonl').read_text().splitlines()]
-                self.assertTrue(all(row['processing_metadata']['cross_recovery']['mode']=='IMAGE' for row in rows))
+                # Calibration deliberately uses Lite only. A skipped auxiliary
+                # must remain null rather than reusing a previous skeleton.
+                metadata=[row['processing_metadata'] for row in rows]
+                skipped=[row for row in metadata if row['cross_recovery'] is None]
+                recovered=[row for row in metadata if row['cross_recovery'] is not None]
+                self.assertTrue(skipped)
+                self.assertTrue(all(row['cross_pose'] is None for row in skipped))
+                self.assertTrue(recovered)
+                self.assertTrue(all(row['cross_recovery']['mode']=='IMAGE' and row['cross_pose']['variant']=='Full'
+                                    for row in recovered))
                 self.assertTrue(r['performance']['cross_redetect_ms_p50_p95'])
 
 

@@ -1,0 +1,29 @@
+v29 개인 수련 진행/저장 개선 (v26 인식 기준 유지)
+
+연계 Unity: codex/pvp-dual-screen-20261112, 화면 프로토콜 29.
+원래 수련 성공 카운트와 개인 범위 보정은 다른 단계다. 보정 완료 여부가 수련 진행을 막는 조건은 아니었다.
+실제 양쪽 기록을 호스트 ACK 시간으로 합치니 두 사람 수련이 완료되고 입력이 살아 있던 시간이 185초 있었지만,
+엄격한 READY 자세가 동시에 1초 유지된 적은 없었다(최대 0.484초). Unity에서 그 추가 시작 조건을 제거했다.
+
+Python 변경
+- 다음 수련 안내로 빨리 넘어가도 직전에 시작한 유효 동작의 복귀는 최대 2초 더 측정한다.
+- 동작 2회/일관성/가림/충돌 검증과 적용 범위는 그대로다. 실패한 동작을 성공한 학습 예제로 만들지 않는다.
+- C/새 run/사람 교체에는 이전 측정을 버린다. 영구 프로필이나 새 인식 모델을 만들지 않는다.
+- --recording review (기본 CLI): 15fps MP4, 전체 속도 관절/동작 기록.
+- --recording logs: 영상 없음, 관절/동작 기록만.
+- --recording lossless: 기존 FFV1 AVI와 RGB 해시 검증.
+- review 영상은 손실 압축이고 정밀 원본 재구성 자료가 아님을 manifest에 명시한다.
+- 영상 저장은 기존 비동기 작업자를 사용하며 추론 프레임을 줄이지 않는다.
+- scripts/setup_demo_models.py: 고정 공식 모델 다운로드/SHA256 검증 또는 기존 배포 폴더에서 가져오기.
+- scripts/run_personal_camera.py --player 2: 같은 LAN의 v29 게임 자동 검색, 직접 IP도 지원.
+- scripts/export_diagnostics.py: 영상/원본 관절을 제외한 작은 전달용 ZIP. 원본 삭제 없음.
+
+검증
+- 84개 Python 검사 통과: 수련 범위/실제 코덱/기존 펀치·레이즈·X자·UDP·여러 사람 녹화 포함.
+- 동일 60초 RGB: FFV1 397,874,778 bytes → MP4 7,172,339 bytes (영상 용량 98.2% 감소).
+- 위 감소율은 영상 파일만 비교한다. 전체 관절/trace 기록은 별도로 남는다.
+- Git 추적 파일만으로 구성한 깨끗한 Python 트리에서 모델 설정/--check 통과.
+- 실제 두 노트북에서 v29 카메라 전투를 완료하는 마지막 현장 검증은 남아 있다.
+
+전체 개발/실행 안내는 Unity 브랜치 Docs/pvp-v29-developer-workflow.txt 참고.
+모델 공식 링크 근거: https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/pose-landmarker.ts

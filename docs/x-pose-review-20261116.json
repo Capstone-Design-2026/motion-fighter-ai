@@ -1,0 +1,87 @@
+{
+  "date": "2026-11-16",
+  "decision": "APPLY_SLOW_PRIMARY_ONLY_STATIC_X_AND_PREVIEW_PRESSURE_CAP; REJECT_HEAVY_ROI",
+  "scope": "Saved observations and original clocks; no new filming, no general accuracy or target-PC FPS claim.",
+  "baseline_commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b",
+  "selected_runtime_files": {
+    "src/redbool_demo/six_engine.py": "c977bb87647363c93cba4ab343645a966439ca99954474d9ef5e52d0c0846d59",
+    "src/redbool_demo/static_special.py": "7bd71dbbe7b3eba50bc49a0fd06300edd9d13e0e3096fcaebe9e61b74210f74d",
+    "src/redbool_demo/live.py": "338bb981fd80402eb586f71a3a80ebb224324057eee323268bd3a7f6e31a9779",
+    "src/redbool_demo/local_bridge.py": "e15183e7d4dc0e733980e095105224f89b69999493a5df2cad3d744decd471f6"
+  },
+  "recorded_regression": {
+    "local_run": "review_x_misses_20261116/regression/runs/selected_static_paired/comparison.json",
+    "comparison_sha256": "23fdf0cca351f355d9f54cc4d19b2c448cc670793088a34a8e73d6bce8b5fabf",
+    "legacy_sessions": 9,
+    "legacy_frames": 90575,
+    "legacy_events": 550,
+    "legacy_reviewed_conditions_before_after": [
+      136,
+      136
+    ],
+    "legacy_reviewed_conditions_total": 139,
+    "modern_sessions": 37,
+    "modern_frames": 146076,
+    "modern_events": 407,
+    "personal_stress_frames": 13806,
+    "personal_stress_conditions_before_after": [
+      19,
+      19
+    ],
+    "all_existing_event_fields_and_times_equal": true,
+    "all_control_calibration_and_profile_equal": true,
+    "extra_events_in_prior_46_sessions": 0,
+    "frame_version_evaluations_including_repeated_personal_stress": 250457,
+    "original_ground_truth_unchanged": true
+  },
+  "new_diagnostics_278": {
+    "zip_sha256": "062fda9c14e213def51cd7918a44a84157309fb952b50cc0399c4e18e3004b9e",
+    "recorded_release": "v36.1",
+    "rgb_present": false,
+    "frames": 6270,
+    "existing_events": 9,
+    "existing_events_exact": true,
+    "special_before_after": [
+      0,
+      1
+    ],
+    "special_source_frame": 2483,
+    "fresh_bilateral_release_frame": 2541,
+    "block_movement_tracking_losses": 0,
+    "tutorial_complete_proven": false,
+    "comparison_sha256": "abb695938b8eb5ed3f0a3d92b512851582485453ae0f6389f69b9d824627b0fa"
+  },
+  "rejected_estimation_candidates": {
+    "full_roi": "No recovery of the target misses.",
+    "heavy_image": {
+      "target_old_misses_recovered_in_coordinate_experiment": 2,
+      "all_added_specials_reviewed_in_rgb": 8,
+      "existing_block_frames_lost": 8,
+      "missing_helper_counterexample_block_frames_before_after_of90": [
+        79,
+        0
+      ],
+      "native_mac_ab": "30Hz, 960 processed frames, no frame drops or age>120ms; p95 age approx18ms to26-28ms.",
+      "production_enabled": false,
+      "production_code_copied": false,
+      "limitation": "Old processing-clock replay is coordinate capability, not proof of native live latency. No Unity/Windows native performance claim."
+    }
+  },
+  "selected_tests": {
+    "focused_tests_passed": 79,
+    "additional_loopback_tests_passed": 15,
+    "recorded_fake_camera_tests_passed": 3,
+    "note": "Counts overlap across runs. Initial restricted-localhost errors were rerun with local test networking; missing fixture environment was restored for three fake-camera checks."
+  },
+  "release_state": {
+    "local_source_updated": true,
+    "unity_changed": false,
+    "existing_v36_2_app_and_exe_rebuilt": false,
+    "git_push_this_task": false
+  },
+  "remaining": [
+    "The three previously reviewed X misses remain in the selected default recognizer.",
+    "One recovered signal in278 is coordinate-supported, not RGB-labelled accuracy or proof of completing its two-success tutorial.",
+    "Measured producer JPEG work reduction is not measured low-spec Windows FPS improvement."
+  ]
+}

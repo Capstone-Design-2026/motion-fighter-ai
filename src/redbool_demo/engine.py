@@ -10,6 +10,7 @@ import numpy as np
 from action_engine.experimental import (AblationConfig, DevelopmentEngine,
     DevelopmentAttack, ChannelSignals, joint_validity)
 from action_engine.types import ControlState
+from .calibration_feedback import CalibrationFeedback, calibration_reasons
 
 
 class DemoAttack(DevelopmentAttack):
@@ -43,6 +44,7 @@ class DemoEngine(DevelopmentEngine):
         self.calibrated = False
         self.calibration_status = 'PRESS C: HOLD GUARD'
         self.calibration_progress = 0.
+        self.calibration_feedback = CalibrationFeedback()
         self.samples = deque()
         self.calibration_observations = deque()
         cfg = AblationConfig(version='seated-demo-20261103-v1', channel_validity=True,
@@ -52,11 +54,16 @@ class DemoEngine(DevelopmentEngine):
     def _components(self):
         super()._components()
         self.attack.units = {s:DemoAttack(self.config) for s in ('LEFT','RIGHT')}
-        self.calibration_signals = ChannelSignals(self.config)
+        # A stationary guard can span slower camera samples (about 3fps).
+        # Keep this separate from live attack timing; every observation must
+        # still be fresh and pass the unchanged pose and stable-window checks.
+        self.calibration_signals = ChannelSignals(replace(self.config,
+            max_gap_ms=max(self.config.max_gap_ms, 350)))
         self.samples.clear()
         self.calibration_observations.clear()
         self.calibrated = False
         self.calibration_progress = 0.
+        self.calibration_feedback = CalibrationFeedback()
 
     def request_calibration(self):
         with self.lock:
@@ -86,8 +93,11 @@ class DemoEngine(DevelopmentEngine):
                 state = replace(state, block=False, movement='NEUTRAL', movement_strength=0., attack_state='PREPARING')
                 if self.calibrating and self.identity == (obs.actor_id,obs.capture_epoch):
                     arms = self.calibration_signals.update(obs)
-                    valid = (not joint_validity(obs,self.config)['BLOCK']
-                        and 0<=now-obs.capture_ns<=self.config.evidence_age_ms*1_000_000
+                    joint_errors = joint_validity(obs,self.config)['BLOCK']
+                    fresh = 0<=now-obs.capture_ns<=self.config.evidence_age_ms*1_000_000
+                    shifted = False
+                    valid = (not joint_errors
+                        and fresh
                         and set(arms)=={'LEFT','RIGHT'})
                     valid = valid and all(a['speed_xy']<=.8 and a['angle']<1.5
                         and a['angle3d'] is not None and a['angle3d']<2.4
@@ -99,10 +109,11 @@ class DemoEngine(DevelopmentEngine):
                         if self.samples and any(np.linalg.norm(a['position'][:2]-old[s]['position'][:2])>.12
                             for _,old in self.samples for s,a in arms.items()):
                             self.samples.clear();self.calibration_observations.clear()
+                            shifted = True
                         self.samples.append((obs.capture_ns,arms))
                         self.calibration_observations.append(obs)
                         elapsed=(obs.capture_ns-self.samples[0][0])/1e9
-                        self.calibration_progress=min(1.,elapsed/.6)
+                        self.calibration_progress=min(1.,elapsed/.6,len(self.samples)/12.)
                         if elapsed>=.6 and len(self.samples)>=12:
                             for side,unit in self.attack.units.items():
                                 anchor={k:np.median([a[side][k] for _,a in self.samples],axis=0)
@@ -115,6 +126,11 @@ class DemoEngine(DevelopmentEngine):
                             self._log('demo_calibrated',now,source_frame_id=obs.frame_id,
                                 samples=len(self.samples),duration_ms=elapsed*1000)
                             state=replace(state,attack_state='READY')
+                    diagnostic = self.calibration_feedback.observe(
+                        calibration_reasons(arms,joint_errors,fresh,shifted),now,
+                        complete=self.calibrated)
+                    if diagnostic is not None:
+                        self._log('calibration_feedback',now,**diagnostic)
             if not self.movement_enabled:
                 state=replace(state,movement='NEUTRAL',movement_strength=0.)
             self.control=state
