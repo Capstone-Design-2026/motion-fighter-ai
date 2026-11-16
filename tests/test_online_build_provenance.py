@@ -92,20 +92,24 @@ class OnlineBuildProvenanceTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, 'Executed binary'):
             checker.verify(exe, 'a' * 40)
 
-    def test_online_manifest_only_changes_reviewed_wire_diagnostics_and_punch_completion(self):
+    def test_online_manifest_only_changes_reviewed_wire_diagnostics_and_temporal_punch_processing(self):
         base = json.loads((ROOT / 'config/recognition_baseline.json').read_text())
         online = json.loads((ROOT / 'config/recognition_baseline_online.json').read_text())
         expected = {'src/redbool_demo/live.py', 'src/redbool_demo/transport.py', 'src/realtime_vision/transport.py',
-                    'src/redbool_demo/landmark_recording.py', 'src/redbool_demo/six_engine.py'}
-        self.assertEqual(base['runtime_python_paths'], online['runtime_python_paths'])
+                    'src/redbool_demo/landmark_recording.py', 'src/redbool_demo/six_engine.py',
+                    'src/action_engine/experimental.py', 'src/redbool_demo/temporal_forward.py'}
+        added = {'src/redbool_demo/temporal_forward.py'}
+        self.assertEqual(set(base['runtime_python_paths']) | added, set(online['runtime_python_paths']))
         self.assertEqual(base['models'], online['models'])
         self.assertEqual(base['dependency_contract'], online['dependency_contract'])
         changed = set()
         self.assertEqual(set(base['groups']), set(online['groups']))
         for group, spec in base['groups'].items():
-            self.assertEqual(set(spec['files']), set(online['groups'][group]['files']))
+            self.assertEqual(set(spec['files']) | (added if group == 'recognition' else set()),
+                             set(online['groups'][group]['files']))
             changed |= {name for name, value in spec['files'].items()
                         if value != online['groups'][group]['files'][name]}
+        changed |= added
         self.assertEqual(changed, expected)
         gate = script('check_recognition_baseline')
         self.assertTrue(gate.check(ROOT, online)['passed'])

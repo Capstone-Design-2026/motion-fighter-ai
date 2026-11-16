@@ -5,11 +5,12 @@ Image-3D angles are geometric hypotheses, never metric ground truth.
 """
 from dataclasses import dataclass, asdict
 from collections import deque
+import threading
 import numpy as np
 from vision_v2.preprocess import features, Config
 from .core import (ActionEngine, AttackStateMachine, BlockStateMachine,
                    MovementStateMachine, TrackingSafetyController, ns)
-from .types import EngineConfig, ControlState, ActionEvent
+from .types import EngineConfig, ControlState, ActionEvent, PoseObservation
 
 
 @dataclass(frozen=True)
@@ -20,7 +21,31 @@ class AblationConfig(EngineConfig):
     image_3d_extension: bool = False
 
 
+def _immutable_observation(obs):
+    return (type(obs) is PoseObservation and type(obs.landmarks) is tuple and type(obs.visibility) is tuple
+        and all(type(p) is tuple for p in obs.landmarks))
+
+
+_validity_cache = threading.local()
+
+
 def joint_validity(obs, cfg):
+    # A caller can append its own stale-time reason. Return fresh lists even
+    # when the coordinate/visibility checks came from this same observation.
+    cacheable = _immutable_observation(obs)
+    entries = getattr(_validity_cache, 'entries', ())
+    if cacheable:
+        for prior, visibility, value in entries:
+            if prior is obs and visibility == cfg.visibility:
+                return {key: list(reasons) for key, reasons in value.items()}
+    result = _joint_validity(obs, cfg)
+    if cacheable:
+        _validity_cache.entries = ((obs, cfg.visibility,
+            {key: tuple(reasons) for key, reasons in result.items()}),) + entries[:3]
+    return result
+
+
+def _joint_validity(obs, cfg):
     reasons = {}
     p = np.asarray(obs.landmarks, dtype=float)
     v = np.asarray(obs.visibility, dtype=float)
@@ -46,6 +71,29 @@ def elbow_angle(points, ids):
 
 
 class ChannelSignals:
+    # The punch, raise and routing channels often examine the exact same two
+    # immutable observations. Reuse only that pure feature calculation, never a
+    # channel's history, masks, FSM or a result from another frame/configuration.
+    _feature_cache = threading.local()
+
+    @classmethod
+    def _features(cls, previous, observation, cfg):
+        key = (cfg.visibility, cfg.max_gap_ms)
+        cacheable = all(_immutable_observation(o) for o in (previous, observation))
+        cached = getattr(cls._feature_cache, 'last', None)
+        if (cacheable and cached is not None and cached[0] is previous
+                and cached[1] is observation and cached[2] == key):
+            return cached[3]
+        frames = [previous.as_frame(), observation.as_frame()]
+        x, mask, _ = features(frames, Config(visibility_threshold=cfg.visibility,
+            max_gap_seconds=cfg.max_gap_ms / 1000))
+        # All clients only read these arrays and create their own arm values.
+        x.setflags(write=False)
+        mask.setflags(write=False)
+        value = (frames, x, mask)
+        cls._feature_cache.last = (previous, observation, key, value) if cacheable else None
+        return value
+
     def __init__(self,cfg):self.cfg=cfg;self.previous=None;self.last_masks={}
     def reset(self):self.previous=None;self.last_masks={}
     def update(self,obs):
@@ -54,8 +102,7 @@ class ChannelSignals:
         dt=(obs.capture_ns-prev.capture_ns)/1e9
         if not 0<dt<=self.cfg.max_gap_ms/1000:return {}
         if not obs.pose_present or obs.landmarks is None or prev.landmarks is None:return {}
-        f=[prev.as_frame(),obs.as_frame()]
-        x,m,_=features(f,Config(visibility_threshold=self.cfg.visibility,max_gap_seconds=self.cfg.max_gap_ms/1000))
+        f,x,m=self._features(prev,obs,self.cfg)
         pv=joint_validity(prev,self.cfg);cv=joint_validity(obs,self.cfg)
         arms={};p=np.asarray(f[1]['image_landmarks'],float);p=p.copy();p[:,1]*=obs.height/obs.width
         for side,j,a,ids in [('LEFT',6,12,(11,13,15)),('RIGHT',9,13,(12,14,16))]:

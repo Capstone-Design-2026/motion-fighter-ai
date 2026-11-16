@@ -2,15 +2,15 @@
   "schema": "redbool.recognition-baseline/1",
   "source_hash_algorithm": "sha256-crlf-to-lf-v1",
   "baseline_commit": "1a3e314fe1a99fb01f5b7c79e4b1b8e553813fa8",
-  "baseline_status": "ONLINE_BOUNDED_FORWARD_COMPLETION_REVIEWED_DELTA_ONLY",
-  "quality_claim": "Reviewed online transport plus bounded completion of existing camera-directed punch onsets. General onset, models, calibration and other gesture channels remain unchanged. Fixed-record regression is not general accuracy or live playability proof.",
-  "benchmark_run_ref": "docs/forward-punch-review-20261117.json",
+  "baseline_status": "LOCAL_NEO_GUARD_AND_TEMPORAL_ONSET_TEST_CANDIDATE",
+  "quality_claim": "Local test candidate; exact recognition-computation reuse and bounded forward-onset proof. Replay retention is not universal accuracy or live Neo frame-time proof.",
+  "benchmark_run_ref": "docs/neo-guard-recognition-review-20261117.json",
   "prior_comparison_ref": "docs/online-transport-validation-20261116.json",
   "inventory_policy": "Explicit inventory of src Python paths. Adding/removing a runtime Python path fails pending review; non-protected existing diagnostic file contents may change. Tests/docs/cache files are not runtime inventory. Source hash groups only protect listed files. No automatic manifest regeneration.",
   "groups": {
     "recognition": {
       "files": {
-        "src/redbool_demo/six_engine.py": "b828e15f6910bbd02e4f0af9a14d7ce4dae8525637b4bd8f2ca568347fd11c26",
+        "src/redbool_demo/six_engine.py": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105",
         "src/redbool_demo/engine.py": "3faa74071882de13e3e08dfdf30dd09974c8ef2b06b6a69f91e14bd3d08d563a",
         "src/redbool_demo/personal.py": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
         "src/redbool_demo/special.py": "af158eaf40e27ef96e53d4179fb043907cec8baf503616af5eadadab24f37a04",
@@ -18,14 +18,15 @@
         "src/redbool_demo/lateral.py": "0e669ea252145e96505aa61a683d16fb2b1b120f93b0272f9bc0e4967472ac8b",
         "src/redbool_demo/auxiliary_pose.py": "3feebeed07a388b29e730da3ee3fa7500619faaffe51c3d9aa24c1c4a9879dcc",
         "src/action_engine/core.py": "f07e1c24649e9c809d2d950dc2881ef582bcb27b1f2ae936a04ddd6dc81cb03e",
-        "src/action_engine/experimental.py": "e16622b74c45ea24f04b6b1067738bde3ec5d97e7a55b7dd206125708e5dc962",
+        "src/action_engine/experimental.py": "c0f5e44865c91473c66824ffbc70c481b70aa3bf33725c752f182afae0e7c28c",
         "src/action_engine/types.py": "527a0d2e822dae976ecb942262b4d34d883e966863a504e2a4823653993cba3c",
         "src/vision_v2/preprocess.py": "e8795b42cd03a1805519c4335b8996c1fc1b1f620c5521046d2c2c04da899e0a",
         "src/movement.py": "82835bcd247ad180669e43144dd57e4e1dbb4a1802690a1447ea6293be984644",
         "src/redbool_demo/static_special.py": "7bd71dbbe7b3eba50bc49a0fd06300edd9d13e0e3096fcaebe9e61b74210f74d",
-        "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6"
+        "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6",
+        "src/redbool_demo/temporal_forward.py": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb"
       },
-      "sha256": "2d75ec7d09478940dbf75c0da35e7bbea06d859c0c2313f972a35601a9b6ccd3"
+      "sha256": "73cc163357acb21a72ae567d5314b5884d42249025bd8b1abee110b1aafd4ad5"
     },
     "calibration_diagnostics": {
       "files": {
@@ -126,6 +127,7 @@
     "src/redbool_demo/six_engine.py",
     "src/redbool_demo/special.py",
     "src/redbool_demo/static_special.py",
+    "src/redbool_demo/temporal_forward.py",
     "src/redbool_demo/train.py",
     "src/redbool_demo/transport.py",
     "src/replay_session.py",
@@ -149,9 +151,9 @@
     "sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
     "scope": "Packaged backend dependency pins only; development/training requirements.txt is not protected."
   },
-  "selected_release": "2026-11-17 online compatibility and bounded forward-punch test candidate",
+  "selected_release": "2026-11-17 local Neo guard and bounded temporal-onset candidate",
   "selection_date": "2026-11-17",
-  "benchmark_sha256": "9cc10ae9227747832e65c4307e5e05891e072ee06a5f2b05beca181737b7e83c",
+  "benchmark_sha256": "02977225b2f31e6f9f6bb9e0ed1a4b47fcc97f93b03acfecd2081c7118378cf3",
   "selection_limit": "Current recorded-data choice. Not a universal recognition accuracy or two-PC live-performance guarantee.",
   "optional_model_contract": {
     "asset": {
@@ -188,5 +190,33 @@
         "scope": "Diagnostics worker index publication only: bounded 250ms retry for transient Windows reader-sharing lock; recognition and recording payload unchanged."
       }
     ]
+  },
+  "current_candidate_review": {
+    "scope": "Same immutable observation feature/validity reuse; bounded three-sample forward onset with actual guard-origin and independent elbow/foreshortening evidence. Raise shortcut rejected because video-reviewed forward punches regressed. No model, calibration, block, movement, input TTL or transport changes.",
+    "base_source_commit": "20f8a29c117767340a032d717f7f195d32e5d179",
+    "changes": [
+      {
+        "path": "src/action_engine/experimental.py",
+        "before_sha256": "e16622b74c45ea24f04b6b1067738bde3ec5d97e7a55b7dd206125708e5dc962",
+        "after_sha256": "c0f5e44865c91473c66824ffbc70c481b70aa3bf33725c752f182afae0e7c28c"
+      },
+      {
+        "path": "src/redbool_demo/six_engine.py",
+        "before_sha256": "b828e15f6910bbd02e4f0af9a14d7ce4dae8525637b4bd8f2ca568347fd11c26",
+        "after_sha256": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105"
+      },
+      {
+        "path": "src/redbool_demo/temporal_forward.py",
+        "before_sha256": null,
+        "after_sha256": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb"
+      }
+    ],
+    "comparison_ref": "docs/neo-guard-recognition-review-20261117.json",
+    "full_replay_sessions": 60,
+    "full_replay_frames": 328134,
+    "prior_events_preserved": 1416,
+    "additional_unlabelled_right_punch": 1,
+    "raise_shortcut_adopted": false,
+    "github_published": false
   }
 }

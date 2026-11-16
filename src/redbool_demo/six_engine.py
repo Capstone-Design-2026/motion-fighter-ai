@@ -16,6 +16,7 @@ from .refined_special import definite_cross_release, RefinedRepeatLatch
 from .high_guard_raise import HighGuardRaise
 from .auxiliary_pose import same_body
 from .static_special import StaticCrossProof, StaticCrossRelease
+from .temporal_forward import TemporalForwardOnset
 
 
 class SixBlock(RelativeBlock):
@@ -45,11 +46,17 @@ class SixAttack(DemoAttack):
         self.projected_body_samples = []
         self.centered_depth_samples = []
         self.centered_depth_committed = False
+        self.temporal_forward = TemporalForwardOnset()
+        self.temporal_forward_pending = False
+        self.upper_arm_projection = None
 
     def invalidate(self, now):
         super().invalidate(now)
         self.projected_body_samples.clear()
         self.centered_depth_samples.clear()
+        self.temporal_forward.reset()
+        self.temporal_forward_pending = False
+        self.upper_arm_projection = None
 
     def _centered_depth_evidence(self, side, arm):
         """Completion evidence for an already observed camera-directed punch.
@@ -158,6 +165,12 @@ class SixAttack(DemoAttack):
         return bool(ordinary or high)
 
     def update(self, arms, now, allow_commit=True, block=False):
+        side = next(iter(arms), None)
+        temporal_available = self.state == 'READY' and not block and not self.inhibited and self.opposite_guard
+        self.temporal_forward.observe(arms.get(side), self.baseline.get(side) if self.baseline else None, now,
+            available=temporal_available,
+            forward=self.forward_hint, independent=getattr(self, 'independent_elbow_opening', False),
+            upper_projection=self.upper_arm_projection, guard_origin=temporal_available and self.guard_neutral(arms))
         if block: self.folded_low_block_until = now + 1_200_000_000
         # An upward gesture may first look diagonal in its first two frames.
         # Hand it to the raise channel only while the punch is uncommitted.
@@ -192,13 +205,16 @@ class SixAttack(DemoAttack):
             self.block_return = False
         self._remember_projected_body(arms, signals, now, previous_state, block)
         self._remember_centered_depth(arms, signals, now, previous_state, block)
-        if commit is not None and signals[commit].get('centered_depth_confirmation'):
+        if commit is not None and (signals[commit].get('centered_depth_confirmation') or self.temporal_forward_pending):
             self.centered_depth_committed = True
         elif self.state == 'READY':
             self.centered_depth_committed = False
         if previous_state == 'READY' and self.state == 'CANDIDATE':
+            self.temporal_forward_pending = bool(signals[self.side].get('temporal_forward_onset'))
             self.early_candidate = not signals[self.side]['strict_onset_rule']
-        elif self.state != 'CANDIDATE':self.early_candidate = False
+        elif self.state != 'CANDIDATE':
+            self.early_candidate = False
+            self.temporal_forward_pending = False
         if commit is not None:self.unreturned_punch = True
         elif self.state == 'READY':self.unreturned_punch = False
         return commit, signals, reason or ('uncommitted_raise_handoff' if handoff else '')
@@ -392,6 +408,10 @@ class SixAttack(DemoAttack):
             row['onset_rule'] = bool(row['onset_rule'] or early_extension)
             if (vertical and not self.forward_hint and not (body_windup or body_planar or body_extension)) or self.inhibited:
                 result[side]['onset_rule'] = result[side]['commit_rule'] = result[side]['strict_onset_rule'] = False
+            if (self.state == 'READY' and not self.inhibited and self.forward_hint
+                    and self.temporal_forward.stamp == self.now and not row['onset_rule']):
+                row['onset_rule'] = True
+                row['temporal_forward_onset'] = True
             centered_depth = self._centered_depth_confirmed(side, arm)
             row['centered_depth_confirmation'] = centered_depth
             if centered_depth:
@@ -742,6 +762,8 @@ class SixGestureEngine(DemoEngine):
                 hands_overlap=np.linalg.norm(points[15,:2]-points[16,:2]) < .35*span
                 for side,other in (('LEFT','RIGHT'),('RIGHT','LEFT')):
                     arm=routing[side];base=anchors[side];d=arm['position']-base['position']
+                    shoulder_id, elbow_id = (11, 13) if side == 'LEFT' else (12, 14)
+                    self.attack.units[side].upper_arm_projection = (float(np.linalg.norm(points[elbow_id,:2]-points[shoulder_id,:2])/span) if span>1e-6 else None)
                     other_d=routing[other]['position']-anchors[other]['position']
                     self.attack.units[side].opposite_guard=(
                         self.attack.units[other].supporting_guard(routing[other],anchors[other]))
