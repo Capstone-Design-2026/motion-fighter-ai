@@ -81,11 +81,20 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     {
         // Existing development/editor launches stay manual. Explicit native
         // synthetic tests still need the actual bundled backend.
+        var args=Environment.GetCommandLineArgs();
+        bool synthetic=RedboolCameraCheckMode.Authorize(args,Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),
+            Application.isEditor,Application.isBatchMode,out string checkError);
+        if(RedboolCameraCheckMode.Requested(args)&&!synthetic)
+        {
+            Debug.LogError("[REDBOOL OFFLINE CHECK] "+checkError+" No camera runtime created.");
+            if(!Application.isEditor)Application.Quit(2);
+            return;
+        }
         if(Application.isEditor || Application.isBatchMode || !Packaged || Instance!=null) return;
-        if(Array.IndexOf(Environment.GetCommandLineArgs(),"--redbool-external-camera")>=0) return;
+        if(Array.IndexOf(args,"--redbool-external-camera")>=0) return;
         var go=new GameObject("REDBOOL Integrated Camera");DontDestroyOnLoad(go);
         Instance=go.AddComponent<RedboolCameraRuntime>();
-        Instance.Synthetic=Debug.isDebugBuild && Array.IndexOf(Environment.GetCommandLineArgs(),"--redbool-camera-synthetic")>=0;
+        Instance.Synthetic=synthetic;
         go.AddComponent<RedboolCameraPanel>();
     }
     void Start() { RedboolDemoSettings.CameraReconnectRequested += Reconnect; StartCoroutine(Supervise()); }
@@ -205,8 +214,23 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         GUI.Box(new Rect(20,Screen.height-116,Mathf.Min(620,Screen.width-40),90),
             LastInputConnectionError+"\n이전에 켠 REDBOOL·Unity가 있다면 종료 후 다시 들어가세요.",connectionNoticeStyle);
     }
+    bool CheckLaunchMode()
+    {
+        var args=Environment.GetCommandLineArgs();
+        bool authorized=RedboolCameraCheckMode.Authorize(args,Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),
+            Application.isEditor,Application.isBatchMode,out string modeError);
+        if((RedboolCameraCheckMode.Requested(args)||Synthetic)&&!authorized)
+        {
+            Error=modeError??"Offline fixture authorization disappeared; camera launch blocked.";
+            Debug.LogError("[REDBOOL OFFLINE CHECK] "+Error);return false;
+        }
+        Synthetic=authorized;return true;
+    }
     IEnumerator StartAuthorized()
     {
+        // Re-check before any OS permission request, including role changes,
+        // reconnects and components created outside the usual Install path.
+        if(!CheckLaunchMode())yield break;
         string initialRole=DesiredRole();
         string initialAddress=initialRole=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
         if(quitting || restartRequested || role!=initialRole || address!=initialAddress || !TransportMatches(initialRole))yield break;
@@ -312,6 +336,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     void StartOwned()
     {
+        // Defence in depth: no partial test configuration may start a real child.
+        if(!CheckLaunchMode())return;
         Error=null;Status=null;lastStatus=lastPreview=-100;previewSequence=-1;PreviewDecodedFrames=0;generation++;
         renderPressure.Reset(generation);lastCameraFrameId=-1;lastCameraFrameAt=-100;
         renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=severeRenderWindowEligible=true;
@@ -344,7 +370,9 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             WorkingDirectory=Path.GetDirectoryName(BackendPath),RedirectStandardOutput=true,RedirectStandardError=true,
             StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8 };
         info.EnvironmentVariables["PYTHONUNBUFFERED"]="1";
-        info.EnvironmentVariables["REDBOOL_CAMERA_CACHE_DIR"]=Path.Combine(Application.persistentDataPath,"CameraCache");
+        info.EnvironmentVariables["REDBOOL_CAMERA_CACHE_DIR"]=Synthetic
+            ? Path.Combine(Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),"cache")
+            : Path.Combine(Application.persistentDataPath,"CameraCache");
             lock(logLock) { childLog=new StreamWriter(Path.Combine(output,"backend.log"),false,Encoding.UTF8);childLog.AutoFlush=true;logBytes=0; }
             child=new Process { StartInfo=info };
             child.OutputDataReceived+=CaptureLog;child.ErrorDataReceived+=CaptureLog;
