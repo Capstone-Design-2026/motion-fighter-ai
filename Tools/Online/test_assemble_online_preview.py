@@ -218,5 +218,38 @@ class PackageChecks(unittest.TestCase):
         PACKAGE.verify_archive_symlinks(output, destination)
         with self.assertRaisesRegex(ValueError, 'already exists'): PACKAGE.archive(output, destination, 'mac')
 
+    @unittest.skipUnless(sys.platform == 'darwin', 'Mac bundle assembly')
+    def test_mac_display_branding_keeps_executable_and_save_identity(self):
+        mac = self.root / 'mac-branding/REDBOOL.app'
+        write(mac / 'Contents/MacOS/Game', 'synthetic executable')
+        original_info = {'CFBundleExecutable': 'Game', 'CFBundleName': 'Vision Striker',
+                         'CFBundleIdentifier': 'example.unchanged-save-identity'}
+        with (mac / 'Contents/Info.plist').open('wb') as stream:
+            plistlib.dump(original_info, stream)
+        data = mac / 'Contents/Resources/Data'
+        for name in ('Assembly-CSharp.dll', 'Photon.Realtime.dll', 'PhotonClient.dll'):
+            write(data / 'Managed' / name)
+        write(data / 'app.info', 'DefaultCompany\nVision Striker\n')
+        write(self.backend / 'REDBOOLCamera', 'synthetic Mac backend')
+        original_tree = PACKAGE.tree_state(mac)
+        self.args.player, self.args.target = mac, 'mac'
+        self.args.output = self.root / 'branded-mac'
+        # Native signing is outside this tiny fixture; exercise the real copying
+        # and plist transformation without treating fake bytes as a signed app.
+        with mock.patch.object(PACKAGE.subprocess, 'run'):
+            PACKAGE.assemble(self.args, (self.gate, self.gate['identities'], self.meta))
+        bundled = self.args.output / 'REDBOOL-OnlinePreview.app'
+        with (bundled / 'Contents/Info.plist').open('rb') as stream:
+            info = plistlib.load(stream)
+        self.assertEqual(info['CFBundleName'], '흑운협')
+        self.assertEqual(info['CFBundleDisplayName'], '흑운협')
+        self.assertEqual(info['CFBundleExecutable'], original_info['CFBundleExecutable'])
+        self.assertEqual(info['CFBundleIdentifier'], original_info['CFBundleIdentifier'])
+        self.assertEqual((bundled / 'Contents/Resources/Data/app.info').read_bytes(),
+                         (data / 'app.info').read_bytes())
+        self.assertEqual((bundled / 'Contents/MacOS/Game').read_bytes(),
+                         (mac / 'Contents/MacOS/Game').read_bytes())
+        self.assertEqual(PACKAGE.tree_state(mac), original_tree)
+
 
 if __name__ == '__main__': unittest.main()

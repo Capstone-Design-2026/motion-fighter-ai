@@ -420,7 +420,8 @@ def assemble(args, validated):
     if args.target == 'mac':
         plist_path = entry / 'Contents/Info.plist'
         with plist_path.open('rb') as stream: info = plistlib.load(stream)
-        info['CFBundleDisplayName'] = 'REDBOOL OnlinePreview'
+        info['CFBundleName'] = '흑운협'
+        info['CFBundleDisplayName'] = '흑운협'
         info['NSCameraUsageDescription'] = '동작 인식과 내 모습 미리보기에 카메라를 사용합니다. 영상은 상대에게 보내지 않습니다.'
         with plist_path.open('wb') as stream: plistlib.dump(info, stream, sort_keys=False)
         subprocess.run(['codesign', '--force', '--deep', '--sign', '-', str(entry)], check=True)

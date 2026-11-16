@@ -1,0 +1,35 @@
+name: Windows caption isolation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/online-pvp-photon-20261116]
+    paths:
+      - Assets/Branding/Runtime/**
+      - Tools/Branding/**
+      - .github/workflows/windows-caption.yml
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: |
+            Assets/Branding/Runtime
+            Tools/Branding
+      - name: Check caption targeting with real Win32 windows
+        shell: pwsh
+        run: ./Tools/Branding/check_windows_caption.ps1 -OutputDirectory "$env:RUNNER_TEMP/redbool-caption-check"
+      - name: Save native caption evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: REDBOOL-Windows-Caption
+          path: ${{ runner.temp }}/redbool-caption-check/*.json
+          retention-days: 14
+          if-no-files-found: error
