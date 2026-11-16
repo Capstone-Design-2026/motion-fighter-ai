@@ -254,9 +254,9 @@ class OnlineIntegrationTests(unittest.TestCase):
         self.assertTrue(argv[argv.index('--pose')+1].endswith('pose_landmarker_lite.task'))
         self.assertTrue(argv[argv.index('--cross-pose')+1].endswith('pose_landmarker_full.task'))
 
-    def test_reviewed_recognition_and_calibration_hashes_remain_unchanged(self):
+    def test_current_reviewed_recognition_and_calibration_hashes_match(self):
         root=Path(__file__).resolve().parents[1]
-        manifest=json.loads((root/'config/recognition_baseline.json').read_text())
+        manifest=json.loads((root/'config/recognition_baseline_online.json').read_text())
         for name in ('recognition','calibration_diagnostics'):
             for relative,expected in manifest['groups'][name]['files'].items():
                 digest=hashlib.sha256((root/relative).read_bytes().replace(b'\r\n',b'\n')).hexdigest()

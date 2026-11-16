@@ -1,16 +1,16 @@
 {
   "schema": "redbool.recognition-baseline/1",
   "source_hash_algorithm": "sha256-crlf-to-lf-v1",
-  "baseline_commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b",
-  "baseline_status": "ONLINE_TRANSPORT_CANDIDATE_REVIEWED_DELTA_ONLY",
-  "quality_claim": "Reviewed source and transport-policy candidate only. Recognition/calibration/model hashes match the stable v36.3 manifest. This does not prove Internet playability, latency, or recognition accuracy.",
-  "benchmark_run_ref": "docs/online-transport-validation-20261116.json",
-  "prior_comparison_ref": "docs/x-release-review-20261116.json",
+  "baseline_commit": "1a3e314fe1a99fb01f5b7c79e4b1b8e553813fa8",
+  "baseline_status": "ONLINE_BOUNDED_FORWARD_COMPLETION_REVIEWED_DELTA_ONLY",
+  "quality_claim": "Reviewed online transport plus bounded completion of existing camera-directed punch onsets. General onset, models, calibration and other gesture channels remain unchanged. Fixed-record regression is not general accuracy or live playability proof.",
+  "benchmark_run_ref": "docs/forward-punch-review-20261117.json",
+  "prior_comparison_ref": "docs/online-transport-validation-20261116.json",
   "inventory_policy": "Explicit inventory of src Python paths. Adding/removing a runtime Python path fails pending review; non-protected existing diagnostic file contents may change. Tests/docs/cache files are not runtime inventory. Source hash groups only protect listed files. No automatic manifest regeneration.",
   "groups": {
     "recognition": {
       "files": {
-        "src/redbool_demo/six_engine.py": "7d4e180237ec75fdf410ee3f6f6b743b984369326be2940e3f461483ce541b3d",
+        "src/redbool_demo/six_engine.py": "b828e15f6910bbd02e4f0af9a14d7ce4dae8525637b4bd8f2ca568347fd11c26",
         "src/redbool_demo/engine.py": "3faa74071882de13e3e08dfdf30dd09974c8ef2b06b6a69f91e14bd3d08d563a",
         "src/redbool_demo/personal.py": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
         "src/redbool_demo/special.py": "af158eaf40e27ef96e53d4179fb043907cec8baf503616af5eadadab24f37a04",
@@ -25,7 +25,7 @@
         "src/redbool_demo/static_special.py": "7bd71dbbe7b3eba50bc49a0fd06300edd9d13e0e3096fcaebe9e61b74210f74d",
         "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6"
       },
-      "sha256": "140a8e9e5d080b801f2f51e2f110a79d8f7a9621c5bf306fcc44da79216dfb9a"
+      "sha256": "2d75ec7d09478940dbf75c0da35e7bbea06d859c0c2313f972a35601a9b6ccd3"
     },
     "calibration_diagnostics": {
       "files": {
@@ -149,9 +149,9 @@
     "sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
     "scope": "Packaged backend dependency pins only; development/training requirements.txt is not protected."
   },
-  "selected_release": "v36.3 X latency test release; original core and game modes preserved",
-  "selection_date": "2026-11-16",
-  "benchmark_sha256": "a2a559f1930bc2a99589aeb0d6cea9ec88fbd5fc2182c368c3be746c12ae30a2",
+  "selected_release": "2026-11-17 online compatibility and bounded forward-punch test candidate",
+  "selection_date": "2026-11-17",
+  "benchmark_sha256": "9cc10ae9227747832e65c4307e5e05891e072ee06a5f2b05beca181737b7e83c",
   "selection_limit": "Current recorded-data choice. Not a universal recognition accuracy or two-PC live-performance guarantee.",
   "optional_model_contract": {
     "asset": {

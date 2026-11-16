@@ -43,10 +43,70 @@ class SixAttack(DemoAttack):
     def __init__(self, cfg):
         super().__init__(cfg)
         self.projected_body_samples = []
+        self.centered_depth_samples = []
+        self.centered_depth_committed = False
 
     def invalidate(self, now):
         super().invalidate(now)
         self.projected_body_samples.clear()
+        self.centered_depth_samples.clear()
+
+    def _centered_depth_evidence(self, side, arm):
+        """Completion evidence for an already observed camera-directed punch.
+
+        A forward fist may reverse in the image while its elbow remains open.
+        Depth alone cannot acquire a punch: the unchanged onset and forward
+        arbitration must already agree, with the other fist guarding. Keep the
+        projected elbow, calibrated opening and independently moving arm proof.
+        """
+        if (not self.baseline or self.inhibited or not self.forward_hint
+                or not self.opposite_guard
+                or not getattr(self, 'independent_elbow_opening', False)):
+            return False
+        base = self.baseline[side]
+        dx, dy, dz = arm['position'] - base['position']
+        # The established folded-upward region belongs to raise arbitration.
+        # This extra completion must not steal an ambiguous lifted forearm.
+        return bool(.10 <= abs(dx) <= .35 and -.40 < dy <= .12 and dz <= -.45
+            and np.linalg.norm([dx, dy]) >= .24
+            and arm['angle'] >= .4 and arm['angle3d'] is not None
+            and arm['angle3d'] >= 2.4 and arm['angle3d'] - base['angle3d'] >= .30)
+
+    def _centered_depth_confirmed(self, side, arm):
+        if self.state != 'CANDIDATE' or not self._centered_depth_evidence(side, arm):
+            return False
+        depth = float(arm['position'][2] - self.baseline[side]['position'][2])
+        if not self.centered_depth_samples:
+            return False
+        stamp, _, angle = self.centered_depth_samples[0]
+        return (20_000_000 <= self.now-stamp <= 100_000_000
+            and depth <= min(d for _, d, _ in self.centered_depth_samples)
+            and arm['angle3d'] >= angle - .10)
+
+    def _remember_centered_depth(self, arms, signals, now, previous_state, block):
+        # Observe once per update, never per candidates() query. Invalidated,
+        # reserved, returned and committed poses cannot retain completion proof.
+        if block or self.state != 'CANDIDATE':
+            self.centered_depth_samples.clear()
+            return
+        seed = previous_state == 'READY' and signals[self.side]['strict_onset_rule']
+        if not seed and (not self.centered_depth_samples
+                or not 0 <= now-self.centered_depth_samples[0][0] <= 100_000_000):
+            self.centered_depth_samples.clear()
+            return
+        for side, arm in arms.items():
+            if self._centered_depth_evidence(side, arm):
+                depth = float(arm['position'][2] - self.baseline[side]['position'][2])
+                if self.centered_depth_samples and (depth > min(d for _, d, _ in self.centered_depth_samples)
+                        or arm['angle3d'] < self.centered_depth_samples[0][2] - .10):
+                    self.centered_depth_samples.clear()
+                    return
+                if not self.centered_depth_samples or self.centered_depth_samples[-1][0] != now:
+                    self.centered_depth_samples.append((now,
+                        depth,
+                        float(arm['angle3d'])))
+                return
+        self.centered_depth_samples.clear()
 
     @staticmethod
     def _projected_body_evidence(arm, base, rule):
@@ -131,6 +191,11 @@ class SixAttack(DemoAttack):
         finally:
             self.block_return = False
         self._remember_projected_body(arms, signals, now, previous_state, block)
+        self._remember_centered_depth(arms, signals, now, previous_state, block)
+        if commit is not None and signals[commit].get('centered_depth_confirmation'):
+            self.centered_depth_committed = True
+        elif self.state == 'READY':
+            self.centered_depth_committed = False
         if previous_state == 'READY' and self.state == 'CANDIDATE':
             self.early_candidate = not signals[self.side]['strict_onset_rule']
         elif self.state != 'CANDIDATE':self.early_candidate = False
@@ -154,6 +219,10 @@ class SixAttack(DemoAttack):
             return False
         for side, arm in arms.items():
             base = self.baseline[side]
+            # A confirmed forward extension projects close to guard. Do not
+            # cancel that existing onset as neutral merely because XY is small.
+            if self._centered_depth_confirmed(side, arm):
+                return False
             dx, dy = arm['position'][:2] - base['position'][:2]
             if self.learned_guard_required and dy > .30 and self.guard_probability < .80:
                 return False
@@ -166,6 +235,16 @@ class SixAttack(DemoAttack):
         return True
 
     def neutral(self, arms):
+        # Only the new completion route needs this extra return proof. Its
+        # foreshortened extended fist must not rearm as a compact image guard.
+        # Keep the latch across tracking loss until actual elbow/depth return.
+        if self.centered_depth_committed and self.baseline:
+            for side, arm in arms.items():
+                base = self.baseline[side]
+                if (arm['angle3d'] is not None and arm['angle3d'] >= 2.3
+                        and arm['angle3d'] - base['angle3d'] >= .20
+                        and arm['position'][2] - base['position'][2] <= -.30):
+                    return False
         # Each punching hand can retract to a comfortable bent position below
         # its original guard. The other hand does not have to return with it.
         if self.state not in ('PREPARING','RETURNING','UNAVAILABLE'):
@@ -313,6 +392,10 @@ class SixAttack(DemoAttack):
             row['onset_rule'] = bool(row['onset_rule'] or early_extension)
             if (vertical and not self.forward_hint and not (body_windup or body_planar or body_extension)) or self.inhibited:
                 result[side]['onset_rule'] = result[side]['commit_rule'] = result[side]['strict_onset_rule'] = False
+            centered_depth = self._centered_depth_confirmed(side, arm)
+            row['centered_depth_confirmation'] = centered_depth
+            if centered_depth:
+                row['commit_rule'] = True
         return result
 
 
