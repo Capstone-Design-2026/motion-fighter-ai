@@ -112,8 +112,13 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
                     var holder = new GameObject("Character warmup sample"); holder.SetActive(false); visuals.Add(holder);
                     // Centre the full-height selected avatar inside the actual
                     // arena camera. The sample owns only visual resources.
-                    var sample = special.CreateGhostRenderSample(holder.transform, point - cameraUsed.transform.up * .8f);
-                    if (sample != null) { characterSamples.Add(sample); holder.SetActive(true); }
+                    int firstSample = characterSamples.Count;
+                    special.CreateGhostRenderSamples(holder.transform, point - cameraUsed.transform.up * .8f, characterSamples);
+                    if (characterSamples.Count > firstSample)
+                    {
+                        holder.SetActive(true);
+                        for (int i = firstSample; i < characterSamples.Count; i++) characterSamples[i].PrepareForRender();
+                    }
                 }
             QiPostFx.PrepareRenderWeight(1f); preparedPostFx = true;
             PreparePunchSurfaces();
