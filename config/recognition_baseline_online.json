@@ -2,17 +2,17 @@
   "schema": "redbool.recognition-baseline/1",
   "source_hash_algorithm": "sha256-crlf-to-lf-v1",
   "baseline_commit": "1a3e314fe1a99fb01f5b7c79e4b1b8e553813fa8",
-  "baseline_status": "LOCAL_NEO_GUARD_AND_TEMPORAL_ONSET_TEST_CANDIDATE",
-  "quality_claim": "Local test candidate; exact recognition-computation reuse and bounded forward-onset proof. Replay retention is not universal accuracy or live Neo frame-time proof.",
-  "benchmark_run_ref": "docs/neo-guard-recognition-review-20261117.json",
+  "baseline_status": "R2_X_OCCLUSION_RESPONSE_TEST_CANDIDATE",
+  "quality_claim": "Recorded-data response candidate: bounded tutorial fitting and earlier evidence-confirmed events. No universal accuracy or end-to-end latency guarantee.",
+  "benchmark_run_ref": "docs/x-2p-response-review-20261117.json",
   "prior_comparison_ref": "docs/online-transport-validation-20261116.json",
   "inventory_policy": "Explicit inventory of src Python paths. Adding/removing a runtime Python path fails pending review; non-protected existing diagnostic file contents may change. Tests/docs/cache files are not runtime inventory. Source hash groups only protect listed files. No automatic manifest regeneration.",
   "groups": {
     "recognition": {
       "files": {
-        "src/redbool_demo/six_engine.py": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105",
+        "src/redbool_demo/six_engine.py": "79cca9df1ad26c8138b400ed728dac09ae3c1983d50db130e3ee02dbc6cc3456",
         "src/redbool_demo/engine.py": "3faa74071882de13e3e08dfdf30dd09974c8ef2b06b6a69f91e14bd3d08d563a",
-        "src/redbool_demo/personal.py": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+        "src/redbool_demo/personal.py": "6d9704f8ace3df04b4461d7a5e7a0c403fa32c745affe55bbada1515d9ab0ccd",
         "src/redbool_demo/special.py": "af158eaf40e27ef96e53d4179fb043907cec8baf503616af5eadadab24f37a04",
         "src/redbool_demo/high_guard_raise.py": "ac6b51e25c41ad61c4d0a4f9e13b11b4898078cf48f988fcf4f3016dee3c3ea5",
         "src/redbool_demo/lateral.py": "0e669ea252145e96505aa61a683d16fb2b1b120f93b0272f9bc0e4967472ac8b",
@@ -26,7 +26,7 @@
         "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6",
         "src/redbool_demo/temporal_forward.py": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb"
       },
-      "sha256": "73cc163357acb21a72ae567d5314b5884d42249025bd8b1abee110b1aafd4ad5"
+      "sha256": "343f78f3f26b365c8080d89b5b23dfcbab1a2e9ee2e993fe61b28765d90854fe"
     },
     "calibration_diagnostics": {
       "files": {
@@ -36,16 +36,16 @@
     },
     "capture_and_clock": {
       "files": {
-        "src/redbool_demo/live.py": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
+        "src/redbool_demo/live.py": "a143341113b8c5c0092224f9586aae067a3a4c5842dd1269b30ef59d780a3bb1",
         "src/redbool_demo/camera_profile.py": "b91b312d38ecfb1d196a0dbd5480f5802bf30fad557d982a8f70358cc447db4f",
         "src/redbool_demo/performance_policy.py": "1f4e6f23a3c9bb4093f2653eaccb56fb73c3ace42400a574538b4d5f3135203c",
         "src/pose_capture.py": "a58df416945bd191308417376373350ebad8a737dcfc33edae94e67c41097616",
         "src/realtime_vision/clock.py": "1081900b20f990cbbcf98e8ebfa3dc1a6e49341663007e1fbd6b7103c4f93953",
         "src/realtime_vision/live.py": "8092c8bedbf79e619985ad558de650275468c9caa37cb7fc7d8e7efe94084602",
         "src/redbool_demo/local_bridge.py": "e15183e7d4dc0e733980e095105224f89b69999493a5df2cad3d744decd471f6",
-        "src/redbool_demo/heavy_auxiliary.py": "1ded0cd2829cc832be731ed55408a58f1c033a62a0efc4b0a62ca6446899334a"
+        "src/redbool_demo/heavy_auxiliary.py": "5df8fef8c69af7fd002ebf5285d8d5dee376d54c0d1052775ea586a34943b811"
       },
-      "sha256": "c22001a63d03f3212e1c98f17e8af638cf83268885f6f13e2321378fe89a61fb"
+      "sha256": "d33feef2134c8dcf8deb8ae656b25ea8679124d5d74bf87e15632f35f3aa451b"
     },
     "bounded_transport": {
       "files": {
@@ -151,9 +151,9 @@
     "sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
     "scope": "Packaged backend dependency pins only; development/training requirements.txt is not protected."
   },
-  "selected_release": "2026-11-17 local Neo guard and bounded temporal-onset candidate",
+  "selected_release": "2026-11-17 R2 personal response candidate (not packaged)",
   "selection_date": "2026-11-17",
-  "benchmark_sha256": "02977225b2f31e6f9f6bb9e0ed1a4b47fcc97f93b03acfecd2081c7118378cf3",
+  "benchmark_sha256": "88e24c10bdc3439a60c50a734b4ccf94f9d0110878360df1de9c2254e87a92f3",
   "selection_limit": "Current recorded-data choice. Not a universal recognition accuracy or two-PC live-performance guarantee.",
   "optional_model_contract": {
     "asset": {
@@ -192,6 +192,36 @@
     ]
   },
   "current_candidate_review": {
+    "base_source_commit": "55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180",
+    "changes": [
+      {
+        "path": "src/redbool_demo/six_engine.py",
+        "before_sha256": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105",
+        "after_sha256": "9e2dbb4d0b0b0adcc2ec723859cf79a4a3c1c40c6a9e609dafaf09f9c088187e"
+      },
+      {
+        "path": "src/redbool_demo/personal.py",
+        "before_sha256": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+        "after_sha256": "6d9704f8ace3df04b4461d7a5e7a0c403fa32c745affe55bbada1515d9ab0ccd"
+      },
+      {
+        "path": "src/redbool_demo/live.py",
+        "before_sha256": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
+        "after_sha256": "a143341113b8c5c0092224f9586aae067a3a4c5842dd1269b30ef59d780a3bb1"
+      }
+    ],
+    "scope": [
+      "Measure independently recognized low/forward punch cycles and one-hand physical returns during matching tutorial context; two consistent full cycles still required.",
+      "Use previously observed extension plus unchanged full punch commit geometry to avoid one redundant confirmation frame.",
+      "Only two verified complete large raises enable the learned side to use 120 ms confirmation with 100 ms strong pose evidence; original 180 ms fallback remains.",
+      "Preserve aggregate actually-applied personal status after subsequent X tutorial confirmation.",
+      "While the opposite punch is pending or has a proved lead-in, learned raises retain original confirmation timing to preserve existing attack ordering."
+    ],
+    "comparison_ref": "docs/r2-personal-response-review-20261117.json",
+    "github_published": false,
+    "packaged": false
+  },
+  "prior_candidate_review": {
     "scope": "Same immutable observation feature/validity reuse; bounded three-sample forward onset with actual guard-origin and independent elbow/foreshortening evidence. Raise shortcut rejected because video-reviewed forward punches regressed. No model, calibration, block, movement, input TTL or transport changes.",
     "base_source_commit": "20f8a29c117767340a032d717f7f195d32e5d179",
     "changes": [
@@ -218,5 +248,7 @@
     "additional_unlabelled_right_punch": 1,
     "raise_shortcut_adopted": false,
     "github_published": false
-  }
+  },
+  "prior_benchmark_run_ref": "docs/neo-guard-recognition-review-20261117.json",
+  "prior_response_benchmark_ref": "docs/r2-personal-response-review-20261117.json"
 }

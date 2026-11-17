@@ -56,7 +56,7 @@ class BoundedHeavyAuxiliary:
     SOURCE_GAP_NS = 100_000_000
     EVIDENCE_NS = 120_000_000
     WAIT_NS = 10_000_000
-    PENDING_NS = 500_000_000
+    PENDING_NS = 300_000_000
     FAILURE_LIMIT = 3
 
     def __init__(self, loader, infer, *, warm=None, clock_ns=time.monotonic_ns):

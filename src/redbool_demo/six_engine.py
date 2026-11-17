@@ -49,6 +49,7 @@ class SixAttack(DemoAttack):
         self.temporal_forward = TemporalForwardOnset()
         self.temporal_forward_pending = False
         self.upper_arm_projection = None
+        self.punch_lead = None
 
     def invalidate(self, now):
         super().invalidate(now)
@@ -57,6 +58,7 @@ class SixAttack(DemoAttack):
         self.temporal_forward.reset()
         self.temporal_forward_pending = False
         self.upper_arm_projection = None
+        self.punch_lead = None
 
     def _centered_depth_evidence(self, side, arm):
         """Completion evidence for an already observed camera-directed punch.
@@ -196,6 +198,7 @@ class SixAttack(DemoAttack):
                 self.entered = now
                 self.early_candidate = False
         previous_state = self.state
+        lead = self.punch_lead
         recovering = self.state in ('PREPARING', 'RETURNING', 'UNAVAILABLE')
         self.block_return = block and recovering
         try:
@@ -203,6 +206,28 @@ class SixAttack(DemoAttack):
                 block and not recovering)
         finally:
             self.block_return = False
+        # Two distinct observed extension samples may already prove the normal
+        # onset and full commit on the first peak. Do not add another frame just
+        # to change the state label. All current geometry/permission gates remain.
+        if (previous_state=='READY' and self.state=='CANDIDATE' and allow_commit
+                and not block and not self.inhibited and self.opposite_guard
+                and lead is not None and 20_000_000<=now-lead['stamp']<=80_000_000):
+            arm=arms[self.side];rule=signals[self.side]
+            if (rule['strict_onset_rule'] and rule['commit_rule']
+                    and rule['xy_displacement']>=lead['travel']+.03
+                    and arm['angle3d'] is not None and arm['angle3d']>=lead['angle3d']+.05):
+                self.state='ACTIVE';self.last_commit=self.entered=now;commit=self.side
+                rule['confirmed_lead_in']=True;reason='two_observation_full_extension'
+        self.punch_lead=None
+        if previous_state=='READY' and self.state=='READY' and not block and not self.inhibited and self.opposite_guard:
+            for s,arm in arms.items():
+                base=self.baseline[s] if self.baseline else None;rule=signals[s]
+                if (base is not None and rule['xy_displacement']>=.12 and rule['outward']
+                        and rule['vertical_fraction']<=.65 and rule['not_lowering']
+                        and arm['speed_xy']>=self.cfg.onset_speed and arm['angle']>=.15
+                        and arm['angle3d'] is not None and arm['angle3d']>=2.0
+                        and arm['angle3d']-base['angle3d']>=.05):
+                    self.punch_lead={'stamp':now,'travel':rule['xy_displacement'],'angle3d':arm['angle3d']}
         self._remember_projected_body(arms, signals, now, previous_state, block)
         self._remember_centered_depth(arms, signals, now, previous_state, block)
         if commit is not None and (signals[commit].get('centered_depth_confirmation') or self.temporal_forward_pending):
@@ -429,6 +454,8 @@ class SixGestureEngine(DemoEngine):
         self.movement = LateralMovement(self.config)
         self.special = CrossSpecial()
         self.cross_refinement_used = False
+        self.cross_previous_primary = None
+        self.cross_bridge_until = None
         self.refinement_repeat = RefinedRepeatLatch()
         self.static_special = StaticCrossProof()
         self.static_release = StaticCrossRelease()
@@ -507,6 +534,8 @@ class SixGestureEngine(DemoEngine):
         self._continuity_processing = False
         super()._safe(now, reason)
         self.special.invalidate()
+        self.cross_previous_primary = None
+        self.cross_bridge_until = None
         self.cross_refinement_used = False
         self.refinement_repeat.invalidate()
         self.cross_extension_since = None
@@ -623,12 +652,20 @@ class SixGestureEngine(DemoEngine):
                     and self.raise_armed[candidate.split('_')[0]] and not self.special_inhibited):
                 self.vertical_state = 'PENDING'
                 self.vertical_candidate, self.vertical_since = candidate, now
+                self.vertical_fast_since = now if self._raise_fast_proof(candidate,arms,delta) else None
             elif self.vertical_state == 'PENDING':
                 if candidate != self.vertical_candidate:
                     # Do not turn an incomplete block or cancelled raise into a punch.
                     self.vertical_state = 'LATCHED'
                     self.vertical_candidate = self.vertical_since = None
-                elif now - self.vertical_since >= 180_000_000:
+                else:
+                    if not self._raise_fast_proof(candidate,arms,delta):self.vertical_fast_since=None
+                    elif getattr(self,'vertical_fast_since',None) is None:self.vertical_fast_since=now
+                if (candidate == self.vertical_candidate and self.vertical_since is not None
+                        and (now-self.vertical_since>=180_000_000 or
+                             getattr(self,'vertical_fast_since',None) is not None
+                             and now-self.vertical_fast_since>=100_000_000
+                             and now-self.vertical_since>=120_000_000)):
                     self.sequence += 1
                     side = candidate.split('_')[0]
                     event = ActionEvent(f'{self.run_id}:{self.sequence}', *ident,
@@ -645,6 +682,20 @@ class SixGestureEngine(DemoEngine):
                 if 'gesture' not in event.reason:
                     self.outbox.pending[key] = replace(event, reason={**event.reason, 'gesture': event.side + '_PUNCH'})
             return self._publish_state(state)
+
+    def _raise_fast_proof(self,candidate,arms,delta):
+        side=candidate.split('_')[0];other='RIGHT' if side=='LEFT' else 'LEFT'
+        arm=arms[side];dx,dy,dz=delta[side]
+        return bool(side in getattr(self,'personal_fast_raise',set())
+            # Keep the original ordering when the other hand is already proving
+            # a punch. A learned raise must not jump ahead of that pending input.
+            and self.attack.units[other].state!='CANDIDATE'
+            and self.attack.units[other].punch_lead is None
+            and abs(dx)<=.35 and dy<=-.65 and -dy>abs(dx)*1.8
+            and arm['angle']<=1.6 and arm['angle3d'] is not None and 1.3<=arm['angle3d']<2.45
+            and abs(dz)<=1.0
+            and delta[other][1]>-.15 and side not in self.forward_sides
+            and arms[other]['position'][1]<=1.0 and arms[other]['angle']<=2.3)
 
     def process(self, obs, evidence=None, now_ns=None, special_observation=None):
         with self.lock:
@@ -671,6 +722,43 @@ class SixGestureEngine(DemoEngine):
                 return self._process_observation(obs, evidence, now, special_observation)
             finally:
                 self._continuity_processing = False
+
+    def _refined_occlusion_bridge(self, obs, auxiliaries, now):
+        """Keep only earned X dwell across one independently observed occlusion.
+
+        This cannot acquire/release/fire an X, add dwell, or authorize controls.
+        Both Full observations and Heavy must independently identify the same
+        current body; Heavy must still see a strict X. No previous pixels or
+        coordinates stand in for the missing primary pose.
+        """
+        previous = self.cross_previous_primary
+        if (obs.pose_present or not self.calibrated or not self.special.owned
+                or self.special.latched or self.cross_refinement_latched
+                or not self.cross_refinement_used or self.special.confirmed_ns <= 0
+                or previous is None or self.special.last_strict != previous.capture_ns
+                or not 0 < obs.capture_ns-previous.capture_ns <= self.special.geometry_gap_ns
+                or not 0 <= now-obs.capture_ns <= self.config.evidence_age_ms*1_000_000
+                or len(auxiliaries) < 3):
+            return False
+        identity = (obs.actor_id, obs.capture_epoch)
+        if (identity != self.identity or identity != (previous.actor_id, previous.capture_epoch)
+                or (obs.width,obs.height,obs.source_mirrored) !=
+                   (previous.width,previous.height,previous.source_mirrored)):
+            return False
+        valid = []
+        for aux in auxiliaries[:3]:
+            if (aux is None or (aux.actor_id, aux.capture_epoch, aux.frame_id, aux.capture_ns,
+                    aux.width, aux.height, aux.source_mirrored) !=
+                    (obs.actor_id, obs.capture_epoch, obs.frame_id, obs.capture_ns,
+                     obs.width, obs.height, obs.source_mirrored)
+                    or joint_validity(aux, self.config)['BLOCK']
+                    or not same_body(previous, aux, self.config)
+                    or extended_cross_arm(aux, self.config)):
+                return False
+            valid.append(aux)
+        return (all(same_body(a,b,self.config) for a,b in
+                    ((valid[0],valid[1]),(valid[0],valid[2]),(valid[1],valid[2])))
+                and cross_geometry(valid[2],self.config)[1])
 
     def _process_observation(self, obs, evidence=None, now_ns=None, special_observation=None):
         with self.lock:
@@ -702,6 +790,11 @@ class SixGestureEngine(DemoEngine):
             # different frame/person for this channel, and never alter punch,
             # raise or movement coordinates with the auxiliary skeleton.
             auxiliaries = special_observation if isinstance(special_observation, (tuple, list)) else (special_observation,)
+            bridge = self._refined_occlusion_bridge(obs, auxiliaries, now)
+            if self.cross_bridge_until is not None and obs.capture_ns > self.cross_bridge_until:
+                self.special.reset_dwell();self.cross_refinement_used = False
+            self.cross_bridge_until = None
+            self.cross_previous_primary = None
             for aux_index, aux in enumerate(auxiliaries):
                 if aux_index == 2:
                     baseline_separated = ((open_votes >= 2 or extended) and not approach
@@ -894,8 +987,19 @@ class SixGestureEngine(DemoEngine):
             self.refinement_repeat.observe(obs.capture_ns,
                 valid=special_valid and self.calibrated and state.tracking == 'VALID',
                 release=not approach and (refinement_release or definite_release))
-            fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=special_valid,
-                neutral=separated, approach=approach, strict=strict)
+            if (bridge and self.calibrated and self.special.last_strict is not None
+                    and self.special.owned and not self.special.latched):
+                # No interval on either side of this missing primary frame is
+                # credited. The next primary must return within the existing
+                # 80ms geometry window; a second missing frame resets normally.
+                self.cross_bridge_until = self.special.last_strict + self.special.geometry_gap_ns
+                self.special.previous = obs.capture_ns
+                self.special.return_since = None
+                fired = False
+            else:
+                fired = self.special.step(obs.capture_ns, calibrated=self.calibrated, valid=special_valid,
+                    neutral=separated, approach=approach, strict=strict)
+            if valid and state.tracking == 'VALID':self.cross_previous_primary = obs
             if self.special.last_strict is None:
                 self.cross_refinement_used = False
             if refinement_contributed and self.special.last_strict == obs.capture_ns:

@@ -219,7 +219,7 @@ def run(a):
                         tracking=state.tracking if fresh else "STALE",fsm_state=state.attack_state,capture_ns=stamp,
                         calibration_version=1,calibrated=bool(armed),
                         calibration_generation=calibration_generation if network_profile=='online' else getattr(engine,'calibration_generation',0),
-                        personal_status=engine.trainer.status if hasattr(engine,'trainer') else 'BASELINE V26'))
+                        personal_status=getattr(engine,'personal_status','BASELINE V26')))
                 # Deliver a fresh BLOCK release before an attack from that frame.
                 for item in sender.service():log.write(item)
                 if log.error or log.dropped:raise RuntimeError('Diagnostic log failed or overflowed')
@@ -443,7 +443,7 @@ def run(a):
                     frame_id=frame['frame_id'],capture_ns=stamp,ready=ready,block=state.block,
                     movement=state.movement,event=display['event'],pose_ms=pose_ms,capture_fps=fps,
                     special_progress=cross_progress,special_owned=cross_owned,special_sent=cross_sent,
-                    personal_status=engine.trainer.status if hasattr(engine,'trainer') else 'BASELINE V26',
+                    personal_status=getattr(engine,'personal_status','BASELINE V26'),
                     udp_synced=bool(sender.clock),last_status=sender.last_status,
                     recording=journal.health() if journal else None,
                     inference_mode=inference_runtime.snapshot(armed)['inference_mode'],

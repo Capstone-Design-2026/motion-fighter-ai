@@ -51,6 +51,8 @@ jobs:
         run: python -m unittest -v test_x_latency_contract test_heavy_auxiliary test_heavy_recording test_heavy_assets test_refined_cross test_refined_release_contract test_static_cross_proof test_cross_miss_safety test_preview_pressure test_backend_optional_inference
       - name: Bounded forward punch completion and physical return
         run: python -m unittest -v test_centered_depth_punch test_temporal_forward_onset test_channel_feature_reuse
+      - name: Personal response and bounded X occlusion regressions
+        run: python -m unittest -v test_personal_recognized_path test_response_confirmation test_refined_occlusion_bridge
       - name: Deterministic synthetic calibration and pose sequence
         run: python -m unittest -v test_landmark_fixture_sequence
       - name: Online profile and provenance regression tests
