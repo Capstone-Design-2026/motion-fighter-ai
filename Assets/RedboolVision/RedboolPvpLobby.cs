@@ -600,7 +600,13 @@ public sealed class RedboolPvpLobby : MonoBehaviour
                 fighting = game.Fighting && !game.Paused || game.Resolved;
             }
             if (Current != Stage.Done || fighting) tutorial[s].Hide();
-            else tutorial[s].Show(step, hits, live, RedboolPvpRoster.Get(game.Characters[s]), game.SpecialName(s), personal);
+            else {
+                bool bothComplete=client?frame.actors[0].step>=8&&frame.actors[1].step>=8:game.Practices[0].Complete&&game.Practices[1].Complete;
+                byte gate=client?frame.world.gate:game.Gate;
+                float countdown=client?frame.world.countdown:game.Countdown;
+                tutorial[s].Show(step,hits,live,RedboolPvpRoster.Get(game.Characters[s]),game.SpecialName(s),personal,
+                    RedboolPvp.PracticeMessage(step,hits,bothComplete,gate,countdown,live));
+            }
             if (Current == Stage.Done && !fighting && step >= 2 && step < 8 && !tutorialCaptured) { tutorialCaptured = true; Capture("tutorial"); }
         }
         double now = Time.realtimeSinceStartupAsDouble;

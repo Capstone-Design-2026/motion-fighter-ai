@@ -107,14 +107,14 @@ public sealed class RedboolPvpTutorialCard
     /// who: 고른 인물, specialName: 실제로 나갈 필살기 이름(인물의 기술을 쓰지 못하면 파운장),
     /// personal: 개인 동작 범위 상태(0 기본 인식, 1 확인 중, 2 적용됨).
     /// </summary>
-    public void Show(int step, int hits, bool live, RedboolPvpCharacter who, string specialName, int personal)
+    public void Show(int step, int hits, bool live, RedboolPvpCharacter who, string specialName, int personal, string completionMessage)
     {
         if (!root.activeSelf) root.SetActive(true);
         bool done = step >= Names.Length;
         if (poseRoot.activeSelf == done) poseRoot.SetActive(!done);
         foreach (var line in new[] { header, steps, phase, how, use, pips, note }) if (line.gameObject.activeSelf == done) line.gameObject.SetActive(!done);
         if (waiting.gameObject.activeSelf != done) waiting.gameObject.SetActive(done);
-        if (done) { waiting.text = "<color=#F2C46B>수련 완료!</color>\n상대가 끝나면 대전이 시작됩니다"; return; }
+        if (done) { waiting.text = completionMessage; return; }
 
         if (step != shownStep) { shownStep = step; stepStarted = Time.unscaledTime; gamePose.step = step; gamePose.SetVerticesDirty(); }
         float since = Time.unscaledTime - stepStarted;

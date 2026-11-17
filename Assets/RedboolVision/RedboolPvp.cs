@@ -288,6 +288,17 @@ public sealed class RedboolPvp : MonoBehaviour
     {
         return gate==0?"":GateText(gate,countdown);
     }
+    public static string PracticeMessage(int step,int hits,bool bothComplete,byte gate,float countdown,bool live)
+    {
+        // Completion survives a transport interruption. Do not tell two finished
+        // players to repeat practice or recalibrate when only the link is waiting.
+        if(step>=8 && bothComplete)
+            return "수련 완료\n"+(gate==0?"대전 시작":gate==7?"라운드 종료"
+                :gate==3?"1P 카메라 신호 대기 · 정상 입력이 오면 자동 시작"
+                :gate==4?"2P 카메라 신호 대기 · 정상 입력이 오면 자동 시작":GateText(gate,countdown));
+        string camera=live?"":step>=8?"카메라 신호 복구 대기\n":"카메라 연결 · C로 중앙 가드 보정\n";
+        return camera+RedboolPractice.Describe(step,hits);
+    }
     static string GateText(byte gate,float countdown) => gate==1?"전투 효과 준비 중":gate==2?"2P 게임 화면 연결 대기 · 연결 복구 후 자동 재개":gate==3?"1P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==4?"2P 카메라 신호 대기 · 어깨와 팔이 보이면 자동 재개 · 첫 보정/새 사람은 C":gate==5?"각자 안내 동작 두 번 · 어려운 동작은 건너뛰어도 기본 인식으로 플레이할 수 있어요":gate==6?"신호 확인 · 잠시 후 자동 시작":"대전 시작 · 양손을 올려 막기 · 가슴 앞 X자로 필살기";
     // Resolve after the contact world: simultaneous KO must not become a 1P win.
     void LateUpdate()
@@ -388,7 +399,7 @@ public sealed class RedboolPvp : MonoBehaviour
             ShowHealth(i,hp.CurrentHealth,hp.MaxHealth);ShowPracticeVisibility(i,!(Fighting&&!paused || Resolved));
             var own=Players[i].GetComponent<EnemySpecial>();bool mine=ownSpecial[i] && own!=null;
             ShowCharge(i,mine?(own.IsPlaying?own.HitsToCharge:own.Charge):special?special.Charge:0,mine?own.HitsToCharge:special?special.HitsToCharge:5,mine?own.IsPlaying:special!=null && special.IsPlaying);
-            practiceLabels[i].text=(!Receivers[i].LiveReady?"카메라 연결 · C로 중앙 가드 보정\n":"")+Practices[i].Instruction+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
+            practiceLabels[i].text=PracticeMessage(Practices[i].Step,Practices[i].Hits,Practices[0].Complete&&Practices[1].Complete,Gate,Countdown,Receivers[i].LiveReady)+"\n"+(Receivers[i].PersonalStatus.Contains("PERSONAL RANGE")?"개인 동작 범위 적용":Receivers[i].PersonalStatus.Contains("CYCLES")?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
         banner.text=Resolved?"":Banner(Gate,Countdown);   // 결과는 가운데 판에만
@@ -452,7 +463,7 @@ public sealed class RedboolPvp : MonoBehaviour
             var a=frame.actors[i];diagrams[i].gameObject.SetActive(a.step<8);diagrams[i].step=a.step;skipButtons[i].gameObject.SetActive(i==1 &&a.step<8);
             ShowHealth(i,a.hp,a.maxHp);ShowPracticeVisibility(i,!(frame.world.fighting&&!frame.world.paused || frame.world.resolved));
             ShowCharge(i,a.charge,a.maxCharge,(a.specialFlags&1)!=0);
-            practiceLabels[i].text=(!a.live?"카메라 연결 · C로 중앙 가드 보정\n":"")+RedboolPractice.Describe(a.step,a.hits)+"\n"+(a.personal==2?"개인 동작 범위 적용":a.personal==1?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
+            practiceLabels[i].text=PracticeMessage(a.step,a.hits,frame.actors[0].step>=8&&frame.actors[1].step>=8,frame.world.gate,frame.world.countdown,a.live)+"\n"+(a.personal==2?"개인 동작 범위 적용":a.personal==1?"동작과 복귀를 확인 중":"기본 동작 인식 사용");
         }
         clockLabel.text=Mathf.CeilToInt(Remaining).ToString();
         banner.text=!fresh?"화면 연결이 끊겼습니다 · 전투 일시 정지 · 재연결 중":Resolved?"":Banner(frame.world.gate,frame.world.countdown);

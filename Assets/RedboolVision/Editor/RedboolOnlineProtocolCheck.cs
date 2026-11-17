@@ -309,6 +309,40 @@ public static class RedboolOnlineProtocolCheck
                 attack = Event(24); attack.capture_ns = attack.commit_ns + 1;
                 Check(fixture.Apply(attack) == "INVALID_TIMING", "Capture cannot occur after event commit");
             }
+            foreach (bool online in new[] { false, true })
+                using (var fixture = new Fixture(online))
+                {
+                    var state = State(20); state.block_active = true;
+                    state.movement = "LEFT"; state.movement_strength = .8f;
+                    Check(fixture.Apply(state) == "TUTORIAL_APPLIED", "Presence test starts with a valid camera frame");
+                    long lease = (long)fixture.Get("deadline"), presence = (long)fixture.Get("presenceDeadline");
+                    Check(presence-lease == (online ? 250 : 100)*Ms,
+                        online ? "Online route uses bounded250ms match-only grace" : "LAN retains100ms match grace");
+                    // Model a scheduling gap past the actual input lease. This
+                    // must release controls even while match presence survives.
+                    ReceiverType.GetField("deadline", Private).SetValue(fixture.Receiver, Now-1);
+                    ReceiverType.GetMethod("Update", Private).Invoke(fixture.Receiver, null);
+                    Check(!fixture.Receiver.LiveReady && fixture.Receiver.PresenceReady
+                        && !fixture.Receiver.BlockActive && (float)fixture.Get("targetMove") == 0,
+                        "Presence never keeps stale guard or movement active");
+                    Check(fixture.Apply(Event(21)) == "INPUT_LOCKED" && fixture.Events == 0,
+                        "Match grace never authorizes a new attack after control expiry");
+                    var stale = State(22, ageMs: 200);
+                    if(!online)stale.sent_ns -= 200*Ms;
+                    Check(fixture.Apply(stale) == "EXPIRED" && (long)fixture.Get("presenceDeadline") == presence,
+                        "Expired packets cannot extend the fixed presence deadline");
+                    foreach(string tracking in new[] { "LOST", "INVALID", "STOPPED", "CALIBRATING" })
+                    {
+                        Check(fixture.Apply(State(30 + Array.IndexOf(new[] { "LOST", "INVALID", "STOPPED", "CALIBRATING" }, tracking)*2)) == "TUTORIAL_APPLIED",
+                            "Fresh source restores presence before tracking-loss check");
+                        var lost = State(31 + Array.IndexOf(new[] { "LOST", "INVALID", "STOPPED", "CALIBRATING" }, tracking)*2);
+                        lost.tracking=tracking;
+                        Check(fixture.Apply(lost) == "TUTORIAL_APPLIED" && !fixture.Receiver.PresenceReady,
+                            "Explicit tracking loss clears presence immediately: "+tracking);
+                    }
+                    fixture.Receiver.ClearInput();
+                    Check(!fixture.Receiver.PresenceReady, "Disconnect clears presence immediately");
+                }
             using (var fixture = new Fixture(true))
             {
                 Check(fixture.Apply(State(20)) == "TUTORIAL_APPLIED", "Initial generation is live");

@@ -379,7 +379,13 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             sourceCaptureNs=p.capture_ns>0?p.capture_ns+p.receiver_offset_ns:0;
             lastUncertaintyNs=p.clock_uncertainty_ns;
             tutorialInputValid=lastCalibrated && p.tracking=="VALID";
-            presenceDeadline=tutorialInputValid ? deadline+100000000L : retainedPresence;
+            // A remote camera's conservative clock bound can leave only a few
+            // milliseconds of its original control lease on arrival. Keep
+            // match presence briefly across route jitter without extending
+            // deadline, LiveReady, guard/movement, or one-shot validity.
+            presenceDeadline=tutorialInputValid
+                ? deadline+(OnlineRemoteInput && PvpOwned ? 250000000L : 100000000L)
+                : retainedPresence;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
             if(CalibrationGeneration!=p.calibration_generation)combatFeedback.Reset();
             CalibrationGeneration=p.calibration_generation;
