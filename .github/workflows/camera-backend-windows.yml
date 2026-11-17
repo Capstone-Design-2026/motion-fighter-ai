@@ -1,9 +1,9 @@
-name: Windows camera backend
+name: Windows online candidate camera backend
 
 on:
   workflow_dispatch:
   push:
-    branches: [codex/tutorial-personal-pvp-20261112]
+    branches: [codex/online-transport-20261116, codex/remaining-quality-20261117]
     paths:
       - src/**
       - tests/**
@@ -13,6 +13,9 @@ on:
       - scripts/check_recognition_baseline.py
       - scripts/setup_demo_models.py
       - config/recognition_baseline.json
+      - config/recognition_baseline_online.json
+      - scripts/check_online_backend.py
+      - scripts/compare_online_transport.py
       - requirements-backend-build.txt
       - .github/workflows/camera-backend-windows.yml
 
@@ -33,7 +36,7 @@ jobs:
           python-version: '3.11'
           architecture: x64
       - name: Verify reviewed recognition source baseline
-        run: python scripts/check_recognition_baseline.py
+        run: python scripts/check_recognition_baseline.py --manifest config/recognition_baseline_online.json
       - name: Test baseline change detection without camera
         run: python -m unittest -v test_recognition_baseline
       - name: Install packaging runtime
@@ -41,18 +44,30 @@ jobs:
       - name: Fetch fingerprint-verified models
         run: python scripts/setup_demo_models.py --include-heavy
       - name: Verify exact Lite and Full model bytes
-        run: python scripts/check_recognition_baseline.py --check-models
+        run: python scripts/check_recognition_baseline.py --manifest config/recognition_baseline_online.json --check-models
       - name: Camera-free control and storage tests
         run: python -m unittest -v test_local_bridge test_headless_live test_diagnostics_recording test_live_clock test_backend_entry test_landmark_recording test_landmark_live test_landmark_replay_comparison test_backend_provenance test_calibration_sampling test_performance_policy test_camera_profile test_bounded_continuity test_projected_body_punch test_personal_raise_priority test_chest_special test_six_gestures test_redbool_demo test_udp_receive_reset
       - name: Bounded X refinement and release regression tests
         run: python -m unittest -v test_x_latency_contract test_heavy_auxiliary test_heavy_recording test_heavy_assets test_refined_cross test_refined_release_contract test_static_cross_proof test_cross_miss_safety test_preview_pressure test_backend_optional_inference
+      - name: Bounded forward punch completion and physical return
+        run: python -m unittest -v test_centered_depth_punch test_temporal_forward_onset test_channel_feature_reuse
+      - name: Personal response and bounded X occlusion regressions
+        run: python -m unittest -v test_personal_recognized_path test_response_confirmation test_refined_occlusion_bridge
+      - name: Deterministic synthetic calibration and pose sequence
+        run: python -m unittest -v test_landmark_fixture_sequence
+      - name: Online profile and provenance regression tests
+        run: python -m unittest -v test_online_transport test_online_build_provenance test_journal_windows_sharing
+      - name: Offline transport deadline and ordering comparison
+        run: python scripts/compare_online_transport.py --output dist/camera_backend/online-transport-checks
       - name: Build native executable and check assets
-        run: python scripts/build_camera_backend.py --pose pose_landmarker.task --cross-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task --cross-refine-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_heavy.task
+        run: python scripts/build_camera_backend.py --pose pose_landmarker.task --cross-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_full.task --cross-refine-pose local_data/vision_v2/demo_comparison_20261022/assets/pose_landmarker_heavy.task --build-variant online-candidate
       - name: Verify packaged lifecycle without camera
         run: python scripts/check_camera_backend.py --executable dist/camera_backend/REDBOOLCamera/REDBOOLCamera.exe --output dist/camera_backend/check-result.json
+      - name: Verify frozen online option and exact CI provenance
+        run: python scripts/check_online_backend.py --executable dist/camera_backend/REDBOOLCamera/REDBOOLCamera.exe --expected-commit $env:GITHUB_SHA --output dist/camera_backend/online-check-result.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: REDBOOLCamera-Windows-x64
+          name: REDBOOLCamera-OnlineCandidate-Windows-x64
           path: dist/camera_backend/
           retention-days: 14
           if-no-files-found: error

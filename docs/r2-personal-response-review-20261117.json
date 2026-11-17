@@ -1,0 +1,736 @@
+{
+  "schema": "redbool.r2-response-review/1",
+  "date": "2026-11-17",
+  "base_source_commit": "55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180",
+  "source_changes": [
+    {
+      "path": "src/redbool_demo/six_engine.py",
+      "before_sha256": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105",
+      "after_sha256": "9e2dbb4d0b0b0adcc2ec723859cf79a4a3c1c40c6a9e609dafaf09f9c088187e"
+    },
+    {
+      "path": "src/redbool_demo/personal.py",
+      "before_sha256": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+      "after_sha256": "6d9704f8ace3df04b4461d7a5e7a0c403fa32c745affe55bbada1515d9ab0ccd"
+    },
+    {
+      "path": "src/redbool_demo/live.py",
+      "before_sha256": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
+      "after_sha256": "a143341113b8c5c0092224f9586aae067a3a4c5842dd1269b30ef59d780a3bb1"
+    }
+  ],
+  "change_scope": [
+    "Measure independently recognized low/forward punch cycles and one-hand physical returns during matching tutorial context; two consistent full cycles still required.",
+    "Use previously observed extension plus unchanged full punch commit geometry to avoid one redundant confirmation frame.",
+    "Only two verified complete large raises enable the learned side to use 120 ms confirmation with 100 ms strong pose evidence; original 180 ms fallback remains.",
+    "Preserve aggregate actually-applied personal status after subsequent X tutorial confirmation.",
+    "While the opposite punch is pending or has a proved lead-in, learned raises retain original confirmation timing to preserve existing attack ordering."
+  ],
+  "rejected_candidate": "Global fast raise without two confirmed personal cycles produced 3 unlabelled additional events and was not adopted.",
+  "replay_summary": {
+    "modern_sessions": 50,
+    "modern_frames": 221175,
+    "modern_complete_sessions": 47,
+    "modern_partial_sessions": [
+      "20261117_184355_d2b54a49",
+      "613fbe53",
+      "a6ca67b7"
+    ],
+    "legacy_sessions": 9,
+    "legacy_frames": 90575,
+    "events_before": 1249,
+    "events_after": 1249,
+    "event_counts_unchanged": true,
+    "event_pairs_within_100ms": true,
+    "reordered_sessions": [],
+    "unchanged_control_rows": 1099427,
+    "changed_control_sessions": [],
+    "labelled_checks": 139,
+    "labelled_before": 136,
+    "labelled_after": 136,
+    "labelled_regressions": [],
+    "known_labelled_failures": [
+      {
+        "id": "three_person-019",
+        "kind": "positive",
+        "expected": "SPECIAL",
+        "before": false,
+        "after": false
+      },
+      {
+        "id": "three_person-020",
+        "kind": "positive",
+        "expected": "SPECIAL",
+        "before": false,
+        "after": false
+      },
+      {
+        "id": "three_person-021",
+        "kind": "positive",
+        "expected": "SPECIAL",
+        "before": false,
+        "after": false
+      }
+    ],
+    "unsafe_events_after": 0,
+    "timing_changes": {
+      "RIGHT_RAISE": [
+        {
+          "case": "0098b0eb",
+          "gesture": "RIGHT_RAISE",
+          "earlier_ms": 57.6442,
+          "old_frame": 4879,
+          "new_frame": 4878
+        },
+        {
+          "case": "0098b0eb",
+          "gesture": "RIGHT_RAISE",
+          "earlier_ms": 74.0699,
+          "old_frame": 5844,
+          "new_frame": 5843
+        },
+        {
+          "case": "0098b0eb",
+          "gesture": "RIGHT_RAISE",
+          "earlier_ms": 59.8943,
+          "old_frame": 5991,
+          "new_frame": 5990
+        },
+        {
+          "case": "0098b0eb",
+          "gesture": "RIGHT_RAISE",
+          "earlier_ms": 67.7712,
+          "old_frame": 8647,
+          "new_frame": 8646
+        },
+        {
+          "case": "3aa89e32",
+          "gesture": "RIGHT_RAISE",
+          "earlier_ms": 34.6414,
+          "old_frame": 5982,
+          "new_frame": 5981
+        },
+        {
+          "case": "3aa89e32",
+          "gesture": "RIGHT_RAISE",
+          "earlier_ms": 33.8433,
+          "old_frame": 6057,
+          "new_frame": 6056
+        }
+      ],
+      "RIGHT_PUNCH": [
+        {
+          "case": "4f1dc36e",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 31.9093,
+          "old_frame": 10334,
+          "new_frame": 10333
+        },
+        {
+          "case": "95990f92",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 48.6419,
+          "old_frame": 378,
+          "new_frame": 377
+        },
+        {
+          "case": "f4ffe19f",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 22.999958,
+          "old_frame": 561,
+          "new_frame": 560
+        },
+        {
+          "case": "f4ffe19f",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 33.923667,
+          "old_frame": 1334,
+          "new_frame": 1333
+        },
+        {
+          "case": "new278_16e6bb6d",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 56.5472,
+          "old_frame": 1349,
+          "new_frame": 1348
+        },
+        {
+          "case": "four_person",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 31.948416,
+          "old_frame": 16573,
+          "new_frame": 16572
+        },
+        {
+          "case": "sweep",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 32.815458,
+          "old_frame": 2986,
+          "new_frame": 2985
+        },
+        {
+          "case": "two_person_earlier",
+          "gesture": "RIGHT_PUNCH",
+          "earlier_ms": 45.716375,
+          "old_frame": 3392,
+          "new_frame": 3391
+        }
+      ],
+      "LEFT_PUNCH": [
+        {
+          "case": "9d999ac7",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 33.736209,
+          "old_frame": 1198,
+          "new_frame": 1197
+        },
+        {
+          "case": "d794dbe1",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 31.1157,
+          "old_frame": 3043,
+          "new_frame": 3042
+        },
+        {
+          "case": "f4ffe19f",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 31.446167,
+          "old_frame": 10521,
+          "new_frame": 10520
+        },
+        {
+          "case": "two_person_earlier",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 33.744208,
+          "old_frame": 3206,
+          "new_frame": 3205
+        },
+        {
+          "case": "two_person_earlier",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 66.277917,
+          "old_frame": 3361,
+          "new_frame": 3359
+        },
+        {
+          "case": "two_person_earlier",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 20.703834,
+          "old_frame": 10399,
+          "new_frame": 10398
+        },
+        {
+          "case": "two_person_latest",
+          "gesture": "LEFT_PUNCH",
+          "earlier_ms": 41.254584,
+          "old_frame": 5358,
+          "new_frame": 5357
+        }
+      ],
+      "LEFT_RAISE": [
+        {
+          "case": "d794dbe1",
+          "gesture": "LEFT_RAISE",
+          "earlier_ms": 64.7639,
+          "old_frame": 2788,
+          "new_frame": 2786
+        },
+        {
+          "case": "d794dbe1",
+          "gesture": "LEFT_RAISE",
+          "earlier_ms": 32.2899,
+          "old_frame": 2833,
+          "new_frame": 2832
+        },
+        {
+          "case": "d794dbe1",
+          "gesture": "LEFT_RAISE",
+          "earlier_ms": 30.1738,
+          "old_frame": 2893,
+          "new_frame": 2892
+        },
+        {
+          "case": "d794dbe1",
+          "gesture": "LEFT_RAISE",
+          "earlier_ms": 32.804,
+          "old_frame": 2916,
+          "new_frame": 2915
+        }
+      ]
+    },
+    "personal_effective_after": [
+      {
+        "case": "0098b0eb",
+        "before": {
+          "samples": {
+            "STRAIGHT": 2,
+            "HIGH_KICK": 1,
+            "LOW_KICK": 2,
+            "BLOCK": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 1,
+            "STRAIGHT": 2,
+            "HIGH_KICK": 1,
+            "LOW_KICK": 2,
+            "BLOCK": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "LOW_KICK_DWELL_MS": 120.0
+          }
+        }
+      },
+      {
+        "case": "20261117_184355_d2b54a49",
+        "before": {
+          "samples": {
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 1,
+            "STRAIGHT": 1,
+            "HIGH_KICK": 1,
+            "LOW_KICK": 2,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "LOW_KICK_DWELL_MS": 120.0
+          }
+        }
+      },
+      {
+        "case": "20261117_185600_7a603f58",
+        "before": {
+          "samples": {
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 1,
+            "STRAIGHT": 2,
+            "HIGH_KICK": 2,
+            "LOW_KICK": 2,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "HIGH_KICK_DWELL_MS": 120.0,
+            "LOW_KICK_DWELL_MS": 120.0
+          }
+        }
+      },
+      {
+        "case": "20261117_185854_6370ab8e",
+        "before": {
+          "samples": {
+            "HIGH_KICK": 1,
+            "LOW_KICK": 1,
+            "MOVE_LEFT": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 1,
+            "HIGH_KICK": 2,
+            "LOW_KICK": 1,
+            "MOVE_LEFT": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "HIGH_KICK_DWELL_MS": 120.0
+          }
+        }
+      },
+      {
+        "case": "25110428",
+        "before": {
+          "samples": {
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        }
+      },
+      {
+        "case": "3aa89e32",
+        "before": {
+          "samples": {
+            "LOW_KICK": 2,
+            "MOVE_LEFT": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 2,
+            "HIGH_KICK": 3,
+            "LOW_KICK": 2,
+            "MOVE_LEFT": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "LOW_KICK_DWELL_MS": 120.0
+          }
+        }
+      },
+      {
+        "case": "4f1dc36e",
+        "before": {
+          "samples": {
+            "STRAIGHT": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "STRAIGHT": 2,
+            "HIGH_KICK": 2,
+            "LOW_KICK": 2,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "HIGH_KICK_DWELL_MS": 120.0,
+            "LOW_KICK_DWELL_MS": 120.0
+          }
+        }
+      },
+      {
+        "case": "613fbe53",
+        "before": {
+          "samples": {},
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "JAB": 1
+          },
+          "effective_overrides": {}
+        }
+      },
+      {
+        "case": "d1726d09",
+        "before": {
+          "samples": {
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "HIGH_KICK": 1,
+            "LOW_KICK": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        }
+      },
+      {
+        "case": "d794dbe1",
+        "before": {
+          "samples": {
+            "STRAIGHT": 2,
+            "HIGH_KICK": 2,
+            "LOW_KICK": 2,
+            "BLOCK": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {}
+        },
+        "after": {
+          "samples": {
+            "STRAIGHT": 2,
+            "HIGH_KICK": 2,
+            "LOW_KICK": 2,
+            "BLOCK": 1,
+            "SPECIAL": 2
+          },
+          "effective_overrides": {
+            "HIGH_KICK_DWELL_MS": 120.0,
+            "LOW_KICK_DWELL_MS": 120.0
+          }
+        }
+      }
+    ],
+    "scope": "Identical prerecorded observations, operation times and models. Events matched by gesture and ordinal only when counts equal; every changed pair must be under 100 ms. Intent labels exist only for the 139 legacy windows. Not a new accuracy rate or real display latency measurement."
+  },
+  "mode_parity": {
+    "passed": true,
+    "source_commit": "55ad8f2 + working-tree response changes",
+    "camera_opened": false,
+    "network_packets": 0,
+    "entry_construction": {
+      "story": {
+        "type": "PersonalGestureEngine",
+        "config": {
+          "version": "seated-cross-recovery-20261111-v26+field-v32",
+          "visibility": 0.5,
+          "max_gap_ms": 100,
+          "evidence_age_ms": 120,
+          "safety_timeout_ms": 150,
+          "neutral_dwell_ms": 150,
+          "cooldown_ms": 250,
+          "candidate_timeout_ms": 400,
+          "active_timeout_ms": 2000,
+          "event_ttl_ms": 150,
+          "onset_displacement": 0.18,
+          "commit_displacement": 0.32,
+          "onset_speed": 0.8,
+          "extension_change_rad": 0.15,
+          "commit_angle_rad": 2.3,
+          "neutral_angle_max_rad": 2.4,
+          "neutral_radius": 0.18,
+          "neutral_speed": 0.8,
+          "neutral_wrist_radius": 1.5,
+          "vertical_fraction_max": 0.8,
+          "block_wrist_y_max": 0.15,
+          "block_enter_ms": 120,
+          "block_exit_ms": 120,
+          "movement_dwell_ms": 120,
+          "movement_calibration_ms": 500,
+          "movement_enter_threshold": 0.3,
+          "movement_exit_threshold": 0.15,
+          "movement_max_strength": 0.75,
+          "movement_calibration_min_samples": 10,
+          "return_speed": 0.2,
+          "model_gate": false,
+          "model_attack_probability": 0.7,
+          "channel_validity": true,
+          "calibrated_neutral_block": true,
+          "image_3d_extension": true
+        },
+        "movement": true,
+        "wire_profile": "lan",
+        "stdout": "Demo modules, Lite asset and calibrated rules OK. Camera/UDP not opened.\n{\"verified_optional_refine\": {\"variant\": \"Heavy\", \"mode\": \"IMAGE\", \"sha256\": \"64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b\", \"source_url\": \"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task\", \"default_enabled\": false, \"scope\": \"optional bounded same-frame X refinement\"}}\n{\"release\": \"v36.3\", \"recording_schema\": \"redbool.landmarks/1\", \"source_commit\": \"55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180\", \"source_sha256\": \"c819e7c464687dc131433d017cc27a55b813656bd5f78aa9650c3949316ac3a9\", \"source_dirty\": true, \"source_file_count\": 72, \"frozen\": false, \"camera_opened\": false, \"game_packets\": 0}\n"
+      },
+      "lan_host": {
+        "type": "PersonalGestureEngine",
+        "config": {
+          "version": "seated-cross-recovery-20261111-v26+field-v32",
+          "visibility": 0.5,
+          "max_gap_ms": 100,
+          "evidence_age_ms": 120,
+          "safety_timeout_ms": 150,
+          "neutral_dwell_ms": 150,
+          "cooldown_ms": 250,
+          "candidate_timeout_ms": 400,
+          "active_timeout_ms": 2000,
+          "event_ttl_ms": 150,
+          "onset_displacement": 0.18,
+          "commit_displacement": 0.32,
+          "onset_speed": 0.8,
+          "extension_change_rad": 0.15,
+          "commit_angle_rad": 2.3,
+          "neutral_angle_max_rad": 2.4,
+          "neutral_radius": 0.18,
+          "neutral_speed": 0.8,
+          "neutral_wrist_radius": 1.5,
+          "vertical_fraction_max": 0.8,
+          "block_wrist_y_max": 0.15,
+          "block_enter_ms": 120,
+          "block_exit_ms": 120,
+          "movement_dwell_ms": 120,
+          "movement_calibration_ms": 500,
+          "movement_enter_threshold": 0.3,
+          "movement_exit_threshold": 0.15,
+          "movement_max_strength": 0.75,
+          "movement_calibration_min_samples": 10,
+          "return_speed": 0.2,
+          "model_gate": false,
+          "model_attack_probability": 0.7,
+          "channel_validity": true,
+          "calibrated_neutral_block": true,
+          "image_3d_extension": true
+        },
+        "movement": true,
+        "wire_profile": "lan",
+        "stdout": "Demo modules, Lite asset and calibrated rules OK. Camera/UDP not opened.\n{\"verified_optional_refine\": {\"variant\": \"Heavy\", \"mode\": \"IMAGE\", \"sha256\": \"64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b\", \"source_url\": \"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task\", \"default_enabled\": false, \"scope\": \"optional bounded same-frame X refinement\"}}\n{\"release\": \"v36.3\", \"recording_schema\": \"redbool.landmarks/1\", \"source_commit\": \"55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180\", \"source_sha256\": \"c819e7c464687dc131433d017cc27a55b813656bd5f78aa9650c3949316ac3a9\", \"source_dirty\": true, \"source_file_count\": 72, \"frozen\": false, \"camera_opened\": false, \"game_packets\": 0}\n"
+      },
+      "lan_join": {
+        "type": "PersonalGestureEngine",
+        "config": {
+          "version": "seated-cross-recovery-20261111-v26+field-v32",
+          "visibility": 0.5,
+          "max_gap_ms": 100,
+          "evidence_age_ms": 120,
+          "safety_timeout_ms": 150,
+          "neutral_dwell_ms": 150,
+          "cooldown_ms": 250,
+          "candidate_timeout_ms": 400,
+          "active_timeout_ms": 2000,
+          "event_ttl_ms": 150,
+          "onset_displacement": 0.18,
+          "commit_displacement": 0.32,
+          "onset_speed": 0.8,
+          "extension_change_rad": 0.15,
+          "commit_angle_rad": 2.3,
+          "neutral_angle_max_rad": 2.4,
+          "neutral_radius": 0.18,
+          "neutral_speed": 0.8,
+          "neutral_wrist_radius": 1.5,
+          "vertical_fraction_max": 0.8,
+          "block_wrist_y_max": 0.15,
+          "block_enter_ms": 120,
+          "block_exit_ms": 120,
+          "movement_dwell_ms": 120,
+          "movement_calibration_ms": 500,
+          "movement_enter_threshold": 0.3,
+          "movement_exit_threshold": 0.15,
+          "movement_max_strength": 0.75,
+          "movement_calibration_min_samples": 10,
+          "return_speed": 0.2,
+          "model_gate": false,
+          "model_attack_probability": 0.7,
+          "channel_validity": true,
+          "calibrated_neutral_block": true,
+          "image_3d_extension": true
+        },
+        "movement": true,
+        "wire_profile": "lan",
+        "stdout": "Demo modules, Lite asset and calibrated rules OK. Camera/UDP not opened.\n{\"verified_optional_refine\": {\"variant\": \"Heavy\", \"mode\": \"IMAGE\", \"sha256\": \"64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b\", \"source_url\": \"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task\", \"default_enabled\": false, \"scope\": \"optional bounded same-frame X refinement\"}}\n{\"release\": \"v36.3\", \"recording_schema\": \"redbool.landmarks/1\", \"source_commit\": \"55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180\", \"source_sha256\": \"c819e7c464687dc131433d017cc27a55b813656bd5f78aa9650c3949316ac3a9\", \"source_dirty\": true, \"source_file_count\": 72, \"frozen\": false, \"camera_opened\": false, \"game_packets\": 0}\n"
+      },
+      "online_host": {
+        "type": "PersonalGestureEngine",
+        "config": {
+          "version": "seated-cross-recovery-20261111-v26+field-v32",
+          "visibility": 0.5,
+          "max_gap_ms": 100,
+          "evidence_age_ms": 120,
+          "safety_timeout_ms": 150,
+          "neutral_dwell_ms": 150,
+          "cooldown_ms": 250,
+          "candidate_timeout_ms": 400,
+          "active_timeout_ms": 2000,
+          "event_ttl_ms": 150,
+          "onset_displacement": 0.18,
+          "commit_displacement": 0.32,
+          "onset_speed": 0.8,
+          "extension_change_rad": 0.15,
+          "commit_angle_rad": 2.3,
+          "neutral_angle_max_rad": 2.4,
+          "neutral_radius": 0.18,
+          "neutral_speed": 0.8,
+          "neutral_wrist_radius": 1.5,
+          "vertical_fraction_max": 0.8,
+          "block_wrist_y_max": 0.15,
+          "block_enter_ms": 120,
+          "block_exit_ms": 120,
+          "movement_dwell_ms": 120,
+          "movement_calibration_ms": 500,
+          "movement_enter_threshold": 0.3,
+          "movement_exit_threshold": 0.15,
+          "movement_max_strength": 0.75,
+          "movement_calibration_min_samples": 10,
+          "return_speed": 0.2,
+          "model_gate": false,
+          "model_attack_probability": 0.7,
+          "channel_validity": true,
+          "calibrated_neutral_block": true,
+          "image_3d_extension": true
+        },
+        "movement": true,
+        "wire_profile": "lan",
+        "stdout": "Demo modules, Lite asset and calibrated rules OK. Camera/UDP not opened.\n{\"verified_optional_refine\": {\"variant\": \"Heavy\", \"mode\": \"IMAGE\", \"sha256\": \"64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b\", \"source_url\": \"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task\", \"default_enabled\": false, \"scope\": \"optional bounded same-frame X refinement\"}}\n{\"release\": \"v36.3\", \"recording_schema\": \"redbool.landmarks/1\", \"source_commit\": \"55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180\", \"source_sha256\": \"c819e7c464687dc131433d017cc27a55b813656bd5f78aa9650c3949316ac3a9\", \"source_dirty\": true, \"source_file_count\": 72, \"frozen\": false, \"camera_opened\": false, \"game_packets\": 0}\n"
+      },
+      "online_join": {
+        "type": "PersonalGestureEngine",
+        "config": {
+          "version": "seated-cross-recovery-20261111-v26+field-v32",
+          "visibility": 0.5,
+          "max_gap_ms": 100,
+          "evidence_age_ms": 120,
+          "safety_timeout_ms": 150,
+          "neutral_dwell_ms": 150,
+          "cooldown_ms": 250,
+          "candidate_timeout_ms": 400,
+          "active_timeout_ms": 2000,
+          "event_ttl_ms": 150,
+          "onset_displacement": 0.18,
+          "commit_displacement": 0.32,
+          "onset_speed": 0.8,
+          "extension_change_rad": 0.15,
+          "commit_angle_rad": 2.3,
+          "neutral_angle_max_rad": 2.4,
+          "neutral_radius": 0.18,
+          "neutral_speed": 0.8,
+          "neutral_wrist_radius": 1.5,
+          "vertical_fraction_max": 0.8,
+          "block_wrist_y_max": 0.15,
+          "block_enter_ms": 120,
+          "block_exit_ms": 120,
+          "movement_dwell_ms": 120,
+          "movement_calibration_ms": 500,
+          "movement_enter_threshold": 0.3,
+          "movement_exit_threshold": 0.15,
+          "movement_max_strength": 0.75,
+          "movement_calibration_min_samples": 10,
+          "return_speed": 0.2,
+          "model_gate": false,
+          "model_attack_probability": 0.7,
+          "channel_validity": true,
+          "calibrated_neutral_block": true,
+          "image_3d_extension": true
+        },
+        "movement": true,
+        "wire_profile": "online",
+        "stdout": "Demo modules, Lite asset and calibrated rules OK. Camera/UDP not opened.\n{\"verified_optional_refine\": {\"variant\": \"Heavy\", \"mode\": \"IMAGE\", \"sha256\": \"64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b\", \"source_url\": \"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task\", \"default_enabled\": false, \"scope\": \"optional bounded same-frame X refinement\"}}\n{\"release\": \"v36.3\", \"recording_schema\": \"redbool.landmarks/1\", \"source_commit\": \"55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180\", \"source_sha256\": \"c819e7c464687dc131433d017cc27a55b813656bd5f78aa9650c3949316ac3a9\", \"source_dirty\": true, \"source_file_count\": 72, \"frozen\": false, \"camera_opened\": false, \"game_packets\": 0}\n"
+      }
+    },
+    "scope": "Production backend entry source constructs each real mode engine, then identical complete recorded operations replay through those engines. This verifies recognition equivalence, not transport latency or game FPS.",
+    "source_changes": [
+      {
+        "path": "src/redbool_demo/six_engine.py",
+        "before_sha256": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105",
+        "after_sha256": "9e2dbb4d0b0b0adcc2ec723859cf79a4a3c1c40c6a9e609dafaf09f9c088187e"
+      },
+      {
+        "path": "src/redbool_demo/personal.py",
+        "before_sha256": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
+        "after_sha256": "6d9704f8ace3df04b4461d7a5e7a0c403fa32c745affe55bbada1515d9ab0ccd"
+      },
+      {
+        "path": "src/redbool_demo/live.py",
+        "before_sha256": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
+        "after_sha256": "a143341113b8c5c0092224f9586aae067a3a4c5842dd1269b30ef59d780a3bb1"
+      }
+    ]
+  },
+  "limits": [
+    "Three partial modern journals only use their contiguous recorded prefix. Missing rows are not invented.",
+    "139 reviewed windows retain 136 passes and the same 3 prior X misses; no claim of 100 percent recognition.",
+    "Latest 596 tutorial captures now collect punch/raise cycles, but large punch ranges remain at existing bounds. Measured faster events come from other available sessions.",
+    "No new camera recording, physical display latency, fresh Windows executable or two-PC Cloud test in this review. 2P diagnostics still awaited.",
+    "No runtime model, block, movement, stale-input/event expiry, network transport or readiness policy changed."
+  ],
+  "test_evidence": {
+    "unity_release_offline": true,
+    "unity_online_contracts_offline": true,
+    "visible_tutorial_card_assertions": true,
+    "python_new_targeted_checks": 16,
+    "full_python_before_final_priority_guard": {
+      "run": 837,
+      "passed": 836,
+      "platform_skipped": 1
+    },
+    "native_windows_execution": "not run in this turn",
+    "external_cloud_play": "awaiting 2P diagnostic review"
+  }
+}

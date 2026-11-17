@@ -1,0 +1,848 @@
+{
+  "summary": {
+    "legacy_sessions": 9,
+    "legacy_frames": 90575,
+    "legacy_events": 559,
+    "labelled_checks": 139,
+    "labelled_before": 136,
+    "labelled_after": 137,
+    "earlier_specials": [
+      {
+        "before_s": 126.943191666,
+        "after_s": 126.642638416,
+        "earlier_ms": 300.5532500000072
+      },
+      {
+        "before_s": 197.321027333,
+        "after_s": 197.155237375,
+        "earlier_ms": 165.78995799997642
+      },
+      {
+        "before_s": 204.12072225,
+        "after_s": 203.922611958,
+        "earlier_ms": 198.11029199999552
+      },
+      {
+        "before_s": 354.035655291,
+        "after_s": 353.735524208,
+        "earlier_ms": 300.1310829999966
+      },
+      {
+        "before_s": 358.436427583,
+        "after_s": 358.268524583,
+        "earlier_ms": 167.9030000000239
+      },
+      {
+        "before_s": 348.905780583,
+        "after_s": 348.840104125,
+        "earlier_ms": 65.6764580000413
+      },
+      {
+        "before_s": 372.707352667,
+        "after_s": 372.640770125,
+        "earlier_ms": 66.58254199999192
+      },
+      {
+        "before_s": 398.34155225,
+        "after_s": 398.076726083,
+        "earlier_ms": 264.8261670000238
+      },
+      {
+        "before_s": 403.04327375,
+        "after_s": 402.90937625,
+        "earlier_ms": 133.89750000004597
+      }
+    ],
+    "modern_sessions": 53,
+    "modern_frames": 235517,
+    "modern_events": 730,
+    "modern_operations": 1185190,
+    "modern_partial": [
+      "613fbe53",
+      "a6ca67b7",
+      "20261117_184355_d2b54a49"
+    ],
+    "scope": "Fixed observed coordinates and clocks; conditional Heavy capability uses available exact source RGB, not a live worker-throughput guarantee. Three incomplete journals use only contiguous prefixes; missing RGB remains absent."
+  },
+  "known_fixed_window_failures": [
+    {
+      "session": "three_person",
+      "id": "three_person-019",
+      "kind": "positive",
+      "axis": "time",
+      "start": 138.8,
+      "end": 140.8,
+      "expected": "SPECIAL",
+      "note": "Document explicitly identifies real X / X attempt; approximate completed-motion center only, not precise onset. Include remaining misses, never drop them from intended-attempt denominator.",
+      "passed": false,
+      "events": []
+    },
+    {
+      "session": "two_person_earlier",
+      "id": "two_person_earlier-003",
+      "kind": "positive",
+      "axis": "frame",
+      "start": 11256,
+      "end": 11286,
+      "expected": "SPECIAL",
+      "note": "RGB-reviewed X with independent hand/arm evidence",
+      "passed": false,
+      "events": []
+    }
+  ],
+  "native_saved_rgb": [
+    {
+      "case": "A1_500",
+      "processed_frames": 360,
+      "fps": 30.02880638372385,
+      "capture_to_engine_p95_ms": 27.0312753,
+      "events": [],
+      "age_over120": 0,
+      "helper_disabled": true,
+      "helper_disable_reason": "result_wait_expired"
+    },
+    {
+      "case": "B1_300",
+      "processed_frames": 359,
+      "fps": 29.94915671732718,
+      "capture_to_engine_p95_ms": 27.064883599999998,
+      "events": [
+        {
+          "frame": 10647,
+          "source_video_t": 355.301616208,
+          "actual_capture_t": 355.304885667,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 25.606625,
+          "expired": false
+        },
+        {
+          "frame": 10732,
+          "source_video_t": 358.135925791,
+          "actual_capture_t": 358.138229875,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 23.809667,
+          "expired": false
+        }
+      ],
+      "age_over120": 0,
+      "helper_disabled": false,
+      "helper_disable_reason": ""
+    },
+    {
+      "case": "B2_300",
+      "processed_frames": 360,
+      "fps": 30.02908619290584,
+      "capture_to_engine_p95_ms": 26.61443605,
+      "events": [
+        {
+          "frame": 10597,
+          "source_video_t": 353.634786333,
+          "actual_capture_t": 353.635443792,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 24.34375,
+          "expired": false
+        },
+        {
+          "frame": 10729,
+          "source_video_t": 358.034201083,
+          "actual_capture_t": 358.038221583,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 24.756125,
+          "expired": false
+        }
+      ],
+      "age_over120": 0,
+      "helper_disabled": false,
+      "helper_disable_reason": ""
+    },
+    {
+      "case": "A2_500",
+      "processed_frames": 356,
+      "fps": 29.703661443304558,
+      "capture_to_engine_p95_ms": 31.93279175,
+      "events": [],
+      "age_over120": 0,
+      "helper_disabled": true,
+      "helper_disable_reason": "result_wait_expired"
+    },
+    {
+      "case": "C1_bridge",
+      "processed_frames": 360,
+      "fps": 30.015359317096788,
+      "capture_to_engine_p95_ms": 25.58460595,
+      "events": [
+        {
+          "frame": 10595,
+          "source_video_t": 353.567429958,
+          "actual_capture_t": 353.566718917,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 23.700166,
+          "expired": false
+        },
+        {
+          "frame": 10730,
+          "source_video_t": 358.069136083,
+          "actual_capture_t": 358.06995325,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 23.634833,
+          "expired": false
+        }
+      ],
+      "age_over120": 0,
+      "helper_disabled": false,
+      "helper_disable_reason": ""
+    },
+    {
+      "case": "C2_bridge",
+      "processed_frames": 360,
+      "fps": 30.01641418593891,
+      "capture_to_engine_p95_ms": 25.9662708,
+      "events": [
+        {
+          "frame": 10601,
+          "source_video_t": 353.767921041,
+          "actual_capture_t": 353.776560958,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 23.283042,
+          "expired": false
+        },
+        {
+          "frame": 10729,
+          "source_video_t": 358.034201083,
+          "actual_capture_t": 358.04322325,
+          "gesture": "SPECIAL",
+          "reason": {
+            "gesture": "SPECIAL",
+            "method": "chest_cross_dwell",
+            "hold_ms": 700
+          },
+          "age_ms": 23.771708,
+          "expired": false
+        }
+      ],
+      "age_over120": 0,
+      "helper_disabled": false,
+      "helper_disable_reason": ""
+    }
+  ],
+  "runtime_changes": [
+    {
+      "path": "src/redbool_demo/heavy_auxiliary.py",
+      "before": "1ded0cd2829cc832be731ed55408a58f1c033a62a0efc4b0a62ca6446899334a",
+      "after": "5df8fef8c69af7fd002ebf5285d8d5dee376d54c0d1052775ea586a34943b811"
+    },
+    {
+      "path": "src/redbool_demo/six_engine.py",
+      "before": "9e2dbb4d0b0b0adcc2ec723859cf79a4a3c1c40c6a9e609dafaf09f9c088187e",
+      "after": "79cca9df1ad26c8138b400ed728dac09ae3c1983d50db130e3ee02dbc6cc3456"
+    }
+  ],
+  "unity_files": {
+    "Assets/RedboolVision/RedboolDemoReceiver.cs": "f08a90788611ad3a8e3c1beba9ec3db171e2ccd9036ad7d3057415def1c4c4c1",
+    "Assets/RedboolVision/Editor/RedboolOnlineProtocolCheck.cs": "3f7c51a6b8c1a459177fa19010b3a8474481271d8ce23f27fd624a02574b9f74"
+  },
+  "python_tests": {
+    "run": 853,
+    "passed": 852,
+    "skipped": 1,
+    "skip_reason": "Windows native file-sharing semantics; macOS run"
+  },
+  "initial_suite_note": "One failure expected the superseded500ms helper schedule. Updated only that reviewed contract to300ms and added a boundary test; all source safety thresholds remain checked. Complete final853-test run passed except one platform skip.",
+  "online_protocol_assertions": 157,
+  "unity_release_checks_passed": true,
+  "mode_parity_passed": true,
+  "two_player_diagnostics": [
+    {
+      "session": "20261116_150343_7a00d1cd",
+      "origin_utc": "2026-11-16T15:03:43.256906+09:00",
+      "first_complete_seconds": null,
+      "capture_fps": 11.48493954199433,
+      "processed_fps": 11.47104351973651,
+      "complete_ack_statuses": {},
+      "complete_acks": 0,
+      "complete_preparing": 0,
+      "delivery": {},
+      "network_rtt_ms": {},
+      "matched_states": 303,
+      "distributions": {
+        "before_complete/STATE/TUTORIAL_APPLIED/uncertainty_ms": {
+          "n": 288,
+          "p50": 3.428,
+          "p95": 5.816,
+          "max": 9.824
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/lease_left_ms": {
+          "n": 288,
+          "p50": 85.122,
+          "p95": 141.467,
+          "max": 145.951
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/capture_age_estimate_ms": {
+          "n": 288,
+          "p50": 64.018,
+          "p95": 163.577,
+          "max": 166.598
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/receiver_queue_ms": {
+          "n": 288,
+          "p50": 8.164,
+          "p95": 15.371,
+          "max": 21.579
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/send_to_ack_ms": {
+          "n": 288,
+          "p50": 12.718,
+          "p95": 23.703,
+          "max": 35.04
+        },
+        "before_complete/STATE/EXPIRED/uncertainty_ms": {
+          "n": 15,
+          "p50": 3.48,
+          "p95": 5.83,
+          "max": 5.83
+        },
+        "before_complete/STATE/EXPIRED/lease_left_ms": {
+          "n": 15,
+          "p50": -2.846,
+          "p95": -0.068,
+          "max": -0.068
+        },
+        "before_complete/STATE/EXPIRED/capture_age_estimate_ms": {
+          "n": 15,
+          "p50": 148.744,
+          "p95": 163.542,
+          "max": 163.542
+        },
+        "before_complete/STATE/EXPIRED/receiver_queue_ms": {
+          "n": 15,
+          "p50": 11.652,
+          "p95": 16.129,
+          "max": 16.129
+        },
+        "before_complete/STATE/EXPIRED/send_to_ack_ms": {
+          "n": 15,
+          "p50": 22.068,
+          "p95": 23.724,
+          "max": 23.724
+        }
+      }
+    },
+    {
+      "session": "20261117_170800_a4ef7463",
+      "origin_utc": "2026-11-17T17:08:00.592454+09:00",
+      "first_complete_seconds": null,
+      "capture_fps": 16.18648119600386,
+      "processed_fps": 15.350823698183023,
+      "complete_ack_statuses": {},
+      "complete_acks": 0,
+      "complete_preparing": 0,
+      "delivery": {
+        "transmissions": 10,
+        "TUTORIAL_APPLIED": 10
+      },
+      "network_rtt_ms": {},
+      "matched_states": 1028,
+      "distributions": {
+        "before_complete/STATE/TUTORIAL_APPLIED/uncertainty_ms": {
+          "n": 789,
+          "p50": 3.586,
+          "p95": 5.286,
+          "max": 6.625
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/lease_left_ms": {
+          "n": 789,
+          "p50": 100.298,
+          "p95": 143.375,
+          "max": 147.207
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/capture_age_estimate_ms": {
+          "n": 789,
+          "p50": 104.889,
+          "p95": 177.577,
+          "max": 336.58
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/receiver_queue_ms": {
+          "n": 789,
+          "p50": 9.422,
+          "p95": 15.77,
+          "max": 19.434
+        },
+        "before_complete/STATE/TUTORIAL_APPLIED/send_to_ack_ms": {
+          "n": 789,
+          "p50": 11.926,
+          "p95": 22.663,
+          "max": 39.001
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/uncertainty_ms": {
+          "n": 10,
+          "p50": 3.653,
+          "p95": 4.252,
+          "max": 4.252
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/lease_left_ms": {
+          "n": 10,
+          "p50": 129.915,
+          "p95": 140.278,
+          "max": 140.278
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/capture_age_estimate_ms": {
+          "n": 10,
+          "p50": 68.716,
+          "p95": 80.742,
+          "max": 80.742
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/receiver_queue_ms": {
+          "n": 10,
+          "p50": 8.398,
+          "p95": 16.924,
+          "max": 16.924
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/send_to_ack_ms": {
+          "n": 10,
+          "p50": 11.491,
+          "p95": 22.959,
+          "max": 22.959
+        },
+        "before_complete/STATE/EXPIRED/uncertainty_ms": {
+          "n": 114,
+          "p50": 3.426,
+          "p95": 5.094,
+          "max": 6.235
+        },
+        "before_complete/STATE/EXPIRED/lease_left_ms": {
+          "n": 114,
+          "p50": -9.959,
+          "p95": -0.347,
+          "max": -0.142
+        },
+        "before_complete/STATE/EXPIRED/capture_age_estimate_ms": {
+          "n": 114,
+          "p50": 156.019,
+          "p95": 161.993,
+          "max": 228.733
+        },
+        "before_complete/STATE/EXPIRED/receiver_queue_ms": {
+          "n": 114,
+          "p50": 11.488,
+          "p95": 16.666,
+          "max": 189.48
+        },
+        "before_complete/STATE/EXPIRED/send_to_ack_ms": {
+          "n": 114,
+          "p50": 21.194,
+          "p95": 23.21,
+          "max": 192.194
+        },
+        "before_complete/STATE/APPLIED/uncertainty_ms": {
+          "n": 115,
+          "p50": 3.234,
+          "p95": 5.764,
+          "max": 7.139
+        },
+        "before_complete/STATE/APPLIED/lease_left_ms": {
+          "n": 115,
+          "p50": 106.842,
+          "p95": 139.038,
+          "max": 145.944
+        },
+        "before_complete/STATE/APPLIED/capture_age_estimate_ms": {
+          "n": 115,
+          "p50": 57.631,
+          "p95": 178.109,
+          "max": 180.077
+        },
+        "before_complete/STATE/APPLIED/receiver_queue_ms": {
+          "n": 115,
+          "p50": 15.525,
+          "p95": 22.644,
+          "max": 27.573
+        },
+        "before_complete/STATE/APPLIED/send_to_ack_ms": {
+          "n": 115,
+          "p50": 21.427,
+          "p95": 32.781,
+          "max": 37.354
+        }
+      }
+    },
+    {
+      "session": "20261117_184327_ba275a76",
+      "origin_utc": "2026-11-17T18:43:27.427040+09:00",
+      "first_complete_seconds": 305.7287714,
+      "capture_fps": 20.02373989268221,
+      "processed_fps": 19.741748048558403,
+      "complete_ack_statuses": {
+        "EXPIRED": 1514,
+        "SYNC": 1139,
+        "APPLIED": 1248,
+        "INPUT_LOCKED": 1,
+        "OLD_SEQUENCE": 1
+      },
+      "complete_acks": 3903,
+      "complete_preparing": 3727,
+      "delivery": {
+        "transmissions": 63,
+        "TUTORIAL_APPLIED": 10,
+        "INPUT_LOCKED": 8,
+        "expired_without_ack": 3,
+        "expired_unconfirmed": 0,
+        "late_ack_INPUT_LOCKED": 2,
+        "late_ack_EXPIRED": 1
+      },
+      "network_rtt_ms": {
+        "n": 2647,
+        "p50": 126.346,
+        "p95": 156.234,
+        "max": 314.953
+      },
+      "matched_states": 992,
+      "distributions": {
+        "before_complete/STATE/APPLIED/uncertainty_ms": {
+          "n": 212,
+          "p50": 54.435,
+          "p95": 59.199,
+          "max": 65.501
+        },
+        "before_complete/STATE/APPLIED/lease_left_ms": {
+          "n": 212,
+          "p50": 10.144,
+          "p95": 26.745,
+          "max": 41.308
+        },
+        "before_complete/STATE/APPLIED/capture_age_estimate_ms": {
+          "n": 212,
+          "p50": 84.386,
+          "p95": 95.147,
+          "max": 100.677
+        },
+        "before_complete/STATE/APPLIED/receiver_queue_ms": {
+          "n": 212,
+          "p50": 0.178,
+          "p95": 0.352,
+          "max": 1.418
+        },
+        "before_complete/STATE/APPLIED/send_to_ack_ms": {
+          "n": 212,
+          "p50": 115.059,
+          "p95": 137.936,
+          "max": 148.669
+        },
+        "before_complete/STATE/EXPIRED/uncertainty_ms": {
+          "n": 391,
+          "p50": 54.754,
+          "p95": 59.515,
+          "max": 65.032
+        },
+        "before_complete/STATE/EXPIRED/lease_left_ms": {
+          "n": 391,
+          "p50": -25.192,
+          "p95": -1.349,
+          "max": 55.828
+        },
+        "before_complete/STATE/EXPIRED/capture_age_estimate_ms": {
+          "n": 391,
+          "p50": 122.525,
+          "p95": 174.921,
+          "max": 235.225
+        },
+        "before_complete/STATE/EXPIRED/receiver_queue_ms": {
+          "n": 391,
+          "p50": 0.15,
+          "p95": 0.346,
+          "max": 1.386
+        },
+        "before_complete/STATE/EXPIRED/send_to_ack_ms": {
+          "n": 391,
+          "p50": 130.02,
+          "p95": 158.449,
+          "max": 251.432
+        },
+        "before_complete/STATE/OLD_SEQUENCE/uncertainty_ms": {
+          "n": 16,
+          "p50": 54.023,
+          "p95": 57.906,
+          "max": 57.906
+        },
+        "before_complete/STATE/OLD_SEQUENCE/lease_left_ms": {
+          "n": 16,
+          "p50": 7.85,
+          "p95": 26.058,
+          "max": 26.058
+        },
+        "before_complete/STATE/OLD_SEQUENCE/capture_age_estimate_ms": {
+          "n": 16,
+          "p50": 85.34,
+          "p95": 93.55,
+          "max": 93.55
+        },
+        "before_complete/STATE/OLD_SEQUENCE/receiver_queue_ms": {
+          "n": 16,
+          "p50": 0.259,
+          "p95": 0.375,
+          "max": 0.375
+        },
+        "before_complete/STATE/OLD_SEQUENCE/send_to_ack_ms": {
+          "n": 16,
+          "p50": 115.13,
+          "p95": 134.559,
+          "max": 134.559
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/uncertainty_ms": {
+          "n": 11,
+          "p50": 53.232,
+          "p95": 57.906,
+          "max": 57.906
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/lease_left_ms": {
+          "n": 11,
+          "p50": 30.263,
+          "p95": 47.645,
+          "max": 47.645
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/capture_age_estimate_ms": {
+          "n": 11,
+          "p50": 84.372,
+          "p95": 115.087,
+          "max": 115.087
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/receiver_queue_ms": {
+          "n": 11,
+          "p50": 0.368,
+          "p95": 0.504,
+          "max": 0.504
+        },
+        "before_complete/GESTURE/TUTORIAL_APPLIED/send_to_ack_ms": {
+          "n": 11,
+          "p50": 123.356,
+          "p95": 136.177,
+          "max": 136.177
+        },
+        "before_complete/GESTURE/EXPIRED/uncertainty_ms": {
+          "n": 40,
+          "p50": 54.423,
+          "p95": 58.552,
+          "max": 58.598
+        },
+        "before_complete/GESTURE/EXPIRED/lease_left_ms": {
+          "n": 40,
+          "p50": -38.317,
+          "p95": -2.655,
+          "max": -0.893
+        },
+        "before_complete/GESTURE/EXPIRED/capture_age_estimate_ms": {
+          "n": 40,
+          "p50": 155.152,
+          "p95": 210.164,
+          "max": 211.405
+        },
+        "before_complete/GESTURE/EXPIRED/receiver_queue_ms": {
+          "n": 40,
+          "p50": 0.301,
+          "p95": 1.351,
+          "max": 1.36
+        },
+        "before_complete/GESTURE/EXPIRED/send_to_ack_ms": {
+          "n": 40,
+          "p50": 129.614,
+          "p95": 157.394,
+          "max": 157.852
+        },
+        "before_complete/GESTURE/INPUT_LOCKED/uncertainty_ms": {
+          "n": 9,
+          "p50": 54.71,
+          "p95": 57.679,
+          "max": 57.679
+        },
+        "before_complete/GESTURE/INPUT_LOCKED/lease_left_ms": {
+          "n": 9,
+          "p50": 11.84,
+          "p95": 26.753,
+          "max": 26.753
+        },
+        "before_complete/GESTURE/INPUT_LOCKED/capture_age_estimate_ms": {
+          "n": 9,
+          "p50": 102.167,
+          "p95": 119.842,
+          "max": 119.842
+        },
+        "before_complete/GESTURE/INPUT_LOCKED/receiver_queue_ms": {
+          "n": 9,
+          "p50": 0.349,
+          "p95": 1.427,
+          "max": 1.427
+        },
+        "before_complete/GESTURE/INPUT_LOCKED/send_to_ack_ms": {
+          "n": 9,
+          "p50": 142.816,
+          "p95": 164.67,
+          "max": 164.67
+        },
+        "after_complete/STATE/APPLIED/uncertainty_ms": {
+          "n": 147,
+          "p50": 56.079,
+          "p95": 59.592,
+          "max": 63.45
+        },
+        "after_complete/STATE/APPLIED/lease_left_ms": {
+          "n": 147,
+          "p50": 9.223,
+          "p95": 25.916,
+          "max": 30.463
+        },
+        "after_complete/STATE/APPLIED/capture_age_estimate_ms": {
+          "n": 147,
+          "p50": 84.989,
+          "p95": 96.321,
+          "max": 99.328
+        },
+        "after_complete/STATE/APPLIED/receiver_queue_ms": {
+          "n": 147,
+          "p50": 0.207,
+          "p95": 0.37,
+          "max": 0.471
+        },
+        "after_complete/STATE/APPLIED/send_to_ack_ms": {
+          "n": 147,
+          "p50": 116.211,
+          "p95": 138.31,
+          "max": 220.266
+        },
+        "after_complete/STATE/EXPIRED/uncertainty_ms": {
+          "n": 163,
+          "p50": 56.796,
+          "p95": 61.008,
+          "max": 66.737
+        },
+        "after_complete/STATE/EXPIRED/lease_left_ms": {
+          "n": 163,
+          "p50": -12.034,
+          "p95": -0.741,
+          "max": -0.192
+        },
+        "after_complete/STATE/EXPIRED/capture_age_estimate_ms": {
+          "n": 163,
+          "p50": 105.357,
+          "p95": 126.139,
+          "max": 179.587
+        },
+        "after_complete/STATE/EXPIRED/receiver_queue_ms": {
+          "n": 163,
+          "p50": 0.154,
+          "p95": 0.337,
+          "max": 2.146
+        },
+        "after_complete/STATE/EXPIRED/send_to_ack_ms": {
+          "n": 163,
+          "p50": 132.498,
+          "p95": 159.241,
+          "max": 201.829
+        },
+        "after_complete/GESTURE/INPUT_LOCKED/uncertainty_ms": {
+          "n": 1,
+          "p50": 58.141,
+          "p95": 58.141,
+          "max": 58.141
+        },
+        "after_complete/GESTURE/INPUT_LOCKED/lease_left_ms": {
+          "n": 1,
+          "p50": 17.874,
+          "p95": 17.874,
+          "max": 17.874
+        },
+        "after_complete/GESTURE/INPUT_LOCKED/capture_age_estimate_ms": {
+          "n": 1,
+          "p50": 93.049,
+          "p95": 93.049,
+          "max": 93.049
+        },
+        "after_complete/GESTURE/INPUT_LOCKED/receiver_queue_ms": {
+          "n": 1,
+          "p50": 0.36,
+          "p95": 0.36,
+          "max": 0.36
+        },
+        "after_complete/GESTURE/INPUT_LOCKED/send_to_ack_ms": {
+          "n": 1,
+          "p50": 133.732,
+          "p95": 133.732,
+          "max": 133.732
+        },
+        "after_complete/GESTURE/EXPIRED/uncertainty_ms": {
+          "n": 2,
+          "p50": 58.208,
+          "p95": 58.229,
+          "max": 58.229
+        },
+        "after_complete/GESTURE/EXPIRED/lease_left_ms": {
+          "n": 2,
+          "p50": -49.023,
+          "p95": -15.717,
+          "max": -15.717
+        },
+        "after_complete/GESTURE/EXPIRED/capture_age_estimate_ms": {
+          "n": 2,
+          "p50": 159.62,
+          "p95": 192.91,
+          "max": 192.91
+        },
+        "after_complete/GESTURE/EXPIRED/receiver_queue_ms": {
+          "n": 2,
+          "p50": 0.283,
+          "p95": 0.309,
+          "max": 0.309
+        },
+        "after_complete/GESTURE/EXPIRED/send_to_ack_ms": {
+          "n": 2,
+          "p50": 137.858,
+          "p95": 143.971,
+          "max": 143.971
+        }
+      }
+    }
+  ],
+  "camera_opened": false,
+  "new_package_created": false,
+  "github_published": false,
+  "limitations": [
+    "No new live camera, Windows hardware, two-device cloud match, or Unity rendering benchmark.",
+    "Three modern journals contain only contiguous prefixes. Earlier original four_person RGB is missing111 newly requested helper frames; they stay absent, with no fabricated inference.",
+    "Optional Heavy remains gated by actual headroom and disables on overload. Slow machines are not forced into extra inference.",
+    "Replay cannot label every unannotated intent. Zero added events on tested recordings is not a universal false-positive guarantee.",
+    "Original X release-miss139s remains unresolved. Another pre-existing fixed X window in two_person_earlier also remains unmatched."
+  ]
+}

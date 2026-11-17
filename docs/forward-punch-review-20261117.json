@@ -1,0 +1,101 @@
+{
+  "schema": "redbool.forward-completion-review/1",
+  "date": "2026-11-17",
+  "decision": "select_bounded_existing_onset_completion_for_online_test_build",
+  "baseline_commit": "1a3e314fe1a99fb01f5b7c79e4b1b8e553813fa8",
+  "runtime_delta": {
+    "path": "src/redbool_demo/six_engine.py",
+    "sha256": "b828e15f6910bbd02e4f0af9a14d7ce4dae8525637b4bd8f2ca568347fd11c26"
+  },
+  "scope": "Recorded coordinate/clock/command comparison; not held-out accuracy, actual camera FPS or Unity input-to-display latency.",
+  "coverage": {
+    "sessions": 56,
+    "frames": 287256,
+    "heavy_frames_preserved": 25,
+    "reviewed_windows": 139,
+    "baseline_pass": 136,
+    "candidate_pass": 136,
+    "known_x_misses_unchanged": 3
+  },
+  "events": {
+    "baseline": 1161,
+    "candidate": 1163,
+    "existing_exact_action_frame_and_time": 1160,
+    "existing_earlier": 1,
+    "earlier_ms": 33.421,
+    "existing_lost": 0,
+    "new_unlabelled_right_punches": 2,
+    "new_frames": [
+      792,
+      8706
+    ],
+    "unreviewed_upward_conflict_excluded": true
+  },
+  "controls": {
+    "exact_complete_timelines": 55,
+    "changed_session_count": 1,
+    "changed_only_attack_state_operations": 327,
+    "block_movement_tracking_calibration_and_personal_profile": "unchanged",
+    "return_caveat": "After the retimed punch, frames8748-8764 remain RETURNING instead of transient baseline READY/PREPARING/CANDIDATE; same state from8765, no later published event lost. Not a blanket READY latency preservation claim."
+  },
+  "tests": {
+    "recorded_and_synthetic_existing_passed": 122,
+    "existing_skipped": 0,
+    "new_synthetic_passed": 23,
+    "broader_calibration_bridge_transport_passed": 99,
+    "test_environment_notes": "11 broader checks rerun after supplying verified Lite fixture and allowing loopback bind; all11 passed, original failed logs retained.",
+    "final_integration_suite_passed": 191,
+    "final_integration_suite_skipped": 0
+  },
+  "cpu_comparison": {
+    "processed_frames_per_run": 2014,
+    "alternating_pairs": 2,
+    "baseline_ms_per_frame": 1.87,
+    "candidate_ms_per_frame": 1.888,
+    "delta_ms_per_frame": 0.018,
+    "scope": "process CPU time of engine calls only; excludes journal reading, models, camera, Unity and network"
+  },
+  "field_audit": {
+    "unique_play_sessions": 3,
+    "attack_events_with_ack": 193,
+    "wrong_applied_action_mapping": 0,
+    "expired_or_unacknowledged_attack": 0,
+    "latest_busy": {
+      "hitstunned": 15,
+      "attacking": 3,
+      "dead_or_locked": 5
+    },
+    "latest_game_fps_median": 59.68,
+    "latest_camera_fps": 29.998,
+    "unresolved_in_play_stalls_ms": [
+      149.3,
+      215.9
+    ],
+    "other_confirmed_new_game_bug": false
+  },
+  "preserved": [
+    "general onset",
+    "raise/block/X ownership",
+    "physical return and fresh observation gates",
+    "calibration and personal trainer",
+    "models and inference scheduling",
+    "camera/preview/transport code",
+    "Unity game binaries",
+    "stable v36.3 packages"
+  ],
+  "limits": [
+    "New events are geometric candidates without video or intent labels; not a measured accuracy gain.",
+    "The two repaired examples are forward-directed projection cases, not proven wrist-inside-torso ground truth.",
+    "More ambiguous tiny central punches remain unresolved; no depth-only attacks were enabled.",
+    "Recorded single-frame stalls have no confirmed root cause in these diagnostics.",
+    "Physical gameplay on two devices and MacBook Neo camera operation remain separate checks."
+  ],
+  "evidence_sha256": {
+    "regression_audit/candidate_v4_comparison.json": "be44b45761b4b725310625f8e378b32d976b98e4fbca9dc9ec9c0a6ca6d16e3e",
+    "regression_audit/candidate_v4_control_comparison.json": "da9d7f1a6417c352b24f5ec54e8b89e7ba425b347a4ee3ed2ab8e9be55ce084e",
+    "regression_audit/input_inventory.json": "d5172599ea86fe709581c438932be91767c75d62fab8b881d6abbccf45958817",
+    "algorithm_audit/focused-validation-v4.json": "f0fa53d49d7b6da125d0aefcb195607bb6ab1e20a72ee146c053bc57530a6f28",
+    "field_analysis/performance/summary.json": "2104486c70b140f6b79156a51499a0b1727de720cf3ad123d5c372ae9defb9a9",
+    "final-integration-tests.log": "1bed58934ae989dcce701f8f8d0ba05e6eea54de71f112751f3dcfe29991ba51"
+  }
+}

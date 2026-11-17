@@ -1,4 +1,4 @@
-"""Selected 500ms X-refinement scheduling contract, with no devices or native models.
+"""Selected 300ms X-refinement scheduling contract, with no devices or native models.
 
 Portable repository test: PYTHONPATH=src:tests python -m unittest -v test_x_latency_contract
 The existing test_chest_special.pose fixture supplies synthetic landmarks.
@@ -58,7 +58,7 @@ class NormalXStopTests(unittest.TestCase):
             if kind == 'ambiguous':
                 # Base models preserve inward ownership but cannot confirm X.
                 # This is the pending state in which the live helper can start;
-                # ordinary guard would release ownership before the 500ms gate.
+                # ordinary guard would release ownership before the pending gate.
                 points = list(source.landmarks)
                 points[15] = (.515, .40, 0.)
                 points[16] = (.485, .40, 0.)
@@ -198,8 +198,8 @@ class EarlyActivationContractTests(unittest.TestCase):
         self.now = capture + 5 * MS
         return FrameKey('P1', 'run', frame, capture, 640, 480)
 
-    def test_selected_500ms_policy_keeps_original_timing_contract(self):
-        self.assertEqual(BoundedHeavyAuxiliary.PENDING_NS, 500 * MS)
+    def test_selected_300ms_policy_keeps_original_timing_contract(self):
+        self.assertEqual(BoundedHeavyAuxiliary.PENDING_NS, 300 * MS)
         self.assertEqual(BoundedHeavyAuxiliary.WINDOW, 30)
         self.assertEqual(BoundedHeavyAuxiliary.HEALTHY_AGE_NS, 45 * MS)
         self.assertEqual(BoundedHeavyAuxiliary.HEALTHY_GAP_NS, 60 * MS)
@@ -210,6 +210,15 @@ class EarlyActivationContractTests(unittest.TestCase):
         engine = SixGestureEngine()
         self.assertEqual((engine.config.max_gap_ms, engine.config.evidence_age_ms,
                           engine.config.safety_timeout_ms), (100, 120, 150))
+
+    def test_300ms_boundary_does_not_change_evidence_or_loading_gates(self):
+        helper=self.helper();helper.ready=helper.healthy=True
+        start=1000*MS
+        self.assertIsNone(helper.plan(self.key(1,start+300*MS-1),
+            calibrated=True,owned=True,latched=False,pending_since_ns=start))
+        self.assertIsNotNone(helper.plan(self.key(2,start+300*MS),
+            calibrated=True,owned=True,latched=False,pending_since_ns=start))
+        self.assertEqual(self.loads,[])
 
     def test_brief_250ms_ownership_does_not_start_optional_work(self):
         helper = self.helper()

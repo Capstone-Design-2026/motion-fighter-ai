@@ -1,0 +1,125 @@
+{
+  "date": "2026-11-16",
+  "scope": "Isolated Python transport candidate; no native model, camera, Unity, socket or actual WAN test",
+  "validation": {
+    "tests": 58,
+    "passed": 58,
+    "failed": 0,
+    "skipped": 0,
+    "new_online_tests": 19,
+    "interpreter": "/Users/bin/Documents/ChatGPT/redbool/motion-fighter-ai/.venv/bin/python",
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests python -m unittest -q test_online_transport test_transport_clock_recovery test_late_ack_diagnostics test_backend_entry test_live_clock test_recognition_baseline"
+  },
+  "baseline_gate": {
+    "passed": false,
+    "scope": "Reviewed source change detection only; not accuracy, latency, or live-play validation.",
+    "baseline_commit": "bca128dca5a786daed2c64c7b36fd1e8f252160b",
+    "protected_files": 31,
+    "runtime_inventory_files": 70,
+    "group_sha256": {
+      "recognition": "140a8e9e5d080b801f2f51e2f110a79d8f7a9621c5bf306fcc44da79216dfb9a",
+      "calibration_diagnostics": "43c240b28cecf80bc47ea145b5d7ab1e10889641a6fe17516b08885dc7c1afb1",
+      "capture_and_clock": "c22001a63d03f3212e1c98f17e8af638cf83268885f6f13e2321378fe89a61fb",
+      "bounded_transport": "1a8c4efc228d5c33f21a2c9a8f0612ecfdc484e4eb4c87dc7952ca4f0c69cbc3",
+      "optional_refinement_integration": "9c9b4c3b72d41dfa3c9d760c24dbbf483a27a1b462855ff599c5753337f70164"
+    },
+    "dependency_contract_sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
+    "models": "not_checked",
+    "errors": [
+      {
+        "kind": "source_changed",
+        "group": "capture_and_clock",
+        "path": "src/redbool_demo/live.py",
+        "expected": "2c22cf7da24b40cd7aa3a4cc23f03711c0b6f1e141db4cf23e609ce982d834d0",
+        "actual": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5"
+      },
+      {
+        "kind": "source_changed",
+        "group": "bounded_transport",
+        "path": "src/redbool_demo/transport.py",
+        "expected": "443c5ed5ad6f4670bca4500c9710eb63da9da6b8236365900d1c7e27d7966f49",
+        "actual": "136269be83dad991dc69b7329e70598c08e39dda0a5030fdec7f5ba4d8d210f5"
+      },
+      {
+        "kind": "source_changed",
+        "group": "bounded_transport",
+        "path": "src/realtime_vision/transport.py",
+        "expected": "29ab407dc3023cc550481e6d5047977f89f392a4ab7fad771891990b9a902338",
+        "actual": "37ec1e9550b51b94669461f21b4a2059eec3657d3bff1b40a469c76653ee8091"
+      }
+    ]
+  },
+  "manifest_rewritten": false,
+  "unchanged_protected_groups": [
+    "recognition",
+    "calibration_diagnostics",
+    "optional_refinement_integration"
+  ],
+  "changed_file_sha256": {
+    "scripts/run_personal_camera.py": "84465a343c9f6da4143f5f67d60e8e20fdbd45e469a6beb389e417b02448d8a1",
+    "src/realtime_vision/transport.py": "37ec1e9550b51b94669461f21b4a2059eec3657d3bff1b40a469c76653ee8091",
+    "src/redbool_demo/transport.py": "136269be83dad991dc69b7329e70598c08e39dda0a5030fdec7f5ba4d8d210f5",
+    "src/redbool_demo/live.py": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
+    "tests/test_online_transport.py": "d82fd3f8896ed655bee8458d28eebf25ed7c5386c4c4af5f574113c1f54516a8",
+    "docs/online-transport-profile-20261116.txt": "ff846dc46aef18ed937560cc0a5aac3d18680a8cf04490fc897f4765f9ad8475"
+  },
+  "illustrative_bounds": {
+    "scope": "Algebra, not a camera/frame/network measurement; symmetric route, new sync, 40ms source age at send, 10ms host application wait, no loss or clock asymmetry",
+    "rows": [
+      {
+        "corrected_rtt_ms": 20,
+        "initial_uncertainty_ms": 11.0,
+        "lan_sync_sample_allowed": true,
+        "online_sync_sample_allowed": true,
+        "source_age_plus_uncertainty_at_apply_ms": 71.0,
+        "fresh_state_margin_ms": 79.0
+      },
+      {
+        "corrected_rtt_ms": 40,
+        "initial_uncertainty_ms": 21.0,
+        "lan_sync_sample_allowed": true,
+        "online_sync_sample_allowed": true,
+        "source_age_plus_uncertainty_at_apply_ms": 91.0,
+        "fresh_state_margin_ms": 59.0
+      },
+      {
+        "corrected_rtt_ms": 80,
+        "initial_uncertainty_ms": 41.0,
+        "lan_sync_sample_allowed": false,
+        "online_sync_sample_allowed": true,
+        "source_age_plus_uncertainty_at_apply_ms": 131.0,
+        "fresh_state_margin_ms": 19.0
+      },
+      {
+        "corrected_rtt_ms": 120,
+        "initial_uncertainty_ms": 61.0,
+        "lan_sync_sample_allowed": false,
+        "online_sync_sample_allowed": true,
+        "source_age_plus_uncertainty_at_apply_ms": 171.0,
+        "fresh_state_margin_ms": -21.0
+      },
+      {
+        "corrected_rtt_ms": 148,
+        "initial_uncertainty_ms": 75.0,
+        "lan_sync_sample_allowed": false,
+        "online_sync_sample_allowed": true,
+        "source_age_plus_uncertainty_at_apply_ms": 199.0,
+        "fresh_state_margin_ms": -49.0
+      },
+      {
+        "corrected_rtt_ms": 160,
+        "initial_uncertainty_ms": 81.0,
+        "lan_sync_sample_allowed": false,
+        "online_sync_sample_allowed": false,
+        "source_age_plus_uncertainty_at_apply_ms": 211.0,
+        "fresh_state_margin_ms": -61.0
+      }
+    ]
+  },
+  "limitations": [
+    "75ms uncertainty permits synchronization, not necessarily usable input. Original source/event deadlines still apply.",
+    "Reference receiver covers command timing/sequence only, not Fighter readiness, authenticated relay or view/render path.",
+    "Source gate intentionally flags three reviewed live/transport files. Recognition/calibration source hashes match; model binaries were not loaded or newly validated.",
+    "Publisher cadence/order unchanged; Unity bridge coalescing is validated separately."
+  ]
+}

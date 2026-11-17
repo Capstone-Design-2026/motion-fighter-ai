@@ -1,0 +1,28 @@
+{
+  "scope": "Same immutable observation feature/validity reuse; bounded three-sample forward onset with actual guard-origin and independent elbow/foreshortening evidence. Raise shortcut rejected because video-reviewed forward punches regressed. No model, calibration, block, movement, input TTL or transport changes.",
+  "base_source_commit": "20f8a29c117767340a032d717f7f195d32e5d179",
+  "changes": [
+    {
+      "path": "src/action_engine/experimental.py",
+      "before_sha256": "e16622b74c45ea24f04b6b1067738bde3ec5d97e7a55b7dd206125708e5dc962",
+      "after_sha256": "c0f5e44865c91473c66824ffbc70c481b70aa3bf33725c752f182afae0e7c28c"
+    },
+    {
+      "path": "src/redbool_demo/six_engine.py",
+      "before_sha256": "b828e15f6910bbd02e4f0af9a14d7ce4dae8525637b4bd8f2ca568347fd11c26",
+      "after_sha256": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105"
+    },
+    {
+      "path": "src/redbool_demo/temporal_forward.py",
+      "before_sha256": null,
+      "after_sha256": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb"
+    }
+  ],
+  "comparison_ref": "docs/neo-guard-recognition-review-20261117.json",
+  "full_replay_sessions": 60,
+  "full_replay_frames": 328134,
+  "prior_events_preserved": 1416,
+  "additional_unlabelled_right_punch": 1,
+  "raise_shortcut_adopted": false,
+  "github_published": false
+}

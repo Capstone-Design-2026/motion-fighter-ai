@@ -1,0 +1,80 @@
+Online candidate native Windows CI — 2026-11-16
+
+This is a branch-scoped build plan, not a published release or proof of Internet play.
+Production v36.3 and main remain untouched. Native recognition RELEASE stays v36.3
+because recognition/calibration/model behavior is unchanged; online candidate builds
+must additionally carry build_variant=online-candidate, a clean candidate source commit,
+and the distinct REDBOOLCamera-OnlineCandidate-Windows-x64 artifact name.
+
+Reviewed baseline delta
+config/recognition_baseline.json is preserved byte for byte.
+config/recognition_baseline_online.json independently records three reviewed wire changes and one diagnostic correction:
+- src/redbool_demo/live.py: explicit network profile, generation-aware event wiring and diagnostics.
+- src/redbool_demo/transport.py: opt-in online event metadata.
+- src/realtime_vision/transport.py: opt-in online clock policy and receiver sequencing.
+- src/redbool_demo/landmark_recording.py: bounded index-publication retry for Windows reader sharing.
+The recognition, calibration, model and dependency hashes are unchanged. Heavy inference remains unchanged.
+The default profile remains LAN. Original capture/event expiry is not extended.
+The exact reviewed before/after fingerprints and scope live in online_candidate_review.
+The new manifest is not generated automatically by CI and is not a generic gate bypass.
+
+Windows recording correction
+CI run 43837156097 failed journal close with state=error while the test read the index
+concurrently. The original assertion did not expose health.error, so that particular
+error code cannot be retrospectively established. Windows explicitly permits read handles
+to block rename when FILE_SHARE_DELETE is omitted. A positive-control native test now
+opens such a handle and verifies that the original os.replace fails, then that the
+bounded retry succeeds after the reader closes. This fixes a portable publication defect,
+not an assumed recognition failure. Only winerror5/32/33 PermissionError is retried,
+for at most250ms on the diagnostics worker; permanent or unrelated errors still report
+error and retain coverage. The producer, model, observation times and input TTLs are unchanged.
+Native Windows test evidence is required from the subsequent CI run; it was not run on Mac.
+Reference: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+
+Build path
+Use only branch codex/online-transport-20261116. Its workflow has a push trigger for
+this branch; the workflow file does not exist on main, so manual dispatch is not the
+required path. All actions remain pinned. An initial push of the reviewed clean candidate
+commit starts Windows-native CI without modifying main or the stable release branch.
+Commit only the reviewed path list in verification/windows_ci_preparation_manifest.json.
+No RGB, diagnostics archives, Unity Library, local build folders, secrets or model binaries
+belong in the source commit. The public model downloader verifies model fingerprints.
+
+CI keeps the original source-gate mutation tests, control/storage and X regression suites,
+then adds online transport and build-provenance tests and the offline link simulation.
+The native build passes --build-variant online-candidate and bundles Lite, Full and Heavy.
+check_camera_backend.py checks frozen model dependencies and synthetic lifecycle.
+check_online_backend.py additionally invokes the actual frozen --check --network-profile online
+parser and requires sidecar, embedded and executed provenance to agree with GITHUB_SHA,
+source_dirty=false and build_variant=online-candidate. No camera or game packets are opened.
+The normal synthetic bridge alone would ignore unknown args, so it is not enough to verify
+that a frozen binary understands the new profile.
+
+Expected downloaded artifact root
+  REDBOOLCamera/REDBOOLCamera.exe
+  REDBOOLCamera/_internal/...
+  REDBOOLCamera/backend-build.json
+  check-result.json
+  online-check-result.json
+  online-transport-checks/...
+Keep the whole REDBOOLCamera folder. Do not copy only the executable.
+Private recording-fixture tests may be skipped in CI: report pass and skip counts separately.
+The previous stable workflow had 223 passes and 23 missing-fixture skips; do not label 246 cases
+as 246 passes. Online candidate adds tests; use its actual final counts.
+
+Before packaging
+Require GitHub run headSha to equal the reviewed candidate commit, every required step success,
+Windows/AMD64 metadata, frozen source_dirty=false, all three verified model hashes,
+and matching check-result/online-check-result fingerprints. CRLF-vs-LF source hashes can differ
+between Windows and Mac; each build must match its own exact committed checkout and native proof.
+Use a freshly built compatible online Unity player. A stable v36.3 Unity player lacks the
+online menu/room bridge and explicit guest profile wiring; replacing only its backend is insufficient.
+Preserve build_variant in Unity's portable backend/package manifest, and name the new package
+OnlineCandidate separately. Never overwrite package_v36_3_20261116 or original review sources.
+The currently existing verification/backend_mac was a dirty development build (source_dirty=true);
+it must be rebuilt from the clean candidate commit with --build-variant online-candidate for delivery.
+
+Scope limits
+CI can validate frozen imports, native model startup, command parsing, deadlines and lifecycle.
+It does not connect two real users through Photon Cloud, measure route latency or prove webcam FPS.
+Existing source/code comparison and offline transport reports remain separate evidence.
