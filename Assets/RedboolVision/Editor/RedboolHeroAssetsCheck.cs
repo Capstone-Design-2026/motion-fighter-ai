@@ -15,7 +15,7 @@ public static class RedboolHeroAssetsCheck
         if(!Application.isBatchMode) throw new Exception("Use batch verification.");
         var lines=new List<string>();
         var enabled=EditorBuildSettings.scenes.Where(s=>s.enabled).ToArray();
-        var menus=new HashSet<string>{"StartScene","MapScene","EndingScene"};
+        var menus=new HashSet<string>{"BootScene","StartScene","MapScene","EndingScene"};
         var combat=enabled.Where(s=>!menus.Contains(Path.GetFileNameWithoutExtension(s.path))).ToArray();
         var names=new HashSet<string>(combat.Select(s=>Path.GetFileNameWithoutExtension(s.path)));
         var config=Resources.Load<RunConfig>("RunConfig");
