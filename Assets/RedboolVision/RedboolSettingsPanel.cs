@@ -41,7 +41,6 @@ public sealed class RedboolSettingsPanel : MonoBehaviour
         UIFactory.Place(panel.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(940, 820));
         var outline = panel.gameObject.AddComponent<Outline>(); outline.effectColor = WuxiaTheme.Gold; outline.effectDistance = new Vector2(1, -1);
         Label(panel.transform, "Title", "설정", 38, 0, -28, 830, 60, TextAnchor.MiddleCenter);
-        Label(panel.transform, "Version", "REDBOOL " + RedboolDemoSettings.Release, 20, 0, -85, 830, 28, TextAnchor.MiddleCenter);
 
         volumeLabel = Label(panel.transform, "Volume", "", 25, -385, -145, 300, 48);
         Button(panel.transform, "VolumeDown", "−", 20, -145, 90, () => { RedboolDemoSettings.MasterVolume -= .1f; Refresh(); });

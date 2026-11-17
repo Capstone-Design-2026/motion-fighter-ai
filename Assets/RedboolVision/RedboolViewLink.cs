@@ -311,7 +311,10 @@ public sealed class RedboolViewLink : MonoBehaviour
     }
     RedboolViewWorld CaptureWorld()
     {
-        var cam=Camera.main;var world=new RedboolViewWorld {round=game.Round,gate=game.Gate,countdown=game.Countdown,remaining=game.Remaining,paused=game.Paused,resolved=game.Resolved,fighting=game.Fighting,winner=game.Result.StartsWith("1P")?1:game.Result.StartsWith("2P")?2:0,camera=cam.transform.position,rotation=cam.transform.rotation,fov=cam.fieldOfView};
+        var cam=Camera.main;
+        // 필살기가 카메라를 뒤로 물린 만큼(QiCameraFx.Pull)도 보낸다. 그 효과는 그리는 순간에만 더해져 transform 에는 없다.
+        QiCameraFx.EffectivePose(cam,out var cameraPosition,out var cameraFov);
+        var world=new RedboolViewWorld {round=game.Round,gate=game.Gate,countdown=game.Countdown,remaining=game.Remaining,paused=game.Paused,resolved=game.Resolved,fighting=game.Fighting,winner=game.Result.StartsWith("1P")?1:game.Result.StartsWith("2P")?2:0,camera=cameraPosition,rotation=cam.transform.rotation,fov=cameraFov};
         foreach(var wave in FindObjectsByType<QiWave>(FindObjectsSortMode.None)) if(wave.isActiveAndEnabled && !wave.Finished &&world.waves.Count<8) world.waves.Add(new RedboolViewWave {id=wave.GetInstanceID(),point=wave.transform.position,rotation=wave.transform.rotation});
         effects.RemoveAll(x=>Time.realtimeSinceStartupAsDouble-x.time>1);world.effects.AddRange(effects);
         var lobby=game.Lobby;

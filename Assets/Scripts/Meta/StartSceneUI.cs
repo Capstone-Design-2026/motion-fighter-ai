@@ -113,7 +113,6 @@ public class StartSceneUI : MonoBehaviour
         float y=40;
         MakeButton("NewGameButton","새 게임",ref y,OnNewGame);
         continueButton=MakeButton("ContinueButton","이어하기",ref y,OnContinue);
-        MakeButton("DuelTestButton","빠른 대전",ref y,OnQuickDuel);
         var pvp=MakeButton("PvpButton","PvP 대전",ref y,TogglePvpMenu);
         var pvpIcon=pvp.transform.Find("MenuIcon");
         if(pvpIcon!=null) pvpIcon.GetComponent<WuxiaGraphic>().shape=WuxiaGraphic.Shape.Swords;
@@ -124,10 +123,6 @@ public class StartSceneUI : MonoBehaviour
         var settings = UIFactory.CreateButton("SettingsButton", canvas.transform, "설정", 25, buttonColor, RedboolSettingsPanel.Show);
         WuxiaTheme.StyleButton(settings);
         UIFactory.Place(settings.GetComponent<RectTransform>(), Vector2.one, Vector2.one, new Vector2(-35, -30), new Vector2(170, 58));
-        var version = WuxiaTheme.Text("ReleaseVersion", canvas.transform, "REDBOOL " + RedboolDemoSettings.Release, 20, TextAnchor.MiddleRight, WuxiaTheme.Paper);
-        UIFactory.Place(version.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-35, 85), new Vector2(250, 32));
-        var quickHelp = WuxiaTheme.Text("QuickDuelHelp", canvas.transform, "빠른 대전은 혼자 즐기는 대결입니다. 스토리 진행은 저장되지 않아요.", 21, TextAnchor.MiddleLeft, WuxiaTheme.Paper);
-        UIFactory.Place(quickHelp.rectTransform, new Vector2(0, 0), new Vector2(0, 0), new Vector2(600, 80), new Vector2(1100, 38));
 
         messageText=WuxiaTheme.Text("Message",canvas.transform,"",24,TextAnchor.MiddleLeft,WuxiaTheme.Paper);
         UIFactory.Place(messageText.rectTransform,new Vector2(0,0),new Vector2(0,0),new Vector2(140,35),new Vector2(1400,50));
@@ -395,11 +390,6 @@ public class StartSceneUI : MonoBehaviour
         if(messageText!=null)messageText.text="기록 저장이 끝나면 시작해주세요";
         if(pvpMessage!=null)pvpMessage.text="기록 저장이 끝나면 시작해주세요";
         return true;
-    }
-
-    private void OnQuickDuel()
-    {
-        if(!EntryBlockedByExport())RedboolDuelTest.Begin();
     }
 
     private void OnCredits()

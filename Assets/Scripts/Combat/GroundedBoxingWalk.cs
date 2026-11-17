@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -13,6 +14,9 @@ public sealed class GroundedBoxingWalk
         public float upper, lower, soleHeight;
         public Vector3 rest, anchor, from, target, shown;
         public Quaternion soleRotation, startRotation, shownRotation, originalRotation;
+        // Underside of the shoe/bare foot, sampled once from the mesh, in the space of the
+        // bone it moves with (toes in front of the toe joint, otherwise the foot).
+        public Vector3[] footSole = new Vector3[0], toeSole = new Vector3[0];
     }
     readonly Transform root;
     readonly Animator animator;
@@ -23,11 +27,13 @@ public sealed class GroundedBoxingWalk
     Transform pelvis;
     Vector3 previousRoot;
     float speed, movingUntil, weight, progress, duration, direction, lastFacing;
-    float pelvisHeight, legLength, stopTime, swingLift;
+    float pelvisHeight, legLength, stopTime, swingLift, pelvisDrop, stepTime = 1;
+    readonly Vector3[] goals = new Vector3[2];
+    readonly Quaternion[] rotations = new Quaternion[2];
     float stepDirection;
     float groundY;
     int swing = -1, nextFoot;
-    bool calibrated, active, stopping;
+    bool calibrated, active, stopping, firstStep;
 
     public float Speed => speed;
     public float Direction => direction;
@@ -36,6 +42,9 @@ public sealed class GroundedBoxingWalk
     public float Weight => weight;
     public int PlantedFoot => active && swing >= 0 ? 1 - swing : -1;
     public float ContactError { get; private set; }
+    /// <summary>발바닥 표본을 잡았다(LowestSoleY 가 실제 메시 기준이다).</summary>
+    public bool SoleReady => calibrated && legs[0].footSole.Length + legs[0].toeSole.Length > 0 && legs[1].footSole.Length + legs[1].toeSole.Length > 0;
+    public bool Calibrated => calibrated;
     public float ReachError { get; private set; }
     // Distance for one step-and-follow pair. The lead/rear stance never swaps.
     public float StepLength => Mathf.Lerp(.24f, .38f, Mathf.InverseLerp(.25f, 1.4f, speed)) * legLength / .80f * strideScale;
@@ -82,7 +91,7 @@ public sealed class GroundedBoxingWalk
     }
     public void Reset()
     {
-        previousRoot = root.position; speed = movingUntil = weight = 0;
+        previousRoot = root.position; speed = movingUntil = weight = pelvisDrop = 0;
         IsMoving = active = stopping = false; swing = -1;
     }
     public void Measure(float dt, int facing)
@@ -126,10 +135,16 @@ public sealed class GroundedBoxingWalk
             l.rest = Quaternion.Inverse(root.rotation) * (l.foot.position - root.position);
             // Turn the toe axis toward travel, preserving the anatomical ankle/toe slope.
             // Slight toe-out keeps both feet in separate lanes instead of crossing them.
+            // Only the heading turns (about the vertical axis): pitch and roll stay as in the
+            // approved idle, where every character's sole is flat on the floor. The fixed slope
+            // used before fitted the hero rig only; on the other rigs it tipped the foot and the
+            // planted sole hovered 1-4cm above the floor.
             Quaternion original = l.originalRotation = l.foot.rotation;
             Vector3 toe = l.toes ? l.toes.position - l.foot.position : root.forward * .15f - Vector3.up * .055f;
-            Vector3 desired = root.rotation * new Vector3(i == 0 ? -.018f : .055f, -.035f, .17f);
-            l.foot.rotation = Quaternion.FromToRotation(toe, desired) * original;
+            Vector3 heading = root.rotation * new Vector3(i == 0 ? -.018f : .055f, 0, .17f);
+            Vector3 flat = Vector3.ProjectOnPlane(toe, Vector3.up);
+            float turn = flat.sqrMagnitude > 1e-8f ? Vector3.SignedAngle(flat, heading, Vector3.up) : 0;
+            l.foot.rotation = Quaternion.AngleAxis(turn, Vector3.up) * original;
             l.soleRotation = Quaternion.Inverse(root.rotation) * l.foot.rotation;
             legs[i] = l;
         }
@@ -137,22 +152,57 @@ public sealed class GroundedBoxingWalk
         // Nothing is baked or allocated during walking.
         float[] bottom = { float.PositiveInfinity, float.PositiveInfinity };
         var mesh = new Mesh();
+        var candidates = new[] { new List<Vector3>(), new List<Vector3>() };
+        Vector3[] ankle = new Vector3[2], tip = new Vector3[2], kneePoint = new Vector3[2];
+        for (int i = 0; i < 2; i++)
+        {
+            var l = legs[i]; ankle[i] = l.foot.position; kneePoint[i] = l.knee.position;
+            Vector3 toe = l.toes ? l.toes.position - ankle[i] : root.rotation * new Vector3(0, -.055f, .15f);
+            tip[i] = ankle[i] + toe * 1.7f;
+        }
         foreach (var skin in root.GetComponentsInChildren<SkinnedMeshRenderer>())
         {
+            if (!skin.enabled || skin.sharedMesh == null) continue;
             skin.BakeMesh(mesh);
             var matrix = Matrix4x4.TRS(skin.transform.position, skin.transform.rotation, Vector3.one);
             foreach (var vertex in mesh.vertices)
             {
                 Vector3 world = matrix.MultiplyPoint3x4(vertex);
                 for (int i = 0; i < 2; i++)
-                    if ((world - legs[i].foot.position).sqrMagnitude < .075f)
-                        bottom[i] = Mathf.Min(bottom[i], world.y);
+                {
+                    if ((world - ankle[i]).sqrMagnitude >= .075f) continue;
+                    bottom[i] = Mathf.Min(bottom[i], world.y);
+                    // The shoe, not a trouser hem or the other foot: below the ankle and nearer
+                    // this foot's ankle-toe axis than to its shin or to the other foot.
+                    float own = SegmentDistance(world, ankle[i], tip[i]);
+                    if (world.y < ankle[i].y && own <= SegmentDistance(world, kneePoint[i], ankle[i])
+                        && own <= SegmentDistance(world, ankle[1 - i], tip[1 - i]))
+                        candidates[i].Add(world);
+                }
             }
         }
         Object.Destroy(mesh);
         for (int i = 0; i < 2; i++)
         {
             var l = legs[i];
+            float sole = float.PositiveInfinity;
+            foreach (var p in candidates[i]) sole = Mathf.Min(sole, p.y);
+            if (!float.IsInfinity(sole))
+            {
+                // Keep the lower part of the shoe: whichever point is lowest after the ankle
+                // pitches or the toes bend is among these.
+                float band = sole + Mathf.Max(.015f, .45f * (ankle[i].y - sole));
+                var footSole = new List<Vector3>(); var toeSole = new List<Vector3>();
+                Vector3 toeAxis = l.toes ? l.toes.position - ankle[i] : Vector3.zero;
+                foreach (var p in candidates[i])
+                {
+                    if (p.y > band) continue;
+                    if (l.toes && Vector3.Dot(p - l.toes.position, toeAxis) > 0) toeSole.Add(l.toes.InverseTransformPoint(p));
+                    else footSole.Add(l.foot.InverseTransformPoint(p));
+                }
+                l.footSole = footSole.ToArray(); l.toeSole = toeSole.ToArray();
+                bottom[i] = sole;
+            }
             l.soleHeight = float.IsInfinity(bottom[i]) ? .09f : l.foot.position.y - bottom[i] + .004f;
             l.rest.y = l.soleHeight;
             l.foot.rotation = l.originalRotation;
@@ -161,6 +211,32 @@ public sealed class GroundedBoxingWalk
         legLength = (legs[0].upper + legs[0].lower + legs[1].upper + legs[1].lower) * .5f;
         calibrated = true; return true;
     }
+    static float SegmentDistance(Vector3 p, Vector3 a, Vector3 b)
+    {
+        Vector3 ab = b - a; float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / Mathf.Max(1e-8f, ab.sqrMagnitude));
+        return Vector3.Distance(p, a + ab * t);
+    }
+    /// <summary>
+    /// 지금 자세에서 그 발바닥의 가장 낮은 점 높이(월드 y). 발목이 기울거나 발가락이 꺾여도 메시에서 뽑아 둔 표본으로 잰다.
+    /// 표본이 없으면 발목 높이에서 기본자세 때의 발바닥 두께를 뺀다. 재기 전이면 NaN.
+    /// </summary>
+    public float LowestSoleY(int i)
+    {
+        var l = legs[i];
+        if (!calibrated || l == null) return float.NaN;
+        float y = float.PositiveInfinity;
+        if (l.footSole.Length > 0) y = Mathf.Min(y, LowestY(l.foot.localToWorldMatrix, l.footSole));
+        if (l.toes && l.toeSole.Length > 0) y = Mathf.Min(y, LowestY(l.toes.localToWorldMatrix, l.toeSole));
+        return float.IsInfinity(y) ? l.foot.position.y - l.soleHeight + .004f : y;
+    }
+    static float LowestY(Matrix4x4 m, Vector3[] points)
+    {
+        float y = float.PositiveInfinity;
+        foreach (var p in points) y = Mathf.Min(y, m.m10 * p.x + m.m11 * p.y + m.m12 * p.z + m.m13);
+        return y;
+    }
+    /// <summary>기본자세에서 한 번 발 치수를 잰다. Fighter3DView 가 IDLE 이 자리 잡은 프레임에 부른다.</summary>
+    public bool TryCalibrate() => calibrated || Calibrate();
     Vector3 Rest(int i)
     {
         Vector3 p = root.position + root.rotation * legs[i].rest;
@@ -177,23 +253,31 @@ public sealed class GroundedBoxingWalk
         }
         // Forward: left/front first. Backward: right/rear first, then follow.
         nextFoot = direction * lastFacing > 0 ? 0 : 1;
-        stepDirection = direction;
+        stepDirection = direction; firstStep = true;
 
     }
     void StartStep(int i, bool settle)
     {
         swing = i; progress = 0;
         var l = legs[i]; l.from = l.shown; l.startRotation = l.shownRotation;
-        duration = settle ? .20f : Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
+        // The first step out of the stance is a short push: the planted foot behind it then trails
+        // only part of a stance, so the pelvis does not sink at every walk start.
+        stepTime = firstStep && !settle ? .6f : 1f; firstStep = false;
+        duration = settle ? .20f : stepTime * Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
         l.target = settle ? Rest(i) : Landing(i, duration);
-        swingLift = (settle ? .022f : .033f * strideScale) * legLength / .8f;
+        // Boxing steps skim the floor: the sole clears about 2.5cm at mid-swing
+        // (it was 4-6cm, which read as the feet floating off the ground).
+        swingLift = (settle ? .015f : .02f * strideScale) * legLength / .8f;
     }
     Vector3 Landing(int i, float remaining)
     {
         Vector3 p = Rest(i);
         // Predict the root only while this foot is airborne. Keep the anatomical
         // stance offset, so the rear foot follows instead of overtaking the lead.
-        p.x += direction * speed * remaining;
+        // Land half a stance ahead of the rest offset, so the body passes over the planted foot
+        // while the other one swings and it trails at most half a stance behind. Trailing a whole
+        // stance made the pelvis drop up to 10cm at every landing to keep the leg reachable.
+        p.x += direction * speed * (remaining + .5f * duration);
         return p;
     }
     static float Smooth(float v) { v = Mathf.Clamp01(v); return v * v * (3 - 2 * v); }
@@ -250,7 +334,7 @@ public sealed class GroundedBoxingWalk
             if (swing >= 0)
             {
                 if (move && !stopping)
-                    duration = Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
+                    duration = stepTime * Mathf.Clamp(StepLength / (2 * Mathf.Max(speed, .15f)), .09f, .40f);
                 var l = legs[swing]; progress = Mathf.Min(1, progress + dt / duration);
                 // Retarget while airborne when input speed/direction changes, without
                 // moving the supporting contact. No accumulated phase drift at walls.
@@ -266,26 +350,41 @@ public sealed class GroundedBoxingWalk
             { legs[i].shown = legs[i].anchor; legs[i].shownRotation = root.rotation * legs[i].soleRotation; }
         }
 
+        // Sole-aware ankle goals: with the rotation the foot gets this frame (and the toe bend
+        // from the clip), place the ankle so the lowest point of the actual sole sits where the
+        // anchor puts it. The thickness measured once in the idle cannot see the toe bend.
+        for (int i = 0; i < 2; i++)
+        {
+            var l = legs[i];
+            rotations[i] = Quaternion.Slerp(l.foot.rotation, l.shownRotation, weight);
+            l.foot.rotation = rotations[i];
+            float sole = l.foot.position.y - LowestSoleY(i) + .004f;
+            goals[i] = l.shown + Vector3.up * (sole - l.soleHeight);
+        }
         float animatedY = pelvis.position.y;
-        float desiredY = root.position.y + pelvisHeight - (swing >= 0 ? .012f * Mathf.Sin(progress * Mathf.PI) : 0);
-        if (!locomotionAllowed) desiredY = animatedY;
+        float nominalY = root.position.y + pelvisHeight - (swing >= 0 ? .012f * Mathf.Sin(progress * Mathf.PI) : 0);
+        float limitY = nominalY;
         // Small vertical pelvis compensation keeps both IK chains reachable.
         for (int i = 0; i < 2; i++)
         {
-            var l = legs[i]; Vector3 d = l.hip.position - l.shown; d.y = 0;
+            var l = legs[i]; Vector3 d = l.hip.position - goals[i]; d.y = 0;
             float reach = (l.upper + l.lower) * .985f;
-            float maxHipY = l.shown.y + Mathf.Sqrt(Mathf.Max(.02f, reach * reach - d.sqrMagnitude));
-            desiredY = Mathf.Min(desiredY, animatedY + maxHipY - l.hip.position.y);
+            float maxHipY = goals[i].y + Mathf.Sqrt(Mathf.Max(.02f, reach * reach - d.sqrMagnitude));
+            limitY = Mathf.Min(limitY, animatedY + maxHipY - l.hip.position.y);
         }
+        // Drop at once when a leg needs it, rise back slowly: the body settles a little lower
+        // while walking instead of bobbing at every landing.
+        float drop = nominalY - limitY;
+        pelvisDrop = drop >= pelvisDrop ? drop : Mathf.MoveTowards(pelvisDrop, drop, dt * .2f);
+        float desiredY = locomotionAllowed ? nominalY - pelvisDrop : animatedY;
         pelvis.position += Vector3.up * (Mathf.Lerp(animatedY, desiredY, weight) - animatedY);
         for (int i = 0; i < 2; i++)
         {
-            var l = legs[i]; Vector3 goal = Vector3.Lerp(l.foot.position, l.shown, weight);
-            Quaternion rotation = Quaternion.Slerp(l.foot.rotation, l.shownRotation, weight);
-            Solve(l, goal, rotation);
+            var l = legs[i]; Vector3 goal = Vector3.Lerp(l.foot.position, goals[i], weight);
+            Solve(l, goal, rotations[i]);
             ReachError = Mathf.Max(ReachError, Vector3.Distance(l.foot.position, goal));
             if (i != swing && weight >= .999f && locomotionAllowed)
-                ContactError = Mathf.Max(ContactError, Vector3.Distance(l.foot.position, l.anchor));
+                ContactError = Mathf.Max(ContactError, Vector3.Distance(l.foot.position, l.anchor + (goals[i] - l.shown)));
         }
     }
     void Solve(Leg l, Vector3 goal, Quaternion rotation)

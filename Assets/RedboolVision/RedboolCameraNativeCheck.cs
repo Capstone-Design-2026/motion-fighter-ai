@@ -494,13 +494,13 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         RedboolPauseMenu.Open();
         Check(RedboolPauseMenu.IsOpen&&RedboolPvp.Active&&runtime.ChildId==first&&Mathf.Approximately(Time.timeScale,pvpTime)&&Mathf.Approximately(Time.fixedDeltaTime,pvpStep),"PvP game menu leaves match time and owned camera unchanged until confirmation");
         ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("NewGameButton")==null)
         {Deadline(end,"return to menu stops owned child");yield return null;}
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
         Check(!RedboolPauseMenu.IsOpen&&!RedboolPvp.Active,"Common menu confirmation uses the normal PvP disconnect route");
         Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
         budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale)&&!runtime.JointRenderPressure,"Leaving camera gameplay restores authored render scale and clears joint pressure");
-        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
+        RedboolDuelTest.Begin();end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Running||runtime.ChildId==first||!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"story duel synthetic status and preview");yield return null;}
         int second=runtime.ChildId;children.Add(second);
@@ -586,12 +586,12 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         exit.onClick.Invoke();
         Check(RedboolPauseMenu.IsOpen,"Direct duel menu can reopen before return confirmation");
         ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("NewGameButton")==null)
         {Deadline(end,"direct duel exit flushes camera diagnostics");yield return null;}
         Check(!RedboolDuelTest.Active&&Mathf.Approximately(Time.timeScale,1)&&Mathf.Approximately(Time.fixedDeltaTime,.02f),"Direct duel exit restores normal game time and clears test mode");
         Check(PlayerPrefs.GetString("VisionStriker.Run", "")==savedRun,"Direct duel exit preserves campaign save");
         Check(!runtime.DiagnosticsPending&&!Alive(second),"Direct duel exit finalizes camera records before export");
-        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+30;
+        RedboolDuelTest.Begin();end=Time.realtimeSinceStartupAsDouble+30;
         while(!runtime.Running||!runtime.Fresh||!runtime.PreviewFresh) {Deadline(end,"direct duel can reopen after exit");yield return null;}
         second=runtime.ChildId;children.Add(second);
         Check(second>0&&runtime.Status.synthetic,"Direct duel reopens synthetic camera after menu exit");

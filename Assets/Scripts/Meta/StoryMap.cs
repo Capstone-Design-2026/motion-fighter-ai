@@ -48,6 +48,18 @@ public static class StoryMap
         m.nodes.Add(new MapNode { id=id,row=row,column=col,type=type,title=title,story=story,stageId=stage,deadEnd=dead });
     }
     static void Link(MapData m,string from,params string[] to) { m.Find(from).next.AddRange(to); }
+    /// <summary>
+    /// 전투 HUD 에 띄울 상대 이름(2026-11-16: 장소 없이 이름만). 칸 제목 "장소 · 이름"에서 이름만 쓰고,
+    /// 장소만 적힌 칸은 그 칸의 상대 이름을 쓴다(PvP 인물 명단과 같은 이름). 지도 칸 제목은 그대로다.
+    /// </summary>
+    public static string EnemyName(MapNode node)
+    {
+        if(node==null) return "";
+        switch(node.id) { case "camp": return "추포대 추적자"; case "rescue": return "옥졸장"; }
+        string title=node.title??"";
+        int cut=title.LastIndexOf(" · ",System.StringComparison.Ordinal);
+        return cut>=0?title.Substring(cut+3).Trim():title;
+    }
     public static IEnumerable<MapNode> Neighbors(MapData m,MapNode node)
     {
         foreach(var n in m.nodes) if(node.next.Contains(n.id)||n.next.Contains(node.id)) yield return n;

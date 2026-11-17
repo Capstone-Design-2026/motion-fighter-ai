@@ -56,7 +56,8 @@ public static class RedboolViewProtocol
 {
     // 32 unifies the two incompatible v31 layouts: authoritative combat feedback
     // plus lobby/roster/character-special state. Both laptops must use this build.
-    public const int Port=5067,MaxBytes=1200,Version=32;
+    // 33 (2026-11-16) adds the round-opening READY/FIGHT gates 8 and 9; a 32 guest would reject them.
+    public const int Port=5067,MaxBytes=1200,Version=33;
     const uint Magic=0x52425657;
     static float Finite(float v) { if(float.IsNaN(v)||float.IsInfinity(v)||Mathf.Abs(v)>100000) throw new InvalidDataException();return v; }
     static double Finite(double v) {if(double.IsNaN(v)||double.IsInfinity(v)||v<0) throw new InvalidDataException();return v;}
@@ -107,7 +108,7 @@ public static class RedboolViewProtocol
                 if(n.kind>5) return false;
                 if(n.kind==1)
                 {
-                    var x=new RedboolViewWorld {round=Range(r.ReadInt32(),1000000),winner=Range(r.ReadByte(),2),paused=r.ReadBoolean(),resolved=r.ReadBoolean(),fighting=r.ReadBoolean(),remaining=Finite(r.ReadSingle()),fov=Finite(r.ReadSingle()),camera=V(r),rotation=Q(r),gate=(byte)Range(r.ReadByte(),7),countdown=Finite(r.ReadSingle())};
+                    var x=new RedboolViewWorld {round=Range(r.ReadInt32(),1000000),winner=Range(r.ReadByte(),2),paused=r.ReadBoolean(),resolved=r.ReadBoolean(),fighting=r.ReadBoolean(),remaining=Finite(r.ReadSingle()),fov=Finite(r.ReadSingle()),camera=V(r),rotation=Q(r),gate=(byte)Range(r.ReadByte(),9),countdown=Finite(r.ReadSingle())};
                     x.stage=(byte)Range(r.ReadByte(),2);x.cursor0=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);x.cursor1=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);x.locked=(byte)Range(r.ReadByte(),3);x.selectSeconds=(byte)Range(r.ReadByte(),60);
                     if(x.countdown<0 ||x.countdown>1.01f) return false;
                     if(x.remaining<0||x.remaining>120.1f ||x.fov<1||x.fov>179) return false;

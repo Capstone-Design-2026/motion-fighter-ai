@@ -197,7 +197,7 @@ public static class UndergroundPitBuilder
         var wallMaterial = Piece("Palisade", palisade, 20, .06f, .34f, 1.3f, 1.5f, Color.white);
         Ring("Palisade", root, wallMaterial, WallRadius, 0, WallRadius, wallHeight, WallRepeats, 0f);
         // 목책이 바닥에 닿는 자리의 그늘
-        var shade = Mat("ContactShade", hazeShader); shade.SetColor("_Color", new Color(0, 0, 0, .62f)); shade.renderQueue = 3000 + 21; EditorUtility.SetDirty(shade);
+        var shade = Mat("ContactShade", hazeShader); shade.SetColor("_Color", new Color(0, 0, 0, .62f)); shade.renderQueue = SetQueue + 21; EditorUtility.SetDirty(shade);
         Annulus("Palisade contact shade", root, shade, WallRadius - 1.5f, WallRadius + .1f, .012f);
 
         // ── 정문 (뒤 가운데)과 맞은편 문 ──
@@ -207,7 +207,7 @@ public static class UndergroundPitBuilder
         Plate("Rear gate", root, card, gateMaterial, new Vector3(0, -.03f, -(WallRadius - .35f)), Quaternion.Euler(0, 180, 0), new Vector3(GateWidth, gateHeight, 1));
 
         // ── 청·홍 진영 기둥: 늘 카메라를 본다 ──
-        var blobShade = Mat("BlobShade", hazeShader); blobShade.SetTexture("_MainTex", fxGlow); blobShade.SetColor("_Color", new Color(0, 0, 0, .7f)); blobShade.renderQueue = 3000 + 23; EditorUtility.SetDirty(blobShade);
+        var blobShade = Mat("BlobShade", hazeShader); blobShade.SetTexture("_MainTex", fxGlow); blobShade.SetColor("_Color", new Color(0, 0, 0, .7f)); blobShade.renderQueue = SetQueue + 23; EditorUtility.SetDirty(blobShade);
         float cornerWidth = CornerHeight * cornerBlue.width / cornerBlue.height;
         foreach (int side in new[] { -1, 1 })
         {
@@ -231,7 +231,7 @@ public static class UndergroundPitBuilder
             (lamp, -2.3f, 4.0f, 9.2f, 1.8f, 3.2f, 3.1f), (lamp, 2.4f, 4.1f, 9.1f, 1.8f, 3.2f, 3.4f),
             (lamp, -6.6f, 3.9f, 8.6f, 1.8f, 3.2f, 2.9f), (lamp, 6.5f, 3.8f, 8.7f, 1.8f, 3.2f, 3.6f),
         };
-        var chainMaterial = Mat("Chain", hazeShader); chainMaterial.SetTexture("_MainTex", null); chainMaterial.SetColor("_Color", new Color(.07f, .05f, .04f, 1f)); chainMaterial.renderQueue = 3000 + 29; EditorUtility.SetDirty(chainMaterial);
+        var chainMaterial = Mat("Chain", hazeShader); chainMaterial.SetTexture("_MainTex", null); chainMaterial.SetColor("_Color", new Color(.07f, .05f, .04f, 1f)); chainMaterial.renderQueue = SetQueue + 29; EditorUtility.SetDirty(chainMaterial);
         int number = 0;
         foreach (var h in hangs)
         {
@@ -307,7 +307,7 @@ public static class UndergroundPitBuilder
         Quad("Shaft pool glow", fx, poolGlow, new Vector3(0, .02f, 2.6f), Quaternion.Euler(90, 0, 0), new Vector3(11f, 9f, 1));
 
         // 공기: 낮게 깔린 연기, 위쪽 연무, 떠다니는 먼지, 빛줄기 속 먼지
-        var smoke = Mat("Smoke", hazeShader); smoke.SetTexture("_MainTex", fxHaze); smoke.SetColor("_Color", new Color(.42f, .33f, .26f, .13f)); smoke.renderQueue = 3000 + 40; EditorUtility.SetDirty(smoke);
+        var smoke = Mat("Smoke", hazeShader); smoke.SetTexture("_MainTex", fxHaze); smoke.SetColor("_Color", new Color(.42f, .33f, .26f, .13f)); smoke.renderQueue = SetQueue + 40; EditorUtility.SetDirty(smoke);
         Drift(fx, "Low smoke (wall)", new Vector3(0, 1.1f, 8.2f), new Vector3(22, 1.2f, 4.5f), smoke, 1.6f, 20, 5f, 9f, new Vector3(.16f, .02f, 0), 40);
         Drift(fx, "High smoke", new Vector3(0, 5.4f, 9.5f), new Vector3(24, 1.6f, 5f), smoke, 1.0f, 26, 8f, 13f, new Vector3(-.10f, .03f, 0), 34);
         var mote = Glow("Mote", fxGlow, Bright(new Color(1f, .78f, .5f), .8f), 0, false);
@@ -476,6 +476,11 @@ public static class UndergroundPitBuilder
         return m;
     }
 
+    // 벽·문·관중석 같은 그림 구조물과 그늘·연기는 깊이를 기록하지 않는 반투명이다. 필살기 효과(Transparent 3000~3020)보다
+    // 나중에 그려지면 효과를 덮어서, PvP 필살기가 바닥과 벽이 만나는 선에서 잘려 보였다(2026-11-16). 그래서 효과보다 먼저(2900대) 그린다.
+    // 불꽃·빛(3060대)은 효과 위에 더해지는 빛이라 그대로 둔다.
+    const int SetQueue = 2900;
+
     // 그림 구조물 재질. order 가 클수록 나중에(앞에) 그려진다.
     static Material Piece(string name, Texture2D picture, int order, float fog, float baseFog, float baseFogHeight, float glow, Color tint)
     {
@@ -483,7 +488,7 @@ public static class UndergroundPitBuilder
         m.SetTexture("_MainTex", picture); m.SetColor("_Tint", tint); m.SetColor("_FogColor", Haze);
         m.SetFloat("_Fog", fog); m.SetFloat("_BaseFog", baseFog); m.SetFloat("_BaseFogHeight", baseFogHeight);
         m.SetFloat("_Glow", glow); m.SetFloat("_GlowThreshold", .6f); m.SetFloat("_Flicker", .3f);
-        m.renderQueue = 3000 + order;
+        m.renderQueue = SetQueue + order;
         EditorUtility.SetDirty(m);
         return m;
     }

@@ -22,7 +22,7 @@ public static class RedboolViewSelfCheck
     }
     static void CheckLobbyCodec()
     {
-        Check(RedboolViewProtocol.Version==32,"feedback and lobby layouts use their own version32");
+        Check(RedboolViewProtocol.Version==33,"feedback, lobby and READY/FIGHT gates use version33");
         Check(RedboolPvpRoster.Count==12,"version32 roster has exactly twelve character indices");
         for(byte slot=2;slot<=3;slot++) for(byte character=0;character<12;character++)
         {

@@ -116,6 +116,9 @@ public static class RedboolCampaignPlayCheck
             var gate=Object.FindAnyObjectByType<RedboolBattlePreparation>();var round=Object.FindAnyObjectByType<BattleSceneBridge>();
             Check(player!=null && enemy!=null && round!=null,node.id+" combat actors and round controller present");
             Check(player.GetComponent<Health>().CurrentHealth==(run.Config.carryPlayerHealth?73:run.Data.playerMaxHealth),node.id+" saved HP carried into battle");
+            // 2026-11-16: 상대 이름은 장소 없이 이름만 ("산길 · 척후병" → "척후병").
+            string foeName=enemy.GetComponent<Health>().DisplayName;
+            Check(foeName==StoryMap.EnemyName(node)&&!foeName.Contains("·")&&foeName.Length>0,node.id+" HUD enemy name has no place ("+foeName+")");
             float seconds=round.RemainingSeconds;int hp=player.GetComponent<Health>().CurrentHealth;
             for(var wait=Wait(.2f);wait.MoveNext();)yield return null;
             Check(gate.HoldRound && enemy.GetComponent<Fighter>().VisionPreparationLocked && player.GetComponent<Health>().CurrentHealth==hp && Mathf.Abs(round.RemainingSeconds-seconds)<.01f,node.id+" waiting camera holds enemy, HP and timer");

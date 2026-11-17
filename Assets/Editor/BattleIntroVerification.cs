@@ -76,6 +76,8 @@ public static class BattleIntroVerification
             return;
         }
         if (!EditorApplication.isPlaying || EditorApplication.isCompiling) return;
+        // An unrelated editor plugin error must not leave play mode error-paused (other play checks do the same).
+        EditorApplication.isPaused = false;
         if (flow == null)
         {
             checks.Clear(); began = EditorApplication.timeSinceStartup;
@@ -127,7 +129,7 @@ public static class BattleIntroVerification
     private static IEnumerator Tests()
     {
         var scenes = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes" })
-            .Select(AssetDatabase.GUIDToAssetPath).Where(p => File.ReadAllText(p).Contains(BridgeGuid))
+            .Select(AssetDatabase.GUIDToAssetPath).Where(p => File.ReadAllText(p).Contains(BridgeGuid) && !p.StartsWith("Assets/Scenes/PvP/"))
             .OrderBy(p => p == "Assets/Scenes/GameScene.unity" ? "" : p).ToArray();
         Check(scenes.Length == 24, "All 24 battle scenes share BattleSceneBridge");
         foreach (string menu in new[] { "StartScene", "MapScene", "EndingScene" })
@@ -165,7 +167,7 @@ public static class BattleIntroVerification
                 timerHeld &= Mathf.Approximately(time, battle.RemainingSeconds);
                 for (int i = 0; i < actors.Length; i++) enemiesHeld &= Mathf.Abs(actors[i].transform.position.x - positions[i]) < .04f;
                 var group = intro.GetComponentInChildren<CanvasGroup>();
-                if (sceneIndex == 0 && group != null && group.alpha > .95f)
+                if (sceneIndex == 0 && !Application.isBatchMode && group != null && group.alpha > .95f)
                 {
                     if (!readyShot && intro.Phase == BattleIntroSequence.IntroPhase.Ready)
                     { ScreenCapture.CaptureScreenshot(Path.Combine(Output, "ready.png")); readyShot = true; }

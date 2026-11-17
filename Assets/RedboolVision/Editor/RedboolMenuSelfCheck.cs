@@ -41,8 +41,11 @@ public static class RedboolMenuSelfCheck
             var canvas=root.transform.Find("StartCanvas");var panel=canvas.Find("TwoScreenMenu");
             Check(panel!=null&&!panel.gameObject.activeSelf,"PvP lobby starts closed");
             Check(canvas.Find("PvpButton").GetComponentInChildren<Text>().text=="PvP 대전","Main menu PvP label");
-            foreach(var name in new[]{"NewGameButton","ContinueButton","DuelTestButton","CreditsButton","QuitButton"})
+            foreach(var name in new[]{"NewGameButton","ContinueButton","CreditsButton","QuitButton"})
                 Check(canvas.Find(name)!=null,"Preserved "+name);
+            // 2026-11-16: 시작 화면에서 빠른 대전 버튼·설명 줄과 버전 글자를 뺐다.
+            foreach(var name in new[]{"DuelTestButton","QuickDuelHelp","ReleaseVersion"})
+                Check(canvas.Find(name)==null,"Removed "+name);
             bool active=RedboolPvp.Active;
             canvas.Find("PvpButton").GetComponent<Button>().onClick.Invoke();
             Check(panel.gameObject.activeSelf&&RedboolPvp.Active==active,"Opening lobby does not start or pair game");

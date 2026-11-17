@@ -20,9 +20,7 @@ public sealed class BattleIntroSequence : MonoBehaviour
     private readonly List<Fighter> fighters = new List<Fighter>();
     private BattleSceneBridge battle;
     private RedboolBattlePreparation preparation;
-    private Canvas overlay;
-    private CanvasGroup overlayGroup;
-    private Text title;
+    private BattleIntroOverlay overlay;
     private float elapsed;
 
     // Called in BattleSceneBridge.Awake, after stage prefab replacement, before any input Update.
@@ -47,10 +45,10 @@ public sealed class BattleIntroSequence : MonoBehaviour
         preparation = null;
         foreach (var gate in FindObjectsByType<RedboolBattlePreparation>())
             if (gate.gameObject.scene == gameObject.scene) { preparation = gate; break; }
-        if (overlay == null) BuildOverlay();
+        if (overlay == null) overlay = BattleIntroOverlay.Create(transform);
         Phase = IntroPhase.Settling;
         elapsed = 0f;
-        overlay.gameObject.SetActive(false);
+        overlay.Hide();
         StartCoroutine(PlayIntro());
     }
 
@@ -91,31 +89,15 @@ public sealed class BattleIntroSequence : MonoBehaviour
 
     private void DrawTitle(bool waitingForInput)
     {
-        overlay.gameObject.SetActive(true);
         bool fight = Phase == IntroPhase.Fight;
-        string headline = fight ? "FIGHT" : "READY";
-        if (title.text != headline)
-        {
-            title.text = headline;
-            title.fontSize = fight ? 196 : 176;
-            title.resizeTextMaxSize = title.fontSize;
-            CombatAnnouncementStyle.Apply(title, fight
-                ? CombatAnnouncementStyle.Palette.Fight : CombatAnnouncementStyle.Palette.Ready);
-        }
-        float duration = fight ? fightSeconds : readySeconds;
-        float fadeIn = Mathf.Clamp01(elapsed / .08f);
-        float fadeOut = Mathf.Clamp01((duration - elapsed) / .13f);
-        overlayGroup.alpha = waitingForInput ? 1f : Mathf.Min(fadeIn, fadeOut);
-        float pop = waitingForInput ? 1f : Mathf.Lerp(fight ? 1.2f : 1.08f, 1f,
-            Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / .18f)));
-        title.rectTransform.localScale = Vector3.one * pop;
+        overlay.Show(fight, elapsed, fight ? fightSeconds : readySeconds, waitingForInput);
     }
 
     private void Finish()
     {
         HoldRound = false;
         Phase = IntroPhase.Complete;
-        if (overlay != null) overlay.gameObject.SetActive(false);
+        overlay?.Hide();
         foreach (var fighter in fighters)
             if (fighter != null) fighter.SetRoundIntroLock(false);
     }
@@ -124,46 +106,5 @@ public sealed class BattleIntroSequence : MonoBehaviour
     {
         StopAllCoroutines();
         Finish();
-    }
-
-    private void BuildOverlay()
-    {
-        var root = new GameObject("BattleIntroCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(CanvasGroup));
-        root.transform.SetParent(transform, false);
-        overlay = root.GetComponent<Canvas>();
-        overlay.renderMode = RenderMode.ScreenSpaceOverlay;
-        overlay.sortingOrder = 180;
-        var scaler = root.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = .5f;
-        overlayGroup = root.GetComponent<CanvasGroup>();
-        overlayGroup.blocksRaycasts = false;
-        overlayGroup.interactable = false;
-
-        var band = UIFactory.CreateImage("IntroShade", root.transform, new Color(.025f, .018f, .012f, .46f));
-        band.rectTransform.anchorMin = new Vector2(0f, .5f);
-        band.rectTransform.anchorMax = new Vector2(1f, .5f);
-        band.rectTransform.sizeDelta = new Vector2(0f, 208f);
-        band.rectTransform.anchoredPosition = Vector2.zero;
-        foreach (float side in new[] { -1f, 1f })
-        {
-            var line = UIFactory.CreateImage("IntroRule", root.transform, new Color(.94f, .71f, .32f, .8f));
-            line.rectTransform.anchorMin = new Vector2(.07f, .5f);
-            line.rectTransform.anchorMax = new Vector2(.93f, .5f);
-            line.rectTransform.sizeDelta = new Vector2(0f, 2f);
-            line.rectTransform.anchoredPosition = new Vector2(0f, side * 104f);
-        }
-        title = UIFactory.CreateText("ReadyFightTitle", root.transform, "", 176, TextAnchor.MiddleCenter);
-        CombatAnnouncementStyle.Apply(title, CombatAnnouncementStyle.Palette.Ready);
-        title.resizeTextForBestFit = true;
-        title.resizeTextMinSize = 48;
-        title.resizeTextMaxSize = 176;
-        title.horizontalOverflow = HorizontalWrapMode.Wrap;
-        title.verticalOverflow = VerticalWrapMode.Truncate;
-        title.rectTransform.anchorMin = new Vector2(.06f, .5f);
-        title.rectTransform.anchorMax = new Vector2(.94f, .5f);
-        title.rectTransform.sizeDelta = new Vector2(0f, 260f);
-        title.rectTransform.anchoredPosition = new Vector2(0f, 3f);
     }
 }
