@@ -93,9 +93,9 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
                     recording='full-rate estimated landmarks and ordered engine operations; async bounded gzip; no RGB/video',
                     recognition_recording_max_bytes=134217728,
                     recognition_recording_schema='redbool.landmarks/1',
-                    lan_protocol=33)
+                    lan_protocol=34)
     (output / '시작 안내.txt').write_text(
-        f'REDBOOL {manifest["release"]} · X자 인식·반응 개선 시험판\n\n'
+        f'REDBOOL {manifest["release"]} · READY/FIGHT/K.O. 연출·스테이지별 체력 100 시험판\n\n'
         'REDBOOL.app(Mac) 또는 REDBOOL.exe(Windows)를 실행하세요.\n'
         'Unity·Python을 별도로 설치하거나 카메라 명령어를 입력할 필요가 없습니다.\n'
         'Windows에서는 폴더 전체를 유지하세요. 실행 파일만 따로 옮기면 실행되지 않습니다.\n\n'
@@ -112,7 +112,7 @@ def assemble(player: Path, backend: Path, output: Path, target: str):
         '이 모드에서도 X자를 인식하지만, 팔이 가려지면 Full 보조가 있을 때보다 어려울 수 있습니다.\n'
         '모든 화면에서 Esc → 메인 메뉴로 돌아갈 수 있습니다. 메뉴를 열어도 게임은 진행됩니다.\n\n'
         '두 화면 대전: 같은 공유기에 연결한 뒤 두 게임에서 PvP 대전을 엽니다.\n'
-        '양쪽 모두 같은 v36.3 시험본을 사용하세요. 화면 통신 규약 33이며 규약 32 이하 버전과는 접속할 수 없습니다.\n'
+        f'두 PC 모두 {manifest["release"]}을(를) 써야 합니다. 화면 통신 규약 34(라운드 시작 READY/FIGHT 추가)이라 이전 버전과는 대전할 수 없습니다.\n'
         '방장은 대기실의 상대가 입력할 주소를 복사해 전달합니다. 상대는 주소 입력 후 대전 참가를 누릅니다.\n'
         '주소가 여러 개면 상대와 연결한 Wi-Fi·유선·핫스팟에 해당하는 주소를 선택하세요.\n'
         '3개를 넘으면 다른 주소 버튼으로 넘겨 볼 수 있고, 네트워크 변경 뒤에는 새로고침을 누를 수 있습니다.\n'

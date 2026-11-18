@@ -307,7 +307,7 @@ def validate(args):
     require(gates.get('identities') == identities, 'Checks must be bound to these exact source, SDK, config and artifact identities')
     build = read(args.player.parent / 'build-info.json')
     require(build.get('release') == RELEASE and build.get('git_commit') == identities['unity_commit'] and build.get('runtime_sha256') == identities['unity_runtime_sha256']
-            and build.get('view_protocol') == 33, 'Wrong Unity build/runtime/protocol')
+            and build.get('view_protocol') == 34, 'Wrong Unity build/runtime/protocol')
     require(not git(args.python_project, 'status', '--porcelain').strip(), 'Python candidate worktree must be clean')
     sdk = gates.get('sdk', {})
     validate_sdk(sdk, args.unity_project, base)
@@ -432,7 +432,7 @@ def assemble(args, validated):
     for name, digest in MODELS.items():
         require(sha(destination / '_internal/assets' / name) == digest, 'Installed model fingerprint mismatch')
     executable_name = 'REDBOOLCamera' if args.target == 'mac' else 'REDBOOLCamera.exe'
-    manifest = {'release': RELEASE, 'build_variant': VARIANT, 'view_protocol': 33, 'target': args.target,
+    manifest = {'release': RELEASE, 'build_variant': VARIANT, 'view_protocol': 34, 'target': args.target,
                 'entry': entry.name, 'identities': identities, 'backend': portable,
                 'sdk': {key: gates['sdk'][key] for key in ('version', 'archive_sha256', 'official_source')},
                 'backend_executable_sha256': sha(destination / executable_name),

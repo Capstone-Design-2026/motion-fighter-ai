@@ -33,7 +33,7 @@ public static class RedboolPvpSelectionSelfCheck
         var p=new RedboolViewPacket {kind=6,session=Guid.NewGuid(),nonce=Guid.NewGuid(),seq=7,time=1,
             selectionRun=Guid.NewGuid(),selectionRound=4,selectionRevision=uint.MaxValue,selectionCharacter=11,selectionLocked=true};
         byte[] bytes=RedboolViewProtocol.Encode(p);
-        Check(RedboolViewProtocol.Version==33&&bytes.Length<1200&&RedboolViewProtocol.TryDecode(bytes,out var q),"Selection packet has dedicated v33 and stays below MTU");
+        Check(RedboolViewProtocol.Version==34&&bytes.Length<1200&&RedboolViewProtocol.TryDecode(bytes,out var q),"Selection packet has integrated v34 and stays below MTU");
         RedboolViewProtocol.TryDecode(bytes,out q);
         Check(q.selectionRun==p.selectionRun&&q.selectionRevision==p.selectionRevision&&q.selectionRound==4&&q.selectionCharacter==11&&q.selectionLocked,"All selection identities and absolute choice round trip");
         for(int i=0;i<bytes.Length;i++)Check(!RedboolViewProtocol.TryDecode(new ArraySegment<byte>(bytes,0,i).ToArray(),out _),"Selection truncation rejected at "+i);

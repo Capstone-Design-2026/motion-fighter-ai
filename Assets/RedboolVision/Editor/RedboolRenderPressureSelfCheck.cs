@@ -96,6 +96,21 @@ public static class RedboolRenderPressureSelfCheck
         Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,true,false,false,.1), "A modal interval cannot lower rendering");
         Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,false,true,false,.1), "Synthetic fixtures never create automatic field pressure");
         Check(!RedboolRenderPressure.IsStableGameFrame(true,true,true,false,false,true,.1), "Explicit camera pause cannot create severe pressure");
+        p.Reset(743);
+        Check(!p.Observe(743,true,true,5.01,19.3,24.1,true), "743 first steady 41fps window does not change rendering");
+        Check(p.Observe(743,true,true,5.01,19.3,24.0,true) && p.Trigger=="sustained_game", "743 sustained game pressure lowers 3D cost without changing recognition");
+        Check(p.Observe(743,true,true,5.01,19.3,16.7,true), "Recovered game keeps the budget stable until the next camera run");
+        foreach (bool visible in new[]{false,true})
+        {
+            p.Reset(743);
+            p.Observe(743,true,true,5,19,24,true);
+            Check(!p.Observe(743,true,visible,5,19,24,false) && p.SustainedGameWindows==0, "Scene change/background breaks the sustained-game window");
+        }
+        foreach(double ms in new[]{16.7,19.0,23.0})
+        {
+            p.Reset(743);
+            Check(!p.Observe(743,true,true,5,19,ms,true) && !p.Observe(743,true,true,5,19,ms,true), "Healthy or exact-boundary game does not lower resolution: "+ms);
+        }
         Debug.Log("REDBOOL RENDER PRESSURE PASS " + checks + " deterministic checks; no camera or game packets");
     }
 }

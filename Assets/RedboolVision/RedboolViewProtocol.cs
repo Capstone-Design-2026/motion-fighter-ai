@@ -58,9 +58,9 @@ public sealed class RedboolViewPacket
 }
 public static class RedboolViewProtocol
 {
-    // 33 adds revision-bound, host-authoritative keyboard/mouse selection.
+    // 34 combines revision-bound character selection with READY/FIGHT gates 8 and 9.
     // Camera commands and combat leases remain unchanged. Both laptops update.
-    public const int Port=5067,MaxBytes=1200,Version=33;
+    public const int Port=5067,MaxBytes=1200,Version=34;
     const uint Magic=0x52425657;
     static float Finite(float v) { if(float.IsNaN(v)||float.IsInfinity(v)||Mathf.Abs(v)>100000) throw new InvalidDataException();return v; }
     static double Finite(double v) {if(double.IsNaN(v)||double.IsInfinity(v)||v<0) throw new InvalidDataException();return v;}
@@ -113,7 +113,7 @@ public static class RedboolViewProtocol
                 if(n.kind>6) return false;
                 if(n.kind==1)
                 {
-                    var x=new RedboolViewWorld {round=Range(r.ReadInt32(),1000000),winner=Range(r.ReadByte(),2),paused=r.ReadBoolean(),resolved=r.ReadBoolean(),fighting=r.ReadBoolean(),remaining=Finite(r.ReadSingle()),fov=Finite(r.ReadSingle()),camera=V(r),rotation=Q(r),gate=(byte)Range(r.ReadByte(),7),countdown=Finite(r.ReadSingle())};
+                    var x=new RedboolViewWorld {round=Range(r.ReadInt32(),1000000),winner=Range(r.ReadByte(),2),paused=r.ReadBoolean(),resolved=r.ReadBoolean(),fighting=r.ReadBoolean(),remaining=Finite(r.ReadSingle()),fov=Finite(r.ReadSingle()),camera=V(r),rotation=Q(r),gate=(byte)Range(r.ReadByte(),9),countdown=Finite(r.ReadSingle())};
                     x.stage=(byte)Range(r.ReadByte(),2);x.cursor0=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);x.cursor1=(byte)Range(r.ReadByte(),RedboolPvpRoster.Count-1);x.locked=(byte)Range(r.ReadByte(),3);x.selectSeconds=(byte)Range(r.ReadByte(),60);
                     x.selectionRun=new Guid(r.ReadBytes(16));x.selectionRevision0=r.ReadUInt32();x.selectionRevision1=r.ReadUInt32();
                     if(x.countdown<0 ||x.countdown>1.01f) return false;

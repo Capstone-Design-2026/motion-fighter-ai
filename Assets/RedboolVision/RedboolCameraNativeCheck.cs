@@ -509,6 +509,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             if(node.IsBattle&&node.status==NodeStatus.Available&&run.FindTravelPath(node.id)!=null){battle=node;break;}
         Check(battle!=null&&VisibleButton("Node_"+battle.id,out _),"Completed story training unlocks an actual connected battle node");
         string nodeId=battle.id;
+        run.Data.playerHealth=31;run.Save();
         storySending=false;ButtonNamed("Node_"+nodeId).onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+90;
         while(FindAnyObjectByType<RedboolBattlePreparation>()==null)
         {Deadline(end,"actual map route to first battle");AdvanceStoryPresentation();yield return null;}
@@ -526,6 +527,21 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         while(!preparation.State.Running||!preparation.AllowsPlayer||!preparation.receiver.LiveReady)
         {Deadline(end,"fresh loopback game state unlocks story battle");PumpStoryInput();yield return null;}
         Check(!preparation.HoldRound&&runtime.ChildId==pid,"Current fixture state releases battle without another C or child restart");
+        var playerHealth=preparation.receiver.player.GetComponent<Health>();
+        Check(playerHealth.CurrentHealth==100,"R4 story starts at 100 HP even when the saved prior-stage health was 31");
+        var intro=FindAnyObjectByType<BattleIntroSequence>();
+        Check(intro!=null&&intro.HoldRound,"R4 authored READY/FIGHT remains gated until camera preparation is ready");
+        Check(!playerHealth.TakeDamage(10,Vector2.zero,false,true),"R4 intro rejects damage, including bypass-invulnerability requests");
+        bool sawReady=false,sawFight=false;end=Time.realtimeSinceStartupAsDouble+7;
+        while(intro.HoldRound)
+        {
+            Deadline(end,"R4 actual story READY/FIGHT completion");PumpStoryInput();
+            sawReady|=intro.Phase==BattleIntroSequence.IntroPhase.Ready;
+            sawFight|=intro.Phase==BattleIntroSequence.IntroPhase.Fight;
+            yield return null;
+        }
+        Check(sawReady&&sawFight&&!preparation.receiver.player.GetComponent<Fighter>().RoundIntroLocked,
+            "R4 native story shows READY then FIGHT and releases the independent round lock");
         Check(!runtime.Status.camera_connected&&!runtime.Status.calibrated,"Game-flow UDP is explicitly separate from physical camera and pose calibration");
         RedboolPauseMenu.Open();yield return null;
         Check(RedboolPauseMenu.IsOpen&&runtime.ChildId==pid,"Story ESC handler opens the shared game menu without replacing its camera");
@@ -760,13 +776,13 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         RedboolPauseMenu.Open();
         Check(RedboolPauseMenu.IsOpen&&RedboolPvp.Active&&runtime.ChildId==first&&Mathf.Approximately(Time.timeScale,pvpTime)&&Mathf.Approximately(Time.fixedDeltaTime,pvpStep),"PvP game menu leaves match time and owned camera unchanged until confirmation");
         ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("NewGameButton")==null)
         {Deadline(end,"return to menu stops owned child");yield return null;}
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
         Check(!RedboolPauseMenu.IsOpen&&!RedboolPvp.Active,"Common menu confirmation uses the normal PvP disconnect route");
         Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
         budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale)&&!runtime.JointRenderPressure,"Leaving camera gameplay restores authored render scale and clears joint pressure");
-        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
+        RedboolDuelTest.Begin();end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Running||runtime.ChildId==first||!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"story duel synthetic status and preview");yield return null;}
         int second=runtime.ChildId;children.Add(second);
@@ -852,12 +868,12 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         exit.onClick.Invoke();
         Check(RedboolPauseMenu.IsOpen,"Direct duel menu can reopen before return confirmation");
         ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("NewGameButton")==null)
         {Deadline(end,"direct duel exit flushes camera diagnostics");yield return null;}
         Check(!RedboolDuelTest.Active&&Mathf.Approximately(Time.timeScale,1)&&Mathf.Approximately(Time.fixedDeltaTime,.02f),"Direct duel exit restores normal game time and clears test mode");
         Check(PlayerPrefs.GetString("VisionStriker.Run", "")==savedRun,"Direct duel exit preserves campaign save");
         Check(!runtime.DiagnosticsPending&&!Alive(second),"Direct duel exit finalizes camera records before export");
-        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+30;
+        RedboolDuelTest.Begin();end=Time.realtimeSinceStartupAsDouble+30;
         while(!runtime.Running||!runtime.Fresh||!runtime.PreviewFresh) {Deadline(end,"direct duel can reopen after exit");yield return null;}
         second=runtime.ChildId;children.Add(second);
         Check(second>0&&runtime.Status.synthetic,"Direct duel reopens synthetic camera after menu exit");

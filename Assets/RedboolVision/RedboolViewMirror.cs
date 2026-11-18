@@ -7,6 +7,7 @@ public sealed class RedboolViewMirror : MonoBehaviour
     RedboolPvp game;Fighter3DView[] views;Transform[][] bones;QiPalmAssets assets;
     readonly Dictionary<int,GameObject> waves=new Dictionary<int,GameObject>();
     readonly QiChargeFx[] chargeFx=new QiChargeFx[2];
+    readonly int[] cutInPhase=new int[2];
     readonly GameObject[,] readyFx=new GameObject[2,2];
     MaterialPropertyBlock tint;
     public bool Ready => game != null && game.RenderReady;
@@ -82,6 +83,9 @@ public sealed class RedboolViewMirror : MonoBehaviour
             var left=bones[i][(int)HumanBodyBones.LeftHand];var right=bones[i][(int)HumanBodyBones.RightHand];
             var hands=left&&right?(left.position+right.position)*.5f:y.visual;
             bool charging=y.phase==1||y.phase==2||y.phase==3;
+            // 파운장 컷인: 호스트에서 기 모으기(CutIn 단계)가 시작되면 이 화면에도 같은 붓자국을 띄운다. 상대보다 왼쪽에 서 있으면 왼쪽 진영.
+            if(y.phase==1 && cutInPhase[i]!=1 &&assets &&assets.brush) QiCutIn.Play(assets.brush,y.root.x<b.actors[1-i].root.x?-1:1,assets.cutInArt);
+            cutInPhase[i]=y.phase;
             if(charging && !chargeFx[i] &&assets &&assets.charge) chargeFx[i]=Instantiate(assets.charge).GetComponent<QiChargeFx>();
             if(!charging && chargeFx[i]) {chargeFx[i].End();chargeFx[i]=null;}
             if(chargeFx[i]) {chargeFx[i].Follow(hands,y.visual);chargeFx[i].SetLevel(y.chargeLevel);}

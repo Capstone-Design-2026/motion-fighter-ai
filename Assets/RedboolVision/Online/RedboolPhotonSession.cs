@@ -17,7 +17,7 @@ public sealed class RedboolPhotonSession : MonoBehaviour
     , IConnectionCallbacks, IMatchmakingCallbacks, IInRoomCallbacks, IOnEventCallback
 #endif
 {
-    public const string ProtocolVersion = "redbool-online-v1";
+    public const string ProtocolVersion = "redbool-online-view34";
     public static RedboolPhotonSession Instance { get; private set; }
     public static RedboolPhotonSession Ensure()
     {

@@ -297,7 +297,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             renderPressure.Observe(generation,Running,renderWindowEligible && frameSamples>0,
                 elapsed,cameraFps,meanFrame,severeRenderWindowEligible && frameSamples>0);
             if(!wasPressure && renderPressure.Latched)
-                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} severe_windows={renderPressure.SevereGameWindows} reason={renderPressure.Trigger} target=1280x720 session_latched=true backend_unchanged=true"));
+                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} severe_windows={renderPressure.SevereGameWindows} sustained_windows={renderPressure.SustainedGameWindows} reason={renderPressure.Trigger} target=1280x720 session_latched=true backend_unchanged=true"));
             if(Running && frameSamples>0)
             {
                 if(InferencePressure || meanFrame>22 || meanDecode>2 || meanRequest>80)

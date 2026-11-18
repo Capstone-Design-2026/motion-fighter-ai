@@ -67,6 +67,14 @@ public static class CombatHUDVerification
     static void Invoke(object o,string m)=>o.GetType().GetMethod(m,BindingFlags.NonPublic|BindingFlags.Instance).Invoke(o,null);
     static void TimeLeft(float t)=>typeof(BattleSceneBridge).GetField("<RemainingSeconds>k__BackingField",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(battle,t);
     static IEnumerator Wait(float seconds){float end=Time.realtimeSinceStartup+seconds;while(Time.realtimeSinceStartup<end)yield return null;}
+    // 2026-11-16: every round restart replays 승준's READY/FIGHT intro, which holds the timer and damage (~1.7 s).
+    static IEnumerator UntilIntroDone()
+    {
+        RedboolBattlePreparation.SetKeyboardTest(true);
+        var intro=UnityEngine.Object.FindAnyObjectByType<BattleIntroSequence>();float end=Time.realtimeSinceStartup+6;
+        while(intro!=null&&intro.HoldRound&&Time.realtimeSinceStartup<end)yield return null;
+        Check(intro==null||!intro.HoldRound,"READY/FIGHT intro releases the round");
+    }
     static IEnumerator Tests()
     {
         yield return null;yield return null;
@@ -127,6 +135,7 @@ public static class CombatHUDVerification
         Invoke(hud,"RestartRound");yield return null;
         Check(hp.FillRatio==1&&enemyHP.FillRatio==1&&gauge.FillRatio==0&&timer.text=="120","Standalone round restart restores HUD values");
         battle.enabled=true;
+        for(var w=UntilIntroDone();w.MoveNext();)yield return null;
         for(var w=Wait(.3f);w.MoveNext();)yield return null;
         Check(battle.RemainingSeconds<120&&battle.RemainingSeconds>118,"Real round countdown advances");
         Time.timeScale=0;float paused=battle.RemainingSeconds;
@@ -146,14 +155,17 @@ public static class CombatHUDVerification
         for(var c=Capture("07_timeout",1920,1080);c.MoveNext();)yield return null;
         Invoke(hud,"RestartRound");
         Check(!canvas.transform.Find("BattleResult").gameObject.activeSelf,"Restart clears the entire result panel, including caption and restart hint");
+        for(var w=UntilIntroDone();w.MoveNext();)yield return null;
         player.SetCurrentHealth(player.MaxHealth);enemy.SetCurrentHealth(1);TimeLeft(.001f);
         for(var w=Wait(.15f);w.MoveNext();)yield return null;
         Check(battle.IsResolved&&canvas.transform.Find("BattleResult/KOText").GetComponent<Text>().text.Contains("YOU WIN"),"Higher HP ratio at timeout wins");
-        Invoke(hud,"RestartRound");battle.enabled=false;
+        Invoke(hud,"RestartRound");
+        for(var w=UntilIntroDone();w.MoveNext();)yield return null;
+        battle.enabled=false;
         enemy.TakeDamage(10000,Vector2.zero);yield return null;
         Check(enemyHP.FillRatio==0&&canvas.transform.Find("BattleResult").gameObject.activeSelf,"KO empties health and preserves result overlay");
         for(var c=Capture("08_ko",1920,1080);c.MoveNext();)yield return null;
-        // Story owns one Korean result line; the decorative standalone result must stay hidden.
+        // 2026-11-16: story battles also show the K.O./YOU LOSE lettering; the bridge keeps the one Korean result line under it.
         var runMode=typeof(BattleSceneBridge).GetField("runMode",BindingFlags.NonPublic|BindingFlags.Instance);
         bool previousRunMode=(bool)runMode.GetValue(battle);
         try
@@ -161,9 +173,11 @@ public static class CombatHUDVerification
             canvas.transform.Find("BattleResult").gameObject.SetActive(false);
             runMode.SetValue(battle,true);
             hud.ShowTimeOut(false);
-            Check(!canvas.transform.Find("BattleResult").gameObject.activeSelf,"Story timeout does not duplicate the bridge result with a standalone overlay");
-            typeof(CombatHUD).GetMethod("OnDeath",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(hud,new object[]{player});
-            Check(!canvas.transform.Find("BattleResult").gameObject.activeSelf,"Story KO keeps the same single-result ownership");
+            Check(canvas.transform.Find("BattleResult").gameObject.activeSelf&&!canvas.transform.Find("BattleResult/ResultCaption").gameObject.activeSelf,"Story timeout shows the lettering without repeating the bridge's Korean line");
+            canvas.transform.Find("BattleResult").gameObject.SetActive(false);
+            typeof(CombatHUD).GetMethod("OnDeath",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(hud,new object[]{enemy});
+            Check(canvas.transform.Find("BattleResult").gameObject.activeSelf&&canvas.transform.Find("BattleResult/KOText").GetComponent<Text>().text=="K.O."&&!canvas.transform.Find("BattleResult/ResultCaption").gameObject.activeSelf,"Story KO shows K.O. lettering with the bridge owning the Korean line");
+            canvas.transform.Find("BattleResult").gameObject.SetActive(false);
             Invoke(battle,"BuildBanner");
             typeof(BattleSceneBridge).GetMethod("ShowBanner",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(battle,new object[]{false,true});
             var banner=(Text)typeof(BattleSceneBridge).GetField("bannerText",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(battle);

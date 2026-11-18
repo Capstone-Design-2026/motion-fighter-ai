@@ -82,7 +82,7 @@ class PackageChecks(unittest.TestCase):
         current = PACKAGE.capture(self.u)
         json_write(self.player.parent / 'source-preservation.json', dict(passed=True, exit_code=0, source_unchanged=True,
                     before=current, after=current, changed_preexisting_files=[], automatic_restore_performed=False))
-        json_write(self.player.parent / 'build-info.json', dict(release='OnlinePreview', git_commit=self.ucommit, runtime_sha256=PACKAGE.runtime_sha(self.u), view_protocol=33))
+        json_write(self.player.parent / 'build-info.json', dict(release='OnlinePreview', git_commit=self.ucommit, runtime_sha256=PACKAGE.runtime_sha(self.u), view_protocol=34))
         identities, _ = PACKAGE.fingerprint(self.u, self.py, self.player, self.backend, 'windows')
         capabilities = {**self.meta, 'frozen': True, 'camera_opened': False, 'game_packets': 0}
         inference = dict(passed=True, frozen=True, camera_opened=False, game_packets=0, platform='Windows', architecture='AMD64',

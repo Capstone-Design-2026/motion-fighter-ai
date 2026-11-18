@@ -131,8 +131,9 @@ public class RunConfig : ScriptableObject
 
     [Header("플레이어")]
     public int playerMaxHealth = 100;
+    // 2026-11-16부터 꺼 둔다: 스테이지마다 체력 100에서 시작한다(쉼터는 이야기만 보여 준다).
     [Tooltip("전투가 끝나도 체력이 이어진다. 끄면 매 전투 만피로 시작.")]
-    public bool carryPlayerHealth = true;
+    public bool carryPlayerHealth = false;
     [Tooltip("휴식 칸에서 회복하는 비율 (0.3 = 최대 체력의 30%).")]
     [Range(0f, 1f)] public float restHealPercent = 0.3f;
 

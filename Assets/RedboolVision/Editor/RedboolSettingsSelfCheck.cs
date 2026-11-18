@@ -160,7 +160,7 @@ public static class RedboolSettingsSelfCheck
         {
             field.SetValue(null,pending.Task);
             Check(RedboolPackageDiagnostics.IsExporting,"Pending export blocks game entry immediately");
-            foreach(string button in new[]{"NewGameButton","ContinueButton","DuelTestButton","PvpButton"})
+            foreach(string button in new[]{"NewGameButton","ContinueButton","PvpButton"})
             {
                 canvas.Find(button).GetComponent<Button>().onClick.Invoke();
                 Check(canvas.Find("Message").GetComponent<Text>().text=="기록 저장이 끝나면 시작해주세요","Export explains blocked "+button);
