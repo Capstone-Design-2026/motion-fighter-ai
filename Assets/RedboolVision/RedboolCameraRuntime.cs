@@ -426,7 +426,14 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                     if(next!=null && next.schema==1) {
                         Status=next;lastStatus=Time.realtimeSinceStartupAsDouble;
                         if(next.camera_connected && next.frame_id>lastCameraFrameId)
-                        {lastCameraFrameId=next.frame_id;lastCameraFrameAt=lastStatus;}
+                        {
+                            lastCameraFrameId=next.frame_id;lastCameraFrameAt=lastStatus;
+                            // Calibration/selection also consumes live camera frames. Keep the
+                            // Mac event loop responsive before valid gesture packets exist.
+                            // Only advancing frames renew the bounded OS activity lease; this
+                            // never grants tracking/readiness or extends network input validity.
+                            RedboolFrameMetrics.NoteLiveInput();
+                        }
                     }
                 }
             }
@@ -463,7 +470,12 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 {
                     if(Preview==null)Preview=new Texture2D(320,240,TextureFormat.RGB24,false);
                     var watch=Stopwatch.StartNew();bool loaded=Preview.LoadImage(bytes,false);watch.Stop();
-                    if(loaded) { previewSequence=sequence;lastPreview=Time.realtimeSinceStartupAsDouble;previewSamples++;PreviewDecodedFrames++;decodeTotal+=watch.Elapsed.TotalMilliseconds;decodeMax=Math.Max(decodeMax,watch.Elapsed.TotalMilliseconds); }
+                    if(loaded) {
+                        previewSequence=sequence;lastPreview=Time.realtimeSinceStartupAsDouble;previewSamples++;PreviewDecodedFrames++;decodeTotal+=watch.Elapsed.TotalMilliseconds;decodeMax=Math.Max(decodeMax,watch.Elapsed.TotalMilliseconds);
+                        // Fresh JPEGs are live work even in the uncalibrated waiting room.
+                        // Duplicate/stale responses do not get here and cannot retain activity.
+                        RedboolFrameMetrics.NoteLiveInput();
+                    }
                 }
             }
             // HTTP and decoding consume this deadline's budget. Never append a

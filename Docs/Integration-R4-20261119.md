@@ -15,3 +15,7 @@ Camera backend remains the exact R3 native binaries from Python commit 3b07244a3
 Added rendering-only relief after two complete, focused five-second windows above 23ms/frame with advancing camera input. It never changes the pose model, recognition thresholds, event expiry or network pacing. Background/modal/loading intervals break the streak; the budget remains stable until the next camera process.
 
 Validation: RedboolR4IntegrationCheck.Run, four ordered landmark journal replays, Mac/Windows release builds, packaged native synthetic story/lifecycle and two-instance LAN/Photon tests. Consult the package manifest for exact completed evidence; physical webcams and remote Windows gameplay remain field verification.
+
+## Native calibration-wait responsiveness
+
+Native R4 and preserved R3 both reproduced preview slowdown in the uncalibrated PvP waiting room: no calibrated gesture input renewed the existing macOS activity lease, despite advancing local camera/JPEG work. The sampled main thread mostly waited in the AppKit event loop. `RedboolCameraRuntime` now renews the same bounded activity lease only for advancing camera frames or successfully decoded newer previews. No tracking/readiness, deadline, recognition, or transport acceptance changes. Duplicate/stale responses do not renew it; stop/loss still expires the lease. Re-run native preview/lifecycle checks and compare retained failing runs before release.
