@@ -23,6 +23,11 @@ public static class RedboolSettingsSelfCheck
         bool hadVolume = PlayerPrefs.HasKey(Prefix + "Volume"), hadSave = PlayerPrefs.HasKey(SaveKey);
         float volume = PlayerPrefs.GetFloat(Prefix + "Volume"), audio = AudioListener.volume;
         string save = PlayerPrefs.GetString(SaveKey); bool oldOperator = RedboolDemoSettings.OperatorMode;
+        // These checks run synchronously in one Editor frame. Closing a real
+        // modal must consume that frame, but must not leak the fixture's input
+        // suppression into the next independent check in an aggregate run.
+        var consumedFrame = typeof(RedboolPauseMenu).GetField("consumedInputFrame", BindingFlags.Static | BindingFlags.NonPublic);
+        int originalConsumedFrame = (int)consumedFrame.GetValue(null);
         GameObject runRoot = null, menuRoot = null;
         Action reconnect = null;
         try
@@ -86,6 +91,7 @@ public static class RedboolSettingsSelfCheck
             var cancel = dialog.transform.Find("NewGameConfirmationCanvas/ConfirmModal/ConfirmPanel/CancelNewGame").GetComponent<Button>();
             cancel.onClick.Invoke();
             Check(!RedboolNewGameConfirmation.IsOpen && PlayerPrefs.GetString(SaveKey) == sentinel && ReferenceEquals(RunState.Instance.Data, originalData), "Cancel preserves existing campaign exactly");
+            Check(RedboolPauseMenu.BlocksStoryInput && (int)consumedFrame.GetValue(null) == Time.frameCount, "Closing a modal still consumes its actual input frame");
             if (dialog != null) UnityEngine.Object.DestroyImmediate(dialog.gameObject);
             int confirmed = 0; RedboolNewGameConfirmation.Show(() => confirmed++);
             dialog = UnityEngine.Object.FindAnyObjectByType<RedboolNewGameConfirmation>();
@@ -135,7 +141,9 @@ public static class RedboolSettingsSelfCheck
             if (hadVolume) PlayerPrefs.SetFloat(Prefix + "Volume", volume); else PlayerPrefs.DeleteKey(Prefix + "Volume");
             if (hadSave) PlayerPrefs.SetString(SaveKey, save); else PlayerPrefs.DeleteKey(SaveKey);
             RedboolDemoSettings.OperatorMode = oldOperator; AudioListener.volume = audio; PlayerPrefs.Save();
+            consumedFrame.SetValue(null, originalConsumedFrame);
         }
+        Check((int)consumedFrame.GetValue(null) == originalConsumedFrame, "Settings fixture restores prior modal input suppression for subsequent checks");
         CheckStorage();
         string result = "PASS " + checks.Count + " settings/new-game checks\n" + string.Join("\n", checks);
         string output = Environment.GetEnvironmentVariable("REDBOOL_SETTINGS_CHECK_OUTPUT");
@@ -152,7 +160,7 @@ public static class RedboolSettingsSelfCheck
         {
             field.SetValue(null,pending.Task);
             Check(RedboolPackageDiagnostics.IsExporting,"Pending export blocks game entry immediately");
-            foreach(string button in new[]{"NewGameButton","ContinueButton","DuelTestButton","PvpButton"})
+            foreach(string button in new[]{"NewGameButton","ContinueButton","PvpButton"})
             {
                 canvas.Find(button).GetComponent<Button>().onClick.Invoke();
                 Check(canvas.Find("Message").GetComponent<Text>().text=="기록 저장이 끝나면 시작해주세요","Export explains blocked "+button);

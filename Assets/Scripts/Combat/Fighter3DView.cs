@@ -34,8 +34,14 @@ public sealed class Fighter3DView : MonoBehaviour
     GroundedBoxingWalk walk;
     HeroAuthoredMovement heroMovement;
     int movementRevision = -1;
+    // 걷기 접지: 걷는 동안 가장 낮은 발바닥이 바닥에 닿도록 겉모습만 위아래로 맞춘다.
+    // 낮은 발바닥이 바닥 위 0~4mm(IK 걷기가 발을 놓는 높이) 안이면 그대로 두고, 벗어난 만큼만 옮긴다.
+    const float SoleBand = .004f, MaxGroundShift = .04f;
+    float groundWeight, groundShift;
     public GroundedBoxingWalk Walk => walk;
     public string CurrentState => currentState;
+    /// <summary>이번 프레임에 걷기 접지가 겉모습을 옮긴 높이(m, +는 올림). 검사용.</summary>
+    public float GroundShift { get; private set; }
 
     void CacheVisual()
     {
@@ -116,7 +122,7 @@ public sealed class Fighter3DView : MonoBehaviour
     public void ResetPresentation()
     {
         reactionUntil = flashUntil = 0f; guardFlash = false; currentState = "IDLE";
-        stateStarted = Time.time;
+        stateStarted = Time.time; groundWeight = groundShift = 0f; GroundShift = 0f;
         walk?.Reset();
         heroMovement?.Cancel(); movementRevision = -1;
         if (modelAnimator == null) return;
@@ -148,9 +154,39 @@ public sealed class Fighter3DView : MonoBehaviour
             if (Time.time - stateStarted >= GuardEntry) Play(pose + "_HOLD");
         }
         else if (currentState == pose + "_HIT") Play(pose + "_HOLD");
+        // A fresh guard may return while its visual release is still blending.
+        // Resume the held pose from the current pose; gameplay guard remains immediate.
+        else if (currentState == pose + "_RELEASE" && Time.time >= stateStarted
+            && Time.time - stateStarted < GuardRelease) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         // 막는 중에 높이만 바뀌면(상대 공격에 맞춘 자동 전환) 팔을 내렸다 다시 올리지 않고 그 자세로 바로 넘어간다.
         else if (currentState != null && currentState.StartsWith("GUARD") && !currentState.EndsWith("_RELEASE")) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         else Play(pose);
+    }
+    static bool Groundable(string state) => state == "WALK_FORWARD" || state == "WALK_BACK"
+        || state == "HERO_FORWARD_STEP" || state == "HERO_BACKWARD_STEP";
+    /// <summary>
+    /// 걷기 접지(겉모습 전용). 걷기·스텝 중에 두 발바닥 중 낮은 쪽이 바닥(2D 바닥 높이)에 닿도록 모델 전체를 위아래로 맞춘다.
+    /// 적마다 옮겨 만든 클립의 작은 뜸·묻힘과, IK 걷기가 다 닿지 못한 발을 함께 잡는다. 최대 ±4cm.
+    /// 기본자세로 돌아가면 0.1초, 공격·막기·피격·KO·필살기가 시작되면 0.05초 만에 마지막 값에서 풀어
+    /// 그 동작의 높이(기본자세의 들썩임, 뛰기 포함)는 그대로 둔다. 판정·이동·속도는 건드리지 않는다.
+    /// </summary>
+    void GroundFeet(float dt)
+    {
+        GroundShift = 0f;
+        if (walk == null || !walk.SoleReady) { groundWeight = 0f; return; }
+        bool on = Groundable(currentState) && !health.IsDead && Time.time >= reactionUntil && !health.IsHitStunned
+            && !fighter.IsAttacking && !fighter.IsSpecialActive && !fighter.IsBlocking;
+        float fade = on ? .08f : currentState == "IDLE" ? .1f : .05f;
+        groundWeight = Mathf.MoveTowards(groundWeight, on ? 1f : 0f, dt / fade);
+        if (groundWeight <= 0f) { groundShift = 0f; return; }
+        if (on)
+        {
+            float gap = Mathf.Min(walk.LowestSoleY(0), walk.LowestSoleY(1)) - walk.GroundY;
+            float shift = gap < 0f ? -gap : gap > SoleBand ? SoleBand - gap : 0f;
+            groundShift = Mathf.Clamp(shift, -MaxGroundShift, MaxGroundShift);
+        }
+        GroundShift = groundShift * groundWeight;
+        visualRoot.position += Vector3.up * GroundShift;
     }
     void LateUpdate()
     {
@@ -164,6 +200,8 @@ public sealed class Fighter3DView : MonoBehaviour
         {
             Vector3 grounded = visualRoot.position; grounded.y = walk.GroundY;
             visualRoot.position = grounded;
+            // 발 치수(발바닥 표본)는 기본자세가 자리 잡은 프레임에 한 번 잰다. 모든 캐릭터의 기본자세는 발바닥이 바닥에 평평하다.
+            if (!walk.Calibrated && currentState == "IDLE" && !modelAnimator.IsInTransition(0)) walk.TryCalibrate();
         }
         if (health.IsDead) Play("KO");
         else if (Time.time < reactionUntil || health.IsHitStunned) { }
@@ -192,6 +230,7 @@ public sealed class Fighter3DView : MonoBehaviour
         modelAnimator.speed = walkingState ? (authoredSteps && !cameraPlayer ? walk.AuthoredPlaybackSpeed : walk.PlaybackSpeed) : heroStep ? heroMovement.PlaybackSpeed : 1f;
         if ((!authoredSteps || cameraPlayer) && (heroMovement == null || !heroMovement.isActiveAndEnabled))
             walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
+        GroundFeet(Time.deltaTime);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;
         else if (Time.time < flashUntil) tint = guardFlash ? new Color(.5f, .8f, 1f) : new Color(1f, .45f, .4f);

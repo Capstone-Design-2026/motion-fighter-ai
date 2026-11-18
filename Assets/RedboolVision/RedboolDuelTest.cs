@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>Explicit, unsaved combat rehearsal. Normal campaign routing is unchanged.
-/// 시작 화면의 빠른 대전 또는 --redbool-duel-test 로 진입한다. 운영자 모드의 F5 는 처음부터 다시.</summary>
+/// --redbool-duel-test 로 진입한다(2026-11-16 시작 화면의 빠른 대전 버튼은 뺐다). 운영자 모드의 F5 는 처음부터 다시.</summary>
 public sealed class RedboolDuelTest : MonoBehaviour
 {
     public static bool Active { get; private set; }

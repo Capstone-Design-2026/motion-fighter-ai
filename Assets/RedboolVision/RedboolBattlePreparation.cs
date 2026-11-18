@@ -11,6 +11,10 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     public PlayerController player;
     public readonly RedboolPreparationState State = new RedboolPreparationState();
     private readonly List<Fighter> fighters = new List<Fighter>();
+    // Refresh runs four times per second. Reuse traversal storage instead of
+    // allocating a root array and one component array for every scene root.
+    private readonly List<GameObject> refreshRoots = new List<GameObject>();
+    private readonly List<Fighter> refreshFighters = new List<Fighter>();
     private double nextRefresh;
     public bool HoldRound => EffectsPreparing || !KeyboardTest && (!isActiveAndEnabled || !State.Running);
     public bool EffectsPreparing { get; internal set; }
@@ -110,8 +114,16 @@ public sealed class RedboolBattlePreparation : MonoBehaviour
     private void RefreshFighters()
     {
         fighters.Clear();
-        foreach (var root in gameObject.scene.GetRootGameObjects())
-            fighters.AddRange(root.GetComponentsInChildren<Fighter>());
+        gameObject.scene.GetRootGameObjects(refreshRoots);
+        foreach (var root in refreshRoots)
+        {
+            // false preserves the original default includeInactive behavior,
+            // including a component on an inactive root itself.
+            root.GetComponentsInChildren(false, refreshFighters);
+            fighters.AddRange(refreshFighters);
+        }
+        refreshFighters.Clear();
+        refreshRoots.Clear();
         nextRefresh = Time.realtimeSinceStartupAsDouble + .25;
     }
 

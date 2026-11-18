@@ -46,6 +46,9 @@ public class StartSceneUI : MonoBehaviour
     private Button findRoomButton;
     private Coroutine roomSearch;
     private UdpClient discoverySocket;
+    private RedboolOnlineMenu onlineMenu;
+    private Button onlineTab, lanTab;
+    private readonly List<GameObject> lanMenuItems = new List<GameObject>();
 
     [Serializable]
     private sealed class RoomReply
@@ -160,7 +163,7 @@ public class StartSceneUI : MonoBehaviour
     void BuildLanMenu()
     {
         pvpPanel=UIFactory.CreateRect("TwoScreenMenu",canvas.transform);
-        UIFactory.Place(pvpPanel,new Vector2(.74f,.5f),new Vector2(.5f,.5f),new Vector2(0,-20),new Vector2(640,620));
+        UIFactory.Place(pvpPanel,new Vector2(.74f,.5f),new Vector2(.5f,.5f),new Vector2(0,-20),new Vector2(640,710));
         var body=WuxiaTheme.Ornament("LobbyInk",pvpPanel,WuxiaGraphic.Shape.Plaque,new Color(.08f,.105f,.095f,.96f));
         UIFactory.Stretch(body.rectTransform);
         var border=WuxiaTheme.Ornament("LobbyGold",pvpPanel,WuxiaGraphic.Shape.PlaqueFrame,WuxiaTheme.Gold);
@@ -173,6 +176,14 @@ public class StartSceneUI : MonoBehaviour
         WuxiaTheme.StyleButton(close);
         // The short close button needs no decorative leaf beside its label.
         var closeMark=close.transform.Find("MenuMark");if(closeMark!=null) closeMark.gameObject.SetActive(false);
+        onlineTab=UIFactory.CreateButton("OnlineTab",pvpPanel,"온라인 대전",24,buttonColor,()=>ShowPvpMode(true));
+        UIFactory.Place(onlineTab.GetComponent<RectTransform>(),new Vector2(0,1),new Vector2(0,1),new Vector2(40,-102),new Vector2(270,50));
+        WuxiaTheme.StyleButton(onlineTab);
+        lanTab=UIFactory.CreateButton("LanTab",pvpPanel,"같은 네트워크 · LAN",23,buttonColor,()=>ShowPvpMode(false));
+        UIFactory.Place(lanTab.GetComponent<RectTransform>(),new Vector2(1,1),new Vector2(1,1),new Vector2(-40,-102),new Vector2(270,50));
+        WuxiaTheme.StyleButton(lanTab);
+        foreach(var tab in new[]{onlineTab,lanTab}) {var mark=tab.transform.Find("MenuMark");if(mark!=null)mark.gameObject.SetActive(false);}
+        int firstLanItem=pvpPanel.childCount;
         var help=WuxiaTheme.Text("LanHelp",pvpPanel,"같은 Wi-Fi 또는 유선망의 두 노트북에서\n각자의 화면과 카메라로 대전합니다.",23,TextAnchor.UpperLeft,WuxiaTheme.Paper);
         help.horizontalOverflow=HorizontalWrapMode.Wrap;
         UIFactory.Place(help.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(40,-100),new Vector2(560,64));
@@ -203,18 +214,40 @@ public class StartSceneUI : MonoBehaviour
         pvpMessage=WuxiaTheme.Text("LobbyMessage",pvpPanel,"한 명은 방 만들기, 다른 한 명은 방 찾기 후 참가를 누르세요.",22,TextAnchor.UpperLeft,WuxiaTheme.Paper);
         pvpMessage.horizontalOverflow=HorizontalWrapMode.Wrap;
         UIFactory.Place(pvpMessage.rectTransform,new Vector2(0,1),new Vector2(0,1),new Vector2(40,-500),new Vector2(560,90));
+        for(int i=firstLanItem;i<pvpPanel.childCount;i++)
+        {
+            var item=pvpPanel.GetChild(i).GetComponent<RectTransform>();
+            item.anchoredPosition+=new Vector2(0,-80);
+            lanMenuItems.Add(item.gameObject);
+        }
+        var onlineRoot=UIFactory.CreateRect("OnlineRoomMenu",pvpPanel);
+        UIFactory.Place(onlineRoot,new Vector2(0,1),new Vector2(0,1),new Vector2(40,-176),new Vector2(560,500));
+        onlineMenu=onlineRoot.gameObject.AddComponent<RedboolOnlineMenu>();
+        onlineMenu.Initialize(EntryBlockedByExport,HidePvpMenu);
+        ShowPvpMode(true);
         pvpPanel.gameObject.SetActive(false);
     }
 
     private void TogglePvpMenu()
     {
         if(pvpPanel.gameObject.activeSelf) HidePvpMenu();
-        else if(!EntryBlockedByExport())pvpPanel.gameObject.SetActive(true);
+        else if(!EntryBlockedByExport()) {pvpPanel.gameObject.SetActive(true);ShowPvpMode(true);}
+    }
+
+    private void ShowPvpMode(bool online)
+    {
+        StopRoomSearch();
+        if(!online && onlineMenu!=null)onlineMenu.CancelPending();
+        foreach(var item in lanMenuItems)if(item!=null)item.SetActive(!online);
+        if(onlineMenu!=null)onlineMenu.gameObject.SetActive(online);
+        if(onlineTab!=null)onlineTab.interactable=!online;
+        if(lanTab!=null)lanTab.interactable=online;
     }
 
     private void HidePvpMenu()
     {
         StopRoomSearch();
+        if(onlineMenu!=null)onlineMenu.CancelPending();
         if(pvpPanel!=null) pvpPanel.gameObject.SetActive(false);
     }
 
@@ -341,7 +374,7 @@ public class StartSceneUI : MonoBehaviour
             pvpMessage.text="방 찾기를 다시 누르거나 친구의 IPv4를 직접 입력해주세요.";
     }
 
-    private void OnDisable() { StopRoomSearch(); }
+    private void OnDisable() { StopRoomSearch();if(onlineMenu!=null)onlineMenu.CancelPending(); }
     private void OnDestroy() { RedboolDemoSettings.Changed -= RefreshPresentation; }
 
     private void RefreshPresentation()
@@ -397,6 +430,7 @@ public class StartSceneUI : MonoBehaviour
     {
         if(EntryBlockedByExport())return;
         if (RunState.Instance == null) return;
+        HidePvpMenu();
         RunState.Instance.StartNewRun();
         SceneRoutes.LoadMap();
     }
@@ -407,6 +441,7 @@ public class StartSceneUI : MonoBehaviour
         if (RunState.Instance == null) return;
         if (RunState.Instance.LoadRun())
         {
+            HidePvpMenu();
             // A saved in-progress battle must resume that scene. Returning to
             // the map with pendingNodeId still set prevents selecting any node.
             if (RunState.Instance.HasPendingBattle) SceneRoutes.LoadBattle();
@@ -425,17 +460,19 @@ public class StartSceneUI : MonoBehaviour
 
     private void OnQuickDuel()
     {
-        if(!EntryBlockedByExport())RedboolDuelTest.Begin();
+        if(!EntryBlockedByExport()) {HidePvpMenu();RedboolDuelTest.Begin();}
     }
 
     private void OnCredits()
     {
+        HidePvpMenu();
         EndingSceneUI.OpenedFromMenu = true;
         SceneRoutes.LoadEnding();
     }
 
     private void OnQuit()
     {
+        HidePvpMenu();
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #else

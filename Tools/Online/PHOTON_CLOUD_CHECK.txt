@@ -1,0 +1,55 @@
+Real SDK Cloud integration check
+
+The explicitly invoked Editor method RedboolPhotonCloudCheck.Run uses one actual
+RedboolPhotonSession and one actual Photon RealtimeClient. It never uses the
+contract-test Photon doubles. It stays in edit mode, pumps networking manually
+on the Unity main thread, and does not start camera/game/Play mode callbacks.
+The Session component stays on an inactive GameObject. The fixture sets only its
+private main-thread identifier and singleton property using reflection, instead
+of calling Awake (DontDestroyOnLoad is invalid in edit mode). Real public Session
+connection/send/leave logic and SDK callbacks run unchanged. This check does not
+validate Awake, persistence across scenes, or native game lifecycle behavior.
+
+The caller launches the installed Unity Editor with this project and:
+  -batchmode -nographics -executeMethod RedboolPhotonCloudCheck.Run -quit
+Optional report destination:
+  -redboolPhotonReport /absolute/path/to/report.json
+Default: ../verification/photon-cloud-check.json relative to the Unity project.
+
+Load the actual App ID through Resources/RedboolOnlineConfig.json or the inherited
+REDBOOL_PHOTON_APP_ID environment variable. Never place it in this test source.
+SDK and PHOTON_REALTIME_5_OR_NEWER must already be installed/enabled.
+
+Scope: real kr Cloud authentication, Session-host private room and raw guest,
+small encrypted unreliable relay/echo, exact payload integrity, invalid room
+epoch, reordered unseen envelopes, oversize rejection, guest departure;
+then raw-host creation, in-flight Session join cancellation, same-room retry and
+bidirectional relay, host departure without takeover, missing room rejection.
+Cancellation diagnostics retain actor counts and SDK states without user IDs or
+App IDs. A recently cancelled same-room join may briefly report GameFull while
+Master capacity accounting clears; Session retries only that case, at most once
+a second, up to 23 retries within a 25-second grace window. Other full/missing/
+closed rooms fail immediately. Cancel during that wait still ends the request.
+
+Bounded traffic: 24 x 256-byte unreliable probes at about 20 Hz, echoes, a handful
+of reliable boundary probes, matchmaking/control traffic. Total run budget 120 s;
+temporary rooms use PlayerTtl=0 and EmptyRoomTtl=0 and are disconnected in cleanup.
+Any timed-out packet is reported as missing; missing/late packets are never 0 ms.
+
+Timing is between two clients on this same computer through the real Photon Cloud,
+using one process stopwatch and a manual 1 ms service loop. It includes dispatch
+and local scheduling, excludes camera/inference/rendering, and is not a two-device
+or end-to-end gameplay benchmark. The two clients share the same local route.
+SDK smoothed server RTT is reported separately for each client; it is neither
+relay delivery time nor application echo RTT.
+The 1000 ms echo window is a test observation bound, not a gameplay acceptance
+deadline or a latency promise. Per-sample data and loss counts are retained.
+
+A pumping SynchronizationContext processes captured async continuations during
+the blocking Editor method, and restores Unity's prior context in finally.
+For SDK connection-handler cleanup only, a StateChanged hook substitutes
+DestroyImmediate for the SDK native component Destroy, which is not legal in
+edit mode. It stops the real fallback ACK timer and leaves SDK disconnection
+processing/callbacks intact. Vendor source is unchanged.
+No SDK/server responses or delivery times are simulated. A native Play/player
+test on the actual two devices is still required after this Cloud check.

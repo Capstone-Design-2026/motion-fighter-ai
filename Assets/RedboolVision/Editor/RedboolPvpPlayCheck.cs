@@ -60,6 +60,8 @@ public static class RedboolPvpPlayCheck
  static void Check(bool ok,string message){checks.Add((ok?"PASS ":"FAIL ")+message);File.WriteAllLines(Path.Combine(Output,"checks.txt"),checks);if(!ok)throw new Exception(message);}
  static void Send(int slot,Packet p){p.actor_id=p.actor_id??"P"+(slot+1);p.stream_id="pvp-test-"+slot;p.capture_epoch=p.stream_id;p.sequence=++sequences[slot];p.sent_ns=Now;p.calibration_generation=generation[slot];var b=Encoding.UTF8.GetBytes(JsonUtility.ToJson(p));clients[slot].Send(b,b.Length);}
  static void Drain(){for(int i=0;i<2;i++)while(clients[i]!=null&&clients[i].Available>0){var peer=new IPEndPoint(IPAddress.Any,0);var a=JsonUtility.FromJson<Ack>(Encoding.UTF8.GetString(clients[i].Receive(ref peer)));if(!String.IsNullOrEmpty(a.event_id))replies[a.event_id]=a;}}
+ // READY/FIGHT (round opening, about 1.65 s) holds CanFight; keep both camera feeds fresh until it ends.
+ static IEnumerator UntilIntroDone(){double end=Time.realtimeSinceStartupAsDouble+4;while(Game.IntroActive&&Time.realtimeSinceStartupAsDouble<end){for(var w=Pump(.05f);w.MoveNext();)yield return null;}Check(!Game.IntroActive,"READY/FIGHT opening finishes");}
  static IEnumerator Pump(float seconds){double end=Time.realtimeSinceStartupAsDouble+seconds;do{
   for(int i=0;i<2;i++)if(send[i]){if(Time.realtimeSinceStartupAsDouble>=nextSync[i]){Send(i,new Packet{kind="SYNC"});nextSync[i]=Time.realtimeSinceStartupAsDouble+1;}
    Send(i,new Packet{kind="STATE",fsm_state=phases[i],tracking=tracking[i],calibrated=calibrated[i],block_active=block[i],movement=movement[i],movement_strength=movement[i]=="NEUTRAL"?0:.8f});}
@@ -147,6 +149,8 @@ public static class RedboolPvpPlayCheck
   for(var w=Practice();w.MoveNext();)yield return null;
   phases[0]=phases[1]="PREPARING";block[0]=true;
   for(var w=Pump(1.3f);w.MoveNext();)yield return null;
+  Check(Game.IntroActive&&!Game.CanFight&&Game.Gate==RedboolPvp.IntroReadyGate&&Game.Players[0].GetComponent<Fighter>().RoundIntroLocked&&Game.Players[1].GetComponent<Fighter>().RoundIntroLocked,"Round opening shows READY and holds both fighters (gate "+Game.Gate+")");
+  for(var w=UntilIntroDone();w.MoveNext();)yield return null;
   Check(Game.CanFight,"Both complete + fresh cameras opens one shared round without a second strict arm READY gate");
   phases[0]=phases[1]="READY";block[0]=false;for(var w=Pump(.15f);w.MoveNext();)yield return null;
   if(guest!=null) {
@@ -236,8 +240,10 @@ public static class RedboolPvpPlayCheck
   Game.Players[0].GetComponent<Health>().SetCurrentHealth(0);Game.Players[1].GetComponent<Health>().SetCurrentHealth(0);
   for(var w=Pump(.1f);w.MoveNext();)yield return null;
   Check(Game.Resolved&&Game.Result=="무승부","Simultaneous zero HP resolves as draw");
-  Check(GameObject.Find("PvpRoundResult")!=null &&GameObject.Find("RoundResultText").GetComponent<UnityEngine.UI.Text>().text.Contains("K.O."),"Round ending has a central KO explanation instead of looking disconnected");
+  Check(GameObject.Find("PvpRoundResult")!=null &&GameObject.Find("PvpAnnouncement")!=null&&GameObject.Find("PvpAnnouncement").GetComponent<UnityEngine.UI.Text>().text=="K.O."&&GameObject.Find("RoundResultText").GetComponent<UnityEngine.UI.Text>().text.Contains("무승부"),"Round ending shows K.O. lettering and the result instead of looking disconnected");
   Game.Rematch();for(var w=Pump(1.3f);w.MoveNext();)yield return null;
+  Check(Game.IntroActive&&!Game.CanFight,"Rematch replays READY/FIGHT");
+  for(var w=UntilIntroDone();w.MoveNext();)yield return null;
   Check(Game.CanFight&&Game.Players[0].GetComponent<Health>().CurrentHealth==100&&Game.Players[1].GetComponent<Health>().CurrentHealth==100,"Rematch restores both HP without another calibration/tutorial");
   Check(GameObject.Find("PvpRoundResult")==null,"Result overlay clears after rematch");
   float x0=Game.Players[0].transform.position.x,x1=Game.Players[1].transform.position.x;
@@ -264,8 +270,9 @@ public static class RedboolPvpPlayCheck
   pa.GetComponent<Health>().SetCurrentHealth(60);pb.GetComponent<Health>().SetCurrentHealth(80);
   typeof(RedboolPvp).GetProperty("Remaining").SetValue(Game,0f);
   for(var w=Pump(.1f);w.MoveNext();)yield return null;
-  Check(Game.Resolved&&Game.Result=="2P 승리"&&GameObject.Find("RoundResultText").GetComponent<UnityEngine.UI.Text>().text.Contains("시간 종료"),"Timeout with both fighters alive explains round end, not a network disconnection");
+  Check(Game.Resolved&&Game.Result=="2P 승리"&&GameObject.Find("RoundResultText").GetComponent<UnityEngine.UI.Text>().text.Contains("시간 종료")&&GameObject.Find("PvpAnnouncement").GetComponent<UnityEngine.UI.Text>().text=="TIME UP","Timeout with both fighters alive explains round end, not a network disconnection");
   Game.Rematch();for(var w=Pump(1.3f);w.MoveNext();)yield return null;
+  for(var w=UntilIntroDone();w.MoveNext();)yield return null;
   Check(Game.CanFight&&Game.Practices[0].Complete&&Game.Practices[1].Complete,"Timed-out round restarts without repeating tutorial");
   RunState.Instance.Save();RunState.Instance.ClearSave();
   Check(PlayerPrefs.GetString(SaveKey,"")==save,"PvP save and clear-save calls are guarded");

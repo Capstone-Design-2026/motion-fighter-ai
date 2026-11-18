@@ -35,6 +35,20 @@ public sealed class QiCameraFx : MonoBehaviour
     /// <summary>카메라를 뒤로 물린다(월드 미터, 0 이 원래 자리). 크게 뛰거나 넓게 퍼지는 적 필살기를 한 화면에 담을 때 쓴다.</summary>
     public static void Pull(float distance) { var fx = Ensure(); if (fx) fx.pullTarget = Mathf.Clamp(distance, 0f, 4f); }
 
+    /// <summary>
+    /// 렌더링 때 실제로 쓰는 카메라 자리와 시야각(뒤로 물림·줌 포함, 흔들림 제외).
+    /// 이 효과는 그리는 순간에만 더해지므로 평소 transform 에는 없다. PvP 손님 화면에 카메라를 보낼 때 이 값을 써야
+    /// 크게 뛰거나 넓게 퍼지는 필살기가 손님 화면에서도 한 화면에 담긴다(2026-11-16).
+    /// </summary>
+    public static void EffectivePose(Camera c, out Vector3 position, out float fov)
+    {
+        position = c.transform.position; fov = c.fieldOfView;
+        var fx = c.GetComponent<QiCameraFx>();
+        if (fx == null || !fx.isActiveAndEnabled || fx.applied) return;
+        if (!c.orthographic) fov *= fx.fovMul;
+        if (fx.pull > .001f) position += -c.transform.forward * fx.pull + c.transform.up * (fx.pull * .17f);
+    }
+
     /// <summary>연출을 즉시 원래대로.</summary>
     public static void ResetAll() { var c = Camera.main; var fx = c ? c.GetComponent<QiCameraFx>() : null; if (fx) { fx.fovTarget = 1f; fx.shake = 0f; fx.pullTarget = 0f; } }
 

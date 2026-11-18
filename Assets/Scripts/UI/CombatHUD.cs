@@ -287,17 +287,18 @@ public class CombatHUD : MonoBehaviour
     private void OnDeath(Health dead)
     {
         matchOver = true;
-        // 지도를 거쳐 들어온 전투는 BattleSceneBridge 가 "승리 - 지도로 돌아갑니다" 같은 한 줄을 띄운다. 같은 뜻의 글을 두 번 띄우지 않는다.
-        if (battle != null && battle.RunMode) return;
         bool playerLost = (dead == playerHealth);
-        ShowResult(playerLost ? "YOU LOSE" : "K.O.", playerLost ? "패배" : "승리", !playerLost);
+        // 지도를 거쳐 들어온 전투도 K.O. 글씨는 띄운다(2026-11-16, 모든 전투에 READY·FIGHT·K.O.).
+        // 그 아래 "승리 - 지도로 돌아갑니다" 같은 한 줄은 BattleSceneBridge 가 띄우므로 여기서는 작은 글을 비운다.
+        bool runMode = battle != null && battle.RunMode;
+        ShowResult(playerLost ? "YOU LOSE" : "K.O.", runMode ? "" : playerLost ? "패배" : "승리", !playerLost);
     }
 
     public void ShowTimeOut(bool won)
     {
         matchOver = true;
-        if (battle != null && battle.RunMode) return;
-        ShowResult(won ? "YOU WIN" : "YOU LOSE", won ? "시간 종료 · 승리" : "시간 종료 · 패배", won);
+        bool runMode = battle != null && battle.RunMode;
+        ShowResult(won ? "YOU WIN" : "YOU LOSE", runMode ? "" : won ? "시간 종료 · 승리" : "시간 종료 · 패배", won);
     }
 
     private void ShowResult(string headline, string caption, bool won)

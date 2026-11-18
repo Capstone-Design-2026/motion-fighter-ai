@@ -31,7 +31,7 @@ public static class RedboolV36SceneSelfCheck
                 foreach(string id in RemovedIds)Check(!Regex.IsMatch(text,@"fileID: "+id+@"\b"),"Removed webcam object has no dangling local reference: "+Path.GetFileName(scene.path)+"/"+id);
             }
         }
-        Check(enabled==27&&combat==24,"All 27 enabled scenes retain 24 integrated combat arenas");
+        Check(enabled==28&&combat==24,"All 28 enabled scenes (BootScene intro + 27) retain 24 integrated combat arenas");
         foreach(string guid in scripts)
         {
             string path=AssetDatabase.GUIDToAssetPath(guid);

@@ -274,7 +274,8 @@ public class SpecialMove : MonoBehaviour
             chargeFx = Instantiate(assets.charge).GetComponent<QiChargeFx>();
             FollowFx(0f);
         }
-        if (!RedboolPvp.Active && assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
+        // PvP 에서도 컷인은 띄운다(2026-11-16): 다른 인물 11명의 필살기도 PvP 에서 컷인이 나온다. 손님 화면은 RedboolViewMirror 가 띄운다.
+        if (assets != null && assets.brush != null) QiCutIn.Play(assets.brush, fighter.Facing > 0 ? -1 : 1, assets.cutInArt);
 
         ownsTime = !RedboolPvp.Active && !fighter.InputLocked;
         if (ownsTime) SetTimeScale(cutInSlowScale);

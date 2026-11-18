@@ -221,6 +221,13 @@ public static class RedboolPvpLobbyCheck
     }
 
     static IEnumerator Wait(float seconds) { for (var w = Pump(seconds); w.MoveNext();) yield return null; }
+    // READY/FIGHT 시작 연출(라운드마다 한 번, 약 1.65초)이 끝날 때까지 카메라 신호를 계속 보내며 기다린다. 그동안은 CanFight 가 false 다.
+    static IEnumerator UntilIntroDone(string label)
+    {
+        double until = Time.realtimeSinceStartupAsDouble + 4;
+        while (Game.IntroActive && Time.realtimeSinceStartupAsDouble < until) for (var w = Wait(0f); w.MoveNext();) yield return null;
+        Check(!Game.IntroActive, label + ": READY/FIGHT 시작 연출이 끝난다");
+    }
 
     // Successful single-lobby baseline, both sides, same stationary target.
     // A partially cancelled multi-hit technique must not pass a >0 damage check.
@@ -381,6 +388,12 @@ public static class RedboolPvpLobbyCheck
         }
         for (var w = Wait(1.6f); w.MoveNext();) yield return null;
         Check(Game.Fighting && !Game.Paused, "두 사람이 수련을 마치면 대전이 시작된다");
+        Check(Game.IntroActive && (Game.Gate == RedboolPvp.IntroReadyGate || Game.Gate == RedboolPvp.IntroFightGate) && !Game.CanFight
+            && Game.Players[0].GetComponent<Fighter>().RoundIntroLocked && Game.Players[1].GetComponent<Fighter>().RoundIntroLocked,
+            "대전이 열리면 READY/FIGHT 동안 두 사람을 붙잡는다 (gate " + Game.Gate + ")");
+        Shot("7_fight_ready");
+        for (var w = UntilIntroDone("첫 라운드"); w.MoveNext();) yield return null;
+        Check(Game.CanFight && !Game.Players[0].GetComponent<Fighter>().RoundIntroLocked && !Game.Players[1].GetComponent<Fighter>().RoundIntroLocked, "FIGHT 뒤 두 사람이 움직일 수 있다");
         Shot("7_fight");
 
         // 무대와 HUD
@@ -571,6 +584,38 @@ public static class RedboolPvpLobbyCheck
                 Check(own.Charge == 0 && !own.Used && Game.Players[side].GetComponent<Fighter>().CanAttack, label + ": 쓰고 나면 게이지가 비고 다시 모을 수 있다");
             }
 
+        // 주인공(서청운)의 파운장도 양쪽 자리에서 끝까지 한 번씩 쓴다 (2026-11-16: 12명 전부 화면 확인).
+        for (int side = 0; side < 2; side++)
+        {
+            string label = (side + 1) + "P " + RedboolPvpRoster.Get(RedboolPvpRoster.Hero).name + " · 파운장";
+            Game.ApplyCharacter(side, RedboolPvpRoster.Hero); Game.ApplyCharacter(1 - side, 1);
+            yield return null;
+            for (int i = 0; i < 2; i++) { var h = Game.Players[i].GetComponent<Health>(); h.ResetHealth(); h.ClearStun(); }
+            Place(0, start0.x); Place(1, start1.x);
+            remaining.SetValue(Game, 120f);
+            for (var w = Wait(.4f); w.MoveNext();) yield return null;
+            var palm = Game.Players[side].GetComponent<SpecialMove>(); var foe = Game.Players[1 - side].GetComponent<EnemySpecial>();
+            var foeHp = Game.Players[1 - side].GetComponent<Health>();
+            Check(palm != null && palm.enabled && Game.SpecialName(side) == "파운장", label + ": 주인공은 파운장을 쓴다");
+            for (var w = AwaitFreshBattle(label + ": 인물 준비", foe, foe.FireSerial); w.MoveNext();) yield return null;
+            palm.AddCharge(palm.HitsToCharge);
+            for (var w = Wait(.25f); w.MoveNext();) yield return null;
+            Gesture(side, "SPECIAL", "sweep-palm-" + side);
+            double until = Time.realtimeSinceStartupAsDouble + 1.5;
+            while (!palm.IsPlaying && Time.realtimeSinceStartupAsDouble < until) for (var w = Wait(0f); w.MoveNext();) yield return null;
+            Check(palm.IsPlaying, label + ": 가슴 앞 X자 동작으로 나간다");
+            double began = Time.realtimeSinceStartupAsDouble; bool pictured = false;
+            until = began + 8;
+            while (palm.IsPlaying && Time.realtimeSinceStartupAsDouble < until)
+            {
+                if (!dual && !pictured && Time.realtimeSinceStartupAsDouble - began > 1.0) { pictured = true; Shot("special_00_" + (side + 1) + "p", 960, 540); }
+                for (var w = Wait(0f); w.MoveNext();) yield return null;
+            }
+            Check(!palm.IsPlaying && foeHp.CurrentHealth < foeHp.MaxHealth, label + ": 기술이 끝나고 상대가 피해를 입는다 (체력 " + foeHp.CurrentHealth + ")");
+            for (var w = Wait(.5f); w.MoveNext();) yield return null;
+            for (var w = AwaitFreshBattle(label, foe, foe.FireSerial); w.MoveNext();) yield return null;
+        }
+
         // 승표탈기는 상대가 모아 둔 게이지를 비운다 (상대가 인물 고유 기술을 쓸 때도)
         {
             Game.ApplyCharacter(0, 4); Game.ApplyCharacter(1, 5); yield return null;
@@ -597,11 +642,16 @@ public static class RedboolPvpLobbyCheck
             Check(Game.Players[1].GetComponent<Health>().TakeDamage(999, Vector2.zero, false, true), "라운드 종료 검사용 실제 K.O.를 만든다");
             for (var w = Wait(.3f); w.MoveNext();) yield return null;
             Check(Game.Resolved, "K.O. 뒤 결과 화면 상태가 된다");
+            var ko = GameObject.Find("PvpAnnouncement");
+            Check(ko != null && ko.GetComponent<UnityEngine.UI.Text>().text == "K.O.", "라운드가 K.O.로 끝나면 스토리와 같은 K.O. 글씨가 뜬다");
+            Shot("9_round_ko");
             Game.Rematch();
             Check(Game.Round == round + 1 && !Game.Resolved && !Game.Fighting && Game.Remaining == 120f, "재대전은 새 라운드의 시간과 준비 상태를 초기화한다");
             for (int i = 0; i < 2; i++) Check(Game.Players[i].GetComponent<Health>().CurrentHealth == 100 && !Game.Players[i].GetComponent<EnemySpecial>().IsPlaying && Game.Players[i].GetComponent<EnemySpecial>().Charge == 0, (i + 1) + "P 재대전 체력/기/연출 초기화");
             Check(Game.Practices[0].Complete && Game.Practices[1].Complete && Game.Practices[0].Run == run0 && Game.Practices[1].Run == run1, "같은 사람의 재대전에는 수련과 개인 보정 문맥을 유지한다");
             for (var w = Wait(1.6f); w.MoveNext();) yield return null;
+            Check(Game.IntroActive || Game.CanFight, "재대전이 열리면 READY/FIGHT 부터 다시 한다");
+            for (var w = UntilIntroDone("재대전"); w.MoveNext();) yield return null;
             Check(Game.CanFight, "신호가 이어지면 재대전이 다시 시작된다");
             Game.Players[1].GetComponent<Health>().TakeDamage(999, Vector2.zero, false, true);
             for (var w = Wait(.3f); w.MoveNext();) yield return null;
@@ -610,6 +660,7 @@ public static class RedboolPvpLobbyCheck
             lobby.Move(0, -lobby.Cursor[0]); lobby.Move(1, RedboolPvpRoster.DefaultSecond - lobby.Cursor[1]);
             lobby.Lock(0, true); lobby.Lock(1, true);
             for (var w = Wait(RedboolPvpLobby.ConfirmSeconds + 1.6f); w.MoveNext();) yield return null;
+            for (var w = UntilIntroDone("인물 다시 고르기"); w.MoveNext();) yield return null;
             Check(lobby.Complete && Game.CanFight && Game.Characters[0] == RedboolPvpRoster.Hero && Game.Characters[1] == RedboolPvpRoster.DefaultSecond, "같은 사람이 인물만 바꾸면 수련 반복 없이 새 인물로 재개한다");
             Check(Game.Players[0].GetComponent<SpecialMove>().enabled && !Game.Players[0].GetComponent<EnemySpecial>().enabled, "주인공 재선택은 인물 필살기를 끄고 파운장으로 복귀한다");
             send[1] = false; for (var w = Wait(.5f); w.MoveNext();) yield return null;

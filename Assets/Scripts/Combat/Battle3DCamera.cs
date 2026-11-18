@@ -100,7 +100,10 @@ public sealed class Battle3DCamera : MonoBehaviour
     {
         if (player == null || enemy == null) return;
         // Cinematics own their focus/FOV, but a KO or raised foot must still fit.
-        if (!Locked()) { if (orbitArena) FrameArena(false); else FrameLegacy(); }
+        // Frame the arena during READY; mouse controls remain locked in Update.
+        bool introFraming = fighter != null && fighter.OnlyRoundIntroLocked
+            && Time.timeScale > 0f && (special == null || !special.IsPlaying) && !HitImpact.CameraEffectActive;
+        if (!Locked() || introFraming) { if (orbitArena) FrameArena(false); else FrameLegacy(); }
         KeepFightersVisible();
     }
     void FrameLegacy()

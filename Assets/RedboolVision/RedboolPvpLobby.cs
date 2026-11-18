@@ -73,7 +73,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     double nextAddressRefresh, addressCopiedUntil;
     string addressNotice = "같은 공유기에 연결한 상대에게 주소를 알려주세요", addressCopied;
     bool? roomStatusSharedLayout;
-    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView;
+    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView && !RedboolPvp.Online;
     readonly RectTransform[] cards = new RectTransform[RedboolPvpRoster.All.Length];
     readonly Texture[] portraits = new Texture[RedboolPvpRoster.All.Length];
     readonly Rect[] cardCrop = new Rect[RedboolPvpRoster.All.Length], bigCrop = new Rect[RedboolPvpRoster.All.Length];
@@ -600,7 +600,13 @@ public sealed class RedboolPvpLobby : MonoBehaviour
                 fighting = game.Fighting && !game.Paused || game.Resolved;
             }
             if (Current != Stage.Done || fighting) tutorial[s].Hide();
-            else tutorial[s].Show(step, hits, live, RedboolPvpRoster.Get(game.Characters[s]), game.SpecialName(s), personal);
+            else {
+                bool bothComplete=client?frame.actors[0].step>=8&&frame.actors[1].step>=8:game.Practices[0].Complete&&game.Practices[1].Complete;
+                byte gate=client?frame.world.gate:game.Gate;
+                float countdown=client?frame.world.countdown:game.Countdown;
+                tutorial[s].Show(step,hits,live,RedboolPvpRoster.Get(game.Characters[s]),game.SpecialName(s),personal,
+                    RedboolPvp.PracticeMessage(step,hits,bothComplete,gate,countdown,live));
+            }
             if (Current == Stage.Done && !fighting && step >= 2 && step < 8 && !tutorialCaptured) { tutorialCaptured = true; Capture("tutorial"); }
         }
         double now = Time.realtimeSinceStartupAsDouble;
@@ -612,14 +618,16 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     public void CaptureAfter(string label, float delay)
     {
         if (string.IsNullOrEmpty(captureDirectory)) return;
-        pendingCapture = label; pendingCaptureAt = Time.realtimeSinceStartupAsDouble + delay;
+        pendingCaptures.Add(new System.Collections.Generic.KeyValuePair<string, double>(label, Time.realtimeSinceStartupAsDouble + delay));
     }
-    string pendingCapture; double pendingCaptureAt;
+    // 필살기 한 번에 여러 장(시작·발동·적중·끝)을 남길 수 있게 예약을 줄로 둔다. 한 프레임에 한 장만 찍는다.
+    readonly System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, double>> pendingCaptures = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, double>>();
 
     void LateUpdate()
     {
-        if (pendingCapture == null || Time.realtimeSinceStartupAsDouble < pendingCaptureAt) return;
-        Capture(pendingCapture); pendingCapture = null;
+        double now = Time.realtimeSinceStartupAsDouble;
+        for (int i = 0; i < pendingCaptures.Count; i++)
+            if (now >= pendingCaptures[i].Value) { Capture(pendingCaptures[i].Key); pendingCaptures.RemoveAt(i); return; }
     }
 
     void Capture(string label)

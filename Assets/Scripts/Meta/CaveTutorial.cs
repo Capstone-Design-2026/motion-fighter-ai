@@ -6,7 +6,7 @@ using UnityEngine.UI;
 /// <summary>Eight responsive practice steps. Vision and explicitly selected keyboard tests stay separate.</summary>
 public class CaveTutorial : MonoBehaviour {
  public static readonly string[] Actions={"JAB","STRAIGHT","HIGH_KICK","LOW_KICK","BLOCK","MOVE_LEFT","MOVE_RIGHT","SPECIAL"};
- static readonly string[] Names={"잽","스트레이트","하이킥","로우킥","막기","왼쪽 이동","오른쪽 이동","필살기"};
+ static readonly string[] Names={"잽","스트레이트","하이킥","로우킥","막기","왼쪽 이동","오른쪽 이동","필살기"};   // 수련 설명은 "필살기"로 부른다. 파운장은 주인공 필살기의 이름이다.
  static readonly string[] Gestures={"왼손을 앞으로 지르세요","오른손을 앞으로 뻗으세요","왼손을 위로 들어 올리세요","오른손을 위로 들어 올리세요","두 손을 올려 가드 자세를 취하세요","어깨 중심을 왼쪽으로 옮기세요","어깨 중심을 오른쪽으로 옮기세요","가슴 앞에서 팔을 X자로 1초 유지한 뒤 풀어주세요"};
  static readonly string[] Tips={"왼손 주먹이 카메라에 가려지지 않게, 한 번 뻗고 되돌리세요.","왼손은 가드에 두고 오른손만 앞으로 뻗어보세요.","실제로 다리를 차지 않아도 됩니다. 왼손을 어깨보다 높이 들어보세요.","실제로 다리를 차지 않아도 됩니다. 오른손을 어깨보다 높이 들어보세요.","두 손을 얼굴 앞에 올린 뒤 기본 자세로 내려보세요.","몸을 비틀기보다 두 어깨의 중심을 왼쪽으로 옮겨보세요.","두 어깨의 중심을 오른쪽으로 옮긴 뒤 중앙으로 돌아오세요.","양쪽 손목과 팔꿈치가 보이도록 가슴 앞에서 교차하세요. 수련에서는 충전이 필요 없습니다."};
  static CaveTutorial active;

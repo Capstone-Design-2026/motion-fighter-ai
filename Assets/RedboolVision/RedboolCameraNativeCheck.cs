@@ -14,10 +14,10 @@ using UnityEngine.Rendering.Universal;
 using UnityEngine.EventSystems;
 using Debug=UnityEngine.Debug;
 
-/// <summary>Explicit development-only packaged lifecycle fixture. Synthetic camera only.</summary>
+/// <summary>Explicit offline packaged lifecycle fixture. Synthetic camera only, including release builds.</summary>
 public sealed class RedboolCameraNativeCheck : MonoBehaviour
 {
-    [Serializable] sealed class Report {public bool passed;public string error;public List<string> checks;public List<int> children;public double preview_fps;public float render_scale;public int width,height;}
+    [Serializable] sealed class Report {public bool passed;public string error;public List<string> checks;public List<int> children;public double preview_fps;public float render_scale;public int width,height;public bool development_build,story_flow_completed,physical_camera_opened,actual_pose_calibration_tested;public string game_input_scope;}
     readonly List<string> checks=new List<string>();
     readonly List<int> children=new List<int>();
     readonly List<UdpClient> portReservations=new List<UdpClient>();
@@ -56,15 +56,16 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     static void Install()
     {
         var args=Environment.GetCommandLineArgs();
-        if(Array.IndexOf(args,"--redbool-camera-check")<0)return;
-        if(!Debug.isDebugBuild||Application.isEditor||Application.isBatchMode||Array.IndexOf(args,"--redbool-camera-synthetic")<0)
-        {Debug.LogError("Camera check requires a non-batch development player and --redbool-camera-synthetic; no camera started.");Application.Quit(2);return;}
+        if(!RedboolCameraCheckMode.Requested(args))return;
+        if(!RedboolCameraCheckMode.Authorize(args,Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),
+            Application.isEditor,Application.isBatchMode,out string error))
+        {Debug.LogError("[REDBOOL OFFLINE CHECK] "+error+" No camera started.");if(!Application.isEditor)Application.Quit(2);return;}
         var root=new GameObject("REDBOOL Synthetic Camera Check");DontDestroyOnLoad(root);root.AddComponent<RedboolCameraNativeCheck>();
     }
     IEnumerator Start()
     {
-        directory=Environment.GetEnvironmentVariable("REDBOOL_CAMERA_CHECK_OUTPUT");
-        if(string.IsNullOrEmpty(directory))directory=Path.Combine(Application.persistentDataPath,"SyntheticCameraCheck");
+        directory=Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable);
+        // Install already required this explicit path; never default into user records.
         Directory.CreateDirectory(directory);
         var flow=Flow();
         while(true)
@@ -301,6 +302,269 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         }
         mapFixtureActive=false;
     }
+    const string CampaignKey="VisionStriker.Run";
+    bool campaignCaptured,campaignPresent,storyFlowCompleted,campaignLastBattleWon;
+    string campaignSave,campaignMessage;
+    RunState campaignOwner;RunData campaignData;
+    UdpClient storyClient;RedboolDemoReceiver storyReceiver;
+    long storySequence;double storyNextSync;
+    readonly string storyStream="offline-story-"+Guid.NewGuid().ToString("N");
+    readonly Dictionary<string,string> storyReplies=new Dictionary<string,string>();
+    bool storySending,storyCalibrated,storyBlock;
+    string storyTracking="VALID",storyMovement="NEUTRAL";
+    [Serializable] sealed class StoryPacket
+    {
+        public int version=2,ttl_ms=150,calibration_version=1,calibration_generation=1;
+        public string kind,stream_id,actor_id="DEV01",capture_epoch,sync_id="offline-story-sync",event_id,side,gesture;
+        public string fsm_state="READY",tracking="VALID",movement="NEUTRAL";
+        public long sequence,sent_ns,capture_ns,commit_ns,receiver_offset_ns,clock_uncertainty_ns,event_expires_ns;
+        public bool calibrated,block_active;public float movement_strength;
+    }
+    [Serializable] sealed class StoryAck {public string event_id,status;}
+    static long StoryNow
+    {
+        get {long value=Stopwatch.GetTimestamp(),frequency=Stopwatch.Frequency;
+            return value/frequency*1000000000L+(long)((value%frequency)*(1000000000.0/frequency));}
+    }
+    void CaptureCampaign()
+    {
+        if(campaignCaptured)return;
+        campaignOwner=RunState.Instance;
+        if(campaignOwner==null)throw new Exception("Story fixture needs the real RunState");
+        campaignPresent=PlayerPrefs.HasKey(CampaignKey);campaignSave=PlayerPrefs.GetString(CampaignKey,"");
+        campaignData=campaignOwner.Data;campaignMessage=campaignOwner.LastMessage;campaignLastBattleWon=campaignOwner.LastBattleWon;campaignCaptured=true;
+        // The wrapper also preserves the whole preference file across abnormal
+        // process termination. This records only the campaign key for recovery.
+        File.WriteAllText(Path.Combine(directory,"campaign-before.json"),JsonUtility.ToJson(new CampaignBackup {
+            present=campaignPresent,value=campaignSave}));
+    }
+    [Serializable] sealed class CampaignBackup {public bool present;public string value;}
+    void RestoreCampaign()
+    {
+        if(!campaignCaptured)return;
+        if(campaignPresent)PlayerPrefs.SetString(CampaignKey,campaignSave);else PlayerPrefs.DeleteKey(CampaignKey);
+        PlayerPrefs.Save();
+        if(campaignOwner!=null)
+        {
+            typeof(RunState).GetProperty("Data").SetValue(campaignOwner,campaignData);
+            campaignOwner.LastMessage=campaignMessage;
+            typeof(RunState).GetProperty("LastBattleWon").SetValue(campaignOwner,campaignLastBattleWon);
+        }
+        campaignCaptured=false;
+    }
+    void CloseStoryInput()
+    {
+        storySending=false;storyClient?.Dispose();storyClient=null;storyReceiver=null;
+    }
+    static bool VisibleButton(string name,out Button button)
+    {
+        button=ButtonNamed(name);
+        return button!=null&&button.gameObject.activeInHierarchy&&button.interactable;
+    }
+    static bool StoryMapIdle()
+    {
+        var map=FindAnyObjectByType<MapSceneUI>();
+        return map!=null&&!StoryCutscene.IsOpen
+            &&!(bool)typeof(MapSceneUI).GetField("travelling",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(map);
+    }
+    void AdvanceStoryPresentation()
+    {
+        var video=FindAnyObjectByType<StoryVideo>();
+        if(video!=null){video.RequestAdvance();return;}
+        if(VisibleButton("SkipStory",out var skip))skip.onClick.Invoke();
+        else if(VisibleButton("NextStory",out var next))next.onClick.Invoke();
+    }
+    void SendStory(StoryPacket packet)
+    {
+        if(storyClient==null)throw new Exception("Story loopback sender is absent");
+        packet.stream_id=packet.capture_epoch=storyStream;packet.sequence=++storySequence;
+        packet.sent_ns=StoryNow;if(packet.capture_ns==0)packet.capture_ns=packet.sent_ns;
+        if(packet.kind=="GESTURE") {packet.commit_ns=packet.sent_ns;packet.event_expires_ns=packet.sent_ns+150000000L;}
+        byte[] bytes=System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(packet));
+        storyClient.Send(bytes,bytes.Length,new IPEndPoint(IPAddress.Loopback,5065));
+    }
+    void StoryGesture(string gesture,string id)
+    {
+        SendStory(new StoryPacket {kind="GESTURE",gesture=gesture,event_id=id,
+            side=gesture=="SPECIAL"?"BOTH":gesture.StartsWith("LEFT",StringComparison.Ordinal)?"LEFT":"RIGHT"});
+    }
+    void PumpStoryInput()
+    {
+        if(storyClient==null)return;
+        var current=ReceiverOnPort(5065);
+        if(storySending&&current!=null&&current.Bound)
+        {
+            if(current!=storyReceiver){storyReceiver=current;storyNextSync=-1;}
+            double now=Time.realtimeSinceStartupAsDouble;
+            if(now>=storyNextSync){SendStory(new StoryPacket{kind="SYNC"});storyNextSync=now+.5;}
+            SendStory(new StoryPacket {kind="STATE",calibrated=storyCalibrated,tracking=storyTracking,
+                block_active=storyBlock,movement=storyMovement,movement_strength=storyMovement=="NEUTRAL"?0:.8f});
+        }
+        while(storyClient.Available>0)
+        {
+            var peer=new IPEndPoint(IPAddress.Any,0);
+            var bytes=storyClient.Receive(ref peer);
+            if(!IPAddress.IsLoopback(peer.Address)||peer.Port!=5065)throw new Exception("Unexpected story fixture peer");
+            var ack=JsonUtility.FromJson<StoryAck>(System.Text.Encoding.UTF8.GetString(bytes));
+            if(!String.IsNullOrEmpty(ack.event_id))storyReplies[ack.event_id]=ack.status;
+        }
+    }
+    IEnumerator StoryPump(float seconds,bool advanceStory=false)
+    {
+        double end=Time.realtimeSinceStartupAsDouble+seconds;
+        do {PumpStoryInput();if(advanceStory)AdvanceStoryPresentation();yield return null;}
+        while(Time.realtimeSinceStartupAsDouble<end);
+        PumpStoryInput();
+    }
+    IEnumerator CheckStoryOnboarding(RedboolCameraRuntime runtime)
+    {
+        CaptureCampaign();
+        Check(!runtime.Running&&!RedboolPvp.Active,"Story onboarding begins in the actual main menu with no camera child");
+        ButtonNamed("NewGameButton").onClick.Invoke();yield return null;
+        if(RedboolNewGameConfirmation.IsOpen)ButtonNamed("ConfirmNewGame").onClick.Invoke();
+        double end=Time.realtimeSinceStartupAsDouble+90;
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Map||StoryCutscene.IsOpen
+            ||!VisibleButton("Node_cave",out _)||FindAnyObjectByType<MapSceneUI>()==null)
+        {Deadline(end,"actual new game and prologue map");AdvanceStoryPresentation();yield return null;}
+        // Give Start/automatic prologue one frame before entering the map node.
+        yield return null;
+        while(StoryCutscene.IsOpen){Deadline(end,"new-game prologue");AdvanceStoryPresentation();yield return null;}
+        var run=RunState.Instance;
+        Check(run.HasRun&&run.IsStoryMap&&!run.Data.tutorialCompleted&&run.Data.tutorialStep==0,
+            "Actual NewGame callback creates a fresh story map and unfinished tutorial");
+        Check(!runtime.Running,"New game and story presentation do not open the camera before training");
+        Check(VisibleButton("Node_cave",out var caveButton),"Actual story cave node is available");
+        caveButton.onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+90;
+        while(FindAnyObjectByType<CaveTutorial>()==null)
+        {Deadline(end,"actual cave route and introductory dialogue");AdvanceStoryPresentation();yield return null;}
+        var tutorial=FindAnyObjectByType<CaveTutorial>();
+        while(!runtime.Running||!runtime.Fresh||!runtime.PreviewFresh||runtime.Status==null||runtime.Status.phase!="test")
+        {Deadline(end,"story tutorial synthetic backend ready");yield return null;}
+        int pid=runtime.ChildId;children.Add(pid);
+        Check(pid>0&&runtime.Synthetic&&runtime.Status.synthetic&&!runtime.Status.camera_connected&&!runtime.Status.calibrated,
+            "Actual story tutorial owns a synthetic child; no physical camera or pose calibration is claimed");
+        Check(ReceiverOnPort(5065)!=null&&ReceiverOnPort(5065).Bound&&ReceiverOnPort(5065).expectedActorId=="DEV01",
+            "Actual tutorial binds its DEV01 receiver before owned camera input");
+        storyClient=new UdpClient(new IPEndPoint(IPAddress.Loopback,0));
+        RedboolSocketOwnership.PreventInheritance(storyClient.Client,"offline story fixture loopback sender");
+        storySending=true;storyCalibrated=false;storyTracking="VALID";storyMovement="NEUTRAL";storyBlock=false;
+        while(tutorial.IsDemonstrating){PumpStoryInput();yield return null;}
+        for(var p=StoryPump(.25f);p.MoveNext();)yield return p.Current;
+        StoryGesture("LEFT_PUNCH","story-before-calibration");
+        for(var p=StoryPump(.2f);p.MoveNext();)yield return p.Current;
+        Check(tutorial.SuccessfulAttempts==0&&storyReplies.TryGetValue("story-before-calibration",out var beforeStatus)&&beforeStatus=="INPUT_LOCKED",
+            "Fresh but uncalibrated synthetic game packets cannot advance training");
+        Check(VisibleButton("CameraCalibrate",out var calibrateButton),"Actual story calibration button is enabled for the ready synthetic child");
+        int commands=runtime.Status.control_count;calibrateButton.onClick.Invoke();
+        end=Time.realtimeSinceStartupAsDouble+5;
+        while(runtime.Status.control_count<=commands){Deadline(end,"actual story calibration command ACK");PumpStoryInput();yield return null;}
+        Check(runtime.Status.control_count==commands+1&&runtime.Status.last_command=="calibrate"&&!runtime.Status.calibrated,
+            "Story calibration button reaches the real local child once; synthetic does not fake pose calibration");
+        storyCalibrated=true;storyTracking="LOST";
+        for(var p=StoryPump(.2f);p.MoveNext();)yield return p.Current;
+        StoryGesture("LEFT_PUNCH","story-tracking-lost");
+        for(var p=StoryPump(.2f);p.MoveNext();)yield return p.Current;
+        Check(tutorial.SuccessfulAttempts==0&&storyReplies.TryGetValue("story-tracking-lost",out var lostStatus)&&lostStatus=="INPUT_LOCKED",
+            "Calibrated-marked fixture packets with lost tracking cannot advance training");
+        storyTracking="VALID";
+        string[] gestures={"LEFT_PUNCH","RIGHT_PUNCH","LEFT_RAISE","RIGHT_RAISE","BLOCK","MOVE_LEFT","MOVE_RIGHT","SPECIAL"};
+        for(int step=0;step<8;step++)
+        {
+            end=Time.realtimeSinceStartupAsDouble+12;
+            while(tutorial.CurrentStep!=step||tutorial.IsDemonstrating)
+            {Deadline(end,"story step presentation "+step);PumpStoryInput();yield return null;}
+            for(int attempt=0;attempt<2;attempt++)
+            {
+                storyBlock=false;storyMovement="NEUTRAL";
+                for(var p=StoryPump(.25f);p.MoveNext();)yield return p.Current;
+                if(step==4)storyBlock=true;
+                else if(step==5||step==6)storyMovement=step==5?"LEFT":"RIGHT";
+                else StoryGesture(gestures[step],"story-step-"+step+"-"+attempt);
+                for(var p=StoryPump(.22f);p.MoveNext();)yield return p.Current;
+                Check(tutorial.SuccessfulAttempts==attempt+1,"Actual story tutorial credits "+gestures[step]+" attempt "+(attempt+1));
+                if(attempt==0&&step>=4&&step<=6)
+                {
+                    for(var p=StoryPump(.2f);p.MoveNext();)yield return p.Current;
+                    Check(tutorial.SuccessfulAttempts==1,"Held "+gestures[step]+" does not count twice without release");
+                }
+                if(step==0&&attempt==0)
+                {
+                    StoryGesture(gestures[step],"story-step-0-0");
+                    for(var p=StoryPump(.15f);p.MoveNext();)yield return p.Current;
+                    Check(tutorial.SuccessfulAttempts==1,"Repeated story event ID cannot count as another attempt");
+                }
+            }
+            storyBlock=false;storyMovement="NEUTRAL";end=Time.realtimeSinceStartupAsDouble+8;
+            while(!run.Data.tutorialCompleted&&tutorial.CurrentStep==step)
+            {Deadline(end,"story step completion "+step);PumpStoryInput();yield return null;}
+        }
+        Check(run.Data.tutorialCompleted&&run.Data.tutorialStep==8,"All eight actual story steps complete without keyboard or skip substitution");
+        end=Time.realtimeSinceStartupAsDouble+60;
+        while(FindAnyObjectByType<CaveTutorial>()!=null||!StoryMapIdle())
+        {Deadline(end,"story training outro");PumpStoryInput();AdvanceStoryPresentation();yield return null;}
+        yield return null;
+        Check(runtime.ChildId==pid&&Alive(pid),"Tutorial-to-map transition retains the same synthetic camera child");
+        MapNode battle=null;
+        foreach(var node in run.Data.map.nodes)
+            if(node.IsBattle&&node.status==NodeStatus.Available&&run.FindTravelPath(node.id)!=null){battle=node;break;}
+        Check(battle!=null&&VisibleButton("Node_"+battle.id,out _),"Completed story training unlocks an actual connected battle node");
+        string nodeId=battle.id;
+        run.Data.playerHealth=31;run.Save();
+        storySending=false;ButtonNamed("Node_"+nodeId).onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+90;
+        while(FindAnyObjectByType<RedboolBattlePreparation>()==null)
+        {Deadline(end,"actual map route to first battle");AdvanceStoryPresentation();yield return null;}
+        yield return null;
+        var preparation=FindAnyObjectByType<RedboolBattlePreparation>();
+        Check(run.HasPendingBattle&&run.Data.pendingNodeId==nodeId&&SceneManager.GetActiveScene().name==SceneRoutes.PendingBattleScene,
+            "Story map opens the authored battle route for the selected node");
+        Check(preparation.HoldRound&&!preparation.State.Running&&!preparation.AllowsPlayer,
+            "Fresh battle waits for valid input instead of letting enemies attack during camera preparation");
+        Check(runtime.ChildId==pid&&Alive(pid)&&preparation.receiver.Bound,"Battle rebinds local input while retaining the calibrated session's owned child");
+        end=Time.realtimeSinceStartupAsDouble+45;
+        while(preparation.EffectsPreparing){Deadline(end,"authored combat prewarm");yield return null;}
+        Check(preparation.HoldRound,"Finishing visual prewarm alone does not bypass camera preparation");
+        var waitingEnemy=FindAnyObjectByType<EnemyAI>();
+        var waitingHero=preparation.receiver.player.GetComponent<Fighter>();
+        Check(waitingEnemy!=null&&waitingHero.RoundIntroLocked
+            &&waitingHero.Facing==(waitingEnemy.transform.position.x>waitingHero.transform.position.x?1:-1)
+            &&waitingEnemy.GetComponent<Fighter>().Facing==-waitingHero.Facing,
+            "R4 both fighters face each other while calibration and READY locks overlap");
+        storySending=true;end=Time.realtimeSinceStartupAsDouble+5;
+        while(!preparation.State.Running||!preparation.AllowsPlayer||!preparation.receiver.LiveReady)
+        {Deadline(end,"fresh loopback game state unlocks story battle");PumpStoryInput();yield return null;}
+        Check(!preparation.HoldRound&&runtime.ChildId==pid,"Current fixture state releases battle without another C or child restart");
+        var playerHealth=preparation.receiver.player.GetComponent<Health>();
+        Check(playerHealth.CurrentHealth==100,"R4 story starts at 100 HP even when the saved prior-stage health was 31");
+        var intro=FindAnyObjectByType<BattleIntroSequence>();
+        Check(intro!=null&&intro.HoldRound,"R4 authored READY/FIGHT remains gated until camera preparation is ready");
+        Check(!playerHealth.TakeDamage(10,Vector2.zero,false,true),"R4 intro rejects damage, including bypass-invulnerability requests");
+        bool sawReady=false,sawFight=false;end=Time.realtimeSinceStartupAsDouble+7;
+        while(intro.HoldRound)
+        {
+            Deadline(end,"R4 actual story READY/FIGHT completion");PumpStoryInput();
+            sawReady|=intro.Phase==BattleIntroSequence.IntroPhase.Ready;
+            sawFight|=intro.Phase==BattleIntroSequence.IntroPhase.Fight;
+            yield return null;
+        }
+        Check(sawReady&&sawFight&&!preparation.receiver.player.GetComponent<Fighter>().RoundIntroLocked,
+            "R4 native story shows READY then FIGHT and releases the independent round lock");
+        Check(!runtime.Status.camera_connected&&!runtime.Status.calibrated,"Game-flow UDP is explicitly separate from physical camera and pose calibration");
+        RedboolPauseMenu.Open();yield return null;
+        Check(RedboolPauseMenu.IsOpen&&runtime.ChildId==pid,"Story ESC handler opens the shared game menu without replacing its camera");
+        ButtonNamed("GameMenuContinue").onClick.Invoke();yield return null;
+        Check(!RedboolPauseMenu.IsOpen&&Alive(pid)&&SceneManager.GetActiveScene().name==SceneRoutes.PendingBattleScene,
+            "Story Continue keeps the actual battle and camera");
+        PumpStoryInput();RedboolPauseMenu.Open();ButtonNamed("GameMenuReturn").onClick.Invoke();
+        CloseStoryInput();end=Time.realtimeSinceStartupAsDouble+15;
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(pid)||ButtonNamed("PvpButton")==null)
+        {Deadline(end,"actual story menu return finalizes owned camera");yield return null;}
+        Check(!runtime.Running&&!Alive(pid)&&!RedboolPauseMenu.IsOpen,"Actual story return stops its child and finalizes diagnostics");
+        RestoreCampaign();
+        Check(PlayerPrefs.HasKey(CampaignKey)==campaignPresent&&PlayerPrefs.GetString(CampaignKey,"")==campaignSave,
+            "Actual new-game/tutorial fixture restores original campaign bytes and key presence");
+        storyFlowCompleted=true;
+    }
+
     IEnumerator Flow()
     {
         string savedRun=PlayerPrefs.GetString("VisionStriker.Run", "");
@@ -367,10 +631,21 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         {Deadline(end,"map return to main menu");yield return null;}
         RestoreMapFixture();
         Check(!RedboolPauseMenu.IsOpen&&!runtime.Running&&PlayerPrefs.GetString("VisionStriker.Run","")==savedRun&&PlayerPrefs.HasKey("VisionStriker.Run")==savedRunPresent,"Map return preserves campaign save bytes and presence while leaving the camera closed");
+        var storyFlow=CheckStoryOnboarding(runtime);
+        while(storyFlow.MoveNext())yield return storyFlow.Current;
         var menu=FindAnyObjectByType<StartSceneUI>();var lobby=menu.transform.Find("StartCanvas/TwoScreenMenu");
         Check(lobby!=null&&!lobby.gameObject.activeSelf,"Lobby hidden by default");
         ButtonNamed("PvpButton").onClick.Invoke();yield return null;
         Check(lobby.gameObject.activeSelf&&!RedboolPvp.Active,"PvP menu opens without pairing");
+        Check(lobby.Find("OnlineRoomMenu").gameObject.activeSelf&&!runtime.Running,
+            "Online menu opens without camera startup or automatic room creation");
+        var offlineSession=RedboolPhotonSession.Instance;
+        Check(offlineSession==null||!offlineSession.InRoom&&offlineSession.TrafficBytesIn==0&&offlineSession.TrafficBytesOut==0,
+            "Offline lifecycle fixture does not contact the online service");
+        Check(VisibleButton("LanTab",out var lanTab),"LAN tab is a visible user control");
+        lanTab.onClick.Invoke();yield return null;
+        Check(!lobby.Find("OnlineRoomMenu").gameObject.activeSelf&&VisibleButton("Host",out _),
+            "Actual LAN tab reveals the host controls without starting a game");
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"01_pvp_lobby.png"));
         yield return new WaitForSecondsRealtime(.3f);
         var occupiedP1=ReserveInputPort(5065);var occupiedP2=ReserveInputPort(5066);
@@ -507,13 +782,13 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         RedboolPauseMenu.Open();
         Check(RedboolPauseMenu.IsOpen&&RedboolPvp.Active&&runtime.ChildId==first&&Mathf.Approximately(Time.timeScale,pvpTime)&&Mathf.Approximately(Time.fixedDeltaTime,pvpStep),"PvP game menu leaves match time and owned camera unchanged until confirmation");
         ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(first)||ButtonNamed("NewGameButton")==null)
         {Deadline(end,"return to menu stops owned child");yield return null;}
         Check(!runtime.Running&&!Alive(first),"Returning to menu stops old child PID");
         Check(!RedboolPauseMenu.IsOpen&&!RedboolPvp.Active,"Common menu confirmation uses the normal PvP disconnect route");
         Check(!runtime.DiagnosticsPending,"Diagnostics export waits until the owned camera finishes");
         budget.Refresh();Check(Mathf.Approximately(pipeline.renderScale,originalRenderScale)&&!runtime.JointRenderPressure,"Leaving camera gameplay restores authored render scale and clears joint pressure");
-        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+60;
+        RedboolDuelTest.Begin();end=Time.realtimeSinceStartupAsDouble+60;
         while(!runtime.Running||runtime.ChildId==first||!runtime.Fresh||runtime.Status==null||runtime.Status.phase!="test"||!runtime.PreviewFresh)
         {Deadline(end,"story duel synthetic status and preview");yield return null;}
         int second=runtime.ChildId;children.Add(second);
@@ -599,12 +874,12 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         exit.onClick.Invoke();
         Check(RedboolPauseMenu.IsOpen,"Direct duel menu can reopen before return confirmation");
         ButtonNamed("GameMenuReturn").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+15;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("DuelTestButton")==null)
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start||runtime.DiagnosticsPending||Alive(second)||ButtonNamed("NewGameButton")==null)
         {Deadline(end,"direct duel exit flushes camera diagnostics");yield return null;}
         Check(!RedboolDuelTest.Active&&Mathf.Approximately(Time.timeScale,1)&&Mathf.Approximately(Time.fixedDeltaTime,.02f),"Direct duel exit restores normal game time and clears test mode");
         Check(PlayerPrefs.GetString("VisionStriker.Run", "")==savedRun,"Direct duel exit preserves campaign save");
         Check(!runtime.DiagnosticsPending&&!Alive(second),"Direct duel exit finalizes camera records before export");
-        ButtonNamed("DuelTestButton").onClick.Invoke();end=Time.realtimeSinceStartupAsDouble+30;
+        RedboolDuelTest.Begin();end=Time.realtimeSinceStartupAsDouble+30;
         while(!runtime.Running||!runtime.Fresh||!runtime.PreviewFresh) {Deadline(end,"direct duel can reopen after exit");yield return null;}
         second=runtime.ChildId;children.Add(second);
         Check(second>0&&runtime.Status.synthetic,"Direct duel reopens synthetic camera after menu exit");
@@ -619,11 +894,16 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
     void Finish(bool passed,string error)
     {
         if(finished)return;finished=true;
+        CloseStoryInput();RestoreCampaign();
         RestoreMapFixture();
         RestoreCameraPreference();
         foreach(var reservation in portReservations)reservation.Dispose();portReservations.Clear();
-        File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children,preview_fps=measuredPreviewFps,render_scale=measuredRenderScale,width=Screen.width,height=Screen.height},true));
+        File.WriteAllText(Path.Combine(directory,"result.json"),JsonUtility.ToJson(new Report {passed=passed,error=error,checks=checks,children=children,preview_fps=measuredPreviewFps,render_scale=measuredRenderScale,width=Screen.width,height=Screen.height,
+            development_build=Debug.isDebugBuild,story_flow_completed=storyFlowCompleted,physical_camera_opened=false,actual_pose_calibration_tested=false,
+            game_input_scope="Explicit synthetic backend plus separate loopback game-flow packets; not physical calibration, recognition accuracy or online network verification"},true));
         Debug.Log("[CAMERA CHECK] "+(passed?"PASS":"FAIL "+error));
         Application.Quit(passed?0:1);
     }
+    void OnDestroy() {CloseStoryInput();RestoreCampaign();RestoreCameraPreference();}
+
 }

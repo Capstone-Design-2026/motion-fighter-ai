@@ -254,7 +254,9 @@ public class MapSceneUI : MonoBehaviour
             case NodeType.Battle: return "전투";
             case NodeType.Elite:  return "강적과의 전투";
             case NodeType.Boss:   return "최종 전투";
-            case NodeType.Rest:   return "쉼터 · 체력 회복";
+            case NodeType.Rest:
+                return RunState.Instance != null && RunState.Instance.Config != null && !RunState.Instance.Config.carryPlayerHealth
+                    ? "쉼터" : "쉼터 · 체력 회복";
             case NodeType.Event:  return "탐색 · 단서";
         }
         return "";

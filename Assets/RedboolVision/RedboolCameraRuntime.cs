@@ -60,6 +60,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     Process child,stoppingChild; StreamWriter childLog;
     Coroutine statusRoutine,previewRoutine;
     string role,address="127.0.0.1",token,url; int generation,port;
+    int inputPort;
+    bool onlineInput;
     bool restartRequested,quitting,commandPending;
     double lastStatus=-100,lastPreview=-100;
     long previewSequence=-1; readonly object logLock=new object();
@@ -79,11 +81,20 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     {
         // Existing development/editor launches stay manual. Explicit native
         // synthetic tests still need the actual bundled backend.
+        var args=Environment.GetCommandLineArgs();
+        bool synthetic=RedboolCameraCheckMode.Authorize(args,Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),
+            Application.isEditor,Application.isBatchMode,out string checkError);
+        if(RedboolCameraCheckMode.Requested(args)&&!synthetic)
+        {
+            Debug.LogError("[REDBOOL OFFLINE CHECK] "+checkError+" No camera runtime created.");
+            if(!Application.isEditor)Application.Quit(2);
+            return;
+        }
         if(Application.isEditor || Application.isBatchMode || !Packaged || Instance!=null) return;
-        if(Array.IndexOf(Environment.GetCommandLineArgs(),"--redbool-external-camera")>=0) return;
+        if(Array.IndexOf(args,"--redbool-external-camera")>=0) return;
         var go=new GameObject("REDBOOL Integrated Camera");DontDestroyOnLoad(go);
         Instance=go.AddComponent<RedboolCameraRuntime>();
-        Instance.Synthetic=Debug.isDebugBuild && Array.IndexOf(Environment.GetCommandLineArgs(),"--redbool-camera-synthetic")>=0;
+        Instance.Synthetic=synthetic;
         go.AddComponent<RedboolCameraPanel>();
     }
     void Start() { RedboolDemoSettings.CameraReconnectRequested += Reconnect; StartCoroutine(Supervise()); }
@@ -95,9 +106,19 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         if(FindAnyObjectByType<CaveTutorial>()!=null || FindAnyObjectByType<RedboolBattlePreparation>()!=null) return "DEV01";
         return null;
     }
+    static int DesiredInputPort(string wanted) => wanted=="P2" && RedboolPvp.Online
+        ? RedboolOnlineInputBridge.LocalPort : wanted=="P2"?5066:5065;
+    bool TransportMatches(string wanted) => inputPort==DesiredInputPort(wanted)
+        && onlineInput==(wanted=="P2" && RedboolPvp.Online);
     bool LocalReceiversReady(string wanted,bool retainStoryCamera,out string issue,out bool fault)
     {
         issue=null;fault=false;
+        if(wanted=="P2" && RedboolPvp.Online)
+        {
+            bool ready=RedboolOnlineInputBridge.LocalPort>0;
+            if(!ready) {issue="온라인 입력 연결을 준비하고 있어요 · 계속되면 메뉴에서 다시 참가해주세요";fault=true;}
+            return ready;
+        }
         if(wanted==null||wanted=="P2")return true; // The guest sends to its chosen remote host.
         var scene=SceneManager.GetActiveScene();
         var receivers=FindObjectsByType<RedboolDemoReceiver>(FindObjectsInactive.Include,FindObjectsSortMode.None);
@@ -157,9 +178,10 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         {
             string wanted=DesiredRole();string host=wanted=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
             ShowPanel=wanted!=null && (RedboolPvp.Active || FindAnyObjectByType<CaveTutorial>()!=null || FindAnyObjectByType<RedboolBattlePreparation>()!=null);
-            if(wanted!=role || host!=address || restartRequested)
+            if(wanted!=role || host!=address || !TransportMatches(wanted) || restartRequested)
             {
                 restartRequested=false;yield return StopOwned();role=wanted;address=host;
+                inputPort=DesiredInputPort(wanted);onlineInput=wanted=="P2" && RedboolPvp.Online;
                 InputConnectionBlocked=false;InputConnectionError=null;
                 if(role!=null) yield return StartAuthorized();
             }
@@ -192,11 +214,26 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         GUI.Box(new Rect(20,Screen.height-116,Mathf.Min(620,Screen.width-40),90),
             LastInputConnectionError+"\n이전에 켠 REDBOOL·Unity가 있다면 종료 후 다시 들어가세요.",connectionNoticeStyle);
     }
+    bool CheckLaunchMode()
+    {
+        var args=Environment.GetCommandLineArgs();
+        bool authorized=RedboolCameraCheckMode.Authorize(args,Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),
+            Application.isEditor,Application.isBatchMode,out string modeError);
+        if((RedboolCameraCheckMode.Requested(args)||Synthetic)&&!authorized)
+        {
+            Error=modeError??"Offline fixture authorization disappeared; camera launch blocked.";
+            Debug.LogError("[REDBOOL OFFLINE CHECK] "+Error);return false;
+        }
+        Synthetic=authorized;return true;
+    }
     IEnumerator StartAuthorized()
     {
+        // Re-check before any OS permission request, including role changes,
+        // reconnects and components created outside the usual Install path.
+        if(!CheckLaunchMode())yield break;
         string initialRole=DesiredRole();
         string initialAddress=initialRole=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
-        if(quitting || restartRequested || role!=initialRole || address!=initialAddress)yield break;
+        if(quitting || restartRequested || role!=initialRole || address!=initialAddress || !TransportMatches(initialRole))yield break;
         if(!CheckReceiverGate(role,false)){InputConnectionBlocked=true;yield break;}
         // macOS support was added in Unity2023.1.0a19 (official release notes);
         // this Unity6 main-thread preflight avoids OpenCV's first-use permission
@@ -217,7 +254,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         }
         string wanted=DesiredRole();
         string wantedAddress=wanted=="P2"?RedboolPvp.HostAddress:"127.0.0.1";
-        if(quitting || restartRequested || role!=wanted || address!=wantedAddress)yield break;
+        if(quitting || restartRequested || role!=wanted || address!=wantedAddress || !TransportMatches(wanted))yield break;
         if(!CheckReceiverGate(role,false)){InputConnectionBlocked=true;yield break;}
         InputConnectionBlocked=false;StartOwned();
     }
@@ -260,7 +297,7 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
             renderPressure.Observe(generation,Running,renderWindowEligible && frameSamples>0,
                 elapsed,cameraFps,meanFrame,severeRenderWindowEligible && frameSamples>0);
             if(!wasPressure && renderPressure.Latched)
-                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} severe_windows={renderPressure.SevereGameWindows} reason={renderPressure.Trigger} target=1280x720 session_latched=true backend_unchanged=true"));
+                Debug.Log(FormattableString.Invariant($"[REDBOOL JOINT RENDER PRESSURE] generation={generation} camera_fps={cameraFps:F2} game_mean_frame_ms={meanFrame:F3} windows={renderPressure.BadWindows} severe_windows={renderPressure.SevereGameWindows} sustained_windows={renderPressure.SustainedGameWindows} reason={renderPressure.Trigger} target=1280x720 session_latched=true backend_unchanged=true"));
             if(Running && frameSamples>0)
             {
                 if(InferencePressure || meanFrame>22 || meanDecode>2 || meanRequest>80)
@@ -299,6 +336,8 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
     }
     void StartOwned()
     {
+        // Defence in depth: no partial test configuration may start a real child.
+        if(!CheckLaunchMode())return;
         Error=null;Status=null;lastStatus=lastPreview=-100;previewSequence=-1;PreviewDecodedFrames=0;generation++;
         renderPressure.Reset(generation);lastCameraFrameId=-1;lastCameraFrameAt=-100;
         renderFpsTotal=renderFpsSeconds=0;renderWindowEligible=severeRenderWindowEligible=true;
@@ -321,16 +360,19 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
         Directory.CreateDirectory(output);
         var arguments=new List<string> {"--headless","--bridge-port",port.ToString(),"--bridge-token",token,
             "--parent-pid",Process.GetCurrentProcess().Id.ToString(),"--actor",role,"--host",address,
-            "--port",role=="P2"?"5066":"5065","--personal-calibration","--movement","--mirror",
+            "--port",inputPort.ToString(),"--personal-calibration","--movement","--mirror",
             "--camera",RedboolDemoSettings.CameraIndex.ToString(),"--cross-refine-pose","bundled",
             "--preview-fps",PreviewTargetFps.ToString(),"--recording","diagnostics","--seconds","43200","--output",output};
         if(Synthetic) arguments.Add("--synthetic-bridge-check");
+        if(onlineInput) {arguments.Add("--network-profile");arguments.Add("online");}
         var escaped=new List<string>();foreach(string arg in arguments) escaped.Add(Quote(arg));
         var info=new ProcessStartInfo(BackendPath,string.Join(" ",escaped)) { UseShellExecute=false,CreateNoWindow=true,
             WorkingDirectory=Path.GetDirectoryName(BackendPath),RedirectStandardOutput=true,RedirectStandardError=true,
             StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8 };
         info.EnvironmentVariables["PYTHONUNBUFFERED"]="1";
-        info.EnvironmentVariables["REDBOOL_CAMERA_CACHE_DIR"]=Path.Combine(Application.persistentDataPath,"CameraCache");
+        info.EnvironmentVariables["REDBOOL_CAMERA_CACHE_DIR"]=Synthetic
+            ? Path.Combine(Environment.GetEnvironmentVariable(RedboolCameraCheckMode.OutputVariable),"cache")
+            : Path.Combine(Application.persistentDataPath,"CameraCache");
             lock(logLock) { childLog=new StreamWriter(Path.Combine(output,"backend.log"),false,Encoding.UTF8);childLog.AutoFlush=true;logBytes=0; }
             child=new Process { StartInfo=info };
             child.OutputDataReceived+=CaptureLog;child.ErrorDataReceived+=CaptureLog;
@@ -384,7 +426,14 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                     if(next!=null && next.schema==1) {
                         Status=next;lastStatus=Time.realtimeSinceStartupAsDouble;
                         if(next.camera_connected && next.frame_id>lastCameraFrameId)
-                        {lastCameraFrameId=next.frame_id;lastCameraFrameAt=lastStatus;}
+                        {
+                            lastCameraFrameId=next.frame_id;lastCameraFrameAt=lastStatus;
+                            // Calibration/selection also consumes live camera frames. Keep the
+                            // Mac event loop responsive before valid gesture packets exist.
+                            // Only advancing frames renew the bounded OS activity lease; this
+                            // never grants tracking/readiness or extends network input validity.
+                            RedboolFrameMetrics.NoteLiveInput();
+                        }
                     }
                 }
             }
@@ -421,7 +470,12 @@ public sealed class RedboolCameraRuntime : MonoBehaviour
                 {
                     if(Preview==null)Preview=new Texture2D(320,240,TextureFormat.RGB24,false);
                     var watch=Stopwatch.StartNew();bool loaded=Preview.LoadImage(bytes,false);watch.Stop();
-                    if(loaded) { previewSequence=sequence;lastPreview=Time.realtimeSinceStartupAsDouble;previewSamples++;PreviewDecodedFrames++;decodeTotal+=watch.Elapsed.TotalMilliseconds;decodeMax=Math.Max(decodeMax,watch.Elapsed.TotalMilliseconds); }
+                    if(loaded) {
+                        previewSequence=sequence;lastPreview=Time.realtimeSinceStartupAsDouble;previewSamples++;PreviewDecodedFrames++;decodeTotal+=watch.Elapsed.TotalMilliseconds;decodeMax=Math.Max(decodeMax,watch.Elapsed.TotalMilliseconds);
+                        // Fresh JPEGs are live work even in the uncalibrated waiting room.
+                        // Duplicate/stale responses do not get here and cannot retain activity.
+                        RedboolFrameMetrics.NoteLiveInput();
+                    }
                 }
             }
             // HTTP and decoding consume this deadline's budget. Never append a
