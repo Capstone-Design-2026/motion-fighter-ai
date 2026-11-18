@@ -98,6 +98,11 @@ public static class RedboolOnlineAnticipationCheck
         Check(allowed(),"fresh same-round authority allows presentation");
         Check(!RedboolAnticipationAuthority.Allows(false,shown,world,newest),"stale display cancels");
         Check(!RedboolAnticipationAuthority.Allows(true,shown,world,null),"missing authority cancels");
+        foreach(byte gate in new[]{(byte)8,(byte)9})
+        {
+            newest.world.gate=gate;Check(!allowed(),"Latest READY/FIGHT cancels anticipation before interpolation");newest.world.gate=0;
+            world.gate=gate;Check(!allowed(),"Displayed READY/FIGHT cannot show an early local attack");world.gate=0;
+        }
         newest.world.paused=true;Check(!allowed(),"latest pause cancels while display still fighting");newest.world.paused=false;
         newest.world.resolved=true;Check(!allowed(),"latest resolution cancels older display");newest.world.resolved=false;
         newest.world.fighting=false;Check(!allowed(),"latest stopped fight cancels");newest.world.fighting=true;

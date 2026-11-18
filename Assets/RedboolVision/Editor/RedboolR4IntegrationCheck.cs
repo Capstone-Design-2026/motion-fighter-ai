@@ -14,6 +14,7 @@ public static class RedboolR4IntegrationCheck
         RedboolReleaseSelfCheck.RunWithoutSocketBinding();
         RedboolPvpSelectionSelfCheck.Run();
         RedboolOnlineProtocolCheck.Run();
+        RedboolOnlineAnticipationCheck.Run();
         RedboolCameraCheckModeSelfCheck.Run();
         RedboolMacCameraPrivacyCheck.Run();
         RedboolHeroAssetsCheck.Run();

@@ -93,7 +93,7 @@ public static class RedboolAnticipationAuthority
     }
     static bool Safe(RedboolViewActor actor,RedboolViewWorld world)
     {
-        return actor!=null&&world!=null&&world.fighting&&!world.paused&&!world.resolved
+        return actor!=null&&world!=null&&world.fighting&&world.gate==0&&!world.paused&&!world.resolved
             &&actor.hp>0&&actor.live&&actor.phase==0&&(actor.specialFlags&1)==0;
     }
 }
