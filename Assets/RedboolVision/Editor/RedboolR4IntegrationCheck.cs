@@ -23,6 +23,17 @@ public static class RedboolR4IntegrationCheck
             throw new Exception("Integrated story must start each battle with 100 HP");
         if(EditorBuildSettings.scenes[0].path!="Assets/Scenes/BootScene.unity")
             throw new Exception("Authored opening scene must be first");
+        var introRoot=new GameObject("R4 intro input fixture",typeof(RectTransform));
+        try
+        {
+            var intro=introRoot.AddComponent<GameIntro>();
+            typeof(GameIntro).GetMethod("Build",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(intro,null);
+            var blocker=introRoot.transform.Find("Stage/SkipClickBlocker").GetComponent<UnityEngine.UI.RawImage>();
+            if(introRoot.GetComponent<UnityEngine.UI.GraphicRaycaster>()==null||!blocker.raycastTarget
+                ||!introRoot.GetComponent<CanvasGroup>().blocksRaycasts)
+                throw new Exception("Opening skip click must not reach the menu underneath");
+        }
+        finally {UnityEngine.Object.DestroyImmediate(introRoot);}
         foreach(byte gate in new[]{(byte)8,(byte)9})
         {
             var world=new RedboolViewWorld {gate=gate,remaining=120,fov=60,rotation=Quaternion.identity};

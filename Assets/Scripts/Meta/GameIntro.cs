@@ -89,7 +89,7 @@ public sealed class GameIntro : MonoBehaviour
         float held = 0f;
         while ((held < minimumHold && !skip) || loading.progress < .9f) { held += Time.unscaledDeltaTime; yield return null; }
         loading.allowSceneActivation = true;
-        while (SceneManager.GetActiveScene().name != SceneRoutes.Start) yield return null;
+        while (!loading.isDone) yield return null;
         yield return null; yield return null;
     }
 
@@ -373,6 +373,7 @@ public sealed class GameIntro : MonoBehaviour
         var canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 5000;
+        gameObject.AddComponent<GraphicRaycaster>();
         var scaler = gameObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
@@ -381,6 +382,9 @@ public sealed class GameIntro : MonoBehaviour
         group.blocksRaycasts = true; group.interactable = false;
         root = Rect("Stage", transform, Vector2.zero, Vector2.zero);
         root.anchorMin = Vector2.zero; root.anchorMax = Vector2.one; root.sizeDelta = Vector2.zero;
+        // A skip click must not also activate the menu being revealed underneath.
+        var blocker = Fill("SkipClickBlocker", Color.clear);
+        blocker.raycastTarget = true;
         title = Resources.Load<Texture2D>("UI/Wuxia/HeukUnHyeopTitle");
         sounds = QiPalmAssets.Load();
         voice = gameObject.AddComponent<AudioSource>();
