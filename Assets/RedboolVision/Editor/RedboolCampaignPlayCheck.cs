@@ -122,6 +122,9 @@ public static class RedboolCampaignPlayCheck
             float seconds=round.RemainingSeconds;int hp=player.GetComponent<Health>().CurrentHealth;
             for(var wait=Wait(.2f);wait.MoveNext();)yield return null;
             Check(gate.HoldRound && enemy.GetComponent<Fighter>().VisionPreparationLocked && player.GetComponent<Health>().CurrentHealth==hp && Mathf.Abs(round.RemainingSeconds-seconds)<.01f,node.id+" waiting camera holds enemy, HP and timer");
+            var waitingHero=player.GetComponent<Fighter>();var waitingFoe=enemy.GetComponent<Fighter>();
+            Check(waitingHero.RoundIntroLocked&&waitingHero.Facing==(enemy.transform.position.x>player.transform.position.x?1:-1)
+                &&waitingFoe.Facing==-waitingHero.Facing,node.id+" overlapping intro and calibration locks preserve opponent facing");
             gate.Observe(true,"VALID","ACTIVE",false,"LEFT");
             Check(gate.AllowsPlayer && !gate.HoldRound,node.id+" preserved calibration starts without another pose hold");
             enemy.enabled=false;

@@ -523,6 +523,12 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
         end=Time.realtimeSinceStartupAsDouble+45;
         while(preparation.EffectsPreparing){Deadline(end,"authored combat prewarm");yield return null;}
         Check(preparation.HoldRound,"Finishing visual prewarm alone does not bypass camera preparation");
+        var waitingEnemy=FindAnyObjectByType<EnemyAI>();
+        var waitingHero=preparation.receiver.player.GetComponent<Fighter>();
+        Check(waitingEnemy!=null&&waitingHero.RoundIntroLocked
+            &&waitingHero.Facing==(waitingEnemy.transform.position.x>waitingHero.transform.position.x?1:-1)
+            &&waitingEnemy.GetComponent<Fighter>().Facing==-waitingHero.Facing,
+            "R4 both fighters face each other while calibration and READY locks overlap");
         storySending=true;end=Time.realtimeSinceStartupAsDouble+5;
         while(!preparation.State.Running||!preparation.AllowsPlayer||!preparation.receiver.LiveReady)
         {Deadline(end,"fresh loopback game state unlocks story battle");PumpStoryInput();yield return null;}

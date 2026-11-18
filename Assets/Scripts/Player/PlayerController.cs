@@ -84,7 +84,8 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         // Keep the waiting pose aimed at the opponent while camera calibration holds combat.
-        if (fighter != null && fighter.VisionPreparationLocked && !fighter.InputLocked && !health.IsDead)
+        if (fighter != null && (fighter.VisionPreparationLocked || fighter.RoundIntroLocked)
+            && (!fighter.InputLocked || fighter.OnlyRoundIntroLocked) && !health.IsDead)
             FaceOpponent(0f);
         // K.O. 연출 중. 진 쪽은 물론 이긴 쪽도 움직이지 못한다.
         // 물리는 그대로 돌아가므로 쓰러지는 모션과 넉백은 끝까지 재생된다.
