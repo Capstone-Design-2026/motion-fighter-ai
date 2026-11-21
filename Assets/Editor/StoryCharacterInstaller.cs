@@ -16,7 +16,7 @@ public static class StoryCharacterInstaller
     public static readonly string[] Keys={"02_ValleyAmbusher","03_HiredBandit","04_FerryRaider","05_Cheolmun","06_QuarryElite","07_RidgeElite","08_Tracker","09_Warden","10_Heukgyeon","11_Mujin"};
     public static readonly string[] Nodes={"river","ridge","old_ferry","gate","quarry","east","camp","rescue","entrance","final"};
     public static readonly string[] Scenes={"RiverAmbush","WindRidge","OldFerry","SealedGate","HiddenQuarry","EasternRidge","SearchCamp","PrisonStockade","BlackCloudEntrance","SluiceFortress"};
-    public static readonly string[] Names={"계곡 잠복병","고용 산적","옛 나루 약탈자","철문","채석장 정예병","능선 정예병","수색대 추적자","포로 감시관","흑견","무진"};
+    public static readonly string[] Names={"계곡 잠복병","고용 산적","옛 나루 약탈자","철문","채석장 정예병","능선 정예병","추포대 추적자","옥졸장","흑견","무진"};
     public static readonly float[] Heights={1.80f,1.92f,1.72f,1.98f,1.86f,1.78f,1.85f,1.94f,1.89f,2f};
     public static string Out {get{var args=Environment.GetCommandLineArgs();int i=Array.IndexOf(args,"-characterReport");return i>=0?args[i+1]:Path.Combine(Application.temporaryCachePath,"StoryCharacters");}}
     /// <summary>Indices to install/finalize/verify. "-characterKeys 02_ValleyAmbusher,03_HiredBandit" limits the run; default is every character.</summary>

@@ -17,7 +17,7 @@ MonoBehaviour:
   background: {fileID: 0}
   backgroundTexture: {fileID: 2800000, guid: c484b0ec6f354cd7a4bd3a9ad9849c5c, type: 3}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     videoFileName: Cinematics/PrologueSteps/01.mp4
     holdVideoFileName: Cinematics/PrologueSteps/01_hold.mp4
     text: "사부님, 오늘도 같은 동작입니까?"
@@ -29,7 +29,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/02.mp4
     holdVideoFileName: Cinematics/PrologueSteps/02_hold.mp4
     text: "주먹보다 먼저, 상대를 보거라."
@@ -53,10 +53,10 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/04.mp4
     holdVideoFileName: Cinematics/PrologueSteps/04_hold.mp4
-    text: "서진아. 잠깐. 내 뒤에 있어라."
+    text: "청운아. 잠깐. 내 뒤에 있어라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -68,7 +68,7 @@ MonoBehaviour:
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/05.mp4
     holdVideoFileName: Cinematics/PrologueSteps/05_hold.mp4
-    text: "도윤. 당신의 솜씨가 필요하다. 함께 가 주셔야겠어."
+    text: "도운학. 당신의 솜씨가 필요하다. 함께 가 주셔야겠어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -77,7 +77,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/06.mp4
     holdVideoFileName: Cinematics/PrologueSteps/06_hold.mp4
     text: "볼일이 있으면 나에게 말해라. 아이는 건드리지 말고."
@@ -101,7 +101,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     videoFileName: Cinematics/PrologueSteps/08.mp4
     holdVideoFileName: Cinematics/PrologueSteps/08_hold.mp4
     text: "사부님께 손대지 마!"
@@ -125,7 +125,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/10.mp4
     holdVideoFileName: Cinematics/PrologueSteps/10_hold.mp4
     text: "그 아이에게서 떨어져라!"
@@ -149,7 +149,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/12.mp4
     holdVideoFileName: Cinematics/PrologueSteps/12_hold.mp4
     text: "칼을 거둬라. 네놈이 찾는 건 나다."
@@ -173,7 +173,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/14.mp4
     holdVideoFileName: Cinematics/PrologueSteps/14_hold.mp4
     text: "함께 가겠다. 대신 제자는 여기서 쉬게 해라."
@@ -188,7 +188,7 @@ MonoBehaviour:
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/15.mp4
     holdVideoFileName: Cinematics/PrologueSteps/15_hold.mp4
-    text: "출발한다. 도윤을 모셔라. 남은 자들은 이곳을 지켜라."
+    text: "출발한다. 도운학을 모셔라. 남은 자들은 이곳을 지켜라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -197,7 +197,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     videoFileName: Cinematics/PrologueSteps/16.mp4
     holdVideoFileName: Cinematics/PrologueSteps/16_hold.mp4
     text: "사부님… 저 때문에…"
@@ -212,7 +212,7 @@ MonoBehaviour:
   - speaker: "흑견"
     videoFileName: Cinematics/PrologueSteps/17.mp4
     holdVideoFileName: Cinematics/PrologueSteps/17_hold.mp4
-    text: "도윤. 허튼짓하면 약속은 없다. 제자를 살리고 싶으면 걸어."
+    text: "도운학. 허튼짓하면 약속은 없다. 제자를 살리고 싶으면 걸어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -221,10 +221,10 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/18.mp4
     holdVideoFileName: Cinematics/PrologueSteps/18_hold.mp4
-    text: "서진아. 지금은 뒤쫓지 마라."
+    text: "청운아. 지금은 뒤쫓지 마라."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -233,7 +233,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/19.mp4
     holdVideoFileName: Cinematics/PrologueSteps/19_hold.mp4
     text: "마른 폭포 뒤 동굴로 가거라. 그곳에서 폐관수련해라."
@@ -245,7 +245,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     videoFileName: Cinematics/PrologueSteps/20.mp4
     holdVideoFileName: Cinematics/PrologueSteps/20_hold.mp4
     text: "벽에 그려진 동작을 처음부터 살펴라. 살아서 다시 만나자."

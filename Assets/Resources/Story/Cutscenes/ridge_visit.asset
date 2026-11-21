@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "말발굽 자국이 위로 이어진다. 저들을 지나야 확인할 수 있겠어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

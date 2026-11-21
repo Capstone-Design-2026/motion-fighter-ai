@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72ab50a2b30a7804a87ea84dca4d13f5, type: 3}
+  m_Name: EnemySpecialAssets
+  m_EditorClassIdentifier: Assembly-CSharp::EnemySpecialAssets
+  ribbon: {fileID: 4800000, guid: c8d38c14d5bc6284a9de17f743d58890, type: 3}
+  smoke: {fileID: 4800000, guid: 0f0f7e81afae8104b9cfb9414c2d2344, type: 3}
+  orb: {fileID: 4800000, guid: 498cfb16383000d4eaaafbe2322eda93, type: 3}
+  ribbonTex: {fileID: 2800000, guid: 57ccc13aad7efb143a8d30315ee6474f, type: 3}
+  brushTex: {fileID: 2800000, guid: 3b73e9d0c2fcbad458cf5a3518d4f755, type: 3}
+  noiseTex: {fileID: 2800000, guid: 77d6d3762f30fdc4fb898cfdc8c11d7a, type: 3}
+  smokeTex: {fileID: 2800000, guid: fd2a414026319184989299c8f89d88cd, type: 3}
+  talismanTex: {fileID: 2800000, guid: 1a2cec2873e97e94ea2ea68a2f36ecf9, type: 3}
+  shockTex: {fileID: 2800000, guid: 675895eedfa4c244794b586d886f029b, type: 3}
+  crackTex: {fileID: 2800000, guid: 34e539376df885d4c85795f1a0da963a, type: 3}
+  bellTex: {fileID: 2800000, guid: c0d31924c89066246877722c3521e453, type: 3}
+  glowTex: {fileID: 2800000, guid: 0cd902a75feb19547acca8ba6727f4b6, type: 3}
+  wood: {fileID: 2100000, guid: 6c3b00591f7a2c84a9dccfd4ec744cfd, type: 2}
+  bronze: {fileID: 2100000, guid: 5488b5b1f34f0e843855c9a5c6917cb5, type: 2}
+  iron: {fileID: 2100000, guid: 5c7691c5f3d4a2146bbb5b8d415b84a6, type: 2}
+  rope: {fileID: 2100000, guid: 518f5d66fd28f6d4cb7e170844a11c66, type: 2}
+  rock: {fileID: 1701264865383936053, guid: 478b620c7f009064b814d46b0a55f09f, type: 3}

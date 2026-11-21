@@ -1,0 +1,122 @@
+REDBOOL v29 · 같은 GitHub 저장소로 개발하는 두 사람의 실행 방법
+
+결론
+- 게임 코드를 바꿀 때마다 전체 Windows ZIP이나 AVI를 주고받을 필요는 없습니다.
+- Unity 코드와 Python 코드는 같은 저장소의 서로 다른 개발 브랜치에 있습니다. 폴더를 둘로 나누어 사용합니다.
+- 이미 개발 브랜치는 push되어 있습니다. PR을 올린 것과 main/feature 브랜치에 병합한 것은 다릅니다.
+- 아직 실제 두 PC에서 v29 전투를 끝까지 확인하지 않았으므로 PR #12/#14는 초안으로 유지합니다.
+- 양쪽 게임은 반드시 v29/화면 프로토콜 29로 맞춥니다. v28 게임과 섞어 실행하지 않습니다.
+
+1. 기존 Git 작업을 건드리지 않고 준비하기 (Windows PowerShell)
+현재 사용 중인 Git 저장소 폴더에서 실행합니다. ZIP을 푼 배포 폴더는 Git 저장소가 아닙니다.
+
+  git fetch origin
+  git worktree add --detach ..\REDBOOL-Unity-v29 origin/codex/pvp-dual-screen-20261112
+  git worktree add --detach ..\REDBOOL-Vision-v29 origin/codex/tutorial-personal-pvp-20261112
+
+이미 같은 이름의 폴더가 있으면 다른 새 이름을 사용합니다. 기존 파일을 지우지 않습니다.
+Unity 폴더에서 대형 에셋을 받습니다.
+
+  cd ..\REDBOOL-Unity-v29
+  git lfs pull
+
+이 방법은 저장소 이력을 공유합니다. 다른 사람의 미완성 변경이나 기존 작업 폴더를 덮어쓰지 않습니다.
+Git 저장소가 아예 없다면 같은 주소를 해당 브랜치로 각각 clone해도 됩니다.
+
+2. Python 인식 환경 (각 노트북 최초 한 번)
+Windows는 Python 3.11 x64를 사용합니다. 기존 배포본의 .venv를 복사하지 않습니다.
+
+  cd ..\REDBOOL-Vision-v29
+  py -3.11 -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install -r requirements-pilot-windows.txt
+  .\.venv\Scripts\python.exe scripts\setup_demo_models.py
+  .\.venv\Scripts\python.exe scripts\run_personal_camera.py --check
+
+모델 두 개는 Git에 올라가지 않는 파일입니다. setup_demo_models.py가 검증된 공식 Lite/Full 파일만 내려받고 SHA256을 확인합니다.
+이미 v28 폴더가 있으면 인터넷 다운로드 대신 다음처럼 복사·검증할 수 있습니다.
+  .\.venv\Scripts\python.exe scripts\setup_demo_models.py --source "기존 REDBOOL_v28_Windows 폴더의 전체 경로"
+기존 모델이 다르면 덮어쓰지 않고 중단합니다.
+
+Mac에서 새 환경을 만들 때:
+  python3.11 -m venv .venv
+  .venv/bin/python -m pip install -r requirements-pilot-windows.txt
+  .venv/bin/python scripts/setup_demo_models.py
+  .venv/bin/python scripts/run_personal_camera.py --check
+
+3. 게임 실행
+Unity 6000.4.5f1로 REDBOOL-Unity-v29 폴더를 엽니다.
+개발 중에는 StartScene에서 Play를 누르고:
+- 호스트: '1P · 두 화면 대전 열기'
+- 상대: 호스트 IPv4를 넣고 '2P · 입력한 주소로 참가'
+
+창을 따로 실행하려면 Unity 편집기를 닫고 해당 Unity 폴더에서 한 번 빌드합니다.
+Windows:
+  py -3.11 Tools\Developer\build_local.py
+  py -3.11 Tools\Developer\run_game.py join
+Mac:
+  python3 Tools/Developer/build_local.py
+  python3 Tools/Developer/run_game.py host
+
+반대로 Windows가 호스트면 host, Mac이 상대면 join을 사용하면 됩니다.
+빌드는 Build/REDBOOL에 생성됩니다. join 실행 도구는 같은 LAN의 v29 호스트를 자동 검색합니다.
+방송 검색이 차단된 네트워크에서는 --host 실제IPv4를 붙입니다.
+Unity Editor 위치가 다르면 build_local.py에 --editor "Unity 실행 파일 경로"를 붙입니다.
+다른 Unity Play/게임이 5065~5067 포트를 사용하고 있으면 먼저 닫습니다.
+
+4. 각자 카메라 실행 (새 터미널)
+Mac 호스트의 Python 폴더:
+  .venv/bin/python scripts/run_personal_camera.py --player 1
+Windows 상대의 Python 폴더:
+  .\.venv\Scripts\python.exe scripts\run_personal_camera.py --player 2
+
+상대 카메라도 호스트를 자동 검색합니다. 실패하면 주소를 직접 입력합니다.
+명시적으로 지정할 때:
+  .\.venv\Scripts\python.exe scripts\run_personal_camera.py --player 2 --host 실제호스트IPv4
+
+각 카메라 창에서 C 보정 → 안내 동작 두 번씩.
+인정된 잽/스트레이트/레이즈/X자는 약 0.25초 뒤 다음 안내로 넘어갑니다.
+블락은 팔을 내리고, 이동은 중앙으로 돌아오면 다음으로 넘어갑니다.
+잘 안 되는 단계는 '이 동작 건너뛰기'를 누르면 기본 인식 기준으로 넘어갑니다. 성공한 척 학습시키지는 않습니다.
+호스트 F6은 1P, F7은 2P 현재 단계 건너뛰기입니다. 상대 화면 버튼은 2P에게만 적용됩니다.
+두 사람 수련이 끝나고 카메라/화면 연결이 살아 있으면 1초 카운트다운 후 전투가 시작됩니다.
+양팔의 엄격한 READY 자세를 동시에 다시 유지할 필요가 없습니다.
+C를 다시 누르면 해당 사람의 보정/수련이 초기화됩니다. 같은 사람이 단순히 다음 단계로 넘어가려는 용도로 C를 누르지 않습니다.
+Q: 카메라 종료. 게임 Esc: 메뉴. 전투 종료 뒤 호스트 R: 재대전.
+
+5. 네트워크
+별도 서버·구독·계정·인터넷 포트포워딩은 필요하지 않습니다.
+같은 공유기/LAN에서 한 게임이 판정을 맡고 다른 게임에 작은 상태 패킷을 보냅니다. 카메라 영상은 전송하지 않습니다.
+가능하면 두 노트북을 같은 공유기에 연결합니다. 유선 연결이 가능하면 시연 때 우선 사용합니다.
+호스트 게임의 UDP 5065/5066/5067 수신을 허용합니다. Windows 방화벽 안내가 나오면 사용하는 개인 네트워크의 게임 통신을 허용합니다.
+공용 Wi-Fi가 기기 간 통신을 차단하면 같은 SSID여도 연결되지 않을 수 있습니다. 현장 공유기 또는 격리 없는 LAN으로 맞추는 것이 먼저입니다.
+무료 VPN 대안 Tailscale도 있으나 계정/설정이 추가되고 직접 연결 불가 시 중계 경로가 될 수 있어, 같은 장소의 시연 기본 방식으로 추가하지 않았습니다.
+
+6. 저장과 문제 전달
+기본값 --recording review: 인식/관절 기록은 전체 속도, 확인용 MP4만 15fps 압축 저장.
+--recording logs: 영상 없이 관절·동작·연결 기록만 저장.
+--recording lossless: 이전 방식의 무손실 AVI. 정밀 원본이 필요한 촬영에만 선택.
+review MP4는 손실 압축이므로 원본 RGB 픽셀과 동일한 학습·재추론 근거로 취급하지 않습니다.
+기존 AVI/관절 파일은 삭제하지 않았습니다. 지난 자료를 정리할 때는 보존할 세션을 먼저 선정합니다.
+Python 기록: local_data/personal_pvp
+개발 게임 기록: Logs/PvP
+배포본 기록: play_records
+
+개발 Python 폴더에서 작은 전달용 ZIP 만들기:
+  .\.venv\Scripts\python.exe scripts\export_diagnostics.py --root local_data\personal_pvp
+개발 Unity 폴더에서:
+  py -3.11 Tools\DualScreen\export_diagnostics.py --root Logs\PvP
+각 경로 안에 생긴 ZIP만 전달합니다. 영상이나 전체 프로젝트를 보낼 필요가 없습니다.
+
+7. 다음 코드 업데이트
+해당 Unity/Python worktree 폴더에서 git fetch origin 후 같은 원격 개발 브랜치를 가져옵니다.
+로컬 변경이 없는 detached worktree라면 각각:
+  git switch --detach origin/codex/pvp-dual-screen-20261112
+  git switch --detach origin/codex/tutorial-personal-pvp-20261112
+위 두 명령은 각각 대응하는 Unity/Python 폴더에서 하나씩 실행합니다.
+로컬 변경이 있으면 먼저 별도 작업 브랜치로 보관하고 비교합니다. 강제 초기화/덮어쓰기는 하지 않습니다.
+게임 코드를 바꿨으면 로컬 빌드를 다시 만듭니다. Python만 바뀌면 카메라를 재실행합니다.
+
+남은 최종 확인
+v29를 양쪽에 맞춘 뒤 실제 전투 1회: 수련→자동 시작, 이동+공격, 블락 해제→펀치, 충전 X자→후속 공격, KO→R 재대전.
+이번 수정 검사는 추가 촬영 없이 기존 기록과 합성 UDP/실제 게임 프로세스로 진행했습니다.
+최종 Mac–Windows 실제 카메라 대전의 판정/체감은 위 한 번으로 확인한 뒤 PR 병합을 결정합니다.

@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundUv: {serializedVersion: 2, x: 0, y: 0, width: 1, height: 1}
   backgroundTexture: {fileID: 2800000, guid: 8f936b4587c2430899d399487efa5f4a, type: 3}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "이 벽화…… 사부님이 매일 가르치던 기본기다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -41,7 +41,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "손동작으로 공격을 정하고, 자세를 되돌려 다음 동작을 준비한다. 하나씩 정확하게 익히자."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

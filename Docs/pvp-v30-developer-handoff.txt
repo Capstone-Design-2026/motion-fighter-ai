@@ -1,0 +1,115 @@
+REDBOOL v30 — Unity 개발자 빌드·패키징·검증 인계 (2026-11-12)
+
+권장 방식
+Unity 실행 파일과 Python 카메라를 별도 프로세스로 실행한다. 카메라 인식은 각 노트북에서 수행하고, 입력만 호스트 게임으로 보낸다. 두 번째 게임은 호스트가 확정한 결투 상태를 표시한다. 영상은 네트워크로 보내지 않는다.
+현재 인식을 Unity C#으로 다시 작성하거나 MediaPipe를 다른 버전으로 교체하는 일은 이번 패키징에 포함하지 않는다. 같은 코드와 모델을 배포해야 비교가 가능하다.
+Editor Play는 기능 확인용, 프레임·지연 판단은 Windows Development Build로 한다. 기존 스토리 모드는 유지한다.
+
+받을 Git 브랜치 (같은 저장소의 서로 다른 프로젝트 루트)
+  저장소: https://github.com/Capstone-Design-2026/motion-fighter-ai
+  Unity: codex/pvp-dual-screen-20261112   PR #14 (v26·v27·v29 작업 포함)
+  Python: codex/tutorial-personal-pvp-20261112   PR #12 (v26 기반 개인 보정)
+  두 PR은 개발 검증용이며 main/feature/unity에 합쳐진 상태가 아니다.
+  PR #14는 #13, #13은 #11 위에 쌓여 있다. 팀원 브랜치에 #14 마지막 커밋만 cherry-pick하지 말고 전체 브랜치를 별도 worktree로 받는다.
+  새 수정은 위 두 브랜치에 추가된다. v29 고정 커밋 62c1619/c8ae89f를 다시 선택하면 v30이 아니다.
+
+기존 v29 개발 폴더가 있는 Windows (PowerShell, 변경사항부터 확인)
+  cd "$env:USERPROFILE\REDBOOL-v29-dev\unity"
+  git status --short
+  git fetch origin
+  git switch --detach origin/codex/pvp-dual-screen-20261112
+  git lfs pull
+
+  cd "$env:USERPROFILE\REDBOOL-v29-dev\vision"
+  git status --short
+  git fetch origin
+  git switch --detach origin/codex/tutorial-personal-pvp-20261112
+  .\.venv\Scripts\python.exe scripts\setup_demo_models.py --check
+  .\.venv\Scripts\python.exe scripts\run_personal_camera.py --player 2 --check
+
+로컬 수정 때문에 switch가 거부되면 reset/clean으로 지우지 않는다. 다음처럼 새 폴더로 분리한다.
+  git worktree add --detach "$env:USERPROFILE\REDBOOL-v30-dev\unity" origin/codex/pvp-dual-screen-20261112
+  git worktree add --detach "$env:USERPROFILE\REDBOOL-v30-dev\vision" origin/codex/tutorial-personal-pvp-20261112
+  이후 명령의 폴더를 REDBOOL-v30-dev로 바꾼다.
+
+새 Python 환경이 필요한 경우 (vision 폴더)
+  py -3.11 -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install -r requirements-pilot-windows.txt
+  .\.venv\Scripts\python.exe scripts\setup_demo_models.py
+  .\.venv\Scripts\python.exe scripts\run_personal_camera.py --player 2 --check
+  설치 모델은 Lite와 Full 두 개이며 setup_demo_models가 해시를 확인한다.
+  Mac의 .venv 폴더를 Windows로 복사하지 않는다.
+
+Windows 빌드 (Unity 6000.4.5f1, 해당 프로젝트 Editor를 닫은 뒤 unity 폴더)
+  py -3.11 Tools\Developer\build_local.py
+  Get-Content .\Build\REDBOOL\build-result.txt -TotalCount 6
+  Get-Content .\Build\REDBOOL\build-info.json
+  Result: Succeeded / Errors: 0 확인. build-info에는 Git 커밋과 실제 C# 해시가 기록된다.
+  이후 C#이 변경되면 run_game이 예전 빌드 실행을 차단하고 재빌드를 안내한다.
+
+Mac 빌드 (Unity 폴더)
+  python3 Tools/Developer/build_local.py
+  기존 개발 경로: /Users/bin/Documents/ChatGPT/REDBOOL 2/integration_20261111/unity
+  Python 경로: /Users/bin/Documents/ChatGPT/redbool/motion-fighter-ai
+
+2인 테스트 실행 순서
+  1. 같은 LAN에서 Mac을 호스트로 시작 (unity 폴더)
+     python3 Tools/Developer/run_game.py host
+  2. Windows에서 게임 참가 (unity 폴더)
+     py -3.11 Tools\Developer\run_game.py join
+     자동 검색 실패 시 --host 실제_Mac_IPv4 추가.
+  3. Mac 새 터미널, Python 폴더
+     .venv/bin/python scripts/run_personal_camera.py --player 1 --recording review
+  4. Windows 새 PowerShell, vision 폴더
+     .\.venv\Scripts\python.exe scripts\run_personal_camera.py --player 2 --recording review
+     자동 검색 실패 시 --host 실제_Mac_IPv4 추가.
+  5. 각자 카메라 창에서 C → 본인의 중앙 가드로 보정 → 수련 각 2회.
+     자연스럽게 펴고 돌아온다. 억지로 크게 하지 않아도 된다. 어려운 단계는 건너뛰면 기본 v26 인식으로 진행한다.
+     같은 사람이 재대전할 때 C를 다시 누르지 않는다. 사람을 바꾸면 C.
+  6. 둘 다 수련 완료하면 1초 뒤 전투. 블락→펀치, 기울이기→공격, 충전된 X→후속 공격 확인.
+     짧은 신호 끊김은 복구 후 0.1초 확인, 1초 이상 끊김·재보정·재대전은 1초 확인 후 자동 재개.
+     카메라 시야를 벗어나면 양쪽 입력/전투를 멈춘다. 150ms 지난 공격은 재생하지 않는다.
+     중앙에 KO/시간 종료 창이 뜨면 정상 라운드 종료다. 1P의 다시 대전 버튼 또는 R로 재대전.
+  7. 끝나면 각각 카메라 Q, 저장 완료 후 게임 종료.
+
+방화벽/통신
+  별도 유료 서버가 필요하지 않은 LAN 직접 통신이다.
+  호스트: UDP 5065 (1P 카메라), 5066 (2P 카메라), 5067 (2P 화면).
+  Windows를 호스트로 쓸 때 Windows 방화벽의 개인 네트워크에서 게임 통신을 허용한다.
+  게스트 Wi-Fi/학교 AP의 기기 간 차단이 있으면 같은 공유기의 사설 LAN 또는 유선 LAN으로 바꾼다.
+  포트 포워딩/인터넷 공개는 필요 없다.
+
+검증 기준과 기록
+  게임 로그: unity/Logs/PvP/<실행시각>/Unity.log
+  카메라: vision/local_data/personal_pvp/<실행시각>/summary.json, personal_profile.json
+  game fps 약 60, camera fps 약 30을 확인한다. summary의 처리시간은 손 움직임→화면의 전체 지연이 아니다.
+  두 화면: 호스트/게스트 Unity.log를 한 PC에 둔 후
+    py -3.11 Tools\Developer\compare_sync.py "host_Unity.log" "guest_Unity.log"
+  passed=true는 1초마다 표본으로 남긴, 게스트가 완성한 화면 상태의 모든 3개 패킷이 일치한다는 뜻이다.
+  모든 화면 프레임이나 실제 손→화면 지연 전체를 증명하지는 않는다.
+  개인 보정: effective_overrides가 비어 있으면 기본 범위가 적합해 변경하지 않았다는 뜻이다.
+  samples/cycle_details는 수련에서 실제 복귀까지 확인한 표본이며, Unity의 성공 2회와 항상 같지는 않다.
+  UI 성공만으로 학습하지 않는다. 속도/범위는 두 완전한 표본이 일관될 때만 조금 조정한다.
+
+영상 없이 진단 ZIP 만들기
+  Windows unity 폴더:
+    py -3.11 Tools\DualScreen\export_diagnostics.py --root Logs\PvP
+  Windows vision 폴더:
+    .\.venv\Scripts\python.exe scripts\export_diagnostics.py --root local_data\personal_pvp
+  개인 보정 비교까지 필요하면 마지막 명령에 --practice-poses 추가.
+  이 옵션은 수련 구간의 관절 좌표와 처리 시각만 포함한다. RGB 영상은 포함하지 않고 원본을 지우지 않는다.
+  이번 Mac 수련 예시에서 약 7MiB였다. 녹화 길이에 따라 달라진다.
+  ZIP 생성 위치는 --root로 지정한 폴더이며 마지막 줄에 정확한 경로가 표시된다.
+
+패키징할 때
+  Windows 게임은 exe만 복사하지 않는다. Build/REDBOOL 폴더 전체(Data/MonoBleedingEdge/UnityPlayer 등 포함)를 전달한다.
+  Python은 별도 vision 폴더에 src, scripts, requirements, 검증된 Lite/Full 모델을 둔다.
+  첫 실행 설치와 게임/카메라 실행을 묶는 런처는 가능하지만 프로세스 구조/모델/입력 TTL은 유지한다.
+  GitHub에는 실행 코드/테스트/설치·빌드 스크립트를 올린다. 원본 촬영, 개인 프로필, .venv, Library, 대형 빌드는 올리지 않는다.
+  새 캐릭터/스토리 변경을 합칠 때는 별도 통합 브랜치에서 비교하고 수신기·입력권한·준비 게이트를 덮어쓰지 않는다.
+
+검증 범위
+  v29 실제 Mac-Windows 기록: 수련 완료/전투 시작 확인, 게임 약 60fps, Windows 카메라 28.55fps.
+  v30: 두 Mac 게임+저장 영상으로 연결 손실/자동 재개/동기화/프레임 검증. Windows 컴파일 성공.
+  v30 실제 Windows 카메라 및 새 참가자의 체감은 다음 한 번의 실제 플레이에서 확인해야 한다.
+  인식률 100%·무지연을 보장하는 패키지는 아니다. 기록과 동일 조건 비교로 판단한다.

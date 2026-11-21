@@ -24,25 +24,85 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     public Func<bool> ExternalGate;
     public Func<RedboolPracticeContext> PracticeContext;
     public event Action<string,float,string,float> PracticeAction;
+    public event Action<RedboolPracticeInput> PracticeInput;
     public event Action<bool,int> CalibrationObserved;
     public Fighter Opponent;
     public bool LiveReady => controlling && tutorialInputValid && NowNs()<deadline;
+    // Match presence is separate from the input lease: a late camera packet must
+    // release held controls immediately without cancelling an already-started attack.
+    // Only PvP gets 100 ms beyond the original source deadline (at most 250 ms old).
+    public bool PresenceReady => LiveReady || PvpOwned && NowNs()<presenceDeadline;
     public bool NeutralReady => LiveReady && !BlockActive && targetMove==0 && lastPhase=="READY";
     public int CalibrationGeneration { get; private set; }
     public string PersonalStatus { get; private set; } = "BASELINE V26";
+    public string InputPhase => lastPhase??"NONE";
+    public double InputAgeMs => lastLiveNs==0?-1:(NowNs()-lastLiveNs)/1000000.0;
+    public double SourceAgeMs => sourceCaptureNs<=0?-1:(NowNs()-sourceCaptureNs)/1000000.0;
+    public double LeaseRemainingMs => !hasState?-1:Math.Max(0,(deadline-NowNs())/1000000.0);
+    public double ClockUncertaintyMs => !hasState?-1:lastUncertaintyNs/1000000.0;
+    public string InputFreshnessReason => LiveReady ? "VALID" : !hasState ? "NO_STATE"
+        : !lastCalibrated ? "CALIBRATION" : lastTracking!="VALID" ? "TRACKING" : "LEASE_EXPIRED";
     private string lastPhase;
     bool AllowsInput => (Preparation==null || Preparation.AllowsPlayer) && (ExternalGate==null || ExternalGate());
-    bool Practicing => PracticeAction!=null || TutorialAction!=null;
-    void NotifyPractice(string action,float confidence,string movement,float strength) {
+    // 지금 필살기를 쓸 수 있는가: PvP에서 적 인물을 고른 사람은 그 인물의 기술, 그 밖에는 파운장.
+    bool SpecialReady { get {
+        if(player==null) return false;
+        var own=player.GetComponent<EnemySpecial>();
+        if(own!=null && own.enabled && own.PlayerOwned) return own.IsReady;
+        var palm=player.GetComponent<SpecialMove>();return palm!=null && palm.IsReady;
+    } }
+    bool Practicing => PracticeAction!=null || TutorialAction!=null || PracticeInput!=null || TutorialInput!=null;
+    void NotifyPractice(string action,float confidence,string movement,float strength,RedboolPracticeInput input=null) {
         if(PvpOwned) PracticeAction?.Invoke(action,confidence,movement,strength);
         else TutorialAction?.Invoke(action,confidence,movement,strength);
+        if(input==null)input=PracticeSample(RedboolPracticeInputKind.Reset,action,confidence,movement,strength,NowNs());
+        if(PvpOwned)PracticeInput?.Invoke(input);else TutorialInput?.Invoke(input);
     }
+    RedboolPracticeInput PracticeSample(RedboolPracticeInputKind kind,string action,float confidence,string movement,float strength,long now)
+        => new RedboolPracticeInput(kind,action,confidence,movement,strength,StreamId,CalibrationGeneration,
+            rawSourceCaptureNs,sourceCaptureNs,now,deadline);
     private static readonly Dictionary<int, RedboolDemoReceiver> listeners = new Dictionary<int, RedboolDemoReceiver>();
+    public static RedboolDemoReceiver ListeningOn(int listenPort) {
+        RedboolDemoReceiver receiver;
+        return listeners.TryGetValue(listenPort,out receiver) && receiver!=null && receiver.Bound ? receiver : null;
+    }
+    readonly RedboolCombatFeedback combatFeedback = new RedboolCombatFeedback();
+    Fighter feedbackFighter;
+    EnemySpecial feedbackSpecial;
+    void BindFeedbackFighter() {
+        var special=player!=null?player.GetComponent<EnemySpecial>():null;
+        if(special!=feedbackSpecial) {
+            if(feedbackSpecial!=null)feedbackSpecial.ChargeInterruptedByDamage-=OnFeedbackInterrupted;
+            feedbackSpecial=special;
+            if(feedbackSpecial!=null)feedbackSpecial.ChargeInterruptedByDamage+=OnFeedbackInterrupted;
+        }
+        var next=player!=null?player.GetComponent<Fighter>():null;
+        if(next==feedbackFighter)return;
+        if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage-=OnFeedbackInterrupted;
+        feedbackFighter=next;combatFeedback.Reset();
+        if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage+=OnFeedbackInterrupted;
+    }
+    void OnFeedbackInterrupted() { combatFeedback.AttackInterrupted(Time.unscaledTimeAsDouble); }
+    public RedboolCombatFeedbackCode FeedbackCode {
+        get {
+            BindFeedbackFighter();
+            var f=feedbackFighter;var h=f!=null?f.Health:null;
+            return combatFeedback.Resolve(new RedboolCombatFeedbackContext {
+                Available=hasState && (f!=null || Practicing),Calibrated=lastCalibrated,
+                TrackingValid=LiveReady,InputDelayed=lastTracking=="STALE" || lastTracking=="VALID" && !LiveReady,
+                Preparing=!AllowsInput || f!=null && f.VisionPreparationLocked,Practicing=Practicing,
+                Dead=h!=null && h.IsDead,HitStunned=h!=null && h.IsHitStunned,
+                Recovering=f!=null && f.IsInRecovery,Attacking=f!=null && f.IsAttacking,
+                SpecialActive=f!=null && f.IsSpecialActive,Guarding=f!=null && f.IsGuarding,
+                CanAttack=f!=null && f.CanAttack && !f.IsAttackSealed && AllowsInput
+            },Time.unscaledTimeAsDouble);
+        }
+    }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetListeners() { listeners.Clear(); TutorialAction = null; }
-    public bool showStatus = true;
+    private static void ResetListeners() { listeners.Clear(); TutorialAction = null; TutorialInput = null; }
     public string LastGesture { get; private set; } = "NONE";
     public static event Action<string,float,string,float> TutorialAction;
+    public static event Action<RedboolPracticeInput> TutorialInput;
     [Range(0f, .15f)] public float movementSmoothingSeconds = .06f;
     // Map a recognised light lean to a useful walking pace before smoothing.
     // Zero still means stop; timeout, preparation and collision rules are unchanged.
@@ -51,6 +111,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         return Mathf.Lerp(.65f, 1f, Mathf.InverseLerp(.35f, 1f, strength));
     }
     public string Status { get; private set; } = "WAITING";
+    public bool Bound => isActiveAndEnabled && running && udp!=null;
+    public string BindError { get; private set; }
+    public bool PortConflict { get; private set; }
+    bool quietBindRetry;
+    public bool RetryBinding()
+    {
+        if(Bound || !gameObject.activeInHierarchy || string.IsNullOrEmpty(BindError))return Bound;
+        // The owner calls this at most once per second, never on a socket worker.
+        quietBindRetry=true;
+        try { enabled=true; } finally { quietBindRetry=false; }
+        return Bound;
+    }
     public int AttacksApplied { get; private set; }
     public int AttacksBusy { get; private set; }
     public int GuardsStarted { get; private set; }
@@ -65,9 +137,11 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
     private readonly Dictionary<string,string> outcomes = new Dictionary<string,string>();
     private readonly List<UdpActionReceiver> oldReceivers = new List<UdpActionReceiver>();
     private IPEndPoint pairedPeer;
-    private long sequence, deadline, lastLiveNs;
+    private long sequence, deadline, presenceDeadline, lastLiveNs;
     private float targetMove, currentMove;
-    private bool controlling, tutorialInputValid;
+    private bool controlling, tutorialInputValid, hasState, lastCalibrated;
+    private string lastTracking;
+    private long sourceCaptureNs, rawSourceCaptureNs, lastUncertaintyNs;
     private bool oldKeyboard;
     private PlayerController configuredPlayer;
     private EnemyAI diagnosticsEnemy;
@@ -78,7 +152,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         public int version, ttl_ms, calibration_version, calibration_generation;
         public string personal_status;
         public string kind, stream_id, actor_id, capture_epoch, sync_id, event_id, side, movement, gesture, fsm_state, tracking;
-        public long sequence, sent_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
+        public long sequence, sent_ns, capture_ns, receiver_offset_ns, clock_uncertainty_ns, event_expires_ns;
         public bool block_active, calibrated;
         public float movement_strength;
     }
@@ -118,15 +192,28 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             Status="DUPLICATE RECEIVER :"+port;enabled=false;return;
         }
         try {
-            StreamId=expectedStreamId; sequence=deadline=lastLiveNs=0; pairedPeer=null;
+            BindError=null;PortConflict=false;
+            StreamId=expectedStreamId; sequence=deadline=presenceDeadline=lastLiveNs=0; pairedPeer=null;
+            hasState=false;sourceCaptureNs=lastUncertaintyNs=0;
+            combatFeedback.Reset();
             syncs.Clear();outcomes.Clear();
             udp=new UdpClient(new IPEndPoint(IPAddress.Parse(bindAddress),port));
+            RedboolSocketOwnership.PreventInheritance(udp.Client,"UDP "+bindAddress+":"+port);
             udp.Client.ReceiveTimeout=100;
             listeners[port]=this;
-            running=true;worker=new Thread(Receive) { IsBackground=true };worker.Start();
+            running=true;var boundSocket=udp;worker=new Thread(()=>Receive(boundSocket)) { IsBackground=true };worker.Start();
             DisableLegacy();
             Status="WAITING FOR PYTHON :"+port;
-        } catch(Exception e) { Status="SOCKET ERROR: "+e.Message;UnityEngine.Debug.LogError(Status);enabled=false; }
+            if(quietBindRetry)UnityEngine.Debug.Log("[REDBOOL RECEIVER] local port recovered :"+port);
+        } catch(Exception e) {
+            var native=e as System.ComponentModel.Win32Exception;var socketError=e as SocketException;
+            string code=native==null?"":" (native "+native.NativeErrorCode+(socketError==null?"":", "+socketError.SocketErrorCode)+")";
+            Status="SOCKET ERROR: "+bindAddress+":"+port+code+" "+e.Message;
+            BindError=Status;PortConflict=socketError!=null&&socketError.SocketErrorCode==SocketError.AddressAlreadyInUse;
+            running=false;udp?.Close();udp=null;
+            if(!quietBindRetry)UnityEngine.Debug.LogError(Status);
+            enabled=false;
+        }
     }
     private void Start() { DisableLegacy(); }
     private void DisableLegacy() {
@@ -134,10 +221,10 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         foreach(var old in FindObjectsByType<UdpActionReceiver>(FindObjectsSortMode.None))
             if(old.enabled) { oldReceivers.Add(old);old.enabled=false; }
     }
-    private void Receive() {
+    private void Receive(UdpClient boundSocket) {
         while(running) {
             try {
-                var peer=new IPEndPoint(IPAddress.Any,0);var bytes=udp.Receive(ref peer);
+                var peer=new IPEndPoint(IPAddress.Any,0);var bytes=boundSocket.Receive(ref peer);
                 if(bytes.Length>8192) continue;
                 if(inbox.Count>=128) { Received dropped;inbox.TryDequeue(out dropped);QueueDrops++; }
                 inbox.Enqueue(new Received { json=Encoding.UTF8.GetString(bytes),time=NowNs(),peer=peer });
@@ -152,9 +239,13 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             configuredPlayer=player;oldKeyboard=player.useKeyboard;player.useKeyboard=false;
             diagnosticsEnemy=FindAnyObjectByType<EnemyAI>();
         }
+        // Character selection can add/replace a special on the same player.
+        // Subscribe before processing input, independent of whether any UI or
+        // remote viewer happens to read FeedbackCode this frame.
+        BindFeedbackFighter();
         // Keyboard test mode (F8) gives the keys back without a camera; camera mode keeps them off.
         if(player!=null && player==configuredPlayer) player.useKeyboard=!PvpOwned && RedboolBattlePreparation.KeyboardTest;
-        if(NowNs()>=deadline) Safe();
+        if(NowNs()>=deadline) Safe(preservePresence:true);
         Received item;
         for(int i=0;i<32 && inbox.TryDequeue(out item);i++) {
             try { Process(JsonUtility.FromJson<Packet>(item.json),item); }
@@ -164,7 +255,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             float alpha=movementSmoothingSeconds<=0 ? 1 : 1-Mathf.Exp(-Time.unscaledDeltaTime/movementSmoothingSeconds);
             currentMove=Mathf.Lerp(currentMove,targetMove,alpha);
             if(Mathf.Abs(currentMove)<.01f && targetMove==0) currentMove=0;
-            player.ExternalMovement(AllowsInput && !Practicing ? currentMove : 0);
+            player.ExternalMovement(AllowsInput && !Practicing && (!PvpOwned || LiveReady) ? currentMove : 0);
             ApplyVisionGuard();
         }
     }
@@ -173,7 +264,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         var fighter=player!=null ? player.GetComponent<Fighter>() : null;
         if(fighter==null) return;
         bool wasHeld=fighter.IsVisionGuardHeld;
-        bool held=controlling && BlockActive && AllowsInput && !Practicing;
+        bool held=controlling && BlockActive && AllowsInput && !Practicing && (!PvpOwned || LiveReady);
         if(fighter.SetVisionGuard(held) && !wasHeld) GuardsStarted++;
     }
     private void Process(Packet p,Received item) {
@@ -184,7 +275,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         if(p.kind=="SYNC" && !String.IsNullOrEmpty(p.sync_id) && p.sync_id.Length<=100) {
             bool newRun=p.stream_id!=StreamId;
             if(newRun && (String.IsNullOrEmpty(expectedStreamId) && now-lastLiveNs>500000000L)) {
-                Safe();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
+                Safe();combatFeedback.Reset();Preparation?.ResetPreparation();StreamId=p.stream_id;sequence=0;outcomes.Clear();syncs.Clear();pairedPeer=item.peer;
             }
             if(p.stream_id!=StreamId) return;
             if(pairedPeer==null) pairedPeer=item.peer;
@@ -216,13 +307,18 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                 else if(action=="UNASSIGNED") status="UNASSIGNED";
                 else if(Practicing && (!tutorialInputValid || now>=deadline)) status="INPUT_LOCKED";
                 else if(Practicing) {
-                    NotifyPractice(action,1f,"NEUTRAL",0f);status="TUTORIAL_APPLIED";
+                    NotifyPractice(action,1f,"NEUTRAL",0f,PracticeSample(RedboolPracticeInputKind.Event,action,1f,"NEUTRAL",0f,now));status="TUTORIAL_APPLIED";
                 }
                 else if(player==null || fighter==null) status="NO_PLAYER";
                 else if(!AllowsInput || (PvpOwned && !LiveReady)) status="INPUT_LOCKED";
                 else if(!fighter.CanAttack || BlockActive) { status="GAME_BUSY";AttacksBusy++; }
                 else if(action=="SPECIAL") {
                     var special=player.GetComponent<SpecialMove>();
+                    // PvP에서 적 인물을 고른 사람은 그 인물의 기술을 쓴다(RedboolPvp.ConfigureSpecial). 그 밖에는 파운장.
+                    var own=player.GetComponent<EnemySpecial>();
+                    if(own!=null && own.enabled && own.PlayerOwned)
+                        status=!own.IsReady ? "NOT_CHARGED" : own.TryFire() ? "APPLIED" : "GAME_BUSY";
+                    else
                     status=special==null ? "NO_SPECIAL" : !special.IsReady ? "NOT_CHARGED"
                         : special.Activate() ? "APPLIED" : "GAME_BUSY";
                     if(status=="APPLIED") AttacksApplied++;
@@ -234,14 +330,29 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
                     if(status=="APPLIED") { AttacksApplied++; } else AttacksBusy++;
                 }
                 outcomes[p.event_id]=status;
+                // The ACK outcome is a start/denial, never proof of a landed hit.
+                // Cached duplicate outcomes do not refresh this short notice.
+                combatFeedback.Acknowledge(status,action,Time.unscaledTimeAsDouble);
             }
         } else if((p.movement!="LEFT" && p.movement!="RIGHT" && p.movement!="NEUTRAL")
             || Single.IsNaN(p.movement_strength) || Single.IsInfinity(p.movement_strength)
             || p.movement_strength<0 || p.movement_strength>1) status="BAD_STATE";
         else {
             sequence=p.sequence;lastLiveNs=now;
+            bool calibrated=p.calibration_version==1 && p.calibrated;
+            bool leaseOnlyStale=lastCalibrated && calibrated && rawSourceCaptureNs>0 && p.capture_ns==rawSourceCaptureNs
+                && CalibrationGeneration==p.calibration_generation && p.tracking=="STALE";
+            long retainedPresence=RedboolPracticeContinuity.PreservePresence(presenceDeadline,now,lastCalibrated,calibrated,
+                rawSourceCaptureNs,p.capture_ns,CalibrationGeneration,p.calibration_generation,p.tracking,StreamId,p.stream_id);
             deadline=p.sent_ns+p.receiver_offset_ns+p.ttl_ms*1000000L-p.clock_uncertainty_ns;
+            hasState=true;lastCalibrated=calibrated;lastTracking=p.tracking;
+            rawSourceCaptureNs=p.capture_ns;
+            sourceCaptureNs=p.capture_ns>0?p.capture_ns+p.receiver_offset_ns:0;
+            lastUncertaintyNs=p.clock_uncertainty_ns;
+            tutorialInputValid=lastCalibrated && p.tracking=="VALID";
+            presenceDeadline=tutorialInputValid ? deadline+100000000L : retainedPresence;
             Preparation?.Observe(p.calibration_version==1 && p.calibrated,p.tracking,p.fsm_state,p.block_active,p.movement);
+            if(CalibrationGeneration!=p.calibration_generation)combatFeedback.Reset();
             CalibrationGeneration=p.calibration_generation;
             CalibrationObserved?.Invoke(p.calibration_version==1 && p.calibrated,p.calibration_generation);
             lastPhase=p.fsm_state;
@@ -255,10 +366,12 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             ApplyVisionGuard();
             // An attack candidate/return phase is still live camera input. It must
             // not clear tutorial readiness before the following one-shot event.
-            tutorialInputValid=p.calibration_version==1 && p.calibrated && p.tracking=="VALID";
             string tutorialState=!tutorialInputValid ? "UNAVAILABLE"
                 : p.block_active ? "BLOCK" : p.fsm_state=="READY" ? "IDLE" : "BUSY";
-            NotifyPractice(tutorialState,1f,p.movement,p.movement_strength);
+            var practiceKind=tutorialInputValid ? RedboolPracticeInputKind.State
+                : leaseOnlyStale ? RedboolPracticeInputKind.Pause : RedboolPracticeInputKind.Reset;
+            NotifyPractice(tutorialState,1f,p.movement,p.movement_strength,
+                PracticeSample(practiceKind,tutorialState,1f,p.movement,p.movement_strength,now));
             status=player!=null?"APPLIED":Practicing?"TUTORIAL_APPLIED":"NO_PLAYER";
         }
         if(oneShot || status!="APPLIED") Status=status;
@@ -288,7 +401,7 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
             sync_id=p.kind=="SYNC"?p.sync_id:null,sender_ns=p.sent_ns,receiver_ns=item.time,
             applied_ns=NowNs(),game_attack_started=attack,applied_action=attack?ResolveAction(p):null,ack_sent_ns=NowNs(),
             battle_preparing=!AllowsInput || Preparation!=null && Preparation.HoldRound,
-            special_ready=player!=null && player.GetComponent<SpecialMove>()!=null && player.GetComponent<SpecialMove>().IsReady,
+            special_ready=SpecialReady,
             // Wire contract: ready to start another attack, not merely free to move.
             game_can_act=AllowsInput && !Practicing && fighter!=null && fighter.CanAttack,game_guard_active=fighter!=null && fighter.IsGuarding,
             guards_started=GuardsStarted,
@@ -313,27 +426,26 @@ public sealed class RedboolDemoReceiver : MonoBehaviour
         byte[] bytes=Encoding.UTF8.GetBytes(JsonUtility.ToJson(ack));udp.Send(bytes,bytes.Length,item.peer);
     }
     public void ClearInput() { Safe(); }
-    private void Safe() {
+    private void Safe(bool preservePresence=false) {
+        var practiceSample=PracticeSample(preservePresence && hasState && lastCalibrated && rawSourceCaptureNs>0
+            ? RedboolPracticeInputKind.Pause : RedboolPracticeInputKind.Reset,"UNAVAILABLE",0f,"NEUTRAL",0f,NowNs());
+        if(!preservePresence) {presenceDeadline=0;hasState=false;sourceCaptureNs=rawSourceCaptureNs=0;}
         if(player!=null) player.GetComponent<Fighter>()?.SetVisionGuard(false);
         if(controlling && player!=null) player.ClearExternalInput();
-        if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f);
+        if(controlling) NotifyPractice("UNAVAILABLE",0f,"NEUTRAL",0f,practiceSample);
+        else if(!preservePresence) {if(PvpOwned)PracticeInput?.Invoke(practiceSample);else TutorialInput?.Invoke(practiceSample);}
         controlling=false;tutorialInputValid=false;BlockActive=false;targetMove=currentMove=0;
     }
-    private void OnGUI() {
-        if(!showStatus) return;
-        GUI.Box(new Rect(12,12,470,130),"REDBOOL VISION :"+port);
-        GUI.Label(new Rect(22,35,450,25),Status+" | "+LastGesture+" | attacks "+AttacksApplied+" | busy "+AttacksBusy);
-        GUI.Label(new Rect(22,60,450,25),"block "+BlockActive+" | move "+currentMove.ToString("F2")+" | drops "+QueueDrops);
-        var special=player!=null ? player.GetComponent<SpecialMove>() : null;
-        if(special!=null) GUI.Label(new Rect(22,85,450,25),special.IsReady ? "SPECIAL READY: cross arms at chest for 0.7s" : "SPECIAL: charging");
-        if(Time.unscaledTime<feedbackUntil) GUI.Label(new Rect(22,110,450,25),inputFeedback);
-    }
     private void OnDisable() {
+        if(feedbackFighter!=null)feedbackFighter.AttackInterruptedByDamage-=OnFeedbackInterrupted;
+        if(feedbackSpecial!=null)feedbackSpecial.ChargeInterruptedByDamage-=OnFeedbackInterrupted;
+        feedbackSpecial=null;
+        feedbackFighter=null;combatFeedback.Reset();
         Preparation?.ResetPreparation();
-        Safe();running=false;udp?.Close();
+        Safe();running=false;udp?.Close();udp=null;
         RedboolDemoReceiver owner;
         if(listeners.TryGetValue(port,out owner) && owner==this) listeners.Remove(port);
-        if(worker!=null) worker.Join(300);
+        if(worker!=null) worker.Join(300);worker=null;
         Received discarded;while(inbox.TryDequeue(out discarded)) { }
         if(configuredPlayer!=null) configuredPlayer.useKeyboard=oldKeyboard;
         foreach(var old in oldReceivers) if(old!=null) old.enabled=true;

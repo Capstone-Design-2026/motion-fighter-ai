@@ -69,6 +69,17 @@ public class StageDefinition
 /// 만드는 법: Project 창 우클릭 → Create → VisionStriker → Run Config
 /// 반드시 Assets/Resources/RunConfig.asset 경로여야 자동으로 잡힌다.
 /// </summary>
+/// <summary>주인공 이동 방식(HeroAuthoredMovement).</summary>
+public enum HeroMovementStyle
+{
+    /// <summary>승인 걷기(스텝)만 반복. 뒤로는 같은 클립을 거꾸로 재생.</summary>
+    ApprovedWalk,
+    /// <summary>대시 → 이어 달리기 → 스텝, 뒤로는 백대시.</summary>
+    DashAndStep,
+    /// <summary>적과 같은 걷기(WALK_FORWARD / WALK_BACK).</summary>
+    CommonWalk,
+}
+
 [CreateAssetMenu(menuName = "VisionStriker/Run Config", fileName = "RunConfig")]
 public class RunConfig : ScriptableObject
 {
@@ -87,9 +98,33 @@ public class RunConfig : ScriptableObject
     [Tooltip("지도 경로 수. 전투 횟수는 보스 목록의 개수로 결정됩니다.")]
     [Range(2, 3)] public int campaignBranches = 3;
 
+    [Header("주인공 이동")]
+    [Tooltip("ApprovedWalk: 승준의 승인 걷기(스텝)로 앞뒤 이동(기본). DashAndStep: 대시 → 이어 달리기 → 스텝, 뒤로는 백대시. CommonWalk: 적과 같은 걷기.")]
+    // Keep the field-validated camera stride. Authored travel remains an optional developer setting.
+    public HeroMovementStyle heroMovement = HeroMovementStyle.CommonWalk;
+    [Tooltip("ApprovedWalk 일 때 걷기 빠르기 배율. 1 = 클립 그대로(초당 약 0.38m). 재생과 이동을 함께 올려 발이 미끄러지지 않는다. Play 중에 바꿔도 바로 반영된다.")]
+    [Range(1f, 3f)] public float heroWalkSpeed = 2.61f;   // 초당 약 1.0m
+
+    [Header("시작 화면")]
+    [Tooltip("시작 화면에서 반복 재생할 음악. 비어 있으면 무음.")]
+    public AudioClip titleMusic;
+
+    [Header("지도 화면")]
+    [Tooltip("지도 화면(스토리·튜토리얼 포함)에서 반복 재생할 음악. 비어 있으면 무음.")]
+    public AudioClip mapMusic;
+
+    [Header("보스 전투")]
+    [Tooltip("보스 칸 전투에서 씬의 전투곡 대신 반복 재생할 음악. 비어 있으면 씬 기본 전투곡.")]
+    public AudioClip bossBattleMusic;
+
     [Header("엔딩 크레딧")]
-    public string endingTitle = "VISION STRIKER";
-    [TextArea(6, 20)] public string creditsText = "제작진";
+    public string endingTitle = "흑운협";
+    [Tooltip("엔딩 크레딧에서 반복 재생할 음악. 비어 있으면 무음.")]
+    public AudioClip endingMusic;
+    [Tooltip("마지막 제목 화면 아래에 작게 적는 저작권 표시. 비우면 표시하지 않는다.")]
+    public string creditsCopyright = "© 2026 팀 RedBool";
+    [Tooltip("줄 머리: [logo] 제목 그림, # 머리말, ## 이름, = 직함, - 맡은 일, --- 구분 장식. 그 밖은 일반 문장.")]
+    [TextArea(6, 30)] public string creditsText = "# 제작\n## 팀 RedBool";
     [Tooltip("음악, 사운드, 폰트, 외부 에셋의 제작자와 출처/라이선스를 입력합니다. 비어 있으면 표시하지 않습니다.")]
     [TextArea(3, 12)] public string creditsAttributions = "";
     [Min(5f)] public float creditsDuration = 32f;

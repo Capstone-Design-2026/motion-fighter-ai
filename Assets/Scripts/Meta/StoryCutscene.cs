@@ -33,7 +33,7 @@ public class StoryCutscene : MonoBehaviour {
         finally { IsOpen=false; if(canvas!=null)Destroy(canvas.gameObject); }
     }
     void OnDestroy(){IsOpen=false;}
-    void Update(){if(Input.GetKeyDown(KeyCode.Space)||Input.GetKeyDown(KeyCode.Return))next=true;}
+    void Update(){if(!RedboolPauseMenu.BlocksStoryInput&&(Input.GetKeyDown(KeyCode.Space)||Input.GetKeyDown(KeyCode.Return)))next=true;}
     IEnumerator Present(StoryCutsceneDefinition data) {
         if(!string.IsNullOrEmpty(data.videoFileName)) {
             var video=gameObject.AddComponent<StoryVideo>();

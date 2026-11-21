@@ -53,6 +53,7 @@ public class HitVfx : MonoBehaviour
     /// <param name="guarded">가드에 막힌 타격이면 true.</param>
     public static void Play(Vector3 point, bool guarded)
     {
+        RedboolViewLink.RecordEffect(point,guarded?1:0);
         if (instance != null) instance.Spawn(point, guarded);
     }
 

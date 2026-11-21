@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "이번에는 사부님을 데리고 돌아간다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

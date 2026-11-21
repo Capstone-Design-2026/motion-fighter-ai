@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.45499999999999996, y: 0.5340625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "통로 입구에 사부님의 매듭이 있다. 이번에는 확실해. 이 안으로 들어가셨어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

@@ -1,0 +1,150 @@
+Historical v34 packaging guide. Current integrated release: V36_TEST_RELEASE.txt.
+The v36 branch uses view protocol32; both laptops must use v36.
+
+REDBOOL v34.3 — camera acquisition, receiver ownership and stationary calibration
+
+Current patch: a packaged local story/P1 camera starts only after its own scene
+receiver has bound its input ports (P1 requires5065 and5066). A failed bind displays
+an explicit conflict notice and quietly retries once per second. A newly blocked
+scene stops only its owned child, flushes diagnostics, and reconnects after the
+other game closes. Normal story scene gaps retain calibration. Remote P2 is unchanged.
+Synthetic native coverage reserves/relinquishes both ports and repeats this across
+an actual story scene transition; it never opens a physical camera.
+
+Windows DSHOW startup measures actual acquisition cadence before engine observations.
+Only slow YUY2 tries MJPG on the same device. Retention requires valid640x480BGR,
+>=20% and>=3fps gain and no worse gap tail; otherwise it restores the default format.
+No exposure/gain writes, backend/index switch, extra handle, or mid-game trial occurs.
+Native driver calls can block; budgets and cancellation are checked between reads.
+Probe frames are not engine/journal samples. Healthy Windows and all Mac paths keep
+their capture configuration. Hardware improvement is not yet measured.
+
+Stationary calibration now permits350ms between fresh samples (about3fps) while
+retaining12valid samples, >=0.6s dwell, <=120ms age, and guard/spatial stability gates.
+The failed middle792 record now completes offline; successful550 contiguous prefix,
+Mac and Windows anchors and attack decisions remain identical. The long550 record
+exceeds the128MiB landmark budget; only its contiguous17502frame prefix is replayed.
+Low acquisition FPS can still miss rapid attacks; live100ms gaps and150mswatchdog
+remain unchanged. Calibration completion alone is not playable-camera certification.
+
+Unity improves local preview pacing, high-DPI3D render budget and Mac permission
+preflight. Esc opens the shared navigation menu in every scene; Continue closes it,
+Main Menu uses existing scene/PvP cleanup. The simulation continues while it is open.
+Windows/PvP protocol30 is unchanged. Preview requests never overlap and are skipped
+while folded; two healthy5s windows restore15fps after shedding display work.
+
+Earlier field patch: the existing story combat warmup renders both real Hero02 punch
+correction surfaces into its temporary target before input unlocks. Renderer
+flags and controller state are restored on completion or interruption; PvP,
+damage, animation and recognition rules are unchanged. A native fixture passes
+33 checks, including both real meshes and exact restoration. The first Windows
+straight had a144ms frame with a120MB D3D12 upload; improvement on that machine
+is not yet measured. The backend retains capture frame IDs alongside raw model
+metadata; offline replay reports tight cross-platform float roundoff separately
+while requiring exact event decisions, integer timing and ordering.
+
+Reviewed Unity upstream: 85ea2defc027ce22285466a9da8338d37d5701b7.
+Includes new story arenas, UndergroundPit PvP arena, corrected hero punch meshes,
+enemy special moves and music. Existing camera input and Windows non-inheritable
+socket ownership are retained. Recognition thresholds/models are unchanged.
+Both peers must use view protocol30: each actor now carries its authoritative
+punch-surface byte so the guest displays the same corrective mesh as the host.
+The camera event protocol and LAN ports are unchanged.
+
+The Unity player owns one local REDBOOLCamera child while in tutorial/combat/PvP.
+Story scenes retain one calibration. Returning to the main menu stops the child;
+changing between story/P1/P2 starts the appropriate role. Closing the game stops
+only its own child. The child's parent watchdog also handles unexpected exits.
+Development/editor workflows remain manual; --redbool-external-camera opts out
+in a packaged player. Physical cameras are never used by the automated checks.
+
+User flow
+1. Open REDBOOL.app (Apple Silicon Mac) or REDBOOL.exe (Windows x64).
+2. Enter story/duel, or PvP 대전 → 방 만들기 / 방 찾기 and 대전 참가.
+3. The local camera panel appears. Use 보정 or C with both wrists/elbows visible.
+4. Each new person presses C. The existing v26-derived recognizer and bounded
+   tutorial personal measurements remain the gameplay recognition path.
+5. 접기 hides preview work while recognition continues. 다시 연결 restarts only
+   the owned camera process. 메인 메뉴 → 진단 기록 저장 exports a small ZIP.
+
+Transport and preview
+Gameplay continues on the protocol30 LAN UDP connection: P1:5065,
+P2:5066, shared game snapshots/discovery:5067. The host remains authoritative.
+No internet server or relay is introduced. The two laptops need local reachability.
+Discovery only fills an address; it never silently pairs with another game.
+Camera JPEG preview is local loopback only: authenticated per-process HTTP,
+320x240, target15fps (8fps under game/decode/request load), one latest-frame slot. It is never sent to the other laptop.
+Unity status requests run at5Hz, preview decoding is bounded to one request at a
+time. The main recognition loop is not throttled to the preview frame rate.
+
+Default recording
+No RGB/video is written. Every processed Lite observation and available Full
+auxiliary observation is journaled with original JSON float precision, confidence,
+model/frame identity and ordered engine-clock operations. Serialization and gzip
+level1 run on a bounded worker queue. Complete chunks are indexed atomically.
+Queue overflow, IO errors and the128MiB per-run compressed budget are explicit
+coverage gaps; they never silently appear as a complete recording.
+The diagnostic state/event/performance logs remain available alongside poses.
+
+Files live in Application.persistentDataPath/CameraDiagnostics. After returning
+to the main menu, wait for the owned camera child to finish flushing. The export
+button includes the newest3 runs, complete indexed hash-verified chunks and a
+bounded Unity log. Active .part chunks are excluded. Never tail-truncate gzip.
+landmarks.index.json records source coverage; export_report.json records any
+export omission. No video/models/unrelated files are included or deleted.
+Coordinates alone are not human-labelled intended action ground truth.
+
+Build on native target OS
+Python branch: codex/tutorial-personal-pvp-20261112, requirements-backend-build.txt.
+scripts/build_camera_backend.py creates an entire onedir REDBOOLCamera folder.
+Windows GitHub Actions builds the x64 backend natively and validates imports,
+model fingerprints, actual MediaPipe inference, loopback controls/preview and
+graceful shutdown without opening a webcam. A Mac backend cannot replace it.
+
+Unity uses6000.4.5f1, Mono, enabled build scenes via RedboolLocalDemoBuild.Run.
+Build Unity first, then assemble the native backend into StreamingAssets:
+
+python3 Tools/Developer/assemble_game.py --target mac --player /path/REDBOOL.app --backend /path/REDBOOLCamera --output /path/new-mac-package
+python3 Tools/Developer/assemble_game.py --target windows --player /path/REDBOOL.exe --backend /path/REDBOOLCamera --output /path/new-windows-package
+
+The assembler verifies target/model fingerprints, copies supporting files,
+adds the Mac camera permission description and ad-hoc signs the Mac app.
+This is local trial signing, not a notarized distribution release. Windows is an
+exe plus its support folders; users click one entry point but must keep the folder.
+No Unity Editor or Python installation is needed on the end user's laptop.
+
+Safe native integration check
+Run the packaged development Mac player with both flags:
+--redbool-camera-check --redbool-camera-synthetic
+and REDBOOL_CAMERA_CHECK_OUTPUT pointing to a new evidence directory.
+This explicitly uses synthetic local images, never opens a camera and never sends
+gameplay attacks. It verifies menu→PvP→menu→story, local preview/calibration controls,
+role changes and cleanup, including destruction during pending shutdown.
+Normal transport/gameplay test harnesses should use an unbundled player or pass
+--redbool-external-camera so they cannot accidentally acquire a physical camera.
+
+Release evidence and limitations
+The unchanged recognition engine is checked against saved multi-person records.
+New journal tests compare ordered replay with the original engine outputs and
+exercise queue overflow, disk failure, cap, corrupt chunks and shutdown.
+Native Unity checks cover diagnostics, ports, preparation, held guard, special
+moves, scene routing and the new view protocol. The package release report gives
+actual test counts and measured recording overhead; do not assume every hardware
+or camera is validated by a successful build.
+Real simultaneous Mac/Windows camera play remains the final user check. Preserve
+entire Windows support folders. Mac local ad-hoc signing is not notarization.
+
+PvP lobby branch (feature/pvp-lobby-tutorial, merged on top of v34.1)
+Adds the PvP waiting room, 12-character select (hero + 11 story enemies), each
+character's own special move, the explained practice cards and story-style HUD
+in PvP. Details: Docs/PvpLobbyTutorial.md.
+The original lobby branch used a distinct protocol31 layout. The v36 integration
+uses protocol32, preserving feedback/punch-surface/practice-run plus lobby and
+character-special fields. Do not mix with either former protocol31 build.
+
+Play build without the "Development Build" watermark
+python Tools/Developer/build_local.py --release   -> Build/REDBOOL-release/
+The default build stays a development player in Build/REDBOOL/. The synthetic
+check above only runs in a development player, so check with the default build
+and hand out a package assembled from the --release build (same assemble command,
+--player pointing at Build/REDBOOL-release).

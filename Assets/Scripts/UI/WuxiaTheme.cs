@@ -48,7 +48,7 @@ public static class WuxiaTheme
         text.fontStyle=FontStyle.Bold;
         var kind=primary?WuxiaGraphic.Shape.Swords:
             button.name=="ContinueButton"?WuxiaGraphic.Shape.Resume:
-            button.name=="HelpButton"?WuxiaGraphic.Shape.Guide:WuxiaGraphic.Shape.Exit;
+            button.name=="HelpButton"||button.name=="CreditsButton"?WuxiaGraphic.Shape.Guide:WuxiaGraphic.Shape.Exit;
         var icon=Ornament("MenuIcon",root,kind,primary?Paper:Gold);
         UIFactory.Place(icon.rectTransform,new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(36,0),new Vector2(38,38));
         button.transition=UnityEngine.UI.Selectable.Transition.None;

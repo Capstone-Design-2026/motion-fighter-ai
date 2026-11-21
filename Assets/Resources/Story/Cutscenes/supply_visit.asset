@@ -12,13 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
   m_Name: supply_visit
   m_EditorClassIdentifier: 
-  location: "숨겨진 약품 보관소"
+  location: "숨겨진 약고"
   background: {fileID: 0}
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.1490625, width: 0.5, height: 0.421875}
   lines:
   - speaker: "의원"
-    text: "당신이 열어 준 길로 내려가겠소. 도윤 어른도 꼭 데려와 주시오."
+    text: "당신이 열어 준 길로 내려가겠소. 운학 어른도 꼭 데려와 주시오."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 1
@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "뒤편은 절벽이다. 약품으로 상처를 돌보고 쉼터로 돌아가자. 특별 호송대는 채석장으로 갔다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

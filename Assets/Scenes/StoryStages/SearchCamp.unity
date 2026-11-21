@@ -17295,78 +17295,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4147388613787760857, guid: f1da7df790d269b4194a28c3eae2a14b, type: 3}
   m_PrefabInstance: {fileID: 867498876}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &879232032
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 879232033}
-  - component: {fileID: 879232035}
-  - component: {fileID: 879232034}
-  m_Layer: 5
-  m_Name: WebcamUI
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &879232033
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 879232032}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1555233381}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0}
-  m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: -50, y: 50}
-  m_SizeDelta: {x: 260, y: 200}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &879232034
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 879232032}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1344c3c82d62a2a41a3576d8abb8e3ea, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RawImage
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Texture: {fileID: 0}
-  m_UVRect:
-    serializedVersion: 2
-    x: 0
-    y: 0
-    width: 1
-    height: 1
---- !u!222 &879232035
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 879232032}
-  m_CullTransparentMesh: 1
 --- !u!1001 &881453964
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -21163,7 +21091,7 @@ Camera:
     height: 1
   near clip plane: 0.1
   far clip plane: 360
-  field of view: 47
+  field of view: 40
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -21189,8 +21117,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1177926583}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.06104854, y: 0, z: 0, w: 0.99813485}
-  m_LocalPosition: {x: 0, y: 1.940851, z: -5.789417}
+  m_LocalRotation: {x: 0.061048545, y: 0, z: 0, w: 0.99813485}
+  m_LocalPosition: {x: 0, y: 1.9112663, z: -6.6886783}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -21284,14 +21212,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Battle3DCamera
   player: {fileID: 1351601484}
   enemy: {fileID: 1900000011}
-  minimumDistance: 4.6
+  minimumDistance: 3.35
   maximumDistance: 16
-  focusHeight: 1.2
-  horizontalSafeArea: 0.9
-  verticalSafeArea: 0.8
+  focusHeight: 1.06
+  horizontalSafeArea: 0.92
+  verticalSafeArea: 0.9
   orbitArena: 1
   allowMouseOrbit: 1
-  combatPitch: 7
+  combatPitch: 3.5
   orbitSensitivity: 2.4
   arenaCenter: {x: 0, y: 0, z: 0}
   cameraBoundaryRadius: 17
@@ -23513,6 +23441,7 @@ GameObject:
   - component: {fileID: 1351601489}
   - component: {fileID: 1351601490}
   - component: {fileID: 1351601491}
+  - component: {fileID: 1351601492}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -23759,9 +23688,9 @@ MonoBehaviour:
   hitboxSize: {x: 1.1, y: 1.6}
   windup: 0.12
   recovery: 0.35
+  guardedPunchDamage: 2
+  guardedKickDamage: 5
   blockDamageMultiplier: 0.2
-  guardDuration: 1.5
-  guardFailDelay: 0.5
   blockPunish: 0.4
   hitStunBonus: 0.15
   whiffPunish: 0.3
@@ -23797,54 +23726,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpecialMove
   hitsToCharge: 5
+  chargeWhenHit: 0
   damage: 30
-  chargeKey: 105
-  chargeKeyAmount: 1
+  guardDamageRatio: 0.25
+  fullChargeBonus: 0.2
+  minCharge: 0.35
+  maxCharge: 2
+  fullChargeTime: 1.5
+  refundRatio: 0.5
+  waveSpeed: 12
+  waveRange: 6.5
+  knockback: {x: 6.5, y: 1.4}
+  guardKnockback: 2.1
+  hitExtraStun: 0.35
+  whiffOpen: 0.4
+  cutInSlowScale: 0.06
+  cutInDuration: 0.32
+  chargeZoom: 0.86
   activateKey: 111
-  cutInSprite: {fileID: 0}
-  cutInScale: 5
-  cutInHeight: 1.8
-  sweepCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0.41666666
-      outSlope: 0.41666666
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.5
-      value: 0.25
-      inSlope: 0.41666666
-      outSlope: 0.41666666
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.7
-      value: 1
-      inSlope: 1.875
-      outSlope: 1.875
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  fadeInTime: 0.1
-  fadeOutTime: 0.3
-  slowScale: 0
-  duration: 1
-  recoverTime: 0.3
-  zoomRatio: 0.75
-  zoomInTime: 0.2
-  zoomOutTime: 0.35
 --- !u!114 &1351601491
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -23868,6 +23767,19 @@ MonoBehaviour:
   guardClips:
   - {fileID: 7400000, guid: 6ace9821a9081df4a92551928766001c, type: 2}
   - {fileID: 7400000, guid: 3c1858024f0029249a79a9aa7bbb826a, type: 2}
+  authoredSteps: 1
+--- !u!114 &1351601492
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351601480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11830b06ca454ad44997d81ee7cf0783, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HeroAuthoredMovement
 --- !u!1001 &1354089218
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -26671,155 +26583,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1030995201, guid: abc00000000012198840388004233282, type: 3}
   m_PrefabInstance: {fileID: 1548677988}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1555233377
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1555233381}
-  - component: {fileID: 1555233380}
-  - component: {fileID: 1555233379}
-  - component: {fileID: 1555233378}
-  m_Layer: 5
-  m_Name: Canvas
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1555233378
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1555233377}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: dc42784cf147c0c48a680349fa168899, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.GraphicRaycaster
-  m_IgnoreReversedGraphics: 1
-  m_BlockingObjects: 0
-  m_BlockingMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
---- !u!114 &1555233379
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1555233377}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.CanvasScaler
-  m_UiScaleMode: 0
-  m_ReferencePixelsPerUnit: 100
-  m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
-  m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
-  m_PhysicalUnit: 3
-  m_FallbackScreenDPI: 96
-  m_DefaultSpriteDPI: 96
-  m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
---- !u!223 &1555233380
-Canvas:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1555233377}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_RenderMode: 0
-  m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
-  m_PixelPerfect: 0
-  m_ReceivesEvents: 1
-  m_OverrideSorting: 0
-  m_OverridePixelPerfect: 0
-  m_SortingBucketNormalizedSize: 0
-  m_VertexColorAlwaysGammaSpace: 0
-  m_UseReflectionProbes: 0
-  m_AdditionalShaderChannelsFlag: 0
-  m_UpdateRectTransformForStandalone: 0
-  m_SortingLayerID: 0
-  m_SortingOrder: 0
-  m_TargetDisplay: 0
---- !u!224 &1555233381
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1555233377}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 879232033}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0, y: 0}
---- !u!1 &1557763670
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1557763672}
-  - component: {fileID: 1557763671}
-  m_Layer: 0
-  m_Name: WebcamManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1557763671
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1557763670}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 69f640a55f4836b46945dd0f59650707, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UDPWebcamReceiver
-  port: 5056
-  miniMapRawImage: {fileID: 879232034}
---- !u!4 &1557763672
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1557763670}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1558505059
 GameObject:
   m_ObjectHideFlags: 0
@@ -31379,7 +31142,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5f3c9a1d7e2b4c8a9d6f1e0b3a7c5d24, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Health
-  displayName: "\uC218\uC0C9\uB300 \uC57C\uC601\uC9C0"
+  displayName: "\uCD94\uD3EC\uB300 \uC57C\uC601\uC9C0"
   maxHealth: 100
   hitStunTime: 0.3
   guardStunTime: 0.15
@@ -31406,9 +31169,9 @@ MonoBehaviour:
   hitboxSize: {x: 1.1, y: 1.6}
   windup: 0.12
   recovery: 0.35
+  guardedPunchDamage: 2
+  guardedKickDamage: 5
   blockDamageMultiplier: 0.2
-  guardDuration: 1.5
-  guardFailDelay: 0.5
   blockPunish: 0.4
   hitStunBonus: 0.15
   whiffPunish: 0.3
@@ -31427,6 +31190,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
   target: {fileID: 0}
+  behaviorType: 0
   moveSpeed: 2.1
   attackRange: 1.2
   keepDistance: 0.8
@@ -31434,8 +31198,13 @@ MonoBehaviour:
   attackWeight: 5
   blockWeight: 3
   backstepWeight: 1.5
-  crouchWeight: 1
   attackDelay: 0.3
+  specialGuardChance: 0.5
+  reactionTime: 0.15
+  guardHoldTime: 1.5
+  outBoxMargin: 0.5
+  outBoxSpeedScale: 1.5
+  reachMargin: 0.04
 --- !u!114 &1900000019
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -31507,11 +31276,6 @@ MonoBehaviour:
   chipSpeed: 0.6
   allowRestart: 1
   restartKey: 114
-  showKeyGuide: 1
-  keyGuideToggleKey: 282
-  keyGuideAutoHideTime: 0
-  keyGuideWidth: 470
-  keyGuideMargin: {x: 60, y: 40}
   gaugeFillColor: {r: 0.17, g: 0.59, b: 0.77, a: 1}
   gaugeReadyColor: {r: 0.32, g: 0.81, b: 1, a: 1}
   damageTrailDelay: 0.25
@@ -31538,6 +31302,7 @@ MonoBehaviour:
   guardClips:
   - {fileID: 7400000, guid: 6ace9821a9081df4a92551928766001c, type: 2}
   - {fileID: 7400000, guid: 3c1858024f0029249a79a9aa7bbb826a, type: 2}
+  authoredSteps: 1
 --- !u!1 &1900000030
 GameObject:
   m_ObjectHideFlags: 0
@@ -39923,8 +39688,6 @@ SceneRoots:
   - {fileID: 1515777470}
   - {fileID: 2000000101}
   - {fileID: 2000000201}
-  - {fileID: 1555233381}
   - {fileID: 467602003}
-  - {fileID: 1557763672}
   - {fileID: 1725275988}
   - {fileID: 1193928202}

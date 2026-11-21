@@ -32,7 +32,7 @@ Material:
     - _CloudSpeed: 0.0035
     - _CloudStrength: 0.8
     m_Colors:
-    - _SkyHorizon: {r: 0.7, g: 0.77, b: 0.79, a: 1}
-    - _SkyTop: {r: 0.25, g: 0.43, b: 0.65, a: 1}
+    - _SkyHorizon: {r: 0.89, g: 0.82, b: 0.67, a: 1}
+    - _SkyTop: {r: 0.55, g: 0.62, b: 0.7, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

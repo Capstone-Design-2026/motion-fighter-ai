@@ -56,6 +56,9 @@ public class CombatHUD : MonoBehaviour
     private Bar playerBar;
     private Bar enemyBar;
     private Text koText;
+    private RectTransform resultPanel;
+    private Text resultCaption;
+    private Text restartHint;
     private Text timerText;
     private BattleSceneBridge battle;
 
@@ -84,6 +87,7 @@ public class CombatHUD : MonoBehaviour
         public Text label, amount, gaugeLabel;
         public Health health;
         public SpecialMove resource;
+        public EnemySpecial foeResource;   // 적 필살기 게이지(적 쪽 막대에만 있다)
         public bool leftSide;
         public float targetRatio, chipRatio, trailUntil;
         public System.Action<int, int> healthChanged, chargeChanged;
@@ -98,7 +102,8 @@ public class CombatHUD : MonoBehaviour
 
     void Awake()
     {
-        if (RedboolPvp.Active) { enabled=false; return; }
+        // PvP: 판정과 두 화면 동기화는 RedboolPvp 가 한다. 여기서는 값만 받아 그리는 방식으로 대기한다(SetExternalVisible 로 켠다).
+        if (RedboolPvp.Active) { external = true; enabled = false; return; }
         player = FindAnyObjectByType<PlayerController>();
         if (playerHealth == null && player != null)
             playerHealth = player.GetComponent<Health>();
@@ -137,10 +142,11 @@ public class CombatHUD : MonoBehaviour
     {
         UpdateChip(playerBar);
         UpdateChip(enemyBar);
+        if (external) return;
         UpdateKeyGuide();
         UpdateTimer();
 
-        if (matchOver && allowRestart && Input.GetKeyDown(restartKey))
+        if (matchOver && allowRestart && !RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(restartKey))
             RestartRound();
     }
 
@@ -166,11 +172,80 @@ public class CombatHUD : MonoBehaviour
             bar.resource.OnChargeChanged += bar.chargeChanged;
             OnChargeChanged(bar, bar.resource.Charge, bar.resource.HitsToCharge);
         }
+        else if (bar.foeResource != null && bar.foeResource.Available)
+        {
+            bar.chargeChanged = (current, max) => OnFoeChargeChanged(bar, current, max);
+            bar.foeResource.OnChargeChanged += bar.chargeChanged;
+            OnFoeChargeChanged(bar, bar.foeResource.Charge, bar.foeResource.HitsToCharge);
+        }
     }
 
     void OnDestroy()
     {
         Unbind(playerBar); Unbind(enemyBar);
+    }
+
+    // ─────────────────────── PvP: 값만 받아서 그린다 ───────────────────────
+    // 스토리와 같은 체력 막대·필살기 게이지·시계를 쓰되, 체력·게이지·시간은 RedboolPvp 가 넣어 준다.
+    // (손님 화면에는 실제 Health 가 없고 호스트가 보낸 숫자만 있기 때문이다.)
+    private bool external, externalBuilt;
+
+    public void SetExternalVisible(bool visible)
+    {
+        if (!external) return;
+        if (visible && !externalBuilt)
+        {
+            externalBuilt = true;
+            font = LoadFont();
+            BuildCanvas();
+            BuildTimer();
+            playerBar = BuildBar(null, playerColor, true);
+            enemyBar = BuildBar(null, enemyColor, false);
+        }
+        if (canvas != null && canvas.gameObject.activeSelf != visible) canvas.gameObject.SetActive(visible);
+        enabled = visible;
+    }
+
+    public void ShowExternalFighter(bool left, string name, int current, int max)
+    {
+        var bar = left ? playerBar : enemyBar;
+        if (!external || bar == null) return;
+        float next = max > 0 ? Mathf.Clamp01((float)current / max) : 0;
+        if (next < bar.targetRatio) bar.trailUntil = Time.unscaledTime + damageTrailDelay;
+        else if (next > bar.targetRatio) bar.chipRatio = next;
+        bar.targetRatio = next;
+        bar.graphic.SetValues(next, bar.chipRatio);
+        bar.label.text = name;
+        bar.amount.text = current + " / " + max;
+    }
+
+    /// <summary>필살기 게이지. firing: 지금 그 기술이 나가는 중.</summary>
+    public void ShowExternalGauge(bool left, string move, int current, int max, bool firing)
+    {
+        var bar = left ? playerBar : enemyBar;
+        if (!external || bar == null || bar.gauge == null) return;
+        bool ready = max > 0 && current >= max, lit = ready || firing;
+        bar.gauge.fillColor = lit ? gaugeReadyColor : gaugeFillColor;
+        bar.gauge.SetValues(firing ? 1f : max > 0 ? Mathf.Clamp01((float)current / max) : 0f, 0, lit);
+        bar.gaugeLabel.text = firing ? move + "  발동" : ready ? move + "  준비 · 가슴 앞 X자" : move + "  충전 중";
+        bar.gaugeLabel.color = lit ? new Color(1f, .84f, .62f) : new Color(.83f, .88f, .88f);
+    }
+
+    public void ShowExternalClock(float seconds)
+    {
+        if (!external || timerText == null) return;
+        timerText.text = Mathf.CeilToInt(Mathf.Max(0f, seconds)).ToString("D2");
+        timerText.color = seconds <= 10f ? new Color(1f, .36f, .25f) : new Color(1f, .93f, .77f);
+    }
+
+    // 검사용: 지금 화면에 나와 있는 글
+    public bool ExternalVisible => external && externalBuilt && canvas != null && canvas.gameObject.activeSelf;
+    public string ExternalClockText => timerText != null ? timerText.text : "";
+    public string ExternalSummary(bool left)
+    {
+        var bar = left ? playerBar : enemyBar;
+        if (bar == null) return "";
+        return bar.label.text + " | " + bar.amount.text + " | " + (bar.gaugeLabel != null ? bar.gaugeLabel.text : "");
     }
 
     private void Unbind(Bar bar)
@@ -182,6 +257,7 @@ public class CombatHUD : MonoBehaviour
             bar.health.OnDeath -= OnDeath;
         }
         if (bar.resource != null) bar.resource.OnChargeChanged -= bar.chargeChanged;
+        if (bar.foeResource != null && bar.chargeChanged != null) bar.foeResource.OnChargeChanged -= bar.chargeChanged;
     }
 
     private void OnChanged(Bar bar, int current, int max)
@@ -195,7 +271,7 @@ public class CombatHUD : MonoBehaviour
         bar.graphic.SetValues(next, bar.chipRatio);
         string name = bar.health.DisplayName;
         if (string.IsNullOrWhiteSpace(name) || name == "PLAYER" || name == "ENEMY")
-            name = bar.leftSide ? "서진" : "상대";
+            name = bar.leftSide ? "서청운" : "상대";
         bar.label.text = name;
         bar.amount.text = current + " / " + max;
     }
@@ -211,25 +287,36 @@ public class CombatHUD : MonoBehaviour
     private void OnDeath(Health dead)
     {
         matchOver = true;
+        // 지도를 거쳐 들어온 전투는 BattleSceneBridge 가 "승리 - 지도로 돌아갑니다" 같은 한 줄을 띄운다. 같은 뜻의 글을 두 번 띄우지 않는다.
+        if (battle != null && battle.RunMode) return;
         bool playerLost = (dead == playerHealth);
-        koText.text = (playerLost ? "YOU LOSE" : "K.O.  YOU WIN")
-                    + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
-        koText.color = playerLost ? new Color(1f, 0.45f, 0.45f) : new Color(1f, 0.9f, 0.4f);
-        koText.gameObject.SetActive(true);
+        ShowResult(playerLost ? "YOU LOSE" : "K.O.", playerLost ? "패배" : "승리", !playerLost);
     }
 
     public void ShowTimeOut(bool won)
     {
         matchOver = true;
-        koText.text = "TIME UP\n" + (won ? "YOU WIN" : "YOU LOSE")
-                    + (allowRestart ? "\n[" + restartKey + "] 키로 다시 시작" : "");
-        koText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.45f, 0.45f);
-        koText.gameObject.SetActive(true);
+        if (battle != null && battle.RunMode) return;
+        ShowResult(won ? "YOU WIN" : "YOU LOSE", won ? "시간 종료 · 승리" : "시간 종료 · 패배", won);
+    }
+
+    private void ShowResult(string headline, string caption, bool won)
+    {
+        koText.text = headline;
+        koText.fontSize = headline == "K.O." ? 232 : 164;
+        koText.resizeTextMaxSize = koText.fontSize;
+        CombatAnnouncementStyle.Apply(koText, won
+            ? CombatAnnouncementStyle.Palette.Victory : CombatAnnouncementStyle.Palette.Defeat);
+        resultCaption.text = caption;
+        resultCaption.gameObject.SetActive(!string.IsNullOrEmpty(caption));
+        restartHint.text = "[" + restartKey + "] 키로 다시 시작";
+        restartHint.gameObject.SetActive(allowRestart);
+        resultPanel.gameObject.SetActive(true);
     }
 
     private void BuildTimer()
     {
-        if (battle == null) return;
+        if (battle == null && !external) return;
         var rect = CreateRect("RoundTimer", topRail);
         rect.anchorMin = rect.anchorMax = new Vector2(.5f, 1);
         rect.pivot = new Vector2(.5f, 1);
@@ -253,7 +340,7 @@ public class CombatHUD : MonoBehaviour
     private void RestartRound()
     {
         matchOver = false;
-        koText.gameObject.SetActive(false);
+        resultPanel.gameObject.SetActive(false);
 
         RestoreFighter(playerHealth, playerStartPos);
         RestoreFighter(enemyHealth, enemyStartPos);
@@ -263,6 +350,7 @@ public class CombatHUD : MonoBehaviour
 
         if (special != null) special.ResetCharge();
         if (enemyBar != null && enemyBar.resource != null) enemyBar.resource.ResetCharge();
+        if (enemyBar != null && enemyBar.foeResource != null) enemyBar.foeResource.ResetForRound();
         if (battle != null) battle.ResetRoundTimer();
         UpdateTimer();
     }
@@ -279,7 +367,9 @@ public class CombatHUD : MonoBehaviour
     // A resource is displayed only from a real SpecialMove component; no fictitious enemy MP.
     private void BuildSpecialGauge(Bar bar, RectTransform parent)
     {
-        bar.resource = bar.health.GetComponent<SpecialMove>();
+        bar.resource = bar.health != null ? bar.health.GetComponent<SpecialMove>() : null;
+        bar.foeResource = bar.health != null && bar.resource == null ? bar.health.GetComponent<EnemySpecial>() : null;
+        bool shown = bar.health == null || bar.resource != null || (bar.foeResource != null && bar.foeResource.Available);
         bar.gauge = CreateBarGraphic("SpecialGauge", parent, true, !bar.leftSide, gaugeFillColor);
         var r = bar.gauge.rectTransform;
         r.anchorMin = new Vector2(bar.leftSide ? 0 : .13f, 0);
@@ -292,8 +382,24 @@ public class CombatHUD : MonoBehaviour
         l.offsetMin = new Vector2(29,-47); l.offsetMax = new Vector2(-29,-24);
         bar.gaugeLabel.color = new Color(.65f,.76f,.79f);
         AddShadow(bar.gaugeLabel, new Vector2(1,-1));
-        bar.gauge.SetValues(0,0,false,bar.resource != null);
+        bar.gauge.SetValues(0,0,false,shown);
         bar.gaugeLabel.text = "";
+    }
+
+    /// <summary>적 필살기 게이지: 기술 이름과 함께 채워지는 칸, 가득 차면 준비, 쓰는 중이면 발동, 쓰고 나면 사용함.</summary>
+    private void OnFoeChargeChanged(Bar bar, int current, int max)
+    {
+        var s = bar.foeResource;
+        if (s == null || bar.gauge == null) return;
+        bool lit = s.IsReady || s.IsPlaying;
+        float ratio = s.IsPlaying ? 1f : s.Used ? 0f : max > 0 ? (float)current / max : 0f;
+        bar.gauge.fillColor = lit ? gaugeReadyColor : gaugeFillColor;
+        bar.gauge.SetValues(ratio, 0, lit);
+        bar.gaugeLabel.text = s.IsPlaying ? s.MoveName + "  발동"
+            : s.Used ? s.MoveName + "  사용함"
+            : s.IsReady ? s.MoveName + "  준비"
+            : s.MoveName + "  충전 중";
+        bar.gaugeLabel.color = lit ? new Color(1f,.84f,.62f) : s.Used ? new Color(.6f,.62f,.62f) : new Color(.83f,.88f,.88f);
     }
 
     private void OnChargeChanged(Bar bar, int current, int max)
@@ -302,8 +408,8 @@ public class CombatHUD : MonoBehaviour
         bar.gauge.fillColor = ready ? gaugeReadyColor : gaugeFillColor;
         bar.gauge.SetValues(max > 0 ? (float)current/max : 0, 0, ready);
         bar.gaugeLabel.text = ready
-            ? "파운장 준비  [" + bar.resource.ActivateKey + " 길게]"
-            : "파운장  " + current + " / " + max;
+            ? "필살기 준비 · 가슴 앞 X자"
+            : "필살기 충전 중";
         bar.gaugeLabel.color = ready ? new Color(.66f,.93f,1f) : new Color(.83f,.88f,.88f);
     }
 
@@ -317,7 +423,7 @@ public class CombatHUD : MonoBehaviour
     {
         if (!showKeyGuide) return;
 
-        var bg = CreateImage("KeyGuide", canvas.transform, new Color(0f, 0f, 0f, 0.62f));
+        var bg = UIFactory.CreateImage("KeyGuide", canvas.transform, new Color(0f, 0f, 0f, 0.62f));
         keyGuidePanel = bg.rectTransform;
         keyGuidePanel.anchorMin = Vector2.zero;
         keyGuidePanel.anchorMax = Vector2.zero;
@@ -332,13 +438,20 @@ public class CombatHUD : MonoBehaviour
 
         guideVisible = true;
         guideShownAt = Time.unscaledTime;
+        keyGuidePanel.gameObject.SetActive(RedboolDemoSettings.OperatorMode);
     }
 
     private void UpdateKeyGuide()
     {
         if (keyGuidePanel == null) return;
+        if (!RedboolDemoSettings.OperatorMode)
+        {
+            keyGuidePanel.gameObject.SetActive(false);
+            return;
+        }
+        if (guideVisible && !keyGuidePanel.gameObject.activeSelf) keyGuidePanel.gameObject.SetActive(true);
 
-        if (Input.GetKeyDown(keyGuideToggleKey))
+        if (!RedboolPauseMenu.BlocksStoryInput && Input.GetKeyDown(keyGuideToggleKey))
         {
             guideVisible = !guideVisible;
             keyGuidePanel.gameObject.SetActive(guideVisible);
@@ -367,7 +480,7 @@ public class CombatHUD : MonoBehaviour
         bool keyboard = player == null || player.useKeyboard;
         bool external = player != null && player.externalControl;
 
-        string signature = keyboard + "|" + external + "|" + allowRestart + "|" + (special != null);
+        string signature = keyboard + "|" + external + "|" + allowRestart + "|" + (special != null) + "|" + RedboolDemoSettings.OperatorMode;
         if (signature == guideSignature) return;
         guideSignature = signature;
 
@@ -399,16 +512,16 @@ public class CombatHUD : MonoBehaviour
                 AddGuideRow(i++, player.highKickKey + " / " + player.lowKickKey, "하이킥 / 로우킥");
             }
             if (special != null)
-                AddGuideRow(i++, special.ActivateKey + " 누르고 떼기",
-                            "파운장 · 기를 모았다가 발사 · " + special.HitsToCharge + "번 맞으면 충전 · " + special.Damage + " 피해");
+                AddGuideRow(i++, special.ActivateKey.ToString(),
+                            "파운장 · 바로 발사 · 일반 공격 " + special.HitsToCharge + "회 적중으로 충전 · " + special.Damage + " 피해");
         }
         else
         {
             AddGuideRow(i++, "웹캠", "키보드 입력이 꺼져 있다 (인식 전용)");
         }
 
-        // 게이지 채우기는 useKeyboard 와 무관하게 먹으므로 키보드 분기 밖에 둔다.
-        if (special != null && special.ChargeKey != KeyCode.None)
+        // 충전 시험 키는 운영자 설정을 켰을 때만 실제로 작동한다.
+        if (RedboolDemoSettings.OperatorMode && special != null && special.ChargeKey != KeyCode.None)
             AddGuideRow(i++, special.ChargeKey.ToString(), "파운장 게이지 채우기 (테스트용)");
 
         if (allowRestart)
@@ -493,14 +606,41 @@ public class CombatHUD : MonoBehaviour
         shade.raycastTarget = false;
         Stretch(shade.rectTransform);
 
-        koText = CreateText("KOText", canvas.transform, 72, TextAnchor.MiddleCenter);
+        resultPanel = CreateRect("BattleResult", canvas.transform);
+        resultPanel.anchorMin = new Vector2(.04f, .5f);
+        resultPanel.anchorMax = new Vector2(.96f, .5f);
+        resultPanel.sizeDelta = new Vector2(0f, 360f);
+        resultPanel.anchoredPosition = new Vector2(0f, 30f);
+        koText = CreateText("KOText", resultPanel, 232, TextAnchor.MiddleCenter);
+        CombatAnnouncementStyle.Apply(koText, CombatAnnouncementStyle.Palette.Victory);
+        koText.resizeTextForBestFit = true;
+        koText.resizeTextMinSize = 48;
+        koText.resizeTextMaxSize = 232;
+        koText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        koText.verticalOverflow = VerticalWrapMode.Truncate;
         var koRect = koText.rectTransform;
-        koRect.anchorMin = new Vector2(0.5f, 0.5f);
-        koRect.anchorMax = new Vector2(0.5f, 0.5f);
+        koRect.anchorMin = new Vector2(0f, 0.5f);
+        koRect.anchorMax = new Vector2(1f, 0.5f);
         koRect.pivot = new Vector2(0.5f, 0.5f);
-        koRect.anchoredPosition = new Vector2(0f, 60f);
-        koRect.sizeDelta = new Vector2(1200f, 300f);
-        koText.gameObject.SetActive(false);
+        koRect.anchoredPosition = new Vector2(0f, 40f);
+        koRect.sizeDelta = new Vector2(0f, 290f);
+
+        resultCaption = CreateText("ResultCaption", resultPanel, 34, TextAnchor.MiddleCenter);
+        resultCaption.color = new Color(1f, .94f, .78f);
+        PlaceResultLine(resultCaption, -102f);
+        restartHint = CreateText("RestartHint", resultPanel, 26, TextAnchor.MiddleCenter);
+        PlaceResultLine(restartHint, -148f);
+        resultPanel.gameObject.SetActive(false);
+    }
+
+    private static void PlaceResultLine(Text text, float y)
+    {
+        var rect = text.rectTransform;
+        rect.anchorMin = new Vector2(0f, .5f);
+        rect.anchorMax = new Vector2(1f, .5f);
+        rect.anchoredPosition = new Vector2(0f, y);
+        rect.sizeDelta = new Vector2(0f, 44f);
+        AddShadow(text, new Vector2(1f, -2f));
     }
 
     private Bar BuildBar(Health health, Color color, bool leftSide)
@@ -561,16 +701,6 @@ public class CombatHUD : MonoBehaviour
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         return go.GetComponent<RectTransform>();
-    }
-
-    private Image CreateImage(string name, Transform parent, Color color)
-    {
-        var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        go.transform.SetParent(parent, false);
-        var img = go.GetComponent<Image>();
-        img.color = color;
-        img.raycastTarget = false;
-        return img;
     }
 
     private Text CreateText(string name, Transform parent, int size, TextAnchor anchor)

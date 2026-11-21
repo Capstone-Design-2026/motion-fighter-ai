@@ -11,6 +11,7 @@ public class PlayerController : MonoBehaviour
     private Health health;
     private Fighter fighter;
     private bool unifiedBoxing;
+    private HeroAuthoredMovement heroMovement;
     private Battle3DCamera battleCamera;
 
     [Header("이동")]
@@ -67,6 +68,7 @@ public class PlayerController : MonoBehaviour
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
         unifiedBoxing = GetComponent<Fighter3DView>() != null;
+        heroMovement = GetComponent<HeroAuthoredMovement>();
         if(Camera.main!=null)battleCamera=Camera.main.GetComponent<Battle3DCamera>();
 
         // 상대를 지정하지 않았으면 씬에서 찾는다. (EnemyAI 가 플레이어를 찾는 것과 대칭)
@@ -168,7 +170,8 @@ public class PlayerController : MonoBehaviour
         if (movingBack)  speed *= backwardSpeedMultiplier;
         if (isCrouching) speed *= crouchSpeedMultiplier;
 
-        rb.linearVelocity = new Vector2(moveX * speed, rb.linearVelocity.y);
+        if (heroMovement != null && heroMovement.isActiveAndEnabled) heroMovement.SetInput(moveX);
+        else rb.linearVelocity = new Vector2(moveX * speed, rb.linearVelocity.y);
         animator.SetBool("IsMoving", Mathf.Abs(moveX) > 0.01f);
         animator.SetBool("IsMovingBack", movingBack);
 
@@ -290,11 +293,14 @@ public class PlayerController : MonoBehaviour
     {
         externalControl = true;
         externalMoveX = Mathf.Clamp(axis, -1f, 1f);
+        if (heroMovement != null && heroMovement.isActiveAndEnabled)
+            heroMovement.SetInput(battleCamera != null ? battleCamera.ScreenHorizontalToWorld(externalMoveX) : externalMoveX);
     }
 
     public void ClearExternalInput()
     {
         externalControl = false;
+        if (heroMovement != null) heroMovement.Cancel();
         externalMoveX = 0f;
         externalGuardHeld = false;
         isCrouching = false;
@@ -362,20 +368,20 @@ public class PlayerController : MonoBehaviour
                 ApplyGuardInput();
                 break;
 
-            // 파운장. 인식은 기 모으는 자세를 패킷마다 SPECIAL_CHARGE 로, 양손 밀기를 SPECIAL_RELEASE 로 보낸다.
-            // SPECIAL 은 한 번짜리 입력(최소 시간만 모으고 바로 발사).
+            // 파운장은 즉발로 고정했다. 어떤 필살기 신호든 최소 시간만 모으고 바로 발사한다.
+            // 예전 기 모으기 신호(SPECIAL_CHARGE)도 즉발로 받고, 발사 신호(SPECIAL_RELEASE)는 할 일이 없다.
+            // 방어 중이면 방어를 풀고 시작한다(공격과 같은 규칙).
+            case "SPECIAL":
             case "SPECIAL_CHARGE":
             {
+                // PvP 에서 적 인물을 골랐으면 그 인물의 기술이 나간다.
+                var own = GetComponent<EnemySpecial>();
+                if (own != null && own.enabled && own.PlayerOwned) { own.TryFire(); break; }
                 var special = GetComponent<SpecialMove>();
-                // 방어 중이면 BeginCharge 가 방어를 풀고 시작한다(공격과 같은 규칙).
-                if (special != null && !special.IsPlaying) special.BeginCharge();
+                if (special != null && !special.IsPlaying) special.Activate();
                 break;
             }
             case "SPECIAL_RELEASE":
-                GetComponent<SpecialMove>()?.Release();
-                break;
-            case "SPECIAL":
-                GetComponent<SpecialMove>()?.Activate();
                 break;
 
             case "IDLE":

@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.5, y: 0.578125, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "늦었습니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "도윤"
+  - speaker: "운학"
     text: "아니다. 여기까지 네 힘으로 왔구나."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -38,7 +38,7 @@ MonoBehaviour:
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
   - speaker: ""
-    text: "요새에서 경종이 울린다. 무진이 수문을 열 준비를 시작했다."
+    text: "요새에서 경종이 울린다. 흑운협주 무진이 수문을 열 준비를 시작했다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
@@ -47,7 +47,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "사람들을 데리고 내려가세요. 돌아갈 길은 제가 지키겠습니다."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

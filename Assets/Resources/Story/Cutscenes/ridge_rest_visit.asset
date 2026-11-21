@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.12, y: 0.578125, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "전령이 쉬어 간 자리다. 봉한 서찰에 봉화대의 수신인이 적혀 있어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -29,7 +29,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "잠시 숨을 고르고 위쪽을 확인하자."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

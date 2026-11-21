@@ -12,13 +12,16 @@ public static class CombatFramingInstaller
     public static string Out {get {var a=Environment.GetCommandLineArgs();int i=Array.IndexOf(a,"-framingReport");return i>=0?a[i+1]:Path.Combine(Application.temporaryCachePath,"CombatFraming");}}
     public static readonly string[] Nodes={"scout","river","ridge","old_ferry","gate","quarry","east","camp","rescue","entrance","final","game"};
     public static string ScenePath(int i)=>i==0?"Assets/Scenes/ScoutPass.unity":i==11?"Assets/Scenes/GameScene.unity":"Assets/Scenes/StoryStages/"+StoryStagesBuilder.Scenes[i-1]+".unity";
+    public const float OrbitDistance=3.35f,SideDistance=3.9f,FocusHeight=1.06f,CombatPitch=3.5f,FieldOfView=40f;
     public static void ApplyToCamera(Camera camera)
     {
         var rig=camera.GetComponent<Battle3DCamera>();if(!rig)return;
-        rig.minimumDistance=rig.orbitArena?4.6f:5.35f;
-        rig.focusHeight=1.2f;rig.horizontalSafeArea=.9f;rig.verticalSafeArea=.8f;rig.combatPitch=7;
+        // 2026-11-11: 인물이 화면 높이의 60% 안팎을 차지하도록 더 가깝고 낮게 잡는다.
+        rig.minimumDistance=rig.orbitArena?OrbitDistance:SideDistance;
+        rig.focusHeight=FocusHeight;rig.horizontalSafeArea=.92f;rig.verticalSafeArea=.9f;rig.combatPitch=CombatPitch;
+        camera.fieldOfView=FieldOfView;EditorUtility.SetDirty(camera);
         rig.player=Object.FindAnyObjectByType<PlayerController>()?.transform;rig.enemy=Object.FindAnyObjectByType<EnemyAI>()?.transform;
-        rig.SetOrbit(0,7,true);EditorUtility.SetDirty(rig);EditorUtility.SetDirty(camera.transform);
+        rig.SetOrbit(0,CombatPitch,true);EditorUtility.SetDirty(rig);EditorUtility.SetDirty(camera.transform);
     }
     public static void Apply()
     {

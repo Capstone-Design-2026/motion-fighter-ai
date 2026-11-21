@@ -17,15 +17,15 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.48, y: 0.34406250000000005, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
-    text: "포로들의 흔적은 감시 초소 뒤로 이어진다. 사부님도 이쪽으로 가셨을까?"
+  - speaker: "청운"
+    text: "포로들의 흔적은 망루 뒤로 이어진다. 사부님도 이쪽으로 가셨을까?"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
     speakerOnRight: 0
     leftActor: {fileID: 11400000, guid: 785c8ad844794d05b385c0ee103179fe, type: 2}
     rightActor: {fileID: 0}
     evidence: 3
-    evidenceTitle: "초소 뒤로 이어지는 흔적"
+    evidenceTitle: "망루 뒤로 이어지는 흔적"
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}

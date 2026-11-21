@@ -47,6 +47,7 @@ public class UdpActionReceiver : MonoBehaviour
         try
         {
             udpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+            RedboolSocketOwnership.PreventInheritance(udpClient.Client,"UDP legacy 127.0.0.1:"+port);
             isRunning = true;
             receiveThread = new Thread(ReceiveData) { IsBackground = true };
             receiveThread.Start();

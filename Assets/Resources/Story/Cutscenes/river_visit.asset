@@ -17,7 +17,7 @@ MonoBehaviour:
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.12, y: 0.2590625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "서진"
+  - speaker: "청운"
     text: "깊은 수레 자국과 밧줄 조각…… 이 길을 누군가 지키고 있어."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}

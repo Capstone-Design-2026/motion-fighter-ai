@@ -1,0 +1,32 @@
+Windows socket ownership regression — camera-free
+
+From this Unity checkout on Windows:
+  powershell -NoProfile -File .\Tools\Developer\tests\check_socket_ownership.ps1
+
+The script prints its temporary evidence directory. It compiles the production
+Assets/RedboolVision/RedboolSocketOwnership.cs together with SocketOwnershipCheck.cs
+using the installed .NET Framework C# compiler. It opens only loopback UDP
+5065/5066/5067; close your game/Editor test first so these ports are available.
+It never changes socket reuse/exclusive options, opens a camera or sends packets.
+Only its own bounded redirected child is stopped; unrelated processes are untouched.
+
+Evidence includes:
+- Unmodified socket flags and whether parent-close permits rebinding with child alive.
+- Forced-inheritable positive control: all three endpoints remain occupied while
+  the child is alive, then recover after its exit. Failure to reproduce is a FAIL,
+  not evidence that the production issue was reproduced.
+- Same initial inheritance flag with the production protection: all three endpoints
+  can be rebound while the child stays alive; reuse/exclusive options are unchanged.
+- Null socket rejection and invalid native handle failure with endpoint/error code
+  and disposal of the owned socket.
+
+Framework evidence does not by itself prove Unity's Mono default socket behavior
+or a real story scene transition. The fixture records its actual parent runtime.
+If a standalone/Unity mono.exe is available, pass its exact path:
+  powershell -NoProfile -File .\Tools\Developer\tests\check_socket_ownership.ps1 -MonoPath "C:\path\to\mono.exe"
+No Mono installation is attempted. If absent, mono-unavailable.json explicitly
+records SKIPPED. In Mono mode the parent uses Mono's Process.Start; its tiny child
+uses the registered Windows .exe runtime and intentionally retains inherited handles.
+
+Workflow: .github/workflows/windows-socket-ownership.yml
+Artifact: REDBOOL-Windows-Socket-Ownership (JSON evidence only, no camera data).

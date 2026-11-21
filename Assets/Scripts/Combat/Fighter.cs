@@ -47,7 +47,11 @@ public class Fighter : MonoBehaviour
     [SerializeField] private float recovery = 0.35f;  // 후딜: 다음 공격까지
 
     [Header("방어")]
-    [Tooltip("지금은 쓰지 않는다 — 방어에 성공하면 피해가 0 이다. ConfigureGuard / GuardedDamage 호환용으로 남겨 둔다.")]
+    [Tooltip("방어에 막힌 잽·스트레이트가 막은 쪽에 주는 피해.")]
+    [Min(0)] [SerializeField] private int guardedPunchDamage = 2;
+    [Tooltip("방어에 막힌 하이킥·로우킥이 막은 쪽에 주는 피해.")]
+    [Min(0)] [SerializeField] private int guardedKickDamage = 5;
+    [Tooltip("지금은 쓰지 않는다 — 막힌 피해는 guardedPunchDamage / guardedKickDamage 를 따른다. ConfigureGuard / GuardedDamage 호환용으로 남겨 둔다.")]
     [Range(0f, 1f)]
     [SerializeField] private float blockDamageMultiplier = 0.2f;
 
@@ -146,7 +150,7 @@ public class Fighter : MonoBehaviour
     /// <summary>필살기 시작. 공격처럼 진행 중인 공격은 끊지 못하고, 방어는 풀고 시작한다.</summary>
     public bool BeginSpecial()
     {
-        if (!CanAttack) return false;
+        if (!CanAttack || IsAttackSealed) return false;
         if (guarding) EndGuard();
         IsSpecialActive = true;
         ClearIntent();
@@ -155,6 +159,12 @@ public class Fighter : MonoBehaviour
 
     /// <summary>필살기 끝. 잠금을 푼다.</summary>
     public void EndSpecial() { IsSpecialActive = false; }
+
+    /// <summary>이 시간 동안 공격과 필살기를 새로 시작할 수 없다(적 필살기 '삼점봉혈'). 이동과 방어는 된다.</summary>
+    public void SealAttacks(float seconds) { attackSealedUntil = Mathf.Max(attackSealedUntil, Time.time + Mathf.Max(0f, seconds)); }
+    public void ClearAttackSeal() { attackSealedUntil = 0f; }
+    public bool IsAttackSealed => Time.time < attackSealedUntil;
+    private float attackSealedUntil;
 
     public float Windup => windup;
     public float Recovery => recovery;
@@ -172,6 +182,9 @@ public class Fighter : MonoBehaviour
     /// <summary>방어로 상대 공격을 막아낸 순간.</summary>
     public event Action GuardBlocked;
 
+    /// <summary>내 일반 공격이 막히지 않고 상대에게 들어간 순간(직격). 인자는 맞은 상대. 필살기 게이지가 이걸로 찬다.</summary>
+    public event Action<Fighter> AttackLanded;
+
     private readonly List<Health> alreadyHit = new List<Health>();
     private Animator animator;
     private int nextAttackId;
@@ -179,6 +192,9 @@ public class Fighter : MonoBehaviour
     private bool crouching;
     private bool guarding;
     private bool guardCrouching;      // 방어를 시전한 순간의 자세
+    private float lowGuardUntil;      // 3D: 하단 공격 예고가 끝난 뒤에도 하단 방어를 유지하는 시각
+    /// <summary>3D에서 하단 공격 예고가 끝난 뒤 서서 막기로 돌아오기까지의 시간(초).</summary>
+    public const float LowGuardLinger = .3f;
 
     // 공격 의도를 주고받을 상대 목록. 1:1 이라 보통 둘뿐이다.
     private static readonly List<Fighter> active = new List<Fighter>();
@@ -233,8 +249,8 @@ public class Fighter : MonoBehaviour
         alreadyHit.Add(target.Health);
         bool targetGuarding = target.IsBlocking;
         bool guarded=IsGuardedBy(target);
-        // 방어에 성공하면 피해를 입지 않는다. 넉백도 없다.
-        int damage=guarded ? 0 : attackDamage;
+        // 방어에 성공해도 정해진 피해(펀치 2, 킥 5)는 들어간다. 넉백은 없다.
+        int damage=guarded ? GuardedDamageOf(CurrentMove) : attackDamage;
         Vector2 force=guarded ? Vector2.zero : new Vector2(knockback.x*Facing,knockback.y);
         if (!target.Health.TakeDamage(damage,force,guarded)) return;
 
@@ -252,6 +268,7 @@ public class Fighter : MonoBehaviour
             if (targetGuarding) target.EndGuard();
             preciseLanded = true;
             target.Health.ExtendStun(hitStunBonus);
+            AttackLanded?.Invoke(target);
         }
 
         HitVfx.Play(point,guarded);
@@ -265,8 +282,12 @@ public class Fighter : MonoBehaviour
     public int AttackDamage => attackDamage;
     public float GuardReduction => 1f-blockDamageMultiplier;
     public void ConfigureGuard(float reduction) { blockDamageMultiplier=1f-Mathf.Clamp(reduction,0,.9f); }
+    /// <summary>이 공격이 막혔을 때 막은 쪽에 주는 피해. 펀치(잽·스트레이트)와 킥이 다르다.</summary>
+    public int GuardedDamageOf(CombatMove move) { return move == CombatMove.HighKick || move == CombatMove.LowKick ? guardedKickDamage : guardedPunchDamage; }
     public int GuardedDamage(int incoming) { return Mathf.Max(1,Mathf.CeilToInt(incoming*blockDamageMultiplier-.00001f)); }
     public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
+
+    void Start() { CombatSfx.Prewarm(); }
 
     void Awake()
     {
@@ -299,7 +320,14 @@ public class Fighter : MonoBehaviour
     }
 
     // 공격 도중 맞으면(막혀도) 공격은 끊긴다.
-    void InterruptAttack(bool guarded) { if (IsAttacking) CancelAttack(); }
+    // Presentation observers receive the real cancellation edge, not a guess
+    // from HP changes or event subscription order. Combat behaviour is unchanged.
+    public event Action AttackInterruptedByDamage;
+    void InterruptAttack(bool guarded) {
+        if (!IsAttacking) return;
+        CancelAttack();
+        AttackInterruptedByDamage?.Invoke();
+    }
 
     /// <summary>진행 중인 공격을 접는다. 상대에게 알린 공격 예고도 거둔다.</summary>
     public void CancelAttack()
@@ -323,6 +351,9 @@ public class Fighter : MonoBehaviour
 
         // K.O. 연출·사망·피격(뚫림)으로 끝난 경우.
         if (Health.IsDead || InputLocked || Health.IsHitStunned) EndGuard();
+        // 3D: 방어 높이는 상대 공격을 따라간다. 하단 공격이 끝나면 잠시 뒤 서서 막기로 돌아온다
+        // (다리를 든 로우킥 막기 자세로 계속 서 있지 않게). 다음 공격이 예고되면 ReceiveIntent 가 다시 맞춘다.
+        else if (guardCrouching && view3D != null && incomingFrom == null && Time.time >= lowGuardUntil) guardCrouching = false;
     }
 
     /// <summary>방어 시작. 시작됐으면 true. 공격 중에는 시작되지 않는다. low 면 앉아막기(하단 가드)로 끝날 때까지 고정된다.</summary>
@@ -373,7 +404,7 @@ public class Fighter : MonoBehaviour
     public void ClearIntent()
     {
         for (int i = 0; i < active.Count; i++)
-            if (active[i] != this && active[i].incomingFrom == this) active[i].incomingFrom = null;
+            if (active[i] != this && active[i].incomingFrom == this) { active[i].incomingFrom = null; active[i].lowGuardUntil = Time.time + LowGuardLinger; }
     }
 
     private void ReceiveIntent(Fighter attacker, CombatMove move)
@@ -406,7 +437,7 @@ public class Fighter : MonoBehaviour
 
     public bool TryAttack(CombatMove move)
     {
-        if (!CanAttack) return false;
+        if (!CanAttack || IsAttackSealed) return false;
 
         // 방어는 다른 동작에 끊긴다.
         if (guarding) EndGuard();
@@ -519,7 +550,7 @@ public class Fighter : MonoBehaviour
 
                 if (guarded)
                 {
-                    damage = 0;   // 방어에 성공하면 피해를 입지 않는다. 넉백도 없다.
+                    damage = GuardedDamageOf(CurrentMove);   // 방어에 성공해도 정해진 피해는 들어간다. 넉백은 없다.
                     kb = Vector2.zero;
                     Debug.Log($"[Fighter] {name} 의 {height} 공격을 {targetFighter.name} 가 방어 (데미지 {damage})");
                 }
@@ -559,6 +590,7 @@ public class Fighter : MonoBehaviour
                 {
                     landed = true;
                     targetHealth.ExtendStun(hitStunBonus);
+                    AttackLanded?.Invoke(targetFighter);
                 }
             }
 

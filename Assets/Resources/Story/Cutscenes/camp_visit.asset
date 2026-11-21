@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85d62e4334b344bbb5f101eb276dd205, type: 3}
   m_Name: camp_visit
   m_EditorClassIdentifier: 
-  location: "수색대 야영지"
+  location: "추포대 야영지"
   background: {fileID: 0}
   backgroundTexture: {fileID: 2800000, guid: 3bef652f35f44da6aa9330e3a4373ba7, type: 3}
   backgroundUv: {serializedVersion: 2, x: 0.43999999999999995, y: 0.1090625, width: 0.5, height: 0.421875}
   lines:
-  - speaker: "수색대 추적자"
+  - speaker: "추포대 추적자"
     text: "탈출한 놈들을 찾기도 바쁜데, 네놈은 뭐냐?"
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
@@ -27,7 +27,7 @@ MonoBehaviour:
     voice: {fileID: 0}
     voiceEnvelope: []
     videoSpeechTrack: {fileID: 0}
-  - speaker: "서진"
+  - speaker: "청운"
     text: "탈출했다고? 사부님도 그중에 계실까."
     leftPortrait: {fileID: 0}
     rightPortrait: {fileID: 0}
