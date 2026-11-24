@@ -103,7 +103,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             Check(panel.SmallPreview&&!panel.DetailedGuidance&&runtime.PreviewVisible,"Calibration automatically shrinks preview without pausing its images");
             var frame=GameObject.Find("CameraFrame").GetComponent<RectTransform>();
             Check(frame.rect.width==240&&frame.rect.height==257,"Normal combat preview occupies the compact 240 by 257 layout");
-            Check(!ButtonNamed("CameraCalibrate").transform.Find("MenuMark").gameObject.activeSelf,"Compact controls hide oversized decorative marks");
+            Check(ButtonNamed("CameraCalibrate").transform.Find("MenuMark")==null&&ButtonNamed("CameraReconnect").transform.Find("MenuMark")==null,"Camera controls are text only, with no decorative marks");
             Check(string.IsNullOrEmpty(panel.DisplayedFeedbackText),"Normal ready combat does not display routine action or recovery text");
             Text shortText=null;
             foreach(var label in panel.GetComponentsInChildren<Text>(true))if(label.name=="CombatInputFeedback")shortText=label;

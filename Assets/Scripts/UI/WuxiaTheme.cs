@@ -48,7 +48,8 @@ public static class WuxiaTheme
         text.fontStyle=FontStyle.Bold;
         var kind=primary?WuxiaGraphic.Shape.Swords:
             button.name=="ContinueButton"?WuxiaGraphic.Shape.Resume:
-            button.name=="HelpButton"||button.name=="CreditsButton"?WuxiaGraphic.Shape.Guide:WuxiaGraphic.Shape.Exit;
+            button.name=="HelpButton"||button.name=="CreditsButton"?WuxiaGraphic.Shape.Guide:
+            button.name=="SettingsButton"?WuxiaGraphic.Shape.Settings:WuxiaGraphic.Shape.Exit;
         var icon=Ornament("MenuIcon",root,kind,primary?Paper:Gold);
         UIFactory.Place(icon.rectTransform,new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(36,0),new Vector2(38,38));
         button.transition=UnityEngine.UI.Selectable.Transition.None;
@@ -59,7 +60,6 @@ public static class WuxiaTheme
         var text=button.GetComponentInChildren<Text>();if(text!=null){text.font=Font;text.color=Paper;}
         var c=button.colors;c.highlightedColor=new Color(1.35f,1.2f,1.05f);c.selectedColor=c.highlightedColor;c.pressedColor=new Color(.7f,.65f,.55f);c.fadeDuration=.16f;button.colors=c;
         Rule(button.transform,0,new Color(Gold.r,Gold.g,Gold.b,.7f));
-        var mark=Ornament("MenuMark",button.transform,WuxiaGraphic.Shape.Leaf,Gold);
-        UIFactory.Place(mark.rectTransform,new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(24,0),new Vector2(20,30));
+        // 2026-11-24: 글자 왼쪽의 금빛 잎 모양 장식("MenuMark")은 넣지 않는다. 보조 버튼은 글자만 둔다.
     }
 }

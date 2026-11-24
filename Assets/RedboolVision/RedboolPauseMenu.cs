@@ -15,6 +15,21 @@ public sealed class RedboolPauseMenu : MonoBehaviour
     public static bool BlocksStoryInput => IsOpen || RedboolSettingsPanel.IsOpen || RedboolNewGameConfirmation.IsOpen || consumedInputFrame == Time.frameCount;
     // Shared by all closing modals, including Enter/Space button activation.
     public static void ConsumeClosingInput() { consumedInputFrame = Time.frameCount; }
+    // Screens register what Esc should close first (the clue journal on the map, the PvP
+    // window on the start screen). The game menu opens only when none of them had anything open.
+    static readonly System.Collections.Generic.List<System.Func<bool>> escapeClosers = new System.Collections.Generic.List<System.Func<bool>>();
+    public static void AddEscapeCloser(System.Func<bool> closer) { if (closer != null && !escapeClosers.Contains(closer)) escapeClosers.Add(closer); }
+    public static void RemoveEscapeCloser(System.Func<bool> closer) { escapeClosers.Remove(closer); }
+    /// <summary>Closes the most recently registered open overlay. True when something was closed.</summary>
+    public static bool CloseTopOverlay()
+    {
+        for (int i = escapeClosers.Count - 1; i >= 0; i--)
+        {
+            var closer = escapeClosers[i];
+            if (closer != null && closer()) return true;
+        }
+        return false;
+    }
     Canvas canvas;
     GraphicRaycaster raycaster;
     Text explanation;
@@ -22,7 +37,7 @@ public sealed class RedboolPauseMenu : MonoBehaviour
     GameObject previousSelection;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetState() { instance = null; IsOpen = false; consumedInputFrame = -1; }
+    static void ResetState() { instance = null; IsOpen = false; consumedInputFrame = -1; escapeClosers.Clear(); }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install() { EnsureInstance(); }
@@ -51,7 +66,7 @@ public sealed class RedboolPauseMenu : MonoBehaviour
         var shade = UIFactory.CreateImage("GameMenuModal", canvas.transform, new Color(0, 0, 0, .72f), true);
         UIFactory.Stretch(shade.rectTransform);
         var panel = UIFactory.CreateImage("GameMenuPanel", shade.transform, new Color(.045f, .055f, .055f, .98f), true);
-        UIFactory.Place(panel.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(700, 390));
+        UIFactory.Place(panel.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(700, 490));
         var outline = panel.gameObject.AddComponent<Outline>();
         outline.effectColor = WuxiaTheme.Gold; outline.effectDistance = new Vector2(1, -1);
         var title = WuxiaTheme.Text("GameMenuTitle", panel.transform, "게임 메뉴", 34, TextAnchor.MiddleCenter, WuxiaTheme.Gold);
@@ -59,15 +74,16 @@ public sealed class RedboolPauseMenu : MonoBehaviour
         explanation = WuxiaTheme.Text("GameMenuExplanation", panel.transform, "", 23, TextAnchor.MiddleCenter, WuxiaTheme.Paper);
         explanation.horizontalOverflow = HorizontalWrapMode.Wrap;
         UIFactory.Place(explanation.rectTransform, new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -94), new Vector2(640, 100));
+        // 2026-11-24: 세 버튼을 세로 한 줄로, 위에서부터 계속하기 · 설정 · 메인 메뉴로. 글자만 둔다.
         continueButton = UIFactory.CreateButton("GameMenuContinue", panel.transform, "계속하기", 25, WuxiaTheme.Ink, Close);
-        UIFactory.Place(continueButton.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(-150, 48), new Vector2(260, 58));
+        UIFactory.Place(continueButton.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 188), new Vector2(340, 58));
         WuxiaTheme.StyleButton(continueButton);
-        menuButton = UIFactory.CreateButton("GameMenuReturn", panel.transform, "메인 메뉴로", 25, WuxiaTheme.Ink, ReturnToMainMenu);
-        UIFactory.Place(menuButton.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(150, 48), new Vector2(260, 58));
-        WuxiaTheme.StyleButton(menuButton);
-        var settingsButton=UIFactory.CreateButton("GameMenuSettings", panel.transform, "설정", 22, WuxiaTheme.Ink, RedboolSettingsPanel.Show);
-        UIFactory.Place(settingsButton.GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,120),new Vector2(220,48));
+        var settingsButton=UIFactory.CreateButton("GameMenuSettings", panel.transform, "설정", 25, WuxiaTheme.Ink, RedboolSettingsPanel.Show);
+        UIFactory.Place(settingsButton.GetComponent<RectTransform>(),new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,116),new Vector2(340,58));
         WuxiaTheme.StyleButton(settingsButton);
+        menuButton = UIFactory.CreateButton("GameMenuReturn", panel.transform, "메인 메뉴로", 25, WuxiaTheme.Ink, ReturnToMainMenu);
+        UIFactory.Place(menuButton.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 44), new Vector2(340, 58));
+        WuxiaTheme.StyleButton(menuButton);
         raycaster.enabled = canvas.enabled = false;
     }
 
@@ -76,7 +92,10 @@ public sealed class RedboolPauseMenu : MonoBehaviour
         if (!Input.GetKeyDown(KeyCode.Escape)) return;
         if (RedboolNewGameConfirmation.IsOpen) { RedboolNewGameConfirmation.Cancel(); consumedInputFrame=Time.frameCount; return; }
         if (RedboolSettingsPanel.IsOpen) { RedboolSettingsPanel.Close(); consumedInputFrame=Time.frameCount; return; }
-        if (IsOpen) Close(); else Open();
+        if (IsOpen) { Close(); return; }
+        // An open screen overlay (clue journal, PvP window) closes first; only then does Esc open this menu.
+        if (CloseTopOverlay()) { consumedInputFrame=Time.frameCount; return; }
+        Open();
     }
 
     public static void Open()
