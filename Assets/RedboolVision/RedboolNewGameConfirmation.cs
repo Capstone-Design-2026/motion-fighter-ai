@@ -49,8 +49,9 @@ public sealed class RedboolNewGameConfirmation : MonoBehaviour
         var cancel = UIFactory.CreateButton("CancelNewGame", panel.transform, "취소", 26, WuxiaTheme.Ink, Cancel);
         var accept = UIFactory.CreateButton("ConfirmNewGame", panel.transform, "새 게임 시작", 26, WuxiaTheme.Ink, () => Close(true));
         WuxiaTheme.StyleButton(cancel); WuxiaTheme.StyleButton(accept);
-        UIFactory.Place(cancel.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(-170, 45), new Vector2(290, 60));
-        UIFactory.Place(accept.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(170, 45), new Vector2(290, 60));
+        // 2026-11-24: 취소가 오른쪽, 새 게임 시작이 왼쪽. 처음 선택은 그대로 취소다.
+        UIFactory.Place(accept.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(-170, 45), new Vector2(290, 60));
+        UIFactory.Place(cancel.GetComponent<RectTransform>(), new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(170, 45), new Vector2(290, 60));
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(cancel.gameObject);
     }
     void OnDestroy() { if (instance == this) instance = null; }

@@ -84,11 +84,21 @@ public static class RedboolSettingsSelfCheck
             RedboolDemoSettings.OperatorMode=false;
             Check(canvas.Find("PvpButton").GetComponent<RectTransform>().anchoredPosition.y==defaultPvpY,"Hiding the test tool removes its empty menu row");
             CaptureUi("release_menu",canvas.GetComponent<Canvas>());
+            var pvpAt = canvas.Find("PvpButton").GetComponent<RectTransform>().anchoredPosition;
+            var settingsAt = canvas.Find("SettingsButton").GetComponent<RectTransform>().anchoredPosition;
+            var creditsAt = canvas.Find("CreditsButton").GetComponent<RectTransform>().anchoredPosition;
+            Check(Mathf.Approximately(settingsAt.x, creditsAt.x) && pvpAt.y > settingsAt.y && settingsAt.y > creditsAt.y
+                && Mathf.Approximately(pvpAt.y - settingsAt.y, settingsAt.y - creditsAt.y), "Settings sits in the menu column between PvP and Credits");
+            bool leafMark = false; foreach (var t in menuRoot.GetComponentsInChildren<Transform>(true)) if (t.name == "MenuMark") leafMark = true;
+            Check(!leafMark, "Start menu buttons carry no decorative leaf mark");
             canvas.Find("NewGameButton").GetComponent<Button>().onClick.Invoke();
             Check(RedboolNewGameConfirmation.IsOpen, "Saved campaign opens new-game confirmation");
             Check(PlayerPrefs.GetString(SaveKey) == sentinel && ReferenceEquals(RunState.Instance.Data, originalData), "Opening confirmation preserves saved bytes and in-memory run");
             var dialog = UnityEngine.Object.FindAnyObjectByType<RedboolNewGameConfirmation>();
             var cancel = dialog.transform.Find("NewGameConfirmationCanvas/ConfirmModal/ConfirmPanel/CancelNewGame").GetComponent<Button>();
+            var startNew = dialog.transform.Find("NewGameConfirmationCanvas/ConfirmModal/ConfirmPanel/ConfirmNewGame");
+            Check(cancel.GetComponent<RectTransform>().anchoredPosition.x > startNew.GetComponent<RectTransform>().anchoredPosition.x
+                && cancel.transform.Find("MenuMark") == null && startNew.Find("MenuMark") == null, "Confirmation puts Cancel on the right and shows text-only buttons");
             cancel.onClick.Invoke();
             Check(!RedboolNewGameConfirmation.IsOpen && PlayerPrefs.GetString(SaveKey) == sentinel && ReferenceEquals(RunState.Instance.Data, originalData), "Cancel preserves existing campaign exactly");
             Check(RedboolPauseMenu.BlocksStoryInput && (int)consumedFrame.GetValue(null) == Time.frameCount, "Closing a modal still consumes its actual input frame");

@@ -44,10 +44,10 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         progress=UIFactory.CreateImage("CalibrationProgress",track,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
         calibrate=UIFactory.CreateButton("CameraCalibrate",panel,"보정 · C",20,WuxiaTheme.Ink,()=>cameraRuntime.Calibrate());
         UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));
-        WuxiaTheme.StyleButton(calibrate, showLeaf: false);
+        WuxiaTheme.StyleButton(calibrate);
         reconnect=UIFactory.CreateButton("CameraReconnect",panel,"다시 연결",18,WuxiaTheme.Ink,()=>cameraRuntime.Reconnect());
         UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));
-        WuxiaTheme.StyleButton(reconnect, showLeaf: false);
+        WuxiaTheme.StyleButton(reconnect);
     }
     void Update()
     {

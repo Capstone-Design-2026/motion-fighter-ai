@@ -181,7 +181,7 @@ public static class CombatHUDVerification
             Invoke(battle,"BuildBanner");
             typeof(BattleSceneBridge).GetMethod("ShowBanner",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(battle,new object[]{false,true});
             var banner=(Text)typeof(BattleSceneBridge).GetField("bannerText",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(battle);
-            Check(banner.gameObject.activeSelf&&banner.text=="시간 종료 · 패배 - 이 판이 끝납니다","Story result immediately gives the Korean cause and next route");
+            Check(banner.gameObject.activeSelf&&banner.text=="시간 종료 · 패배 · 이어하기로 다시 도전할 수 있습니다","Story result immediately gives the Korean cause and next route");
             banner.transform.parent.gameObject.SetActive(false);
         }
         finally {runMode.SetValue(battle,previousRunMode);}

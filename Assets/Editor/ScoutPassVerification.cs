@@ -155,7 +155,8 @@ public static class ScoutPassVerification
         Check(SceneManager.GetActiveScene().name==SceneRoutes.Map&&RunState.Instance.Data.clearedNodeIds.Contains("scout"),"Scout victory clears node and returns to map");
         TestRun();SceneRoutes.LoadBattle();for(var w=Wait(.7f);w.MoveNext();)yield return null;Find();
         player.GetComponent<Health>().TakeDamage(100000,Vector2.zero);for(var w=Wait(5);w.MoveNext();)yield return null;
-        Check(SceneManager.GetActiveScene().name==SceneRoutes.Start&&!RunState.Instance.HasRun,"Defeat resets run and returns to start");
+        Check(SceneManager.GetActiveScene().name==SceneRoutes.Start&&RunState.Instance.HasRun&&!RunState.Instance.HasPendingBattle,"Defeat returns to start and keeps the run for Continue");
+        RunState.Instance.AbandonRun();   // 검사용 판을 이어하기에 남기지 않는다(2026-11-19 부터 패배해도 판이 남는다)
         Check(errors.Count==0,"No runtime exceptions during map / battle / outcome flow");
     }
     static IEnumerator SilentDialogueChecks()

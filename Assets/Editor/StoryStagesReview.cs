@@ -179,7 +179,8 @@ public static class StoryStagesReview
             TestRun("rescue");SceneRoutes.LoadBattle();for(var w=Wait(.8f);w.MoveNext();)yield return null;Find();
             player.GetComponent<Health>().TakeDamage(100000,Vector2.zero);
             for(var w=Wait(4.6f);w.MoveNext();)yield return null;
-            Check(SceneManager.GetActiveScene().name==SceneRoutes.Start&&!RunState.Instance.HasRun,"Defeat resets run and returns to start");
+            Check(SceneManager.GetActiveScene().name==SceneRoutes.Start&&RunState.Instance.HasRun&&!RunState.Instance.HasPendingBattle,"Defeat returns to start and keeps the run for Continue");
+            RunState.Instance.AbandonRun();   // 검사용 판을 이어하기에 남기지 않는다(2026-11-19 부터 패배해도 판이 남는다)
         }
         Check(errors.Count==0,"No runtime exceptions across all ten stages");
     }

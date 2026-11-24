@@ -318,7 +318,7 @@ public class BattleSceneBridge : MonoBehaviour
     {
         if (bannerText == null) return;
         bannerText.text  = (timedOut ? "시간 종료 · " : "") + (won ? (Run.PendingNode != null && Run.PendingNode.type == NodeType.Boss
-            ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 - 이 판이 끝납니다");
+            ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 · 이어하기로 다시 도전할 수 있습니다");   // 져도 판은 남는다(RunState.ResolveBattle)
         bannerText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.5f, 0.5f);
         bannerText.gameObject.SetActive(true);
     }

@@ -146,9 +146,20 @@ public static class RedboolCampaignPlayCheck
         g.Observe(true,"VALID","READY",false,"NEUTRAL");
         for(var intro=UntilIntroDone("loss",()=>g.Observe(true,"VALID","READY",false,"NEUTRAL"));intro.MoveNext();)yield return null;
         Check(p.GetComponent<Health>().TakeDamage(99999,Vector2.zero,false,true),"Player KO triggers actual loss handler");
-        double end=Time.realtimeSinceStartupAsDouble+10;
-        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start && Time.realtimeSinceStartupAsDouble<end)yield return null;
-        Check(SceneManager.GetActiveScene().name==SceneRoutes.Start && !run.HasSave() && !run.HasRun,"Loss returns to start and clears defeated run");
+        // 2026-11-19: 져도 판이 남는다. 안내는 전투 화면의 패배 줄 하나뿐이고, 시작 화면의 이어하기가 지도로 돌려보낸다.
+        double end=Time.realtimeSinceStartupAsDouble+10;string lossLine="";
+        while(SceneManager.GetActiveScene().name!=SceneRoutes.Start && Time.realtimeSinceStartupAsDouble<end)
+        {
+            var line=GameObject.Find("BattleResultCanvas/ResultText");
+            if(line!=null)lossLine=line.GetComponent<UnityEngine.UI.Text>().text;
+            yield return null;
+        }
+        Check(lossLine=="패배 · 이어하기로 다시 도전할 수 있습니다","Loss line on the battle screen points the player to Continue");
+        yield return null;yield return null;
+        var startMessage=GameObject.Find("Message");
+        Check(SceneManager.GetActiveScene().name==SceneRoutes.Start && run.HasSave() && run.HasRun && !run.HasPendingBattle,"Loss returns to start and keeps the run for Continue");
+        Check(startMessage!=null && startMessage.GetComponent<UnityEngine.UI.Text>().text=="","Start screen stays free of a defeat message");
+        Check(run.LoadRun() && !run.HasPendingBattle && !run.Data.clearedNodeIds.Contains(nodes[0].id),"Continue after a loss reopens the map with the lost stage still to fight");
         run.StartNewRun(20261110);run.CompleteTutorial();run.Save();string save=PlayerPrefs.GetString(SaveKey,"");
         RedboolDuelTest.Begin();yield return null;yield return null;yield return null;
         Check(RedboolDuelTest.Active && SceneManager.GetActiveScene().name==RedboolDuelTest.ArenaScene,"Direct final rehearsal uses authored ScoutPass arena and skips story/tutorial");

@@ -122,13 +122,12 @@ public class StartSceneUI : MonoBehaviour
         var pvp=MakeButton("PvpButton","PvP 대전",ref y,TogglePvpMenu);
         var pvpIcon=pvp.transform.Find("MenuIcon");
         if(pvpIcon!=null) pvpIcon.GetComponent<WuxiaGraphic>().shape=WuxiaGraphic.Shape.Swords;
+        // 2026-11-24: 설정은 오른쪽 위 구석이 아니라 메뉴 줄 안, 제작진 위에 둔다.
+        MakeButton("SettingsButton","설정",ref y,RedboolSettingsPanel.Show);
         MakeButton("CreditsButton","제작진",ref y,OnCredits);
         MakeButton("QuitButton","게임 종료",ref y,OnQuit);
         BuildLanMenu();
 
-        var settings = UIFactory.CreateButton("SettingsButton", canvas.transform, "설정", 25, buttonColor, RedboolSettingsPanel.Show);
-        WuxiaTheme.StyleButton(settings);
-        UIFactory.Place(settings.GetComponent<RectTransform>(), Vector2.one, Vector2.one, new Vector2(-35, -30), new Vector2(170, 58));
         var version = WuxiaTheme.Text("ReleaseVersion", canvas.transform, "REDBOOL " + RedboolDemoSettings.Release, 20, TextAnchor.MiddleRight, WuxiaTheme.Paper);
         UIFactory.Place(version.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-35, 85), new Vector2(250, 32));
         var quickHelp = WuxiaTheme.Text("QuickDuelHelp", canvas.transform, "빠른 대전은 혼자 즐기는 대결입니다. 스토리 진행은 저장되지 않아요.", 21, TextAnchor.MiddleLeft, WuxiaTheme.Paper);
@@ -250,6 +249,15 @@ public class StartSceneUI : MonoBehaviour
         if(onlineMenu!=null)onlineMenu.CancelPending();
         if(pvpPanel!=null) pvpPanel.gameObject.SetActive(false);
     }
+
+    // Esc 는 열려 있는 PvP 창부터 닫는다. 아무것도 안 열려 있을 때만 게임 메뉴가 뜬다.
+    private bool ClosePvpMenuOnEscape()
+    {
+        if(pvpPanel==null||!pvpPanel.gameObject.activeSelf) return false;
+        HidePvpMenu();
+        return true;
+    }
+    private void OnEnable() { RedboolPauseMenu.AddEscapeCloser(ClosePvpMenuOnEscape); }
 
     private void HostRoom()
     {
@@ -374,7 +382,12 @@ public class StartSceneUI : MonoBehaviour
             pvpMessage.text="방 찾기를 다시 누르거나 친구의 IPv4를 직접 입력해주세요.";
     }
 
-    private void OnDisable() { StopRoomSearch();if(onlineMenu!=null)onlineMenu.CancelPending(); }
+    private void OnDisable()
+    {
+        StopRoomSearch();
+        if(onlineMenu!=null) onlineMenu.CancelPending();
+        RedboolPauseMenu.RemoveEscapeCloser(ClosePvpMenuOnEscape);
+    }
     private void OnDestroy() { RedboolDemoSettings.Changed -= RefreshPresentation; }
 
     private void RefreshPresentation()
@@ -382,7 +395,7 @@ public class StartSceneUI : MonoBehaviour
         if(canvas==null)return;
         bool tools=RedboolDemoSettings.OperatorMode;
         float y=40;
-        foreach(string name in new[]{"NewGameButton","ContinueButton","DuelTestButton","PvpButton","CreditsButton","QuitButton"})
+        foreach(string name in new[]{"NewGameButton","ContinueButton","DuelTestButton","PvpButton","SettingsButton","CreditsButton","QuitButton"})
         {
             var item=canvas.transform.Find(name);
             if(item==null)continue;

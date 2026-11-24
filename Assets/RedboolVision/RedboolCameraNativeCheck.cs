@@ -117,7 +117,7 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
                 &&Mathf.Abs(calibrationLine.rectTransform.rect.height-24)<=LayoutTolerance
                 &&!ScreenRect(calibrationLine.rectTransform).Overlaps(ScreenRect(previewImage)),
                 "Calibration-status row stays visible above the compact preview without overlap");
-            Check(!ButtonNamed("CameraCalibrate").transform.Find("MenuMark").gameObject.activeSelf,"Compact controls hide oversized decorative marks");
+            Check(ButtonNamed("CameraCalibrate").transform.Find("MenuMark")==null&&ButtonNamed("CameraReconnect").transform.Find("MenuMark")==null,"Camera controls are text only, with no decorative marks");
             Check(string.IsNullOrEmpty(panel.DisplayedFeedbackText),"Normal ready combat does not display routine action or recovery text");
             Text shortText=null;
             foreach(var label in panel.GetComponentsInChildren<Text>(true))if(label.name=="CombatInputFeedback")shortText=label;

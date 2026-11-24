@@ -211,11 +211,9 @@ public class MapSceneUI : MonoBehaviour
         // Floating controls leave the full map visible; no opaque header/footer strips.
         var menu=UIFactory.CreateButton("MenuButton",canvas.transform,"메뉴",24,WuxiaTheme.Ink,OnMenu);
         WuxiaTheme.StyleButton(menu);
-        UIFactory.Stretch(menu.transform.Find("Label").GetComponent<RectTransform>(),40,0,10,0);
         UIFactory.Place(menu.GetComponent<RectTransform>(),new Vector2(0,1),new Vector2(0,1),new Vector2(30,-28),new Vector2(130,56));
         var notes=UIFactory.CreateButton("ClueJournal",canvas.transform,"단서 기록",24,WuxiaTheme.Ink,ShowJournal);
         WuxiaTheme.StyleButton(notes);
-        UIFactory.Stretch(notes.transform.Find("Label").GetComponent<RectTransform>(),40,0,10,0);
         UIFactory.Place(notes.GetComponent<RectTransform>(),Vector2.one,Vector2.one,new Vector2(-30,-28),new Vector2(190,56));
         if(Run.IsStoryMap) {
             var recenter=UIFactory.CreateButton("RecenterMap",canvas.transform,"◎",32,WuxiaTheme.Ink,()=>{if(!travelling&&journal==null)StartCoroutine(FocusOnCurrentRow());});
@@ -1203,6 +1201,11 @@ public class MapSceneUI : MonoBehaviour
     // ─────────────────────── 단서 기록 ───────────────────────
 
     private void CloseJournal() { if (journal != null) { Destroy(journal); journal = null; } }
+
+    // Esc 는 열려 있는 단서 기록부터 닫는다. 아무것도 안 열려 있을 때만 게임 메뉴가 뜬다(2026-11-24).
+    private bool CloseJournalOnEscape() { if (journal == null) return false; CloseJournal(); return true; }
+    void OnEnable() { RedboolPauseMenu.AddEscapeCloser(CloseJournalOnEscape); }
+    void OnDisable() { RedboolPauseMenu.RemoveEscapeCloser(CloseJournalOnEscape); }
 
     /// <summary>
     /// 단서 기록 화면. 왼쪽은 다녀온 순서대로 정리한 장소 목록(그림·종류·상태),
