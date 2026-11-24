@@ -42,6 +42,8 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     double confirmSince = -1;
     readonly Button[] pickButtons=new Button[RedboolPvpRoster.All.Length],confirmButtons=new Button[2];
     Text selectionHint;
+    RectTransform firstPicker, selectionSubtitle;
+    RawImage selectionPreview;
     int localPickerSlot;
     public int LocalSlot => RedboolPvp.IsClient?1:RedboolPvp.RequireView?0:localPickerSlot;
     bool SelectionConnected => game!=null && (RedboolPvp.IsClient
@@ -392,7 +394,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         selectRoot = select.gameObject;
         UIFactory.Stretch(select.rectTransform);
         Label(select.transform, "SelectTitle", "인 물  선 택", 48, TextAnchor.MiddleCenter, WuxiaTheme.Gold, new Vector2(.5f, 1), new Vector2(0, -50), new Vector2(900, 64));
-        Label(select.transform, "SelectSub", "각자 한 명을 정하면 수련(동작 익히기)으로 넘어갑니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -100), new Vector2(1100, 34));
+        selectionSubtitle = Label(select.transform, "SelectSub", "각자 한 명을 정하면 수련(동작 익히기)으로 넘어갑니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -100), new Vector2(1100, 34)).rectTransform;
         selectTimer = Label(select.transform, "Timer", "선택한 인물을 확인하고 선택 완료를 누르세요", 22, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -156), new Vector2(1050, 44));
 
         // 가운데: 12명 (4 x 3)
@@ -435,6 +437,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
             // 좌우: 지금 고른 인물의 큰 소개
             var side = new Vector2(s == 0 ? 0 : 1, .5f);
             var panel = Plaque(select.transform, "Pick" + (s + 1), side, side, new Vector2(s == 0 ? 40 : -40, -20), new Vector2(430, 780), SideColour[s]);
+            if (s == 0) firstPicker = panel;
             Label(panel, "Who", (s + 1) + "P", 34, TextAnchor.MiddleCenter, SideColour[s], new Vector2(.5f, 1), new Vector2(0, -36), new Vector2(380, 44));
             bigPortrait[s] = Picture(panel, "BigPortrait", new Vector2(.5f, 1), new Vector2(0, -62), new Vector2(390, 350));
             bigName[s] = Label(panel, "Name", "", 38, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -444), new Vector2(400, 48));
@@ -461,6 +464,30 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         versusSub=Label(versus, "VersusSub", "곧 수련을 시작합니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 38), new Vector2(800, 32));
 
         selectionHint=Label(select.transform, "Hint", "", 20, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(1500, 34));
+        var corner = UIFactory.CreateRect("LocalSelectionPreview", select.transform);
+        selectionPreview = corner.gameObject.AddComponent<RawImage>();
+        selectionPreview.raycastTarget = false;
+        selectionPreview.enabled = false;
+    }
+
+    public void ShowLocalSelectionPreview(Texture texture)
+    {
+        if (selectionPreview == null) return;
+        var root = (RectTransform)selectRoot.transform;
+        // These elements are direct children of the same scaled selection canvas.
+        // Reserve the widest header and left edge of the grid as well as the full picker.
+        const float margin = 16f;
+        float left = root.rect.xMin + margin;
+        float right = Mathf.Min(selectionSubtitle.localPosition.x + selectionSubtitle.rect.xMin,
+                                cards[0].localPosition.x + cards[0].rect.xMin) - margin;
+        float bottom = firstPicker.localPosition.y + firstPicker.rect.yMax + margin;
+        float height = Mathf.Min(108f, Mathf.Min(root.rect.yMax - margin - bottom, (right - left) * .75f));
+        bool visible = texture != null && height >= 48f;
+        selectionPreview.enabled = visible;
+        selectionPreview.texture = visible ? texture : null;
+        if (visible)
+            UIFactory.Place(selectionPreview.rectTransform, Vector2.up, Vector2.up,
+                            new Vector2(margin, -margin), new Vector2(height * (4f / 3f), height));
     }
 
     static Button CreateSelectionButton(string name,Transform parent,string label,int size,Color colour,UnityEngine.Events.UnityAction click)

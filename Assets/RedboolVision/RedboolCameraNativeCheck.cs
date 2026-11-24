@@ -193,17 +193,29 @@ public sealed class RedboolCameraNativeCheck : MonoBehaviour
             RedboolDemoSettings.OperatorMode=false;status.SetValue(runtime,fixture);
             stage.SetValue(lobby,RedboolPvpLobby.Stage.Room);refresh.Invoke(panel,null);
             Check(panel.SmallPreview&&!panel.DetailedGuidance,"Calibrated waiting room does not masquerade as motion practice");
-            stage.SetValue(lobby,RedboolPvpLobby.Stage.Select);lobbyRefresh.Invoke(lobby,new object[]{null});refresh.Invoke(panel,null);
-            Canvas.ForceUpdateCanvases();
             var frame=GameObject.Find("CameraFrame").GetComponent<RectTransform>();
+            stage.SetValue(lobby,RedboolPvpLobby.Stage.Select);lobbyRefresh.Invoke(lobby,new object[]{null});refresh.Invoke(panel,null);
             var selection=GameObject.Find("Select").transform;
+            // Use a fixture texture if the local loopback JPEG has not arrived yet.
+            var texture = runtime.Preview != null ? runtime.Preview : Texture2D.whiteTexture;
+            lobby.ShowLocalSelectionPreview(texture);
+            Canvas.ForceUpdateCanvases();
+            var thumbnail=selection.Find("LocalSelectionPreview").GetComponent<RawImage>();
+            Check(!frame.gameObject.activeInHierarchy && thumbnail.enabled && !thumbnail.raycastTarget && thumbnail.texture==texture,
+                  "Picker replaces camera controls with one click-through preview");
+            var thumbRect=ScreenRect(thumbnail.rectTransform);
+            var fullRect=ScreenRect(selection.GetComponent<RectTransform>());
+            Check(fullRect.Contains(thumbRect.center) && thumbRect.xMin>=fullRect.xMin && thumbRect.yMax<=fullRect.yMax,
+                  "Picker thumbnail stays within the screen");
+            foreach(string item in new[]{"SelectTitle","SelectSub","Timer","Pick1","Pick2","Pick1/BigPortrait","Pick2/BigPortrait","Pick1/ConfirmSelection1","Pick2/ConfirmSelection2"})
+                Check(!thumbRect.Overlaps(ScreenRect(selection.Find(item).GetComponent<RectTransform>())),"Thumbnail leaves picker item clear: "+item);
             for(int i=0;i<RedboolPvpRoster.Count;i++)
-                Check(!ScreenRect(frame).Overlaps(ScreenRect(selection.Find("Card"+i).GetComponent<RectTransform>())),"Own preview leaves character card visible: "+i);
-            foreach(string name in new[]{"Name","Title","Line","Special","SpecialLine","State"})
-                Check(!ScreenRect(frame).Overlaps(ScreenRect(selection.Find("Pick1/"+name).GetComponent<RectTransform>())),"Own preview leaves selected-character detail visible: "+name);
+                Check(!thumbRect.Overlaps(ScreenRect(selection.Find("Card"+i).GetComponent<RectTransform>())),"Thumbnail leaves character card clear: "+i);
             yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(directory,"02_v36_character_camera.png"));
             yield return new WaitForEndOfFrame();
             status.SetValue(runtime,fixture);stage.SetValue(lobby,RedboolPvpLobby.Stage.Done);lobbyRefresh.Invoke(lobby,new object[]{null});refresh.Invoke(panel,null);
+            Check(frame.gameObject.activeInHierarchy && !thumbnail.gameObject.activeInHierarchy,
+                  "Practice restores the normal camera controls and removes the selection thumbnail");
             Check(panel.SmallPreview&&!panel.DetailedGuidance,"PvP uses compact camera alongside dedicated detailed tutorial cards");
             Canvas.ForceUpdateCanvases();
             foreach(string name in new[]{"TutorialCard1","TutorialCard2"})

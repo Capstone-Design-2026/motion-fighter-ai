@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 /// <summary>Own-camera preview and calibration controls; no video crosses the LAN.</summary>
+[DefaultExecutionOrder(500)] // Apply the displayed lobby phase after the guest view updates.
 public sealed class RedboolCameraPanel : MonoBehaviour
 {
     RedboolCameraRuntime cameraRuntime;
@@ -49,14 +50,21 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));
         WuxiaTheme.StyleButton(reconnect);
     }
-    void Update()
+    void LateUpdate()
     {
         if(cameraRuntime==null || canvas==null)return;
         canvas.enabled=cameraRuntime.ShowPanel;
-        if(!canvas.enabled || Time.unscaledTime<nextUi)return;
+        if(!canvas.enabled)return;
+        if(Time.unscaledTime<nextUi && panel.gameObject.activeSelf != SelectingCharacter())return;
         RefreshDisplay();
     }
-    // Runs at 10Hz. Presentation only: no recognition or game-state changes.
+    static bool SelectingCharacter()
+    {
+        var game = RedboolPvp.Instance;
+        return RedboolPvp.Active && game != null && game.Lobby != null
+            && game.Lobby.Current == RedboolPvpLobby.Stage.Select;
+    }
+    // Runs at 10Hz and immediately when selection opens or closes.
     void RefreshDisplay()
     {
         nextUi=Time.unscaledTime+.1f;
@@ -68,7 +76,13 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         bool pvpPractice=LocalPracticeActive();
         var pvp=RedboolPvp.Instance;
         bool newPvpCards=pvpPractice&&pvp!=null&&pvp.Lobby!=null;
-        bool selecting=RedboolPvp.Active&&pvp!=null&&pvp.Lobby!=null&&pvp.Lobby.Current==RedboolPvpLobby.Stage.Select;
+        bool selecting = SelectingCharacter();
+        if (panel.gameObject.activeSelf == selecting) panel.gameObject.SetActive(!selecting);
+        if (selecting)
+        {
+            pvp.Lobby.ShowLocalSelectionPreview(!folded && cameraRuntime.PreviewFresh ? cameraRuntime.Preview : null);
+            return;
+        }
         tutorial=cave!=null&&cave.isActiveAndEnabled||pvpPractice;
         // New PvP cards already explain each motion in detail. Keep the own-camera
         // image compact between the two pose diagrams rather than covering a card.
@@ -86,14 +100,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         float footer=SmallPreview?(string.IsNullOrEmpty(guidance)?52:104):174;
         float height=folded?footer+70:previewHeight+70+footer;
         bool top=cave!=null&&cave.isActiveAndEnabled;
-        if(selecting)
-        {
-            // Use only our large illustration area. The twelve selectable cards,
-            // names, special descriptions and opponent portrait remain unobscured.
-            var anchor=new Vector2(RedboolPvp.IsClient?1665f/1920f:255f/1920f,(SmallPreview?673f:720f)/1080f);
-            UIFactory.Place(panel,anchor,new Vector2(.5f,.5f),Vector2.zero,new Vector2(width,height));
-        }
-        else if(newPvpCards)
+        if(newPvpCards)
         {
             float centre=SmallPreview?Mathf.Max(555f,428f+height*.5f):920f-height*.5f;
             UIFactory.Place(panel,new Vector2(.5f,centre/1080f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(width,height));
