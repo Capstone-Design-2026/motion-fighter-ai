@@ -55,8 +55,11 @@ class HighBlockRecordingTests(unittest.TestCase):
             self.assertEqual(self.gestures(a,b),[])
             self.assertTrue(all(block for t,block in self.results[0][1] if a<=t<=b))
     def test_only_reviewed_right_punches_in_complete_recording(self):
-        self.assertEqual([g for _,g in self.results[0][0]],['RIGHT_PUNCH']*31)
-        self.assertEqual([g for _,g in self.results[1][0]],['LEFT_PUNCH']*31)
+        # The original video has another short right immediately after high guard.
+        self.assertEqual(self.gestures(51.12,51.16), ['RIGHT_PUNCH'])
+        self.assertEqual(self.gestures(51.12,51.16,True), ['LEFT_PUNCH'])
+        self.assertEqual([g for _,g in self.results[0][0]],['RIGHT_PUNCH']*32)
+        self.assertEqual([g for _,g in self.results[1][0]],['LEFT_PUNCH']*32)
 
 class SupportingGuardTests(unittest.TestCase):
     def test_high_context_requires_bent_compact_slow_arm(self):
