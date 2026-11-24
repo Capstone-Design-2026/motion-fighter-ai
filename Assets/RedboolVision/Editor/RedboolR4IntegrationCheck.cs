@@ -12,6 +12,15 @@ public static class RedboolR4IntegrationCheck
         if(string.IsNullOrEmpty(root)) throw new Exception("Explicit verification output required");
         Environment.SetEnvironmentVariable("REDBOOL_SELECTION_CHECK_OUTPUT",Path.Combine(root,"selection"));
         RedboolMenuSelfCheck.CheckPreviousPlayerLogExport();
+        var cameraStatus = new RedboolCameraRuntime.CameraStatus { camera_connected=true };
+        if (!CaveTutorial.GetCalibrationPrompt(cameraStatus).Contains("한 번"))
+            throw new Exception("Story practice must explain how to begin calibration");
+        cameraStatus.phase="calibrating";
+        if (!CaveTutorial.GetCalibrationPrompt(cameraStatus).Contains("유지"))
+            throw new Exception("Story practice must not prompt another C while calibration is running");
+        cameraStatus.calibrated=true;
+        if (CaveTutorial.GetCalibrationPrompt(cameraStatus)!=null)
+            throw new Exception("Normal practice must resume after calibration");
         RedboolReleaseSelfCheck.RunWithoutSocketBinding();
         RedboolPvpSelectionSelfCheck.Run();
         RedboolOnlineProtocolCheck.Run();

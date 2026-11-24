@@ -11,7 +11,7 @@ public class CaveTutorial : MonoBehaviour {
  static readonly string[] Tips={"오른손은 가드에 두세요. 양쪽 팔꿈치가 화면에 보이나요?","왼손은 가드에 두세요. 양쪽 팔꿈치가 화면에 보이나요?","실제로 다리를 차지 않아도 됩니다. 왼손을 어깨보다 높이 들어보세요.","실제로 다리를 차지 않아도 됩니다. 오른손을 어깨보다 높이 들어보세요.","두 손을 얼굴 앞에 올린 뒤 기본 자세로 내려보세요.","몸을 비틀기보다 두 어깨의 중심을 왼쪽으로 옮겨보세요.","두 어깨의 중심을 오른쪽으로 옮긴 뒤 중앙으로 돌아오세요.","양쪽 손목과 팔꿈치가 보이도록 가슴 앞에서 교차하세요. 수련에서는 충전이 필요 없습니다."};
  static CaveTutorial active;
  readonly string teachingRun=System.Guid.NewGuid().ToString("N");
- public static RedboolPracticeContext TeachingContext => active==null || active.keyboard || active.exit ? null : new RedboolPracticeContext {
+ public static RedboolPracticeContext TeachingContext => active==null || active.keyboard || active.exit || active.CalibrationPrompt!=null ? null : new RedboolPracticeContext {
   run=active.teachingRun,action=Actions[active.CurrentStep],phase=active.IsDemonstrating?"DEMO":active.advancing?"RETURN":"PRACTICE",hits=active.hits};
  RunState run;Transform frame;Text title,instruction,progress,status,modeLabel,inputHint,signal,phaseLabel;TrainingPoseGraphic inputPose,resultPose;
  RectTransform focus;Image flash;bool keyboard,armed,exit,advancing,operatorEnabled;int hits,mistakes;float lastPacket=-100,nextStepAt,demoUntil,stepStarted,feedbackUntil,successPulse;string lastSignal="";
@@ -20,6 +20,16 @@ public class CaveTutorial : MonoBehaviour {
  public int SuccessfulAttempts=>hits;
  public bool IsDemonstrating=>Time.unscaledTime<demoUntil;
  public bool IsKeyboardMode=>keyboard;
+ string CalibrationPrompt {
+  get {
+   var camera=RedboolCameraRuntime.Instance;
+   return keyboard || camera==null || !camera.Fresh ? null : GetCalibrationPrompt(camera.Status);
+  }
+ }
+ public static string GetCalibrationPrompt(RedboolCameraRuntime.CameraStatus camera) {
+  if(camera==null || !camera.camera_connected || camera.calibrated) return null;
+  return camera.phase=="calibrating" ? "기본 자세를 잠시 유지하세요. 보정이 끝나면 수련이 시작돼요." : "평소 가드 자세에서 C 또는 보정 버튼을 한 번 누르세요.";
+ }
  bool DiscreteVisionStep=>!keyboard&&(CurrentStep<4||CurrentStep==7);
  public static IEnumerator Play(RunState state){
   if(state.Data.tutorialCompleted)yield break;
@@ -85,6 +95,12 @@ public class CaveTutorial : MonoBehaviour {
   successPulse=Mathf.MoveTowards(successPulse,0,Time.unscaledDeltaTime);if(flash!=null)flash.color=new Color(.84f,1,.66f,successPulse);
   if(advancing){if(Time.unscaledTime<nextStepAt)return;advancing=false;run.Data.tutorialStep++;run.Save();hits=0;armed=false;
    if(run.Data.tutorialStep>=Actions.Length){run.CompleteTutorial();exit=true;return;}RefreshStep();}
+  var prompt=CalibrationPrompt;
+  if(prompt!=null) {
+   phaseLabel.text="기본 자세 보정";instruction.text="양쪽 어깨와 팔꿈치가 보이게 앉으세요";status.text=prompt;
+   signal.text="내 동작 패널에서 보정 상태를 확인하세요";return;
+  }
+  instruction.text=Gestures[CurrentStep];
   phaseLabel.text=advancing?"확인 완료":IsDemonstrating?"① 시범 보기":armed||DiscreteVisionStep?"② 따라 해보세요":"③ 팔을 내리거나 중앙으로 돌아오기";
   if(IsDemonstrating)return;
   if(keyboard){if(RedboolDemoSettings.OperatorMode&&!RedboolPauseMenu.BlocksStoryInput){if(Input.GetKeyDown(KeyCode.Space))Accept("IDLE",1);for(int i=0;i<Actions.Length;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))Accept(Actions[i],1);}}
