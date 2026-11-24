@@ -7,12 +7,13 @@ public sealed class RedboolRenderPressure
     public bool Latched { get; private set; }
     public int BadWindows { get; private set; }
     public int SevereGameWindows { get; private set; }
+    public int SustainedGameWindows { get; private set; }
     public string Trigger { get; private set; } = "";
     int generation;
 
     public void Reset(int sessionGeneration)
     {
-        generation = sessionGeneration; Latched = false; BadWindows = SevereGameWindows = 0; Trigger = "";
+        generation = sessionGeneration; Latched = false; BadWindows = SevereGameWindows = SustainedGameWindows = 0; Trigger = "";
     }
 
     // Eligible means a whole active window with connected, advancing camera
@@ -32,10 +33,15 @@ public sealed class RedboolRenderPressure
         // This independent branch only reduces rendering; it never changes
         // camera capture, recognition continuity or input expiry.
         SevereGameWindows = complete && severeGameEligible && gameMeanFrameMs > 50 ? SevereGameWindows + 1 : 0;
-        if (BadWindows >= 2 || SevereGameWindows >= 2)
+        // 743 field run: camera advances at 19fps but the active arena stays near
+        // 41fps. Ten focused seconds of game pressure also deserve render relief.
+        // Scene loads, a modal, backgrounding and missing camera frames cannot trigger it.
+        SustainedGameWindows = valid && severeGameEligible && gameMeanFrameMs > 23
+            ? SustainedGameWindows + 1 : 0;
+        if (BadWindows >= 2 || SevereGameWindows >= 2 || SustainedGameWindows >= 2)
         {
             Latched = true;
-            Trigger = BadWindows >= 2 ? "joint_camera_game" : "severe_game";
+            Trigger = BadWindows >= 2 ? "joint_camera_game" : SevereGameWindows >= 2 ? "severe_game" : "sustained_game";
         }
         return Latched;
     }

@@ -22,8 +22,8 @@ public static class RedboolViewSelfCheck
     }
     static void CheckLobbyCodec()
     {
-        Check(RedboolViewProtocol.Version==33,"feedback and lobby layouts use their own version33");
-        Check(RedboolPvpRoster.Count==12,"version33 roster has exactly twelve character indices");
+        Check(RedboolViewProtocol.Version==34,"feedback and lobby layouts use their own version34");
+        Check(RedboolPvpRoster.Count==12,"version34 roster has exactly twelve character indices");
         for(byte slot=2;slot<=3;slot++) for(byte character=0;character<12;character++)
         {
             var actor=Actor();actor.character=character;actor.specialSerial=(byte)(255-character);
@@ -40,7 +40,7 @@ public static class RedboolViewSelfCheck
         Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"thirteenth roster index rejected");
         valid.character=255;Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"out-of-range roster byte rejected");
         valid.character=0;valid.feedback=255;
-        Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"unknown authoritative feedback still rejected in version33");
+        Check(!RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out _),"unknown authoritative feedback still rejected in version34");
         valid.feedback=0;
         foreach(byte serial in new byte[]{255,0}) {valid.specialSerial=serial;Check(RedboolViewProtocol.TryDecode(RedboolViewProtocol.Encode(ActorPacket(valid)),out var decoded)&&decoded.actor.specialSerial==serial,"special serial wrap value preserved: "+serial);}
 

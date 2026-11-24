@@ -23,6 +23,14 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
     }
     readonly List<PunchSurface> punchSurfaces = new List<PunchSurface>();
     bool warmingPunchSurfaces;
+    // 2026-11-16 watchdog: the Start coroutine sometimes never resumes after its first yield
+    // (seen in batch PvP checks, more often when that frame does a little more work). PvP then
+    // waits at "전투 효과 준비 중" forever. Retry the same steps once from Update, then give up
+    // on the warmup rather than block the match (the first effect may hitch instead).
+    const double StallSeconds = 1.5;
+    double stepStarted = -1;
+    int stepFrame = -1, attempts;
+    bool progressed;
 
     void PreparePunchSurfaces()
     {
@@ -56,10 +64,37 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
         }
     }
 
-    IEnumerator Start()
+    void Start() => Begin();
+
+    void Begin()
+    {
+        attempts++; progressed = false;
+        stepStarted = Time.realtimeSinceStartupAsDouble; stepFrame = Time.frameCount;
+        StartCoroutine(Warm());
+    }
+
+    void Update()
+    {
+        if (finished || progressed || stepStarted < 0) return;
+        if (Time.realtimeSinceStartupAsDouble - stepStarted < StallSeconds || Time.frameCount - stepFrame < 10) return;
+        StopAllCoroutines();
+        if (attempts < 2)
+        {
+            Debug.LogWarning("[REDBOOL PREWARM] warmup did not resume after its first frame; retrying from Update");
+            Begin();
+        }
+        else
+        {
+            Debug.LogWarning("[REDBOOL PREWARM] warmup did not resume twice; skipping it so the match can start");
+            Finish();
+        }
+    }
+
+    IEnumerator Warm()
     {
         // Let normal Start methods prepare assets, camera and render templates.
         yield return null;
+        progressed = true;
         if (!isActiveAndEnabled || finished) { Finish(); yield break; }
         cameraUsed = Camera.main;
         if (cameraUsed == null) { Finish(); yield break; }
@@ -112,8 +147,13 @@ public sealed class RedboolRenderWarmup : MonoBehaviour
                     var holder = new GameObject("Character warmup sample"); holder.SetActive(false); visuals.Add(holder);
                     // Centre the full-height selected avatar inside the actual
                     // arena camera. The sample owns only visual resources.
-                    var sample = special.CreateGhostRenderSample(holder.transform, point - cameraUsed.transform.up * .8f);
-                    if (sample != null) { characterSamples.Add(sample); holder.SetActive(true); }
+                    int firstSample = characterSamples.Count;
+                    special.CreateGhostRenderSamples(holder.transform, point - cameraUsed.transform.up * .8f, characterSamples);
+                    if (characterSamples.Count > firstSample)
+                    {
+                        holder.SetActive(true);
+                        for (int i = firstSample; i < characterSamples.Count; i++) characterSamples[i].PrepareForRender();
+                    }
                 }
             QiPostFx.PrepareRenderWeight(1f); preparedPostFx = true;
             PreparePunchSurfaces();

@@ -1,0 +1,41 @@
+{
+  "schema": "redbool.online-preview-gates/1",
+  "release": "OnlinePreview",
+  "identities": {
+    "unity_commit": "COPY_EXACT_FINGERPRINT_VALUE",
+    "unity_runtime_sha256": "COPY_EXACT_FINGERPRINT_VALUE",
+    "unity_inputs_sha256": "COPY_EXACT_FINGERPRINT_VALUE",
+    "sdk_tree_sha256": "COPY_EXACT_FINGERPRINT_VALUE",
+    "embedded_config_sha256": "COPY_EXACT_FINGERPRINT_VALUE",
+    "player_tree_sha256": "COPY_EXACT_FINGERPRINT_VALUE",
+    "python_commit": "COPY_EXACT_FINGERPRINT_VALUE",
+    "backend_tree_sha256": "COPY_EXACT_FINGERPRINT_VALUE"
+  },
+  "sdk": {
+    "official_source": "https://www.photonengine.com/sdks",
+    "version": "5.1.21",
+    "archive_path": "/Users/bin/Downloads/photon-unity-sdk_v5-1-21.zip",
+    "archive_sha256": "5c35ac02fa1bba0d9e9a2eba3ac4158bca1582c8b516cbcd1f39799589a0d09a"
+  },
+  "reports": {
+    "cloud": {"path": "ACTUAL_CLOUD_REPORT.json", "sha256": "REPORT_SHA256"},
+    "native_game": {"path": "ACTUAL_NATIVE_COMPARISON/comparison.json", "sha256": "REPORT_SHA256"},
+    "protocol": {"path": "CURRENT_NATIVE_CHECKS/online-protocol.json", "sha256": "REPORT_SHA256"},
+    "anticipation": {"path": "CURRENT_NATIVE_CHECKS/anticipation.json", "sha256": "REPORT_SHA256"},
+    "backend_online": {"path": "NATIVE_BACKEND/online-check-result.json", "sha256": "REPORT_SHA256"},
+    "backend_native": {"path": "NATIVE_BACKEND/check-result.json", "sha256": "REPORT_SHA256"}
+  },
+  "windows_game_validation": "pending_external_windows_game_validation",
+  "native_mac_reference": {
+    "player": "CHECKED_MAC_BUILD/REDBOOL.app",
+    "player_tree_sha256": "CHECKED_MAC_FINGERPRINT_PLAYER_TREE_SHA256",
+    "source_preservation_sha256": "MAC_SOURCE_PRESERVATION_JSON_SHA256",
+    "build_info_sha256": "MAC_BUILD_INFO_JSON_SHA256"
+  },
+  "windows_ci": {
+    "run_path": "SELECTED_WINDOWS_RUN.json",
+    "run_sha256": "REPORT_SHA256",
+    "artifact_path": "SELECTED_WINDOWS_ARTIFACT_METADATA.json",
+    "artifact_sha256": "REPORT_SHA256"
+  }
+}

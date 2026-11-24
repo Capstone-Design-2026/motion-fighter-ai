@@ -259,7 +259,7 @@ public class RunState : MonoBehaviour
         var path = FindTravelPath(destination);
         if (path == null) return false;
         Data.currentNodeId = destination;
-        LastMessage = "지나온 길로 이동했다. 체력과 휴식 사용 기록은 유지된다.";
+        LastMessage = Config.carryPlayerHealth ? "지나온 길로 이동했다. 체력과 휴식 사용 기록은 유지된다." : "지나온 길로 이동했다.";
         RefreshStatus(); Save(); return true;
     }
 
@@ -301,6 +301,13 @@ public class RunState : MonoBehaviour
         switch (node.type)
         {
             case NodeType.Rest:
+                if (!Config.carryPlayerHealth)
+                {
+                    // 체력이 이어지지 않으면 늘 가득 차 있으므로 회복 줄을 띄우지 않는다.
+                    Data.playerHealth = Data.playerMaxHealth;
+                    LastMessage = IsStoryMap ? "" : "휴식";
+                    break;
+                }
                 int heal = Mathf.RoundToInt(Data.playerMaxHealth * Config.restHealPercent);
                 int before = Data.playerHealth;
                 Data.playerHealth = Mathf.Min(Data.playerMaxHealth, Data.playerHealth + heal);
@@ -316,7 +323,7 @@ public class RunState : MonoBehaviour
                 break;
         }
 
-        if (IsStoryMap && node.type == NodeType.Rest) LastMessage += "\n" + node.story;
+        if (IsStoryMap && node.type == NodeType.Rest) LastMessage = string.IsNullOrEmpty(LastMessage) ? node.story : LastMessage + "\n" + node.story;
         AdvanceTo(node.id);
         Save();
     }
@@ -332,8 +339,11 @@ public class RunState : MonoBehaviour
 
         if (!won)
         {
-            LastMessage = "패배했습니다. 이 판은 여기서 끝납니다.";
-            AbandonRun();
+            // 2026-11-19: 져도 판을 지우지 않는다. 진 칸 앞에 선 채로 저장해 두면 시작 화면의 "이어하기"가 지도로 데려가고,
+            // 그 칸을 다시 눌러 재도전한다(체력은 스테이지마다 가득). 안내는 전투 화면의 패배 줄(BattleSceneBridge.ShowBanner)이
+            // 맡으므로 시작 화면에는 글을 남기지 않는다.
+            LastMessage = null;
+            Save();
             SceneRoutes.LoadStart();
             return;
         }
@@ -357,7 +367,8 @@ public class RunState : MonoBehaviour
         }
         else
         {
-            LastMessage = IsStoryMap && node != null ? node.story : "승리 - 남은 체력 " + Data.playerHealth + " / " + Data.playerMaxHealth;
+            LastMessage = IsStoryMap && node != null ? node.story
+                : Config.carryPlayerHealth ? "승리 - 남은 체력 " + Data.playerHealth + " / " + Data.playerMaxHealth : "승리";
         }
 
         Save();
@@ -382,7 +393,7 @@ public class RunState : MonoBehaviour
             var stage = node != null ? Config.Get(node.stageId) : null;
             if (!IsStoryMap || stage == null) return stage;
             var copy = JsonUtility.FromJson<StageDefinition>(JsonUtility.ToJson(stage));
-            copy.displayName = node.title;
+            copy.displayName = StoryMap.EnemyName(node);   // HUD 에는 장소 없이 상대 이름만
             copy.nodeType = node.type;
             return copy;
         }

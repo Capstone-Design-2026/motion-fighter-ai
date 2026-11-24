@@ -67,7 +67,7 @@ MonoBehaviour:
   creditsAttributions: 
   creditsDuration: 32
   playerMaxHealth: 100
-  carryPlayerHealth: 1
+  carryPlayerHealth: 0
   restHealPercent: 0.3
   stages:
   - id: grunt_a

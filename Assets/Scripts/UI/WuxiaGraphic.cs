@@ -5,7 +5,7 @@ using UnityEngine.UI;
 [RequireComponent(typeof(CanvasRenderer))]
 public class WuxiaGraphic : MaskableGraphic
 {
-    public enum Shape { Disc, Ring, Mist, Leaf, Swords, Pavilion, Fortress, Fade, Cloud, Plaque, PlaqueFrame, Resume, Guide, Exit, Traveler }
+    public enum Shape { Disc, Ring, Mist, Leaf, Swords, Pavilion, Fortress, Fade, Cloud, Plaque, PlaqueFrame, Resume, Guide, Exit, Traveler, Settings }
     public Shape shape;
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -37,6 +37,17 @@ public class WuxiaGraphic : MaskableGraphic
             Stroke(vh,r,new Vector2(0,.19f),new Vector2(0,-.38f),.045f);
             for(int i=0;i<2;i++)for(int side=-1;side<=1;side+=2)
                 Stroke(vh,r,new Vector2(side*.12f,.08f-i*.18f),new Vector2(side*.30f,.12f-i*.18f),.04f);
+            return;
+        }
+        if(shape==Shape.Settings)
+        {
+            // Three sliders with knobs at different positions: adjustable options.
+            float[] rows={.27f,0,-.27f},knobs={.14f,-.17f,.05f};
+            for(int i=0;i<3;i++)
+            {
+                Stroke(vh,r,new Vector2(-.38f,rows[i]),new Vector2(.38f,rows[i]),.05f);
+                Stroke(vh,r,new Vector2(knobs[i],rows[i]-.10f),new Vector2(knobs[i],rows[i]+.10f),.12f);
+            }
             return;
         }
         if(shape==Shape.Exit)

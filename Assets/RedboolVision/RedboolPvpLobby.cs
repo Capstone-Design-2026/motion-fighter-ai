@@ -42,6 +42,8 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     double confirmSince = -1;
     readonly Button[] pickButtons=new Button[RedboolPvpRoster.All.Length],confirmButtons=new Button[2];
     Text selectionHint;
+    RectTransform firstPicker, selectionSubtitle;
+    RawImage selectionPreview;
     int localPickerSlot;
     public int LocalSlot => RedboolPvp.IsClient?1:RedboolPvp.RequireView?0:localPickerSlot;
     bool SelectionConnected => game!=null && (RedboolPvp.IsClient
@@ -73,7 +75,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     double nextAddressRefresh, addressCopiedUntil;
     string addressNotice = "같은 공유기에 연결한 상대에게 주소를 알려주세요", addressCopied;
     bool? roomStatusSharedLayout;
-    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView;
+    bool AddressSharingVisible => Current == Stage.Room && !RedboolPvp.IsClient && RedboolPvp.RequireView && !RedboolPvp.Online;
     readonly RectTransform[] cards = new RectTransform[RedboolPvpRoster.All.Length];
     readonly Texture[] portraits = new Texture[RedboolPvpRoster.All.Length];
     readonly Rect[] cardCrop = new Rect[RedboolPvpRoster.All.Length], bigCrop = new Rect[RedboolPvpRoster.All.Length];
@@ -392,7 +394,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         selectRoot = select.gameObject;
         UIFactory.Stretch(select.rectTransform);
         Label(select.transform, "SelectTitle", "인 물  선 택", 48, TextAnchor.MiddleCenter, WuxiaTheme.Gold, new Vector2(.5f, 1), new Vector2(0, -50), new Vector2(900, 64));
-        Label(select.transform, "SelectSub", "각자 한 명을 정하면 수련(동작 익히기)으로 넘어갑니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -100), new Vector2(1100, 34));
+        selectionSubtitle = Label(select.transform, "SelectSub", "각자 한 명을 정하면 수련(동작 익히기)으로 넘어갑니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 1), new Vector2(0, -100), new Vector2(1100, 34)).rectTransform;
         selectTimer = Label(select.transform, "Timer", "선택한 인물을 확인하고 선택 완료를 누르세요", 22, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -156), new Vector2(1050, 44));
 
         // 가운데: 12명 (4 x 3)
@@ -435,6 +437,7 @@ public sealed class RedboolPvpLobby : MonoBehaviour
             // 좌우: 지금 고른 인물의 큰 소개
             var side = new Vector2(s == 0 ? 0 : 1, .5f);
             var panel = Plaque(select.transform, "Pick" + (s + 1), side, side, new Vector2(s == 0 ? 40 : -40, -20), new Vector2(430, 780), SideColour[s]);
+            if (s == 0) firstPicker = panel;
             Label(panel, "Who", (s + 1) + "P", 34, TextAnchor.MiddleCenter, SideColour[s], new Vector2(.5f, 1), new Vector2(0, -36), new Vector2(380, 44));
             bigPortrait[s] = Picture(panel, "BigPortrait", new Vector2(.5f, 1), new Vector2(0, -62), new Vector2(390, 350));
             bigName[s] = Label(panel, "Name", "", 38, TextAnchor.MiddleCenter, WuxiaTheme.Paper, new Vector2(.5f, 1), new Vector2(0, -444), new Vector2(400, 48));
@@ -461,6 +464,30 @@ public sealed class RedboolPvpLobby : MonoBehaviour
         versusSub=Label(versus, "VersusSub", "곧 수련을 시작합니다", 22, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 38), new Vector2(800, 32));
 
         selectionHint=Label(select.transform, "Hint", "", 20, TextAnchor.MiddleCenter, Dim, new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(1500, 34));
+        var corner = UIFactory.CreateRect("LocalSelectionPreview", select.transform);
+        selectionPreview = corner.gameObject.AddComponent<RawImage>();
+        selectionPreview.raycastTarget = false;
+        selectionPreview.enabled = false;
+    }
+
+    public void ShowLocalSelectionPreview(Texture texture)
+    {
+        if (selectionPreview == null) return;
+        var root = (RectTransform)selectRoot.transform;
+        // These elements are direct children of the same scaled selection canvas.
+        // Reserve the widest header and left edge of the grid as well as the full picker.
+        const float margin = 16f;
+        float left = root.rect.xMin + margin;
+        float right = Mathf.Min(selectionSubtitle.localPosition.x + selectionSubtitle.rect.xMin,
+                                cards[0].localPosition.x + cards[0].rect.xMin) - margin;
+        float bottom = firstPicker.localPosition.y + firstPicker.rect.yMax + margin;
+        float height = Mathf.Min(108f, Mathf.Min(root.rect.yMax - margin - bottom, (right - left) * .75f));
+        bool visible = texture != null && height >= 48f;
+        selectionPreview.enabled = visible;
+        selectionPreview.texture = visible ? texture : null;
+        if (visible)
+            UIFactory.Place(selectionPreview.rectTransform, Vector2.up, Vector2.up,
+                            new Vector2(margin, -margin), new Vector2(height * (4f / 3f), height));
     }
 
     static Button CreateSelectionButton(string name,Transform parent,string label,int size,Color colour,UnityEngine.Events.UnityAction click)
@@ -600,7 +627,13 @@ public sealed class RedboolPvpLobby : MonoBehaviour
                 fighting = game.Fighting && !game.Paused || game.Resolved;
             }
             if (Current != Stage.Done || fighting) tutorial[s].Hide();
-            else tutorial[s].Show(step, hits, live, RedboolPvpRoster.Get(game.Characters[s]), game.SpecialName(s), personal);
+            else {
+                bool bothComplete=client?frame.actors[0].step>=8&&frame.actors[1].step>=8:game.Practices[0].Complete&&game.Practices[1].Complete;
+                byte gate=client?frame.world.gate:game.Gate;
+                float countdown=client?frame.world.countdown:game.Countdown;
+                tutorial[s].Show(step,hits,live,RedboolPvpRoster.Get(game.Characters[s]),game.SpecialName(s),personal,
+                    RedboolPvp.PracticeMessage(step,hits,bothComplete,gate,countdown,live));
+            }
             if (Current == Stage.Done && !fighting && step >= 2 && step < 8 && !tutorialCaptured) { tutorialCaptured = true; Capture("tutorial"); }
         }
         double now = Time.realtimeSinceStartupAsDouble;
@@ -612,14 +645,16 @@ public sealed class RedboolPvpLobby : MonoBehaviour
     public void CaptureAfter(string label, float delay)
     {
         if (string.IsNullOrEmpty(captureDirectory)) return;
-        pendingCapture = label; pendingCaptureAt = Time.realtimeSinceStartupAsDouble + delay;
+        pendingCaptures.Add(new System.Collections.Generic.KeyValuePair<string, double>(label, Time.realtimeSinceStartupAsDouble + delay));
     }
-    string pendingCapture; double pendingCaptureAt;
+    // 필살기 한 번에 여러 장(시작·발동·적중·끝)을 남길 수 있게 예약을 줄로 둔다. 한 프레임에 한 장만 찍는다.
+    readonly System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, double>> pendingCaptures = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, double>>();
 
     void LateUpdate()
     {
-        if (pendingCapture == null || Time.realtimeSinceStartupAsDouble < pendingCaptureAt) return;
-        Capture(pendingCapture); pendingCapture = null;
+        double now = Time.realtimeSinceStartupAsDouble;
+        for (int i = 0; i < pendingCaptures.Count; i++)
+            if (now >= pendingCaptures[i].Value) { Capture(pendingCaptures[i].Key); pendingCaptures.RemoveAt(i); return; }
     }
 
     void Capture(string label)

@@ -132,7 +132,7 @@ public static class CombatContactIntegration
    }
    Check(SceneManager.GetActiveScene().name==expected,outcome+" routes to "+expected);
    Check(Mathf.Abs(Time.timeScale-1)<.001f,outcome+" restores normal time");
-   if(outcome=="lose")Check(!RunState.Instance.HasRun,"Loss resets the run");
+   if(outcome=="lose"){Check(RunState.Instance.HasRun&&!RunState.Instance.HasPendingBattle,"Loss keeps the run for Continue");RunState.Instance.AbandonRun();}   // 2026-11-19: 져도 판이 남는다. 검사용 판은 지운다
    if(outcome=="win")Check(RunState.Instance.Data.clearedNodeIds.Contains("scout"),"Victory records cleared stage");
    if(outcome=="boss")Check(sawEnding&&RunState.Instance.Data.finished,"Boss plays ending dialogue then credits");
   }

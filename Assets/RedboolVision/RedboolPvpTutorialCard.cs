@@ -16,8 +16,8 @@ public sealed class RedboolPvpTutorialCard
     public static readonly string[] Names = { "잽", "스트레이트", "하이킥", "로우킥", "막기", "왼쪽 이동", "오른쪽 이동", "필살기" };
     public static readonly string[] How =
     {
-        "왼손을 앞으로 빠르게 뻗었다가 바로 가드로 되돌리세요",
-        "오른손을 앞으로 곧게 뻗었다가 가드로 되돌리세요",
+        "왼손을 왼쪽 어깨 앞에서 정면으로 뻗었다가 당기세요",
+        "오른손을 오른쪽 어깨 앞에서 정면으로 뻗었다가 당기세요",
         "왼손을 머리 위로 들어 올렸다가 내리세요",
         "오른손을 머리 위로 들어 올렸다가 내리세요",
         "두 손을 얼굴 앞으로 올려 잠깐 버틴 뒤 편하게 내리세요",
@@ -28,7 +28,7 @@ public sealed class RedboolPvpTutorialCard
     public static readonly string[] Use =
     {
         "가장 빠른 공격. 거리를 재거나 상대의 공격을 끊을 때 씁니다",
-        "잽보다 묵직한 한 방. 빗나가거나 막히면 틈이 깁니다",
+        "잽보다 묵직한 한 방. 상대에게 닿는 거리에서 뻗으세요",
         "머리를 노리는 발차기. 느리지만 멀리 닿습니다",
         "다리를 노리는 발차기. 상대가 얼굴만 막고 있을 때 씁니다",
         "일반 공격을 막습니다. 필살기는 막아도 일부 피해를 받을 수 있습니다",
@@ -38,8 +38,8 @@ public sealed class RedboolPvpTutorialCard
     };
     public static readonly string[] Tips =
     {
-        "왼손 주먹이 카메라에 가려지지 않게, 한 번 뻗고 바로 되돌려 보세요.",
-        "왼손은 가드에 두고 오른손만 뻗어 보세요.",
+        "오른손은 가드에 두세요. 양쪽 팔꿈치가 화면에 보이나요?",
+        "왼손은 가드에 두세요. 양쪽 팔꿈치가 화면에 보이나요?",
         "실제로 다리를 들 필요는 없습니다. 왼손만 높이 올렸다가 내리세요.",
         "오른손만 높이 올렸다가 내리세요. 왼손은 가드에 둡니다.",
         "두 손이 모두 카메라에 보여야 합니다. 올린 채 잠깐 기다렸다가 내리세요.",
@@ -107,14 +107,14 @@ public sealed class RedboolPvpTutorialCard
     /// who: 고른 인물, specialName: 실제로 나갈 필살기 이름(인물의 기술을 쓰지 못하면 파운장),
     /// personal: 개인 동작 범위 상태(0 기본 인식, 1 확인 중, 2 적용됨).
     /// </summary>
-    public void Show(int step, int hits, bool live, RedboolPvpCharacter who, string specialName, int personal)
+    public void Show(int step, int hits, bool live, RedboolPvpCharacter who, string specialName, int personal, string completionMessage)
     {
         if (!root.activeSelf) root.SetActive(true);
         bool done = step >= Names.Length;
         if (poseRoot.activeSelf == done) poseRoot.SetActive(!done);
         foreach (var line in new[] { header, steps, phase, how, use, pips, note }) if (line.gameObject.activeSelf == done) line.gameObject.SetActive(!done);
         if (waiting.gameObject.activeSelf != done) waiting.gameObject.SetActive(done);
-        if (done) { waiting.text = "<color=#F2C46B>수련 완료!</color>\n상대가 끝나면 대전이 시작됩니다"; return; }
+        if (done) { waiting.text = completionMessage; return; }
 
         if (step != shownStep) { shownStep = step; stepStarted = Time.unscaledTime; gamePose.step = step; gamePose.SetVerticesDirty(); }
         float since = Time.unscaledTime - stepStarted;

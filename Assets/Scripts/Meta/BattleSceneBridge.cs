@@ -47,6 +47,7 @@ public class BattleSceneBridge : MonoBehaviour
     private Text bannerText;
 
     private RedboolBattlePreparation visionPreparation;
+    private BattleIntroSequence intro;
     private bool resolved;
     private bool runMode;                 // 지도를 거쳐 들어온 전투인가
     private float defaultFixedDelta;
@@ -61,6 +62,9 @@ public class BattleSceneBridge : MonoBehaviour
 
         runMode = !RedboolDuelTest.Active && Run != null && Run.HasPendingBattle;
         if (runMode) ApplyStage();
+        intro = GetComponent<BattleIntroSequence>();
+        if (intro == null) intro = gameObject.AddComponent<BattleIntroSequence>();
+        intro.Prepare();
     }
 
     void Start()
@@ -100,6 +104,7 @@ public class BattleSceneBridge : MonoBehaviour
     void Update()
     {
         if (resolved || playerHealth == null || enemyHealth == null) return;
+        if (intro != null && intro.HoldRound) return;
         if (visionPreparation != null && visionPreparation.HoldRound) return;
         if (playerHealth.IsDead || enemyHealth.IsDead) return;
 
@@ -122,6 +127,7 @@ public class BattleSceneBridge : MonoBehaviour
         resolved = false;
         RemainingSeconds = Mathf.Max(1f, roundDuration);
         SetInputLock(false);
+        if (intro != null) intro.Restart();
     }
 
     void OnDestroy()
@@ -312,7 +318,7 @@ public class BattleSceneBridge : MonoBehaviour
     {
         if (bannerText == null) return;
         bannerText.text  = (timedOut ? "시간 종료 · " : "") + (won ? (Run.PendingNode != null && Run.PendingNode.type == NodeType.Boss
-            ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 - 이 판이 끝납니다");
+            ? "최종 보스 격파 - 엔딩으로 이동합니다" : "승리 - 지도로 돌아갑니다") : "패배 · 이어하기로 다시 도전할 수 있습니다");   // 져도 판은 남는다(RunState.ResolveBattle)
         bannerText.color = won ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.5f, 0.5f);
         bannerText.gameObject.SetActive(true);
     }

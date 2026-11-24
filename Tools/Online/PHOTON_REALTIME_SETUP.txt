@@ -1,0 +1,110 @@
+REDBOOL 인터넷 2인 대전 — Photon Realtime 5 연결 준비
+
+현재 범위
+이 어댑터는 실제 Photon Realtime 5 API를 호출한다. SDK가 없을 때 인터넷
+연결이 완료된 것처럼 동작하지 않는다. SDK와 App ID가 준비되기 전에는
+PHOTON_REALTIME_5_OR_NEWER를 켜지 않는다. 테스트용 대체 클래스는 Tools에만
+있으며 제품에 포함하지 않는다. 로그인/결제/서버 생성은 수행하지 않는다.
+
+준비
+1. Photon 공식 SDK 다운로드에서 Unity용 Realtime 5 SDK를 받는다.
+   Photon.Client와 Photon.Realtime 네임스페이스를 제공하는 버전이 필요하다.
+   PUN 2, Fusion 또는 Realtime 4를 대신 추가하지 않는다. 공식 패키지에 포함된
+   종속 파일과 Unity 설정을 유지한 채 이 별도 Unity 프로젝트로 가져온다.
+   https://www.photonengine.com/sdks
+2. Photon Dashboard에 Realtime 앱을 만들고 App ID를 준비한다.
+   App ID는 앱 식별자이며 계정 비밀번호나 사용자 인증 토큰이 아니다.
+3. Assets/Resources/RedboolOnlineConfig.json을 만들고 다음 내용으로 설정한다.
+   { "appId": "실제 Realtime App ID" }
+   Resources 파일은 빌드에 포함된다. photonAppId 키도 호환용으로 읽는다.
+   개발 중에는 REDBOOL_PHOTON_APP_ID 환경 변수가 파일보다 우선한다.
+   환경 변수는 Unity/실행 파일을 시작한 프로세스에서 상속되어야 한다.
+   구성 예제는 같은 폴더의 RedboolOnlineConfig.json.example에 있다.
+4. Realtime Unity SDK 5.1.17 이상은 가져올 때 현재 빌드 프로필에
+   PHOTON_REALTIME_5_OR_NEWER를 자동 추가한다. 이때 어댑터의 실제 SDK 분기가
+   즉시 컴파일될 수 있다. Mac/Windows 대상 프로필에서 해당 표시를 확인하고,
+   없는 경우에만 Player Settings의 Scripting Define Symbols에 추가한다.
+5. 실제 SDK가 있는 상태로 Unity 컴파일을 끝낸 뒤 두 대에서 확인한다.
+   SDK 문서의 일부 Realtime 5 예제에는 예전 이름이 남아 있다. 이 어댑터는
+   RealtimeClient, EnterRoomArgs, RaiseEventArgs, PhotonHashtable 이름을 쓴다.
+
+연결 규약
+- 고정 지역: kr(서울). 앱 버전: redbool-online-v1. 다른 버전의 방은 분리된다.
+- 방 코드: KR-XXXXXX. 암호학적 난수 6자리, 혼동하기 쉬운 0/1/I/O 제외.
+- 비공개, 최대 2명. 참가 기능은 기존 방에만 들어가고 새 방을 만들지 않는다.
+- 방은 닫힌 상태에서 생성하고 authoritativeHost(actor 번호), roomEpoch,
+  protocol 속성 확인을 마친 뒤 공개되지 않은 참가 가능 상태로 연다.
+- 상대 참가 후 방을 닫는다. 어느 한 명이 이탈하면 현재 경기를 끝낸다.
+  자동 Master Client 이전을 경기 권한 이전으로 사용하지 않는다.
+- 현재는 Session 인스턴스마다 별도의 익명 ID를 만들고 같은 인스턴스의
+  취소/재참가 동안 유지한다. 디스크에 저장하거나 계정 신원으로 사용하지 않는다.
+  인증된 계정 신원이 필요한 공개 서비스에는
+  외부 Custom Authentication/입장 권한 검증이 별도로 필요하다. 방 코드를
+  아는 사람은 정원이 찰 때까지 참가할 수 있으며 코드는 신원 증명이 아니다.
+- Message 이벤트는 Photon 서버가 제공한 Sender actor 번호를 현재 상대와
+  비교하고, 현재 방 epoch가 맞는 봉투만 내보낸다. 페이로드의 슬롯값을
+  신원으로 믿지 않는다. 사용자 게임 판정/부정행위 방지는 별도의 게임 책임이다.
+
+호출 규약
+RedboolPhotonSession.Ensure()는 DontDestroyOnLoad 단일 인스턴스를 반환한다.
+모든 메서드, 이벤트 구독, Message 처리와 Unity 객체 변경은 메인 스레드에서
+수행한다. CreateRoom, JoinRoom, Leave, Send(byte, byte[], bool=false)를 사용한다.
+Leave는 대기 중인 의도를 지우고 방 상태를 즉시 무효화한다. 나중에 도착한
+OnJoinedRoom은 취소를 되돌리지 않는다. 새 요청은 이전 연결 종료 후 시작한다.
+실제 Cloud 검사에서 참가 취소 뒤 Master 서버가 약 18~19초 동안 방을 가득
+찬 것으로 응답했다. 같은 방에 명시적으로 다시 참가할 때의 GameFull만
+1초 간격 최대 23회, 취소 후 25초 안에서 재시도한다. 전체 연결 제한도
+25초로 유지한다. 다른 방/일반 정원 초과/없는 방/닫힌 방은 바로 실패한다.
+재시도 대기 중 Leave도 즉시 취소한다. 이는 관측된 사례에 대한 제한된
+복구이며 Photon 서버 정리 시간의 보장이 아니다.
+RoomEntered는 서버의 방/호스트 정보를 확인한 뒤에만 호출한다.
+RoomLeft는 실제 참가했던 방의 상태가 무효화될 때 한 번 호출한다.
+ConnectionEpoch는 로컬 수명 세대(int)이며 양쪽의 숫자가 같을 필요는 없다.
+RttMs는 Photon 서버까지 왕복 시간이다. 상대까지 왕복이나 인식 지연이 아니다.
+Supported는 SDK 컴파일 분기가 활성화되었음을 뜻한다. App ID나 인터넷의
+유효성은 실제 연결에서 확인하며 Error/Status로 알린다.
+
+메시지와 지연
+- 사용자 payload 상한 8192바이트, 봉투 28바이트. 자주 보내는 메시지는
+  가능한 960바이트 미만을 목표로 한다. 상한 초과는 예외로 UI를 중단하지
+  않고 거절하며 RejectedOutgoingMessages가 증가하고 Error가 설정된다.
+- 큰 메시지는 Photon의 UDP 분할/재조립 경로가 될 수 있어 지연이 늘어난다.
+  시각화 패킷은 작게 나누고, 큰 JSON은 상위 연결부에서 제한된 크기로
+  압축한다. 8192바이트 허용이 단일 UDP 데이터그램 보장을 의미하지 않는다.
+- live 메시지는 UnreliableUnsequenced, 암호화, 캐시 없음, 특정 상대 actor
+  대상으로 보낸다. 상위 게임 코드의 이벤트 ID/중복 처리/순서 정책을 유지한다.
+- 봉투 중복은 최근 512개(channel,sequence)만 거절하며 순서가 바뀌어도
+  처음 받은 메시지는 허용한다. 이 기록은 방이 바뀌면 초기화한다.
+- 입력 생성 후 Send는 즉시 SendOutgoingCommands를 호출한다. 별도 30Hz
+  대기 타이머가 없다. Update에서 최대 128개 명령을 처리하고 LateUpdate에도
+  송신을 진행한다. 발송 주기는 상위 게임 코드에서 조절한다.
+- 별도 앱 송신 큐를 만들지 않는다. SDK 송신/미확인 reliable 명령이 64개
+  이상이면 live 메시지를 버리고 reliable 메시지 초과는 연결을 종료한다.
+  미처리 reliable 수신 명령 512개 초과도 종료한다. 프레임 정체 뒤 오래된
+  입력을 순서대로 재생하지 않도록 상위 코드에서도 입력 나이를 검사한다.
+
+실제 연결에서 확인할 항목
+서로 다른 인터넷의 Windows/Mac 두 대에서 방 생성/참가, 잘못된 코드,
+가득 찬 방, 취소 직후 늦은 서버 응답, 호스트 종료, 손님 종료, 네트워크 단절,
+재참가, 3번째 사용자 거절, 잘못된 버전, 패킷 손실/재정렬을 확인한다.
+실제 SDK 컴파일과 Cloud 접속은 SDK 및 App ID가 준비된 뒤 별도로 검증한다.
+Tools의 결정적 대체 클래스 테스트 결과는 그 검증을 대신하지 않는다.
+macOS의 오프라인 검사: python3 Tools/Online/run_photon_contract_tests.py
+Unity 설치 경로가 다르면 --unity "/경로/Unity.app"을 덧붙인다.
+이 검사는 방 취소/이탈/호스트 변경/송수신 정체와 봉투 파서를 검사하고,
+설치된 Unity 어셈블리로 SDK가 없는 분기를 컴파일한다. Cloud에는 접속하지 않는다.
+
+요금 확인(2026-11-16 공식 페이지 확인)
+Realtime 개발용 무료: 20 CCU, 월 60GB, 개발 전용. 출시용 100 CCU는 $95
+일시불/12개월/월 0.3TB이고 자동 갱신되지 않는다. Fusion 무료 정책과 다르다.
+권장 500 messages/s/room에는 서버 송수신/제어 메시지가 포함되므로 실제
+Photon Dashboard 트래픽을 측정한다. 가격과 조건은 출시 직전 다시 확인한다.
+
+공식 근거
+https://doc.photonengine.com/realtime/v5/getting-started/migration-v4-to-v5
+https://doc.photonengine.com/realtime/v5/connection-and-authentication/realtime-workflow-cs
+https://doc.photonengine.com/realtime/v5/connection-and-authentication/regions
+https://doc.photonengine.com/realtime/v5/matchmaking/matchmaking-and-lobby
+https://doc.photonengine.com/realtime/v5/gameplay/hostmigration
+https://doc.photonengine.com/realtime/v5/troubleshooting/faq
+https://www.photonengine.com/realtime/pricing

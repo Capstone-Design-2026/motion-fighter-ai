@@ -669,9 +669,25 @@ public sealed partial class EnemySpecial
     public sealed class GhostRenderSample : IDisposable
     {
         public GameObject Root { get; private set; }
+        public string AnimationState { get; private set; }
+        public bool Dark { get; private set; }
+        readonly bool prepareAnimation;
         EnemySpecial owner; Material material;
-        internal GhostRenderSample(EnemySpecial owner, GameObject root, Material material)
-        { this.owner = owner; Root = root; this.material = material; }
+        internal GhostRenderSample(EnemySpecial owner, GameObject root, Material material,
+            string animationState = "WALK_FORWARD", bool dark = true, bool prepareAnimation = false)
+        { this.owner = owner; Root = root; this.material = material; AnimationState = animationState; Dark = dark; this.prepareAnimation = prepareAnimation; }
+        // Called only after the visual holder is active. No animation events or
+        // root motion may escape a preparation sample; the source avatar is untouched.
+        public void PrepareForRender()
+        {
+            if (!prepareAnimation || Root == null || !Root.activeInHierarchy) return;
+            foreach (var anim in Root.GetComponentsInChildren<Animator>(true))
+            {
+                anim.applyRootMotion = false; anim.fireEvents = false;
+                int state = Animator.StringToHash(AnimationState);
+                if (anim.HasState(0, state)) { anim.Play(state, 0, 0f); anim.Update(0f); }
+            }
+        }
         public void Dispose()
         {
             if (Root != null) { Root.SetActive(false); UnityEngine.Object.Destroy(Root); Root = null; }
@@ -688,6 +704,31 @@ public sealed partial class EnemySpecial
         Material orb;
         var go = BuildGhost(position, position + Vector3.right, "WALK_FORWARD", true, 2.4f, inactiveHolder, true, out orb);
         var sample = new GhostRenderSample(this, go, orb); ghostRenderSamples.Add(sample); return sample;
+    }
+    // The scout's first LOWKICK/HIGHKICK ghosts use a different (light) material
+    // path from the entrance's dark clone. Prepare only the selected technique,
+    // within the existing four render frames and its existing cleanup owner.
+    public void CreateGhostRenderSamples(Transform inactiveHolder, Vector3 position, List<GhostRenderSample> output)
+    {
+        if (output == null) throw new ArgumentNullException(nameof(output));
+        if (!isActiveAndEnabled || Current == null) return;
+        if (Current.id != "scout")
+        {
+            var existing = CreateGhostRenderSample(inactiveHolder, position);
+            if (existing != null) output.Add(existing);
+            return;
+        }
+        if (fx == null || foeView == null || foeView.visualRoot == null) return;
+        if (inactiveHolder == null || inactiveHolder.gameObject.activeInHierarchy)
+            throw new ArgumentException("Ghost warmup requires an inactive holder", nameof(inactiveHolder));
+        foreach (string state in new[] { "LOWKICK", "HIGHKICK" })
+        {
+            Material orb;
+            var go = BuildGhost(position, position + Vector3.right, state, false, 1f, inactiveHolder, true, out orb);
+            foreach (var anim in go.GetComponentsInChildren<Animator>(true)) anim.fireEvents = false;
+            var sample = new GhostRenderSample(this, go, orb, state, false, true);
+            ghostRenderSamples.Add(sample); output.Add(sample);
+        }
     }
     void ClearGhostRenderSamples()
     {

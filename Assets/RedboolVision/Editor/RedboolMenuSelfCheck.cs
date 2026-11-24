@@ -58,6 +58,7 @@ public static class RedboolMenuSelfCheck
         }
         finally {if(root!=null)UnityEngine.Object.DestroyImmediate(root);}
         CheckDiagnosticExport();
+        CheckPreviousPlayerLogExport();
         CheckRecognitionExport();
         CheckLinkedDiagnosticRoot();
         string pythonFixture=Environment.GetEnvironmentVariable("REDBOOL_PYTHON_JOURNAL_FIXTURE_ROOT");
@@ -101,6 +102,54 @@ public static class RedboolMenuSelfCheck
             Check(File.ReadAllText(Path.Combine(session,"video.mp4"))=="private-video", "Export preserves excluded source data");
         }
         finally {Directory.Delete(root,true);}
+    }
+
+    public static void CheckPreviousPlayerLogExport()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "REDBOOL_prior_log_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string log = Path.Combine(root, "Player.log");
+        string previous = Path.Combine(root, "Player-prev.log");
+        File.WriteAllText(log, "current");
+        const int maxBytes = 2 * 1024 * 1024;
+        try
+        {
+            using (var file = File.Create(previous))
+            {
+                file.SetLength(maxBytes + 64);
+                file.Position = file.Length - 1;
+                file.WriteByte(42);
+            }
+            using (var archive = ZipFile.OpenRead(RedboolPackageDiagnostics.BuildExport(Path.Combine(root,"normal"), log)))
+            {
+                var entry = archive.GetEntry("Unity-previous.log");
+                Check(entry != null && entry.Length == maxBytes && archive.GetEntry("Unity-previous.log.truncated.txt") != null,
+                      "Previous game log is capped at the last 2 MiB");
+                using (var source = entry.Open())
+                using (var tail = new MemoryStream())
+                {
+                    source.CopyTo(tail);
+                    Check(tail.GetBuffer()[maxBytes - 1] == 42, "Previous log retains the latest byte");
+                }
+            }
+            string custom = Path.Combine(root, "Custom.log");
+            File.WriteAllText(custom, "current");
+            using (var archive = ZipFile.OpenRead(RedboolPackageDiagnostics.BuildExport(Path.Combine(root,"custom"), custom)))
+                Check(archive.GetEntry("Unity-previous.log") == null, "Custom log locations do not imply a previous game log");
+            File.Delete(previous);
+            using (var archive = ZipFile.OpenRead(RedboolPackageDiagnostics.BuildExport(Path.Combine(root,"first"), log)))
+                Check(archive.GetEntry("Unity-previous.log") == null && archive.GetEntry("Unity.log") != null, "A first session exports its current log alone");
+            if (Application.platform == RuntimePlatform.OSXEditor)
+            {
+                using (var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo {
+                    FileName="/bin/ln", Arguments="-s \""+custom+"\" \""+previous+"\"", UseShellExecute=false, CreateNoWindow=true }))
+                { proc.WaitForExit(); Check(proc.ExitCode == 0, "Previous game log link fixture created"); }
+                using (var archive = ZipFile.OpenRead(RedboolPackageDiagnostics.BuildExport(Path.Combine(root,"link"), log)))
+                    Check(archive.GetEntry("Unity-previous.log") == null, "An unrelated link is not exported as the previous log");
+            }
+            Debug.Log("Previous game log export checks passed");
+        }
+        finally { Directory.Delete(root, true); }
     }
 
     static void CheckRecognitionExport()

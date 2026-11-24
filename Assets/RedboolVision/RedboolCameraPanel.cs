@@ -3,13 +3,13 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 /// <summary>Own-camera preview and calibration controls; no video crosses the LAN.</summary>
+[DefaultExecutionOrder(500)] // Apply the displayed lobby phase after the guest view updates.
 public sealed class RedboolCameraPanel : MonoBehaviour
 {
     RedboolCameraRuntime cameraRuntime;
     Canvas canvas;RectTransform panel;
     RawImage image;Text heading,hint,placeholder,combatHint,calibrationStatus;
     Image progress;RectTransform track;Button calibrate,reconnect,fold,resize;
-    Transform calibrateMark,reconnectMark;
     bool folded,tutorial,manualExpanded,wasCalibrated;float nextUi,nextTutorialCheck;
     CaveTutorial cave;
     readonly RedboolCombatPresentation presentation=new RedboolCombatPresentation();
@@ -44,19 +44,27 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         UIFactory.Place(track,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
         progress=UIFactory.CreateImage("CalibrationProgress",track,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
         calibrate=UIFactory.CreateButton("CameraCalibrate",panel,"보정 · C",20,WuxiaTheme.Ink,()=>cameraRuntime.Calibrate());
-        UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));WuxiaTheme.StyleButton(calibrate);
+        UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));
+        WuxiaTheme.StyleButton(calibrate);
         reconnect=UIFactory.CreateButton("CameraReconnect",panel,"다시 연결",18,WuxiaTheme.Ink,()=>cameraRuntime.Reconnect());
-        UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));WuxiaTheme.StyleButton(reconnect);
-        calibrateMark=calibrate.transform.Find("MenuMark");reconnectMark=reconnect.transform.Find("MenuMark");
+        UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));
+        WuxiaTheme.StyleButton(reconnect);
     }
-    void Update()
+    void LateUpdate()
     {
         if(cameraRuntime==null || canvas==null)return;
         canvas.enabled=cameraRuntime.ShowPanel;
-        if(!canvas.enabled || Time.unscaledTime<nextUi)return;
+        if(!canvas.enabled)return;
+        if(Time.unscaledTime<nextUi && panel.gameObject.activeSelf != SelectingCharacter())return;
         RefreshDisplay();
     }
-    // Runs at 10Hz. Presentation only: no recognition or game-state changes.
+    static bool SelectingCharacter()
+    {
+        var game = RedboolPvp.Instance;
+        return RedboolPvp.Active && game != null && game.Lobby != null
+            && game.Lobby.Current == RedboolPvpLobby.Stage.Select;
+    }
+    // Runs at 10Hz and immediately when selection opens or closes.
     void RefreshDisplay()
     {
         nextUi=Time.unscaledTime+.1f;
@@ -68,7 +76,13 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         bool pvpPractice=LocalPracticeActive();
         var pvp=RedboolPvp.Instance;
         bool newPvpCards=pvpPractice&&pvp!=null&&pvp.Lobby!=null;
-        bool selecting=RedboolPvp.Active&&pvp!=null&&pvp.Lobby!=null&&pvp.Lobby.Current==RedboolPvpLobby.Stage.Select;
+        bool selecting = SelectingCharacter();
+        if (panel.gameObject.activeSelf == selecting) panel.gameObject.SetActive(!selecting);
+        if (selecting)
+        {
+            pvp.Lobby.ShowLocalSelectionPreview(!folded && cameraRuntime.PreviewFresh ? cameraRuntime.Preview : null);
+            return;
+        }
         tutorial=cave!=null&&cave.isActiveAndEnabled||pvpPractice;
         // New PvP cards already explain each motion in detail. Keep the own-camera
         // image compact between the two pose diagrams rather than covering a card.
@@ -86,14 +100,7 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         float footer=SmallPreview?(string.IsNullOrEmpty(guidance)?52:104):174;
         float height=folded?footer+70:previewHeight+70+footer;
         bool top=cave!=null&&cave.isActiveAndEnabled;
-        if(selecting)
-        {
-            // Use only our large illustration area. The twelve selectable cards,
-            // names, special descriptions and opponent portrait remain unobscured.
-            var anchor=new Vector2(RedboolPvp.IsClient?1665f/1920f:255f/1920f,(SmallPreview?673f:720f)/1080f);
-            UIFactory.Place(panel,anchor,new Vector2(.5f,.5f),Vector2.zero,new Vector2(width,height));
-        }
-        else if(newPvpCards)
+        if(newPvpCards)
         {
             float centre=SmallPreview?Mathf.Max(555f,428f+height*.5f):920f-height*.5f;
             UIFactory.Place(panel,new Vector2(.5f,centre/1080f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(width,height));
@@ -133,8 +140,6 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         calibrate.GetComponentInChildren<Text>().text=SmallPreview?"재보정 · C":"보정 · C";
         calibrate.GetComponentInChildren<Text>().fontSize=SmallPreview?16:20;
         calibrate.interactable=cameraRuntime.Running&&cameraRuntime.Fresh&&(cameraRuntime.Synthetic||(state!=null&&state.camera_connected));
-        if(calibrateMark!=null)calibrateMark.gameObject.SetActive(!SmallPreview);
-        if(reconnectMark!=null)reconnectMark.gameObject.SetActive(!SmallPreview);
         reconnect.gameObject.SetActive(!SmallPreview||attention);
         UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,SmallPreview?4:12),new Vector2(SmallPreview?100:136,SmallPreview?24:34));
     }

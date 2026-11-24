@@ -1,0 +1,27 @@
+전투 준비 캐릭터 검색의 반복 할당 감소 — 2026-11-17
+
+변경 범위
+RedboolBattlePreparation.RefreshFighters의 루트/하위 Fighter 검색 배열을 재사용 List로 교체했다. 0.25초 검색 주기, 원래 캐릭터 순서, 비활성 자식 제외, 보정·준비 잠금, 전투/통신/카메라 입력 정책은 바꾸지 않았다. 검색 후 임시 List의 참조를 비워 제거된 객체를 불필요하게 잡아두지 않는다.
+
+검증
+Unity 6000.4.5f1 실제 Editor의 배치 EditMode에서 108개 검사를 통과했다. Play·카메라·네트워크 전투를 시작하지 않았고 씬이나 게임 저장 파일을 저장하지 않았다. 실제 Assets/Scenes/ScoutPass.unity의 플레이어/적 2명 및 별도 구성 씬에서 원래 알고리즘과 대상/순서를 대조했다. 활성/비활성 자식·루트, 비활성 Fighter 컴포넌트, 생성/삭제, 부모 변경, 루트 순서, 다른 씬 이동을 포함한다.
+
+측정은 Unity native GC.Alloc 이벤트 횟수다. 알려진 byte 배열 4개를 할당하는 대조군으로 측정기가 4회를 정확히 기록하는지 먼저 검증했다. GC.GetAllocatedBytesForCurrentThread는 이 Unity Mono에서 0만 반환했고, ProfilerRecorder sample.Value는 할당 byte 수가 아니므로 byte 수로 보고하지 않는다.
+
+워밍업 후 AB/BA 결과:
+- ScoutPass 200회: 기존 각각 3,800회, 수정 각각 0회. 기존 2.97/3.03ms, 수정 2.74/2.87ms.
+- 130개 루트 구성 씬 400회: 기존 각각 53,200회, 수정 각각 0회. 기존 7.25/6.93ms, 수정 3.90/3.98ms.
+시간은 각 반복 전체의 단일 Editor 측정이다. 실제 게임 FPS·카메라 지연 개선치로 해석하면 안 된다. List가 처음 커질 때의 할당까지 없앴다는 뜻도 아니다.
+
+원본 기록에서 확인된 끊김
+2026-11-17 00:24:22.240의 149.29ms 프레임은 GC 카운트 증가와 겹쳤다. 00:26:32.558의 215.85ms 프레임은 GC 증가가 없었다. 두 경우 이미 수신된 상태 패킷의 메인 스레드 적용이 각각 약 148.50/213.89ms 늦었다. 해당 구간 카메라 획득은 약 30fps였고 JPEG 디코딩 최대는 각각 0.393/0.493ms였다. 두 번째 구간 Heavy는 실행되지 않았으며 원시 모델 처리 시간으로 해당 긴 게임 프레임을 설명할 근거가 없다. 기존 기록에 세부 CPU/GPU 스택이 없으므로 두 끊김 모두 해결됐다고 주장하지 않는다. 이번 수정은 검증된 반복 할당만 줄인다.
+
+빌드 입력 보존
+격리 checkout은 eaa7377799cbaa8f97e8e33f981a872f0b4cde3b에서 만들었다. 기존 안정판, 원본 dirty 온라인 checkout, 원본 영상/ZIP은 수정하지 않았다. Unity import에 필요한 Packages/NuGet 환경 overlay 22개는 별도 파일별 SHA 목록으로 남겼고 이번 코드 커밋에는 포함하지 않는다.
+초기 누락 LFS 828개 중 enabled 27개 씬의 실제 dependency 391개(613,053,368 bytes)를 원격에서 받았다. 각 HEAD LFS OID/size와 복원 파일 SHA/size를 검증했다. 복원 후 다시 import하고 수행한 최종 검사에서 enabled 씬 dependency의 미복원 LFS pointer는 0개다. 이 복원은 원본 asset 변경이 아니며 캐시만 믿고 새 빌드에서 맵을 누락시키지 않기 위한 조치다. 다른 미참조 파일을 모두 복원했다는 뜻은 아니다.
+
+재실행
+UNITY_MCP_DISABLE=1을 설정하고 REDBOOL_PREPARATION_ALLOCATION_OUTPUT에 새 결과 폴더를 지정한다. Unity Editor에 -batchmode -nographics -projectPath <격리 프로젝트> -executeMethod RedboolPreparationAllocationCheck.Run -logFile <새 로그 경로>를 전달한다. LFS 원본과 프로젝트 의존성이 복원된 상태여야 한다. 결과 JSON을 함께 저장한다.
+
+측정 API 근거
+https://docs.unity3d.com/cn/6000.0/ScriptReference/Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread.html

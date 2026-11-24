@@ -35,7 +35,14 @@ public class Fighter : MonoBehaviour
 {
     [Header("공격 수치")]
     [SerializeField] private int attackDamage = 10;
-    [SerializeField] private Vector2 knockback = new Vector2(3.5f, 2f);
+
+    [Header("기술별 넉백 (직격일 때, 막히면 없음)")]
+    [Tooltip("잽·스트레이트 직격 넉백. 0 이면 밀리지 않는다.")]
+    [SerializeField] private Vector2 punchKnockback = Vector2.zero;
+    [Tooltip("로우킥 직격 넉백(작게).")]
+    [SerializeField] private Vector2 lowKickKnockback = new Vector2(2.5f, 0.6f);
+    [Tooltip("하이킥 직격 넉백(크게).")]
+    [SerializeField] private Vector2 highKickKnockback = new Vector2(5f, 1.5f);
 
     [Header("판정 박스 (캐릭터 정면 기준)")]
     [SerializeField] private float hitboxDistance = 0.85f;   // 앞으로 얼마나
@@ -55,11 +62,13 @@ public class Fighter : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float blockDamageMultiplier = 0.2f;
 
-    [Header("방어 규칙 (방어하는 쪽 기준)")]
-    [Tooltip("공격을 막아냈을 때 공격한 쪽의 후딜에 더해지는 시간(초). "
-           + "후딜이 끝날 때까지 공격한 쪽은 다시 공격하거나 방어하지 못한다.")]
-    [Min(0f)]
-    [SerializeField] private float blockPunish = 0.4f;
+    [Header("막혔을 때 공격한 쪽 추가 후딜 (초, 기술별)")]
+    [Tooltip("잽·스트레이트가 막혔을 때. 0 이면 딜레이 없음.")]
+    [Min(0f)] [SerializeField] private float punchBlockedDelay = 0f;
+    [Tooltip("로우킥이 막혔을 때(아주 짧게).")]
+    [Min(0f)] [SerializeField] private float lowKickBlockedDelay = 0.1f;
+    [Tooltip("하이킥이 막혔을 때(로우킥보다 길게).")]
+    [Min(0f)] [SerializeField] private float highKickBlockedDelay = 0.35f;
 
     [Header("공격 규칙 (공격하는 쪽 기준)")]
     [Tooltip("공격이 직격했을 때 맞은 쪽의 피격 경직에 더해지는 시간(초). "
@@ -67,7 +76,7 @@ public class Fighter : MonoBehaviour
     [Min(0f)]
     [SerializeField] private float hitStunBonus = 0.15f;
     [Tooltip("공격이 아무에게도 맞지 않았을 때(헛침) 공격한 쪽의 후딜에 더해지는 시간(초). "
-           + "막힌 경우는 방어 규칙의 blockPunish(방어한 쪽 값)를 따른다.")]
+           + "막힌 경우는 기술별 막혔을 때 추가 후딜을 따른다.")]
     [Min(0f)]
     [SerializeField] private float whiffPunish = 0.3f;
 
@@ -129,7 +138,16 @@ public class Fighter : MonoBehaviour
     /// K.O. 연출 중에는 true. 진 쪽뿐 아니라 이긴 쪽 조작까지 전부 막는다.
     /// 이게 없으면 쓰러진 상대를 계속 때릴 수 있다. BattleSceneBridge 가 켜고 끈다.
     /// </summary>
-    public bool InputLocked { get; set; }
+    private bool inputLocked;
+    public bool InputLocked { get => inputLocked || RoundIntroLocked; set => inputLocked = value; }
+    public bool RoundIntroLocked { get; private set; }
+    public bool OnlyRoundIntroLocked => RoundIntroLocked && !inputLocked;
+    // The intro owns its lock independently of KO, story and camera preparation.
+    public void SetRoundIntroLock(bool value)
+    {
+        RoundIntroLocked = value;
+        if (value && Health != null) { CancelAttack(); EndGuard(); IsCrouching = false; }
+    }
     public bool VisionPreparationLocked { get; private set; }
     public void SetVisionPreparationLock(bool value)
     {
@@ -225,7 +243,6 @@ public class Fighter : MonoBehaviour
     private bool preciseHitFrameSent;   // AttackHitFrame 을 보냈는지
     private bool preciseResolved;       // 판정 구간이 끝나 결과를 확정했는지
     private bool preciseLanded, preciseBlocked;
-    private float precisePunish;        // 막힘이면 방어한 쪽 blockPunish 중 가장 큰 값
     private float preciseEndsAt;        // 후딜(+벌칙)까지 끝나는 시각
 
     public void FinishPreciseAttack(float now)
@@ -237,7 +254,7 @@ public class Fighter : MonoBehaviour
         {
             preciseResolved = true;
             ClearIntent();
-            float punish = preciseBlocked ? precisePunish : !preciseLanded ? whiffPunish : 0f;
+            float punish = preciseBlocked ? BlockedDelayOf(CurrentMove) : !preciseLanded ? whiffPunish : 0f;
             preciseEndsAt = AttackStarted + Fighter3DView.Duration(CurrentMove) + punish;
         }
 
@@ -251,16 +268,16 @@ public class Fighter : MonoBehaviour
         bool guarded=IsGuardedBy(target);
         // 방어에 성공해도 정해진 피해(펀치 2, 킥 5)는 들어간다. 넉백은 없다.
         int damage=guarded ? GuardedDamageOf(CurrentMove) : attackDamage;
-        Vector2 force=guarded ? Vector2.zero : new Vector2(knockback.x*Facing,knockback.y);
+        Vector2 kb=KnockbackOf(CurrentMove);
+        Vector2 force=guarded ? Vector2.zero : new Vector2(kb.x*Facing,kb.y);
         if (!target.Health.TakeDamage(damage,force,guarded)) return;
 
         if (guarded)
         {
-            // 성공: 막은 쪽은 경직이 없고, 공격한 쪽은 후딜이 길어진다.
+            // 성공: 막은 쪽은 경직이 없고, 공격한 쪽은 기술에 따라 후딜이 늘어난다(BlockedDelayOf).
             target.Health.ClearStun();
             target.GuardSucceeded();
             preciseBlocked = true;
-            precisePunish = Mathf.Max(precisePunish, target.blockPunish);
         }
         else
         {
@@ -283,6 +300,10 @@ public class Fighter : MonoBehaviour
     public float GuardReduction => 1f-blockDamageMultiplier;
     public void ConfigureGuard(float reduction) { blockDamageMultiplier=1f-Mathf.Clamp(reduction,0,.9f); }
     /// <summary>이 공격이 막혔을 때 막은 쪽에 주는 피해. 펀치(잽·스트레이트)와 킥이 다르다.</summary>
+    /// <summary>직격 넉백. 펀치는 없음, 로우킥은 작게, 하이킥은 크게.</summary>
+    public Vector2 KnockbackOf(CombatMove move) { return move == CombatMove.HighKick ? highKickKnockback : move == CombatMove.LowKick ? lowKickKnockback : punchKnockback; }
+    /// <summary>막혔을 때 공격한 쪽 후딜에 더해지는 시간. 펀치는 없음, 로우킥은 짧게, 하이킥은 그보다 길게.</summary>
+    public float BlockedDelayOf(CombatMove move) { return move == CombatMove.HighKick ? highKickBlockedDelay : move == CombatMove.LowKick ? lowKickBlockedDelay : punchBlockedDelay; }
     public int GuardedDamageOf(CombatMove move) { return move == CombatMove.HighKick || move == CombatMove.LowKick ? guardedKickDamage : guardedPunchDamage; }
     public int GuardedDamage(int incoming) { return Mathf.Max(1,Mathf.CeilToInt(incoming*blockDamageMultiplier-.00001f)); }
     public void ConfigureDamage(int damage) { attackDamage = Mathf.Max(1, damage); }
@@ -475,7 +496,6 @@ public class Fighter : MonoBehaviour
             IsAttacking = true;
             preciseAttack = attack;
             preciseHitFrameSent = preciseResolved = preciseLanded = preciseBlocked = false;
-            precisePunish = 0f;
         }
         else attackRoutine = StartCoroutine(AttackRoutine(attack));
         return true;
@@ -510,7 +530,7 @@ public class Fighter : MonoBehaviour
     /// <summary>
     /// 판정. 공격한 쪽 후딜에 더할 시간(초)을 돌려준다.
     ///   직격: 0. 대신 맞은 쪽 경직이 hitStunBonus 만큼 늘어난다.
-    ///   막힘: 방어한 쪽의 blockPunish.
+    ///   막힘: 기술별 BlockedDelayOf (펀치 0, 로우킥 짧게, 하이킥 길게).
     ///   헛침(아무에게도 대미지가 들어가지 않음): 내 whiffPunish.
     /// </summary>
     private float ResolveHit(AttackHeight height)
@@ -537,7 +557,8 @@ public class Fighter : MonoBehaviour
 
             int damage = attackDamage;
             bool guarded = false;
-            Vector2 kb = new Vector2(knockback.x * Facing, knockback.y);
+            Vector2 moveKb = KnockbackOf(CurrentMove);
+            Vector2 kb = new Vector2(moveKb.x * Facing, moveKb.y);
 
             var targetFighter = col.GetComponentInParent<Fighter>();
             bool targetGuarding = targetFighter != null && targetFighter.IsBlocking;
@@ -567,10 +588,10 @@ public class Fighter : MonoBehaviour
             {
                 if (guarded)
                 {
-                    // 성공: 막은 쪽은 경직이 없고, 공격한 쪽은 후딜이 길어진다.
+                    // 성공: 막은 쪽은 경직이 없고, 공격한 쪽은 기술에 따라 후딜이 늘어난다.
                     targetHealth.ClearStun();
                     targetFighter.GuardSucceeded();
-                    punish = Mathf.Max(punish, targetFighter.blockPunish);
+                    punish = Mathf.Max(punish, BlockedDelayOf(CurrentMove));
                 }
                 else if (targetGuarding)
                 {

@@ -210,14 +210,39 @@ public sealed class RedboolPackageDiagnostics : MonoBehaviour
             if(!string.IsNullOrEmpty(gameLog)&&File.Exists(gameLog))
             {
                 if(IsLink(gameLog))report.warnings.Add("Unity.log: linked file excluded");
-                else AddSnapshot(archive,gameLog,"Unity.log",8*1024*1024);
+                else
+                {
+                    AddSnapshot(archive,gameLog,"Unity.log",8*1024*1024);
+                    AddPreviousPlayerLog(archive,gameLog,report);
+                }
             }
             using(var writer=new StreamWriter(archive.CreateEntry("READ_ME.txt").Open(),Encoding.UTF8))
-                writer.Write("Latest 3 integrated-camera runs; no RGB/video/models.\nrecognition/ contains closed, indexed, hash-verified full-rate landmark chunks when available. Read landmarks.index.json and export_report.json for gaps, omissions and completeness before replay.\nCompressed chunks are copied whole, never tail-truncated. Older text logs over the size limit contain their tail and a truncation note.\nSource files unchanged. Coordinates are model estimates, not human-labelled intended actions.\n");
+                writer.Write("Latest 3 integrated-camera runs; no RGB/video/models. Unity.log is the current game log. Unity-previous.log, when available, contains the previous game session (last 2 MiB).\nrecognition/ contains closed, indexed, hash-verified full-rate landmark chunks when available. Read landmarks.index.json and export_report.json for gaps, omissions and completeness before replay.\nCompressed chunks are copied whole, never tail-truncated. Older text logs over the size limit contain their tail and a truncation note.\nSource files unchanged. Coordinates are model estimates, not human-labelled intended actions.\n");
             AddBytes(archive,"export_report.json",Encoding.UTF8.GetBytes(JsonUtility.ToJson(report,true)),System.IO.Compression.CompressionLevel.Optimal);
         }
         return zip;
     }
+    static void AddPreviousPlayerLog(ZipArchive archive, string gameLog, ExportReport report)
+    {
+        if (!string.Equals(Path.GetFileName(gameLog), "Player.log", StringComparison.OrdinalIgnoreCase)) return;
+        string directory = Path.GetDirectoryName(Path.GetFullPath(gameLog));
+        string previous = Path.Combine(directory, "Player-prev.log");
+        try
+        {
+            if (!File.Exists(previous)) return;
+            if (IsLink(directory) || IsLink(previous))
+            {
+                report.warnings.Add("Unity-previous.log: linked file or directory excluded");
+                return;
+            }
+            AddSnapshot(archive, previous, "Unity-previous.log", 2 * 1024 * 1024);
+        }
+        catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+        {
+            report.warnings.Add("Unity-previous.log: " + e.GetType().Name);
+        }
+    }
+
     static bool IsLink(string path) => (File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0;
     static IEnumerable<string> PlainFiles(string root)
     {
