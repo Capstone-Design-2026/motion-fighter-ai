@@ -99,8 +99,8 @@ class OnlineBuildProvenanceTests(unittest.TestCase):
                     'src/redbool_demo/landmark_recording.py', 'src/redbool_demo/six_engine.py',
                     'src/action_engine/experimental.py', 'src/redbool_demo/temporal_forward.py',
                     'src/redbool_demo/personal.py', 'src/redbool_demo/heavy_auxiliary.py',
-                    'src/redbool_demo/overlap_punch.py'}
-        added = {'src/redbool_demo/temporal_forward.py', 'src/redbool_demo/overlap_punch.py'}
+                    'src/redbool_demo/overlap_punch.py', 'src/redbool_demo/cross_exit.py', 'src/redbool_demo/low_punch.py'}
+        added = {'src/redbool_demo/temporal_forward.py', 'src/redbool_demo/overlap_punch.py', 'src/redbool_demo/cross_exit.py', 'src/redbool_demo/low_punch.py'}
         self.assertEqual(set(base['runtime_python_paths']) | added, set(online['runtime_python_paths']))
         self.assertEqual(base['models'], online['models'])
         self.assertEqual(base['dependency_contract'], online['dependency_contract'])

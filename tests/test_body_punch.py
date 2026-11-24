@@ -31,8 +31,8 @@ class BodyPunchRecordingTests(unittest.TestCase):
                 if o.frame_id in markers:e.request_calibration();e.calibrating=markers[o.frame_id]!='PAUSE'
             cls.results.append((events,states))
     def gestures(self,a,b,mirror=False):return [g for t,g in self.results[int(mirror)][0] if a<=t<=b]
-    def test_four_reviewed_low_punch_misses_are_recovered(self):
-        for a,b in [(71.8,72.2),(76.4,77),(83.6,84.3),(88.4,89.2)]:
+    def test_reviewed_low_punch_misses_are_recovered(self):
+        for a,b in [(71.8,72.2),(74.1,74.55),(76.4,77),(83.6,84.3),(85.7,86.2),(88.4,89.2)]:
             self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
             self.assertEqual(self.gestures(a,b,True),['LEFT_PUNCH'])
     def test_high_block_to_punch_sequences_preserved(self):
@@ -50,9 +50,9 @@ class BodyPunchRecordingTests(unittest.TestCase):
         self.assertEqual(self.gestures(45,69),[])
         self.assertEqual(self.gestures(158,164),[])
         self.assertEqual(self.gestures(158,164,True),[])
-    def test_only_twenty_right_punches_in_complete_recording(self):
-        self.assertEqual([g for _,g in self.results[0][0]],['RIGHT_PUNCH']*20)
-        self.assertEqual([g for _,g in self.results[1][0]],['LEFT_PUNCH']*20)
+    def test_only_reviewed_right_punches_in_complete_recording(self):
+        self.assertEqual([g for _,g in self.results[0][0]],['RIGHT_PUNCH']*22)
+        self.assertEqual([g for _,g in self.results[1][0]],['LEFT_PUNCH']*22)
 
 class BodyPunchSafetyTests(unittest.TestCase):
     def setup_arm(self):

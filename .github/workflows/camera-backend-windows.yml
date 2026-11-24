@@ -48,9 +48,9 @@ jobs:
       - name: Camera-free control and storage tests
         run: python -m unittest -v test_local_bridge test_headless_live test_diagnostics_recording test_live_clock test_backend_entry test_landmark_recording test_landmark_live test_landmark_replay_comparison test_backend_provenance test_calibration_sampling test_performance_policy test_camera_profile test_bounded_continuity test_projected_body_punch test_personal_raise_priority test_chest_special test_six_gestures test_redbool_demo test_udp_receive_reset
       - name: Bounded X refinement and release regression tests
-        run: python -m unittest -v test_x_latency_contract test_heavy_auxiliary test_heavy_recording test_heavy_assets test_refined_cross test_refined_release_contract test_static_cross_proof test_cross_miss_safety test_preview_pressure test_backend_optional_inference
+        run: python -m unittest -v test_x_latency_contract test_heavy_auxiliary test_heavy_recording test_heavy_assets test_refined_cross test_refined_release_contract test_static_cross_proof test_cross_miss_safety test_cross_exit test_preview_pressure test_backend_optional_inference
       - name: Bounded forward punch completion and physical return
-        run: python -m unittest -v test_centered_depth_punch test_temporal_forward_onset test_channel_feature_reuse test_overlap_punch test_overlap_guard_history
+        run: python -m unittest -v test_centered_depth_punch test_temporal_forward_onset test_channel_feature_reuse test_overlap_punch test_overlap_guard_history test_low_approach test_low_punch_projection
       - name: Personal response and bounded X occlusion regressions
         run: python -m unittest -v test_personal_recognized_path test_response_confirmation test_refined_occlusion_bridge
       - name: Deterministic synthetic calibration and pose sequence

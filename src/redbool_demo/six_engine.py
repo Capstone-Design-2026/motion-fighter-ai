@@ -5,6 +5,7 @@ Vertical actions require both arms visible; per-hand release permits natural cha
 Both-hand raising owns the block channel and cannot produce two kicks.
 """
 from dataclasses import asdict, replace
+from collections import deque
 import numpy as np
 from action_engine.experimental import ChannelSignals, joint_validity, RelativeBlock
 from action_engine.types import ActionEvent
@@ -12,12 +13,14 @@ from action_engine.core import ActionEngine
 from .engine import DemoEngine, DemoAttack
 from .lateral import LateralMovement
 from .special import CrossSpecial, cross_geometry, extended_cross_arm
+from .cross_exit import CrossExit
 from .refined_special import definite_cross_release, RefinedRepeatLatch
 from .high_guard_raise import HighGuardRaise
 from .auxiliary_pose import same_body
 from .static_special import StaticCrossProof, StaticCrossRelease
 from .temporal_forward import TemporalForwardOnset
 from .overlap_punch import OverlapPunch
+from .low_punch import LowPunchProjection
 
 
 class SixBlock(RelativeBlock):
@@ -52,10 +55,15 @@ class SixAttack(DemoAttack):
         self.upper_arm_projection = None
         self.punch_lead = None
         self.overlap_proof = False
-        self.overlap_guard_repaired = False
+        self.low_projection_proof = False
+        self.overlap_guard_supported = False
         self.overlap_committed = False
         self.overlap_grace = None
         self.overlap_frame = None
+        self.capture_ns = None
+        self.low_approach = deque(maxlen=6)
+        self.low_approach_seed = False
+        self.low_approach_confirmed = False
 
     def invalidate(self, now):
         super().invalidate(now)
@@ -66,10 +74,44 @@ class SixAttack(DemoAttack):
         self.upper_arm_projection = None
         self.punch_lead = None
         self.overlap_proof = False
-        self.overlap_guard_repaired = False
+        self.low_projection_proof = False
+        self.overlap_guard_supported = False
         self.overlap_committed = False
         self.overlap_grace = None
         self.overlap_frame = None
+        self.capture_ns = None
+        self.low_approach.clear()
+        self.low_approach_seed = self.low_approach_confirmed = False
+
+    def _observe_low_approach(self, side, arm, blocked):
+        self.low_approach_confirmed = False
+        # Follow only an existing body windup. Near full reach the projected
+        # wrist may pause while the elbow continues to open toward the camera.
+        if (not self.low_approach_seed or self.state != 'CANDIDATE' or side != self.side
+                or self.capture_ns is None or blocked or self.inhibited
+                or not self.opposite_guard or not self.baseline or arm is None):
+            self.low_approach.clear()
+            return
+        base = self.baseline[side]
+        dx, dy, dz = arm['position'] - base['position']
+        angle3d = arm['angle3d']
+        stamp = self.capture_ns
+        if (angle3d is None or not .30 <= abs(dx) <= .75 or not .12 < dy <= .55
+                or arm['position'][1] > .5 or not .14 <= arm['angle'] <= .85):
+            self.low_approach.clear()
+            return
+        if self.low_approach:
+            previous, depth, angle, previous_x = self.low_approach[-1]
+            if not (0 < stamp - previous <= 85_000_000 and dz <= depth and angle3d >= angle
+                    and dx * previous_x > 0 and abs(dx) >= abs(previous_x) - .08):
+                self.low_approach.clear()
+        self.low_approach.append((stamp, float(dz), angle3d, float(dx)))
+        while self.low_approach and stamp - self.low_approach[0][0] > 165_000_000:
+            self.low_approach.popleft()
+        if len(self.low_approach) >= 4:
+            first, depth, angle, _ = self.low_approach[0]
+            self.low_approach_confirmed = (stamp - first >= 75_000_000 and depth - dz >= .45
+                and angle3d - angle >= .20 and angle3d >= 2.2 and abs(dx) >= .38)
 
     def _centered_depth_evidence(self, side, arm):
         """Completion evidence for an already observed camera-directed punch.
@@ -179,6 +221,7 @@ class SixAttack(DemoAttack):
 
     def update(self, arms, now, allow_commit=True, block=False):
         side = next(iter(arms), None)
+        self._observe_low_approach(side, arms.get(side), block or not allow_commit)
         temporal_available = self.state == 'READY' and not block and not self.inhibited and self.opposite_guard
         self.temporal_forward.observe(arms.get(side), self.baseline.get(side) if self.baseline else None, now,
             available=temporal_available,
@@ -241,6 +284,11 @@ class SixAttack(DemoAttack):
                     self.punch_lead={'stamp':now,'travel':rule['xy_displacement'],'angle3d':arm['angle3d']}
         self._remember_projected_body(arms, signals, now, previous_state, block)
         self._remember_centered_depth(arms, signals, now, previous_state, block)
+        if previous_state == 'READY' and self.state == 'CANDIDATE':
+            self.low_approach_seed = signals[self.side]['body_windup']
+        elif self.state != 'CANDIDATE':
+            self.low_approach_seed = False
+            self.low_approach_confirmed = False
         if commit is not None and (signals[commit].get('centered_depth_confirmation') or self.temporal_forward_pending):
             self.centered_depth_committed = True
         elif self.state == 'READY':
@@ -251,19 +299,20 @@ class SixAttack(DemoAttack):
         elif self.state != 'CANDIDATE':
             self.early_candidate = False
             self.temporal_forward_pending = False
-        if (commit is None and self.overlap_proof and previous_state == 'READY'
+        overlap = self.overlap_proof and (self.opposite_guard or self.overlap_guard_supported)
+        projected_low = self.low_projection_proof and self.opposite_guard
+        if (commit is None and (overlap or projected_low) and previous_state == 'READY'
                 and self.state in ('READY', 'CANDIDATE') and allow_commit and not block
-                and not self.inhibited and (self.opposite_guard or self.overlap_guard_repaired)
-                and self.baseline):
+                and not self.inhibited and self.baseline):
             self.side = commit = side
             self.state = 'ACTIVE'
             self.last_commit = self.entered = now
-            self.overlap_committed = True
+            self.overlap_committed = bool(overlap)
             self.overlap_grace = None
             self.early_candidate = self.temporal_forward_pending = False
             self.punch_lead = None
-            signals[side]['overlap_arm_evidence'] = True
-            reason = 'overlap_arm_evidence'
+            reason = 'overlap_arm_evidence' if overlap else 'low_wrist_elbow_projection'
+            signals[side][reason] = True
         elif self.state == 'READY' or commit is not None:
             self.overlap_committed = False
         if commit is not None:self.unreturned_punch = True
@@ -478,6 +527,9 @@ class SixAttack(DemoAttack):
             row['centered_depth_confirmation'] = centered_depth
             if centered_depth:
                 row['commit_rule'] = True
+            if self.low_approach_confirmed and self.state == 'CANDIDATE' and self.side == side:
+                row['low_approach_confirmation'] = True
+                row['commit_rule'] = True
         return result
 
 
@@ -486,29 +538,52 @@ class SixGestureEngine(DemoEngine):
         units = self.attack.units
         for unit in units.values():
             unit.overlap_proof = False
-            unit.overlap_guard_repaired = False
+            unit.low_projection_proof = False
+            unit.overlap_guard_supported = False
             unit.overlap_frame = obs.frame_id
+            unit.capture_ns = None
         if not self.calibrated or not 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000:
             self.overlap_tracker = OverlapPunch()
+            self.low_projection = LowPunchProjection()
             return
         gates = []
         for side in ('LEFT', 'RIGHT'):
             unit = units[side]
+            unit.capture_ns = obs.capture_ns
             present = side in arms and bool(unit.baseline)
             permitted = not self.config.model_gate or (evidence is not None and
                 sum(evidence.probabilities.get(k, 0.) for k in ('ATTACK', side + '_PUNCH')) >= self.config.model_attack_probability)
             gates.append((present and unit.state in ('READY', 'CANDIDATE') and not blocked
                           and not unit.inhibited and permitted, present and unit.opposite_guard))
+        eligible_low = [available and support and units[side].state == 'READY'
+                        for side, (available, support) in zip(('LEFT', 'RIGHT'), gates)]
+        low = self.low_projection.observe(obs, arms, eligible_low)
+        if low:
+            units[low].low_projection_proof = True
         side = self.overlap_tracker.observe(obs, gates)
         if side is not None:
             units[side].overlap_proof = True
-            # Stamped inside the same capture's detector call. A recovered
-            # guard anchor also requires the supporting fist within 100 ms.
-            units[side].overlap_guard_repaired = self.overlap_tracker.repaired_side == side
+            # The overlap detector requires a normal supporting guard within 100 ms.
+            other = 'RIGHT' if side == 'LEFT' else 'LEFT'
+            other_arm = arms.get(other)
+            other_base = units[other].baseline
+            guard_supported = False
+            if other_arm is not None and other_base:
+                anchor = other_base[other]
+                dx, dy, dz = other_arm['position'] - anchor['position']
+                # The opposing fist can jitter as the punch crosses in front.
+                # Only bridge guard speed for a still compact, anchor-height fist.
+                guard_supported = (abs(dx) <= .18 and -.25 <= dy <= .18 and abs(dz) <= .30
+                    and other_arm['angle'] <= .35 and other_arm['angle3d'] is not None
+                    and anchor.get('angle3d') is not None
+                    and abs(other_arm['angle3d'] - anchor['angle3d']) <= .30
+                    and 2.0 < other_arm['speed_xy'] <= 3.0)
+            units[side].overlap_guard_supported = self.overlap_tracker.repaired_side == side or guard_supported
 
     def _components(self):
         super()._components()
         self.overlap_tracker = OverlapPunch()
+        self.low_projection = LowPunchProjection()
         self._continuity_pending = False
         self._continuity_until = None
         self._continuity_processing = False
@@ -520,6 +595,7 @@ class SixGestureEngine(DemoEngine):
         self.cross_bridge_until = None
         self.refinement_repeat = RefinedRepeatLatch()
         self.static_special = StaticCrossProof()
+        self.cross_exit = CrossExit()
         self.static_release = StaticCrossRelease()
         self.static_latched = False
         self.cross_extension_since = None
@@ -836,6 +912,7 @@ class SixGestureEngine(DemoEngine):
             valid = fresh and not joint_validity(obs, self.config)['BLOCK']
             approach, strict, separated = cross_geometry(obs, self.config) if valid else (False, False, False)
             primary_strict = strict
+            full_video_strict = False
             primary_approach = approach
             special_valid = valid
             extended = extended_cross_arm(obs, self.config) if valid else False
@@ -871,6 +948,8 @@ class SixGestureEngine(DemoEngine):
                         and (aux.width, aux.height, aux.source_mirrored) == (obs.width, obs.height, obs.source_mirrored)
                         and fresh and same_body(obs, aux, self.config) and not joint_validity(aux, self.config)['BLOCK']):
                     ap, st, sep = cross_geometry(aux, self.config)
+                    if aux_index == 0:
+                        full_video_strict = st
                     if aux_index < 2:
                         baseline_strict = baseline_strict or st
                         if needs_refined_release:
@@ -1050,6 +1129,12 @@ class SixGestureEngine(DemoEngine):
             self.refinement_repeat.observe(obs.capture_ns,
                 valid=special_valid and self.calibrated and state.tracking == 'VALID',
                 release=not approach and (refinement_release or definite_release))
+            if self.cross_exit.step(obs, auxiliaries[0] if auxiliaries else None, now=now,
+                    eligible=self.special.latched and not self.static_latched and not self.cross_refinement_latched
+                    and self.calibrated and ident==self.identity, strict=valid and primary_strict and full_video_strict):
+                self.special.latched = self.special.owned = False
+                self.special.armed = True
+                self.special.reset_dwell()
             if (bridge and self.calibrated and self.special.last_strict is not None
                     and self.special.owned and not self.special.latched):
                 # No interval on either side of this missing primary frame is
@@ -1110,6 +1195,8 @@ class SixGestureEngine(DemoEngine):
                 state = replace(state, block=False, movement='NEUTRAL', movement_strength=0.,
                     attack_state='RETURNING' if self.special.latched else 'SPECIAL_CANDIDATE')
             if fired:
+                self.cross_exit.step(obs, auxiliaries[0] if auxiliaries else None, now=now,
+                    eligible=not self.static_latched and not self.cross_refinement_latched, strict=False)
                 # A confirmed bilateral X takes ownership from prior punches.
                 for unit in self.attack.units.values():unit.unreturned_punch=False
                 self.sequence += 1
