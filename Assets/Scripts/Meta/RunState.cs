@@ -339,8 +339,11 @@ public class RunState : MonoBehaviour
 
         if (!won)
         {
-            LastMessage = "패배했습니다. 이 판은 여기서 끝납니다.";
-            AbandonRun();
+            // 2026-11-19: 져도 판을 지우지 않는다. 진 칸 앞에 선 채로 저장해 두면 시작 화면의 "이어하기"가 지도로 데려가고,
+            // 그 칸을 다시 눌러 재도전한다(체력은 스테이지마다 가득). 안내는 전투 화면의 패배 줄(BattleSceneBridge.ShowBanner)이
+            // 맡으므로 시작 화면에는 글을 남기지 않는다.
+            LastMessage = null;
+            Save();
             SceneRoutes.LoadStart();
             return;
         }
