@@ -54,11 +54,12 @@ public static class WuxiaTheme
         button.transition=UnityEngine.UI.Selectable.Transition.None;
         var feedback=button.gameObject.AddComponent<WuxiaMenuFeedback>();feedback.Initialize(button,body,frame,text,primary);
     }
-    public static void StyleButton(Button button)
+    public static void StyleButton(Button button, bool showLeaf = true)
     {
         var text=button.GetComponentInChildren<Text>();if(text!=null){text.font=Font;text.color=Paper;}
         var c=button.colors;c.highlightedColor=new Color(1.35f,1.2f,1.05f);c.selectedColor=c.highlightedColor;c.pressedColor=new Color(.7f,.65f,.55f);c.fadeDuration=.16f;button.colors=c;
         Rule(button.transform,0,new Color(Gold.r,Gold.g,Gold.b,.7f));
+        if (!showLeaf) return;
         var mark=Ornament("MenuMark",button.transform,WuxiaGraphic.Shape.Leaf,Gold);
         UIFactory.Place(mark.rectTransform,new Vector2(0,.5f),new Vector2(.5f,.5f),new Vector2(24,0),new Vector2(20,30));
     }

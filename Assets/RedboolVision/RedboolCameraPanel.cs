@@ -9,7 +9,6 @@ public sealed class RedboolCameraPanel : MonoBehaviour
     Canvas canvas;RectTransform panel;
     RawImage image;Text heading,hint,placeholder,combatHint,calibrationStatus;
     Image progress;RectTransform track;Button calibrate,reconnect,fold,resize;
-    Transform calibrateMark,reconnectMark;
     bool folded,tutorial,manualExpanded,wasCalibrated;float nextUi,nextTutorialCheck;
     CaveTutorial cave;
     readonly RedboolCombatPresentation presentation=new RedboolCombatPresentation();
@@ -44,10 +43,11 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         UIFactory.Place(track,new Vector2(0,0),Vector2.zero,new Vector2(14,57),new Vector2(288,5));
         progress=UIFactory.CreateImage("CalibrationProgress",track,WuxiaTheme.Gold);progress.type=Image.Type.Simple;
         calibrate=UIFactory.CreateButton("CameraCalibrate",panel,"보정 · C",20,WuxiaTheme.Ink,()=>cameraRuntime.Calibrate());
-        UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));WuxiaTheme.StyleButton(calibrate);
+        UIFactory.Place(calibrate.GetComponent<RectTransform>(),Vector2.zero,Vector2.zero,new Vector2(14,12),new Vector2(136,34));
+        WuxiaTheme.StyleButton(calibrate, showLeaf: false);
         reconnect=UIFactory.CreateButton("CameraReconnect",panel,"다시 연결",18,WuxiaTheme.Ink,()=>cameraRuntime.Reconnect());
-        UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));WuxiaTheme.StyleButton(reconnect);
-        calibrateMark=calibrate.transform.Find("MenuMark");reconnectMark=reconnect.transform.Find("MenuMark");
+        UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,12),new Vector2(136,34));
+        WuxiaTheme.StyleButton(reconnect, showLeaf: false);
     }
     void Update()
     {
@@ -133,8 +133,6 @@ public sealed class RedboolCameraPanel : MonoBehaviour
         calibrate.GetComponentInChildren<Text>().text=SmallPreview?"재보정 · C":"보정 · C";
         calibrate.GetComponentInChildren<Text>().fontSize=SmallPreview?16:20;
         calibrate.interactable=cameraRuntime.Running&&cameraRuntime.Fresh&&(cameraRuntime.Synthetic||(state!=null&&state.camera_connected));
-        if(calibrateMark!=null)calibrateMark.gameObject.SetActive(!SmallPreview);
-        if(reconnectMark!=null)reconnectMark.gameObject.SetActive(!SmallPreview);
         reconnect.gameObject.SetActive(!SmallPreview||attention);
         UIFactory.Place(reconnect.GetComponent<RectTransform>(),new Vector2(1,0),new Vector2(1,0),new Vector2(-14,SmallPreview?4:12),new Vector2(SmallPreview?100:136,SmallPreview?24:34));
     }
