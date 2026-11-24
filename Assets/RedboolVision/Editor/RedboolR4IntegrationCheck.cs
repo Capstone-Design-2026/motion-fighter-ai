@@ -11,6 +11,7 @@ public static class RedboolR4IntegrationCheck
         string root=Environment.GetEnvironmentVariable("REDBOOL_ONLINE_CHECK_ROOT");
         if(string.IsNullOrEmpty(root)) throw new Exception("Explicit verification output required");
         Environment.SetEnvironmentVariable("REDBOOL_SELECTION_CHECK_OUTPUT",Path.Combine(root,"selection"));
+        RedboolMenuSelfCheck.CheckPreviousPlayerLogExport();
         RedboolReleaseSelfCheck.RunWithoutSocketBinding();
         RedboolPvpSelectionSelfCheck.Run();
         RedboolOnlineProtocolCheck.Run();
