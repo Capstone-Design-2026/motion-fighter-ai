@@ -1,0 +1,161 @@
+{
+  "comparison_source_commit": "3b07244a3c430280624a1c7a59d573f592929b09",
+  "method": "Fixed archived camera observations and original processing clocks. Continuous replay through the normal personal recognition and event publisher. Reviewed real footage for newly selected events. No new filming. Mirroring is a separate identity-symmetry check.",
+  "sessions": 15,
+  "source_frames": 132320,
+  "existing_events_with_identical_hand_capture_and_commit": 706,
+  "additional_video_reviewed_events": [
+    {
+      "session": "three_person",
+      "source_frame": 5096,
+      "gesture": "LEFT_PUNCH"
+    },
+    {
+      "session": "three_person",
+      "source_frame": 5293,
+      "gesture": "LEFT_PUNCH"
+    },
+    {
+      "session": "three_person",
+      "source_frame": 6473,
+      "gesture": "LEFT_PUNCH"
+    },
+    {
+      "session": "four_person",
+      "source_frame": 6302,
+      "gesture": "RIGHT_PUNCH"
+    }
+  ],
+  "outside_followup": {
+    "session": "three_person",
+    "frame": 6514,
+    "timing_preserved": true
+  },
+  "field": {
+    "journals": 72,
+    "frames": 334309,
+    "events_identical": 1268,
+    "state_hashes_identical": [
+      "movement_with_strength",
+      "block",
+      "ready",
+      "calibrated",
+      "tracking"
+    ],
+    "incomplete_journals": 4
+  },
+  "assertions": {
+    "legacy": {
+      "tests": 139,
+      "baseline_pass": 136,
+      "candidate_pass": 136
+    },
+    "extra_negatives": {
+      "tests": 8,
+      "baseline_pass": 8,
+      "candidate_pass": 8
+    },
+    "low_short": {
+      "tests": 2,
+      "baseline_pass": 0,
+      "candidate_pass": 0
+    },
+    "retrospective_negatives": {
+      "tests": 5,
+      "baseline_pass": 5,
+      "candidate_pass": 5
+    },
+    "current_task": {
+      "tests": 3,
+      "baseline_pass": 1,
+      "candidate_pass": 3
+    },
+    "retrospective_frontals": {
+      "tests": 4,
+      "baseline_pass": 1,
+      "candidate_pass": 3
+    },
+    "frontal_reference": {
+      "tests": 3,
+      "baseline_pass": 3,
+      "candidate_pass": 3
+    },
+    "guided": {
+      "tests": 88,
+      "baseline_pass": 88,
+      "candidate_pass": 88
+    },
+    "held_out_lower": {
+      "tests": 1,
+      "baseline_pass": 1,
+      "candidate_pass": 1
+    }
+  },
+  "regressions": 0,
+  "compute_ms": {
+    "three_person": {
+      "baseline": {
+        "p50": 1.25444,
+        "p95": 2.47044,
+        "p99": 2.67872
+      },
+      "candidate": {
+        "p50": 0.99777,
+        "p95": 1.99876,
+        "p99": 2.19803
+      },
+      "paired_delta": {
+        "p50": -0.22585,
+        "p95": 0.01573,
+        "p99": 0.25872
+      },
+      "order_median_delta": [
+        -0.23108,
+        -0.22087
+      ]
+    },
+    "four_person": {
+      "baseline": {
+        "p50": 0.88592,
+        "p95": 1.09704,
+        "p99": 1.23333
+      },
+      "candidate": {
+        "p50": 0.72854,
+        "p95": 0.90112,
+        "p99": 1.02112
+      },
+      "paired_delta": {
+        "p50": -0.16317,
+        "p95": -0.05283,
+        "p99": 0.00446
+      },
+      "order_median_delta": [
+        -0.16487,
+        -0.16154
+      ]
+    },
+    "20261104_140438_50fd4dcb": {
+      "baseline": {
+        "p50": 0.38838,
+        "p95": 0.43414,
+        "p99": 0.56346
+      },
+      "candidate": {
+        "p50": 0.36246,
+        "p95": 0.40683,
+        "p99": 0.52063
+      },
+      "paired_delta": {
+        "p50": -0.03079,
+        "p95": -0.01279,
+        "p99": 0.00942
+      },
+      "order_median_delta": [
+        -0.03258,
+        -0.02887
+      ]
+    }
+  },
+  "limits": "Reviewed examples are not population-level accuracy. Historical low/short right and X misses remain. Recognition CPU timing measured on one Mac, not end-to-end screen or network latency."
+}

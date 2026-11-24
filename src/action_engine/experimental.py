@@ -32,14 +32,14 @@ _validity_cache = threading.local()
 def joint_validity(obs, cfg):
     # A caller can append its own stale-time reason. Return fresh lists even
     # when the coordinate/visibility checks came from this same observation.
-    cacheable = _immutable_observation(obs)
     entries = getattr(_validity_cache, 'entries', ())
-    if cacheable:
-        for prior, visibility, value in entries:
-            if prior is obs and visibility == cfg.visibility:
-                return {key: list(reasons) for key, reasons in value.items()}
+    # Only immutable captures enter the cache. Matching by object identity
+    # avoids revalidating the tuple structure for every reader of this frame.
+    for prior, visibility, value in entries:
+        if prior is obs and visibility == cfg.visibility:
+            return {key: list(reasons) for key, reasons in value.items()}
     result = _joint_validity(obs, cfg)
-    if cacheable:
+    if _immutable_observation(obs):
         _validity_cache.entries = ((obs, cfg.visibility,
             {key: tuple(reasons) for key, reasons in result.items()}),) + entries[:3]
     return result
@@ -51,13 +51,21 @@ def _joint_validity(obs, cfg):
     v = np.asarray(obs.visibility, dtype=float)
     if not obs.pose_present or p.shape != (33, 3) or v.shape != (33,) or obs.width <= 0 or obs.height <= 0:
         return {k: ['missing_pose_or_schema'] for k in ('LEFT','RIGHT','BLOCK','MOVEMENT')}
-    for name, ids in [('LEFT',[11,12,13,15]),('RIGHT',[11,12,14,16]),('BLOCK',[11,12,13,14,15,16]),('MOVEMENT',[11,12])]:
-        r=[]
-        for j in ids:
-            if not np.isfinite(p[j]).all():r.append(f'joint_{j}_nonfinite')
-            elif ((p[j,:2]<0)|(p[j,:2]>1)).any():r.append(f'joint_{j}_outside')
-            if not np.isfinite(v[j]) or v[j]<cfg.visibility:r.append(f'joint_{j}_visibility')
-        if np.linalg.norm((p[11]-p[12])[:2])<=1e-6:r.append('shoulder_width')
+    arms = p[11:17]
+    finite = np.isfinite(arms).all(axis=1)
+    outside = ((arms[:, :2] < 0) | (arms[:, :2] > 1)).any(axis=1)
+    hidden = ~np.isfinite(v[11:17]) | (v[11:17] < cfg.visibility)
+    by_joint = []
+    for i, j in enumerate(range(11, 17)):
+        issues = []
+        if not finite[i]: issues.append(f'joint_{j}_nonfinite')
+        elif outside[i]: issues.append(f'joint_{j}_outside')
+        if hidden[i]: issues.append(f'joint_{j}_visibility')
+        by_joint.append(issues)
+    narrow = np.linalg.norm((p[11]-p[12])[:2])<=1e-6
+    for name, ids in [('LEFT',(0,1,2,4)),('RIGHT',(0,1,3,5)),('BLOCK',range(6)),('MOVEMENT',(0,1))]:
+        r = [issue for i in ids for issue in by_joint[i]]
+        if narrow:r.append('shoulder_width')
         reasons[name]=r
     return reasons
 
@@ -195,6 +203,9 @@ class RelativeBlock(BlockStateMachine):
 
 
 class DevelopmentEngine(ActionEngine):
+    def _prepare_arm_updates(self, obs, arms, now, blocked, evidence):
+        pass
+
     def _components(self):
         self.attack=AttackGroup(self.config);self.block=RelativeBlock(self.config)
         self.movement=MovementStateMachine(self.config);self.safety=TrackingSafetyController(self.config)
@@ -236,6 +247,8 @@ class DevelopmentEngine(ActionEngine):
                 block_candidate=self.block.update_relative(arms,self.attack.anchors(),now) if self.config.calibrated_neutral_block else self.block.update(arms,now)
             evidence_valid=evidence is not None and evidence.valid_for(obs,now,self.config.evidence_age_ms)
             if evidence is not None and not evidence_valid:self._log('evidence_rejected',now,reason='stale_or_identity_or_probability')
+            self._prepare_arm_updates(obs, arms, now, self.block.held or block_candidate,
+                                      evidence if evidence_valid else None)
             for name,unit in self.attack.units.items():
                 selected=arms if name=='BOTH' else ({name:arms[name]} if name in arms else {})
                 required={'LEFT','RIGHT'} if name=='BOTH' else {name}

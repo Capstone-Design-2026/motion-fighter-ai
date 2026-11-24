@@ -17,6 +17,7 @@ from .high_guard_raise import HighGuardRaise
 from .auxiliary_pose import same_body
 from .static_special import StaticCrossProof, StaticCrossRelease
 from .temporal_forward import TemporalForwardOnset
+from .overlap_punch import OverlapPunch
 
 
 class SixBlock(RelativeBlock):
@@ -50,6 +51,11 @@ class SixAttack(DemoAttack):
         self.temporal_forward_pending = False
         self.upper_arm_projection = None
         self.punch_lead = None
+        self.overlap_proof = False
+        self.overlap_guard_repaired = False
+        self.overlap_committed = False
+        self.overlap_grace = None
+        self.overlap_frame = None
 
     def invalidate(self, now):
         super().invalidate(now)
@@ -59,6 +65,11 @@ class SixAttack(DemoAttack):
         self.temporal_forward_pending = False
         self.upper_arm_projection = None
         self.punch_lead = None
+        self.overlap_proof = False
+        self.overlap_guard_repaired = False
+        self.overlap_committed = False
+        self.overlap_grace = None
+        self.overlap_frame = None
 
     def _centered_depth_evidence(self, side, arm):
         """Completion evidence for an already observed camera-directed punch.
@@ -240,6 +251,21 @@ class SixAttack(DemoAttack):
         elif self.state != 'CANDIDATE':
             self.early_candidate = False
             self.temporal_forward_pending = False
+        if (commit is None and self.overlap_proof and previous_state == 'READY'
+                and self.state in ('READY', 'CANDIDATE') and allow_commit and not block
+                and not self.inhibited and (self.opposite_guard or self.overlap_guard_repaired)
+                and self.baseline):
+            self.side = commit = side
+            self.state = 'ACTIVE'
+            self.last_commit = self.entered = now
+            self.overlap_committed = True
+            self.overlap_grace = None
+            self.early_candidate = self.temporal_forward_pending = False
+            self.punch_lead = None
+            signals[side]['overlap_arm_evidence'] = True
+            reason = 'overlap_arm_evidence'
+        elif self.state == 'READY' or commit is not None:
+            self.overlap_committed = False
         if commit is not None:self.unreturned_punch = True
         elif self.state == 'READY':self.unreturned_punch = False
         return commit, signals, reason or ('uncommitted_raise_handoff' if handoff else '')
@@ -310,8 +336,19 @@ class SixAttack(DemoAttack):
                 and arm['angle3d'] is not None
                 and arm['angle3d']<=min(2.3,base['angle3d']+.15))
             return_speed = 2.0 if compact_return else 1.2
+            speed_ok = arm['speed_xy'] <= return_speed
+            # Foreshortened fists can jitter while already folded at the anchor.
+            # Permit only one noisy sample per continuous, otherwise normal dwell.
+            if (not speed_ok and self.overlap_committed and self.state == 'RETURNING'
+                    and self.neutral_since is not None and abs(dx) <= .18 and -.45 <= dy <= .18
+                    and abs(arm['position'][2]-base['position'][2]) <= .40
+                    and arm['angle'] <= .30 and arm['angle3d'] is not None
+                    and abs(arm['angle3d']-base['angle3d']) <= .30 and arm['speed_xy'] <= 2.6):
+                if self.overlap_grace is None or self.overlap_grace[0] != self.neutral_since:
+                    self.overlap_grace = (self.neutral_since, self.overlap_frame)
+                speed_ok = self.overlap_grace[1] == self.overlap_frame
             if not (abs(dx)<=.45 and (-.30<=dy<=.65 or (-.65<=dy<-.30 and arm['angle']<=.6 and arm['angle3d'] is not None and arm['angle3d']<=min(2.2,base['angle3d']+.25))) and arm['position'][1]<=.45
-                    and arm['speed_xy']<=return_speed and arm['angle']<=1.8
+                    and speed_ok and arm['angle']<=1.8
                     and arm['angle3d'] is not None
                     and arm['angle3d']<=min(2.6,base['angle3d']+.60)):
                 return False
@@ -445,8 +482,33 @@ class SixAttack(DemoAttack):
 
 
 class SixGestureEngine(DemoEngine):
+    def _prepare_arm_updates(self, obs, arms, now, blocked, evidence):
+        units = self.attack.units
+        for unit in units.values():
+            unit.overlap_proof = False
+            unit.overlap_guard_repaired = False
+            unit.overlap_frame = obs.frame_id
+        if not self.calibrated or not 0 <= now - obs.capture_ns <= self.config.evidence_age_ms * 1_000_000:
+            self.overlap_tracker = OverlapPunch()
+            return
+        gates = []
+        for side in ('LEFT', 'RIGHT'):
+            unit = units[side]
+            present = side in arms and bool(unit.baseline)
+            permitted = not self.config.model_gate or (evidence is not None and
+                sum(evidence.probabilities.get(k, 0.) for k in ('ATTACK', side + '_PUNCH')) >= self.config.model_attack_probability)
+            gates.append((present and unit.state in ('READY', 'CANDIDATE') and not blocked
+                          and not unit.inhibited and permitted, present and unit.opposite_guard))
+        side = self.overlap_tracker.observe(obs, gates)
+        if side is not None:
+            units[side].overlap_proof = True
+            # Stamped inside the same capture's detector call. A recovered
+            # guard anchor also requires the supporting fist within 100 ms.
+            units[side].overlap_guard_repaired = self.overlap_tracker.repaired_side == side
+
     def _components(self):
         super()._components()
+        self.overlap_tracker = OverlapPunch()
         self._continuity_pending = False
         self._continuity_until = None
         self._continuity_processing = False
@@ -511,6 +573,7 @@ class SixGestureEngine(DemoEngine):
         return self.control
 
     def _safe(self, now, reason):
+        self.overlap_tracker = OverlapPunch()
         # Output liveness and the interval between captured observations are
         # different clocks. A fresh result can arrive after its predecessor's
         # output lease expired, despite a continuous <=100ms capture pair.

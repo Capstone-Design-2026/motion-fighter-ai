@@ -2,15 +2,15 @@
   "schema": "redbool.recognition-baseline/1",
   "source_hash_algorithm": "sha256-crlf-to-lf-v1",
   "baseline_commit": "1a3e314fe1a99fb01f5b7c79e4b1b8e553813fa8",
-  "baseline_status": "R2_X_OCCLUSION_RESPONSE_TEST_CANDIDATE",
-  "quality_claim": "Recorded-data response candidate: bounded tutorial fitting and earlier evidence-confirmed events. No universal accuracy or end-to-end latency guarantee.",
-  "benchmark_run_ref": "docs/x-2p-response-review-20261117.json",
+  "baseline_status": "R5_OVERLAP_PUNCH_REPLAY_VERIFIED",
+  "quality_claim": "Reviewed examples are not population-level accuracy. Historical low/short right and X misses remain. Recognition CPU timing measured on one Mac, not end-to-end screen or network latency.",
+  "benchmark_run_ref": "docs/overlap-punch-review-20261125.json",
   "prior_comparison_ref": "docs/online-transport-validation-20261116.json",
   "inventory_policy": "Explicit inventory of src Python paths. Adding/removing a runtime Python path fails pending review; non-protected existing diagnostic file contents may change. Tests/docs/cache files are not runtime inventory. Source hash groups only protect listed files. No automatic manifest regeneration.",
   "groups": {
     "recognition": {
       "files": {
-        "src/redbool_demo/six_engine.py": "79cca9df1ad26c8138b400ed728dac09ae3c1983d50db130e3ee02dbc6cc3456",
+        "src/redbool_demo/six_engine.py": "15d11668d075c1e6f0dc366d2c6d675cbc76f81bbdbcf2c34b22ba2095cd5d6b",
         "src/redbool_demo/engine.py": "3faa74071882de13e3e08dfdf30dd09974c8ef2b06b6a69f91e14bd3d08d563a",
         "src/redbool_demo/personal.py": "6d9704f8ace3df04b4461d7a5e7a0c403fa32c745affe55bbada1515d9ab0ccd",
         "src/redbool_demo/special.py": "af158eaf40e27ef96e53d4179fb043907cec8baf503616af5eadadab24f37a04",
@@ -18,15 +18,16 @@
         "src/redbool_demo/lateral.py": "0e669ea252145e96505aa61a683d16fb2b1b120f93b0272f9bc0e4967472ac8b",
         "src/redbool_demo/auxiliary_pose.py": "3feebeed07a388b29e730da3ee3fa7500619faaffe51c3d9aa24c1c4a9879dcc",
         "src/action_engine/core.py": "f07e1c24649e9c809d2d950dc2881ef582bcb27b1f2ae936a04ddd6dc81cb03e",
-        "src/action_engine/experimental.py": "c0f5e44865c91473c66824ffbc70c481b70aa3bf33725c752f182afae0e7c28c",
+        "src/action_engine/experimental.py": "8ec305255aafec54b65143923788a8147c3fc9aa1f1efcdc5296496fc46f9dff",
         "src/action_engine/types.py": "527a0d2e822dae976ecb942262b4d34d883e966863a504e2a4823653993cba3c",
         "src/vision_v2/preprocess.py": "e8795b42cd03a1805519c4335b8996c1fc1b1f620c5521046d2c2c04da899e0a",
         "src/movement.py": "82835bcd247ad180669e43144dd57e4e1dbb4a1802690a1447ea6293be984644",
         "src/redbool_demo/static_special.py": "7bd71dbbe7b3eba50bc49a0fd06300edd9d13e0e3096fcaebe9e61b74210f74d",
         "src/redbool_demo/refined_special.py": "08da8abece32ae2dd8b2d82906f16c61053c1f7cab0250a538aaa696f6bbb6e6",
-        "src/redbool_demo/temporal_forward.py": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb"
+        "src/redbool_demo/temporal_forward.py": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb",
+        "src/redbool_demo/overlap_punch.py": "15cdaffe39179a09cd86b7a96d63d1620509506d6304c65df94338efe6e95ab7"
       },
-      "sha256": "343f78f3f26b365c8080d89b5b23dfcbab1a2e9ee2e993fe61b28765d90854fe"
+      "sha256": "03fe07e0ba1bf7504594dea9ecf1e70d83be3b8bdbcb7937104277c2c09bf0af"
     },
     "calibration_diagnostics": {
       "files": {
@@ -120,6 +121,7 @@
     "src/redbool_demo/learned.py",
     "src/redbool_demo/live.py",
     "src/redbool_demo/local_bridge.py",
+    "src/redbool_demo/overlap_punch.py",
     "src/redbool_demo/performance_policy.py",
     "src/redbool_demo/personal.py",
     "src/redbool_demo/probe.py",
@@ -151,9 +153,9 @@
     "sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
     "scope": "Packaged backend dependency pins only; development/training requirements.txt is not protected."
   },
-  "selected_release": "2026-11-17 R2 personal response candidate (not packaged)",
-  "selection_date": "2026-11-17",
-  "benchmark_sha256": "88e24c10bdc3439a60c50a734b4ccf94f9d0110878360df1de9c2254e87a92f3",
+  "selected_release": "R5 overlap-punch development source",
+  "selection_date": "2026-11-25",
+  "benchmark_sha256": "a64b8263689c50c9d064789766564f370ed45a10cd61430aafa2777bf286e33c",
   "selection_limit": "Current recorded-data choice. Not a universal recognition accuracy or two-PC live-performance guarantee.",
   "optional_model_contract": {
     "asset": {
@@ -192,32 +194,26 @@
     ]
   },
   "current_candidate_review": {
-    "base_source_commit": "55ad8f26153ef6aeb9ff5a1f4e4a1dc5952b1180",
+    "base_source_commit": "3b07244a3c430280624a1c7a59d573f592929b09",
     "changes": [
       {
+        "path": "src/action_engine/experimental.py",
+        "before_sha256": "c0f5e44865c91473c66824ffbc70c481b70aa3bf33725c752f182afae0e7c28c",
+        "after_sha256": "8ec305255aafec54b65143923788a8147c3fc9aa1f1efcdc5296496fc46f9dff"
+      },
+      {
         "path": "src/redbool_demo/six_engine.py",
-        "before_sha256": "ee8292823f2db6571ad4b12bab458fd4835d1b44ef67516a2ae6d0d78ed77105",
-        "after_sha256": "9e2dbb4d0b0b0adcc2ec723859cf79a4a3c1c40c6a9e609dafaf09f9c088187e"
+        "before_sha256": "79cca9df1ad26c8138b400ed728dac09ae3c1983d50db130e3ee02dbc6cc3456",
+        "after_sha256": "15d11668d075c1e6f0dc366d2c6d675cbc76f81bbdbcf2c34b22ba2095cd5d6b"
       },
       {
-        "path": "src/redbool_demo/personal.py",
-        "before_sha256": "5d1ffc9c4a990480bcbd180b8064ff08e39b13db2d90d8c94bef834836ef2384",
-        "after_sha256": "6d9704f8ace3df04b4461d7a5e7a0c403fa32c745affe55bbada1515d9ab0ccd"
-      },
-      {
-        "path": "src/redbool_demo/live.py",
-        "before_sha256": "2e5194d6e9b93dfee4e7913cd536bd09594795e31d90ca8684fb27339f929cc5",
-        "after_sha256": "a143341113b8c5c0092224f9586aae067a3a4c5842dd1269b30ef59d780a3bb1"
+        "path": "src/redbool_demo/overlap_punch.py",
+        "before_sha256": null,
+        "after_sha256": "15cdaffe39179a09cd86b7a96d63d1620509506d6304c65df94338efe6e95ab7"
       }
     ],
-    "scope": [
-      "Measure independently recognized low/forward punch cycles and one-hand physical returns during matching tutorial context; two consistent full cycles still required.",
-      "Use previously observed extension plus unchanged full punch commit geometry to avoid one redundant confirmation frame.",
-      "Only two verified complete large raises enable the learned side to use 120 ms confirmation with 100 ms strong pose evidence; original 180 ms fallback remains.",
-      "Preserve aggregate actually-applied personal status after subsequent X tutorial confirmation.",
-      "While the opposite punch is pending or has a proved lead-in, learned raises retain original confirmation timing to preserve existing attack ordering."
-    ],
-    "comparison_ref": "docs/r2-personal-response-review-20261117.json",
+    "scope": "Bounded causal wrist attribution, observed historical guard repair and equivalent faster joint validity checks.",
+    "comparison_ref": "docs/overlap-punch-review-20261125.json",
     "github_published": false,
     "packaged": false
   },
@@ -250,5 +246,6 @@
     "github_published": false
   },
   "prior_benchmark_run_ref": "docs/neo-guard-recognition-review-20261117.json",
-  "prior_response_benchmark_ref": "docs/r2-personal-response-review-20261117.json"
+  "prior_response_benchmark_ref": "docs/r2-personal-response-review-20261117.json",
+  "prior_overlap_baseline_ref": "docs/r2-personal-response-review-20261117.json"
 }

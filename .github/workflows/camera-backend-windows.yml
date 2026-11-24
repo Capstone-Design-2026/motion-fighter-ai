@@ -3,7 +3,7 @@ name: Windows online candidate camera backend
 on:
   workflow_dispatch:
   push:
-    branches: [codex/online-transport-20261116, codex/remaining-quality-20261117]
+    branches: [codex/online-transport-20261116, codex/remaining-quality-20261117, codex/recognition-r6-20261125]
     paths:
       - src/**
       - tests/**
@@ -50,7 +50,7 @@ jobs:
       - name: Bounded X refinement and release regression tests
         run: python -m unittest -v test_x_latency_contract test_heavy_auxiliary test_heavy_recording test_heavy_assets test_refined_cross test_refined_release_contract test_static_cross_proof test_cross_miss_safety test_preview_pressure test_backend_optional_inference
       - name: Bounded forward punch completion and physical return
-        run: python -m unittest -v test_centered_depth_punch test_temporal_forward_onset test_channel_feature_reuse
+        run: python -m unittest -v test_centered_depth_punch test_temporal_forward_onset test_channel_feature_reuse test_overlap_punch test_overlap_guard_history
       - name: Personal response and bounded X occlusion regressions
         run: python -m unittest -v test_personal_recognized_path test_response_confirmation test_refined_occlusion_bridge
       - name: Deterministic synthetic calibration and pose sequence

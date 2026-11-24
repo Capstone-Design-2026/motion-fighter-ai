@@ -98,8 +98,9 @@ class OnlineBuildProvenanceTests(unittest.TestCase):
         expected = {'src/redbool_demo/live.py', 'src/redbool_demo/transport.py', 'src/realtime_vision/transport.py',
                     'src/redbool_demo/landmark_recording.py', 'src/redbool_demo/six_engine.py',
                     'src/action_engine/experimental.py', 'src/redbool_demo/temporal_forward.py',
-                    'src/redbool_demo/personal.py', 'src/redbool_demo/heavy_auxiliary.py'}  # Reviewed tutorial and bounded X timing changes.
-        added = {'src/redbool_demo/temporal_forward.py'}
+                    'src/redbool_demo/personal.py', 'src/redbool_demo/heavy_auxiliary.py',
+                    'src/redbool_demo/overlap_punch.py'}
+        added = {'src/redbool_demo/temporal_forward.py', 'src/redbool_demo/overlap_punch.py'}
         self.assertEqual(set(base['runtime_python_paths']) | added, set(online['runtime_python_paths']))
         self.assertEqual(base['models'], online['models'])
         self.assertEqual(base['dependency_contract'], online['dependency_contract'])

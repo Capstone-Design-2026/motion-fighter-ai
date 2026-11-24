@@ -47,10 +47,19 @@ class CrossRecoveryRecordingTests(unittest.TestCase):
     def test_only_reviewed_additions_and_removals(self):
         for spec,events in self.results:
             old=json.loads(Path(spec['baseline']).read_text())
-            self.assertEqual(len(events),len(old)-len(spec['false_punch_frames'])+len(spec['new_special_frames']),spec['name'])
+            # The original video shows three more distinct left-hand thrusts
+            # from guard. Count only the reviewed hand and exact source frame.
+            recovered = [5096, 5293, 6473] if spec['name']=='three' else []
+            for frame in recovered:
+                self.assertEqual([e['gesture'] for e in events if e['frame']==frame], ['LEFT_PUNCH'])
+            self.assertEqual(len(events),len(old)-len(spec['false_punch_frames'])+len(spec['new_special_frames'])+len(recovered),spec['name'])
             for frame in spec['new_special_frames']:
                 self.assertTrue(any(x['gesture']=='SPECIAL' and abs(x['frame']-frame)<=15 for x in events),(spec['name'],frame))
             if spec['name']=='three':
+                self.assertEqual([e for e in events if 6460 <= e['frame'] <= 6518], [
+                    {'frame': 6473, 'gesture': 'LEFT_PUNCH'},
+                    {'frame': 6514, 'gesture': 'LEFT_PUNCH'},
+                ])
                 self.assertFalse(any(x['gesture']=='RIGHT_PUNCH' and abs(x['frame']-5520)<=15 for x in events))
                 # A separate, RGB-confirmed overhead raise was previously lost.
                 # One corrected removal and one addition leave total unchanged.
