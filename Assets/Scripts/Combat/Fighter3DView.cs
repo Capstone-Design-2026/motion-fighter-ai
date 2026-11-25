@@ -21,6 +21,13 @@ public sealed class Fighter3DView : MonoBehaviour
     public const float HurtDuration = .70f;
     public const float GuardReactionDuration = .225f;
     const float GuardEntry = .27f, GuardRelease = .252f, GuardSwitchBlend = .14f;
+    // 방어 중 이동(높은 방어 상체 + 이동 하체). 이 상태가 있는 애니메이터(주인공)만 방어 중에 움직일 수 있다.
+    //   GUARD_WALK_*: 공통 걷기(WALK_FORWARD/BACK) 하체. RunConfig.heroMovement = CommonWalk 일 때.
+    //   GUARD_STEP_*: 승인 스텝(HERO_*_STEP) 하체. ApprovedWalk / DashAndStep 일 때.
+    public const string GuardStepForward = "GUARD_STEP_FORWARD", GuardStepBackward = "GUARD_STEP_BACKWARD";
+    public const string GuardWalkForward = "GUARD_WALK_FORWARD", GuardWalkBack = "GUARD_WALK_BACK";
+    static readonly int GuardStepForwardHash = Animator.StringToHash(GuardStepForward), GuardWalkForwardHash = Animator.StringToHash(GuardWalkForward);
+    bool HeroStepping => heroMovement != null && heroMovement.isActiveAndEnabled;
     static readonly string[] Attacks = { "JAB", "CROSS", "HIGHKICK", "LOWKICK" };
     Fighter fighter;
     bool cameraPlayer;
@@ -40,6 +47,9 @@ public sealed class Fighter3DView : MonoBehaviour
     float groundWeight, groundShift;
     public GroundedBoxingWalk Walk => walk;
     public string CurrentState => currentState;
+    /// <summary>방어한 채로 걸을 수 있는지. 지금 이동 방식에 맞는 방어 걷기 상태(GUARD_STEP_* 또는 GUARD_WALK_*)가 애니메이터에 있을 때만 true.</summary>
+    public bool SupportsGuardStep => modelAnimator != null && modelAnimator.runtimeAnimatorController != null
+        && modelAnimator.HasState(0, HeroStepping ? GuardStepForwardHash : GuardWalkForwardHash);
     /// <summary>이번 프레임에 걷기 접지가 겉모습을 옮긴 높이(m, +는 올림). 검사용.</summary>
     public float GroundShift { get; private set; }
 
@@ -158,8 +168,25 @@ public sealed class Fighter3DView : MonoBehaviour
         else if (currentState != null && currentState.StartsWith("GUARD") && !currentState.EndsWith("_RELEASE")) Play(pose + "_HOLD", false, 0f, GuardSwitchBlend);
         else Play(pose);
     }
+    /// <summary>높은 방어 중에 걷고 있으면 방어 걷기를 튼다. 틀었으면 true.</summary>
+    bool GuardStep()
+    {
+        if (fighter.IsCrouching || !SupportsGuardStep) return false;
+        if (HeroStepping)
+        {
+            if (!heroMovement.IsMoving) return false;
+            string step = heroMovement.StateName.Contains("BACKWARD") ? GuardStepBackward : GuardStepForward;
+            Play(step, movementRevision != heroMovement.Revision, heroMovement.AnimationTime);
+            movementRevision = heroMovement.Revision;
+            return true;
+        }
+        if (walk == null || !walk.IsMoving) return false;
+        Play(walk.Direction * fighter.Facing < 0 ? GuardWalkBack : GuardWalkForward);
+        return true;
+    }
+    static bool GuardMoving(string state) => state == GuardWalkForward || state == GuardWalkBack || state == GuardStepForward || state == GuardStepBackward;
     static bool Groundable(string state) => state == "WALK_FORWARD" || state == "WALK_BACK"
-        || state == "HERO_FORWARD_STEP" || state == "HERO_BACKWARD_STEP";
+        || state == "HERO_FORWARD_STEP" || state == "HERO_BACKWARD_STEP" || GuardMoving(state);
     /// <summary>
     /// 걷기 접지(겉모습 전용). 걷기·스텝 중에 두 발바닥 중 낮은 쪽이 바닥(2D 바닥 높이)에 닿도록 모델 전체를 위아래로 맞춘다.
     /// 적마다 옮겨 만든 클립의 작은 뜸·묻힘과, IK 걷기가 다 닿지 못한 발을 함께 잡는다. 최대 ±4cm.
@@ -171,7 +198,7 @@ public sealed class Fighter3DView : MonoBehaviour
         GroundShift = 0f;
         if (walk == null || !walk.SoleReady) { groundWeight = 0f; return; }
         bool on = Groundable(currentState) && !health.IsDead && Time.time >= reactionUntil && !health.IsHitStunned
-            && !fighter.IsAttacking && !fighter.IsSpecialActive && !fighter.IsBlocking;
+            && !fighter.IsAttacking && !fighter.IsSpecialActive && (!fighter.IsBlocking || GuardMoving(currentState));
         float fade = on ? .08f : currentState == "IDLE" ? .1f : .05f;
         groundWeight = Mathf.MoveTowards(groundWeight, on ? 1f : 0f, dt / fade);
         if (groundWeight <= 0f) { groundShift = 0f; return; }
@@ -204,7 +231,7 @@ public sealed class Fighter3DView : MonoBehaviour
         else if (fighter.IsSpecialActive) { }   // SpecialMove drives SPECIAL_* states through PlaySpecial
         else if (!fighter.IsAttacking)
         {
-            if (fighter.IsBlocking && !fighter.InputLocked) Guard(fighter.IsCrouching);
+            if (fighter.IsBlocking && !fighter.InputLocked) { if (!GuardStep()) Guard(fighter.IsCrouching); }
             else if (currentState != null && currentState.StartsWith("GUARD"))
             {
                 if (!currentState.EndsWith("_RELEASE"))
@@ -220,9 +247,10 @@ public sealed class Fighter3DView : MonoBehaviour
                 Play(walk.Direction * fighter.Facing < 0 ? "WALK_BACK" : "WALK_FORWARD");
             else Play("IDLE");
         }
-        bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK";
+        bool walkingState = currentState == "WALK_FORWARD" || currentState == "WALK_BACK" || currentState == GuardWalkForward || currentState == GuardWalkBack;
         // 승인 걷기(HERO_*_STEP)는 걷기 빠르기 배율만큼 빨리 재생한다. 그 밖의 상태는 1.
-        bool heroStep = heroMovement != null && heroMovement.isActiveAndEnabled && (currentState == "HERO_FORWARD_STEP" || currentState == "HERO_BACKWARD_STEP");
+        bool heroStep = heroMovement != null && heroMovement.isActiveAndEnabled && (currentState == "HERO_FORWARD_STEP" || currentState == "HERO_BACKWARD_STEP"
+            || currentState == GuardStepForward || currentState == GuardStepBackward);
         modelAnimator.speed = walkingState ? (authoredSteps && !cameraPlayer ? walk.AuthoredPlaybackSpeed : walk.PlaybackSpeed) : heroStep ? heroMovement.PlaybackSpeed : 1f;
         if ((!authoredSteps || cameraPlayer) && (heroMovement == null || !heroMovement.isActiveAndEnabled))
             walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);

@@ -56,6 +56,7 @@ public class PlayerController : MonoBehaviour
     private float externalMoveX;
     private bool externalGuardHeld;   // 인식 결과가 지금 방어 자세인지
     private bool guardWasHeld;        // 지난번 확인 때 방어를 원했는지
+    private Fighter3DView view3D;
     private bool guardCutByMotion;    // 이동·점프가 방어를 끊고 있는지
 
     public void SetOpponent(Transform value) { opponent = value; }
@@ -67,7 +68,8 @@ public class PlayerController : MonoBehaviour
         spriterenderer = GetComponent<SpriteRenderer>();
         health = GetComponent<Health>();
         fighter = GetComponent<Fighter>();
-        unifiedBoxing = GetComponent<Fighter3DView>() != null;
+        view3D = GetComponent<Fighter3DView>();
+        unifiedBoxing = view3D != null;
         heroMovement = GetComponent<HeroAuthoredMovement>();
         if(Camera.main!=null)battleCamera=Camera.main.GetComponent<Battle3DCamera>();
 
@@ -140,7 +142,7 @@ public class PlayerController : MonoBehaviour
 
         // ── 이동 ──
         // 이동으로 캐릭터를 회전시키지 않는다. 방향은 아래 FaceOpponent() 가 정한다.
-        // 공격 중에는 못 움직인다. 방어 중에 움직이면 방어가 끊긴다. 앉은 채로는 느리게 움직일 수 있다.
+        // 공격 중에는 못 움직인다. 방어 중 이동은 방어 걷기가 있는 캐릭터만 되고, 나머지는 움직이면 방어가 끊긴다.
         float moveX = 0f;
         if (fighter.CanAct && !fighter.IsAttacking)
         {
@@ -153,7 +155,9 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        guardCutByMotion = Mathf.Abs(moveX) > 0.01f || (!unifiedBoxing && !isGrounded);
+        // 방어 걷기가 있는 캐릭터(주인공)는 방어한 채로 움직인다. 없으면 움직이는 순간 방어가 끊긴다.
+        bool guardWalk = view3D != null && view3D.SupportsGuardStep;
+        guardCutByMotion = (Mathf.Abs(moveX) > 0.01f && !guardWalk) || (!unifiedBoxing && !isGrounded);
         ApplyGuardInput();
 
         // Rotating behind the fighters must not reverse screen-left/right keyboard or vision intent.
