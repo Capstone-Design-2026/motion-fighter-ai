@@ -1,0 +1,110 @@
+{
+  "reference": "d046adad421a033b05468ab65dad9e064a198033",
+  "comparison": "Previously verified central-punch candidate, immediately preceding R6.",
+  "recordings": {
+    "sessions": 15,
+    "frames": 132320,
+    "reference_events": 710,
+    "candidate_events": 716,
+    "identical_events": 710
+  },
+  "development_checks": {
+    "before": 247,
+    "after": 251,
+    "total": 253
+  },
+  "field": {
+    "journals": 72,
+    "frames": 334309,
+    "events": 1268,
+    "identical_all_rows": true,
+    "changed_journals": []
+  },
+  "new_events": [
+    {
+      "session": "body_punch",
+      "frame": 2223,
+      "gesture": "RIGHT_PUNCH",
+      "review": "Short low right just before the hand moved below the visible frame."
+    },
+    {
+      "session": "body_punch",
+      "frame": 2577,
+      "gesture": "RIGHT_PUNCH",
+      "review": "Low short right, consecutive elbow opening and advance."
+    },
+    {
+      "session": "high_block",
+      "frame": 1531,
+      "gesture": "RIGHT_PUNCH",
+      "review": "Separate short low right with raised left-hand guard."
+    },
+    {
+      "session": "three_person",
+      "frame": 4186,
+      "gesture": "SPECIAL",
+      "review": "A second distinct chest X after both hands separated and one moved down and out."
+    },
+    {
+      "session": "three_person",
+      "frame": 5334,
+      "gesture": "LEFT_PUNCH",
+      "review": "Left thrust while the other hand remained folded near its calibrated position."
+    },
+    {
+      "session": "three_person",
+      "frame": 5474,
+      "gesture": "LEFT_PUNCH",
+      "review": "Separate left thrust followed by a raise on the opposite side."
+    }
+  ],
+  "source_time_and_commit_preserved_for_previous_events": true,
+  "per_check_against_shipped_r5": {
+    "legacy": {
+      "tests": 139,
+      "baseline_pass": 136,
+      "candidate_pass": 137
+    },
+    "extra_negatives": {
+      "tests": 8,
+      "baseline_pass": 8,
+      "candidate_pass": 8
+    },
+    "low_short": {
+      "tests": 2,
+      "baseline_pass": 0,
+      "candidate_pass": 2
+    },
+    "retrospective_negatives": {
+      "tests": 5,
+      "baseline_pass": 5,
+      "candidate_pass": 5
+    },
+    "current_task": {
+      "tests": 3,
+      "baseline_pass": 1,
+      "candidate_pass": 3
+    },
+    "retrospective_frontals": {
+      "tests": 4,
+      "baseline_pass": 1,
+      "candidate_pass": 4
+    },
+    "frontal_reference": {
+      "tests": 3,
+      "baseline_pass": 3,
+      "candidate_pass": 3
+    },
+    "guided": {
+      "tests": 88,
+      "baseline_pass": 88,
+      "candidate_pass": 88
+    },
+    "held_out_lower": {
+      "tests": 1,
+      "baseline_pass": 1,
+      "candidate_pass": 1
+    }
+  },
+  "limits": "Reviewed development windows, not independent participant accuracy. Four field files are partial. Capture clocks address recognition timing and not physical-camera, display or internet latency."
+}

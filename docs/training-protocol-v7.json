@@ -1,0 +1,21 @@
+{
+  "version": "seated-training-20261104-v1",
+  "training_sessions": ["20261104_140438_50fd4dcb", "20261104_143911_1573d083"],
+  "validation_session": "20261104_154705_8b84bb09",
+  "test_session": "20261104_161728_9c9735ac",
+  "test_caveat": "Previously inspected failures motivated the rule repair. Excluded from model fitting/scaling/threshold selection, but this is a retrospective session holdout, not a new blind prospective test.",
+  "labels": "Conservative pose-core frame ranges visually reviewed by the assistant; prompt labels and recognizer outputs are not automatically ground truth. Uncertain transitions are excluded from posture classification metrics but retained in continuous event evaluation.",
+  "classes": ["GUARD", "NONE", "LEFT_PUNCH", "RIGHT_PUNCH", "LEFT_RAISE", "RIGHT_RAISE", "BLOCK"],
+  "features": "Causal 400ms last/mean/std/valid-fraction of normalized arm coordinates, elbow angles, wrist/elbow velocity and upper-arm visibility; no future frames or time-warped complete trials.",
+  "models": {
+    "logistic": {"C": 1.0, "class_weight": "balanced", "max_iter": 2000},
+    "mlp": {"hidden_layer_sizes": [32, 16], "activation": "relu", "solver": "lbfgs", "alpha": 0.01, "max_iter": 600},
+    "extra_trees": {"n_estimators": 160, "max_depth": 12, "min_samples_leaf": 3, "class_weight": "balanced", "n_jobs": 1}
+  },
+  "seed": 20261104,
+  "frame_sampling": "Every third frame within each reviewed core; weights give each core equal total weight. Standardization uses training only.",
+  "event_decoder": {"confidence": 0.75, "guard_dwell_ms": 180, "punch_dwell_ms": 60, "raise_dwell_ms": 180, "block_dwell_ms": 120, "one_event_per_return": true},
+  "selection": "Validation continuous false events first, then missed actual actions, then delay and inference cost. Keep repaired rules when learned methods do not improve continuous behavior; posture-core accuracy alone is insufficient.",
+  "pose": "Lite and Full on identical RGB, same VIDEO timestamps and CPU settings. No coordinate ground-truth means visibility is not landmark accuracy.",
+  "legacy_data": "Separate 156 quality-selected, prompt-labelled legacy trial benchmark (4-person LOSO). Labels still unreviewed; never treat this as live-event accuracy or merge arbitrary trial frames as action truth. Other sessions inventoried/excluded with reasons."
+}

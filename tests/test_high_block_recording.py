@@ -1,0 +1,73 @@
+"""Video-reviewed development regressions; mirrored replay is synthetic, not new accuracy."""
+from dataclasses import replace
+import json,os
+from pathlib import Path
+import unittest
+from action_engine.types import PoseObservation,EngineConfig
+from redbool_demo.six_engine import SixGestureEngine
+from redbool_demo.special import extended_cross_arm
+
+SESSION=os.environ.get('REDBOOL_HIGH_BLOCK_SESSION')
+@unittest.skipUnless(SESSION,'Latest reviewed session required')
+class HighBlockRecordingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        p=Path(SESSION);m=json.loads((p/'manifest.json').read_text());frames=list(map(json.loads,(p/'frames.jsonl').read_text().splitlines()))
+        markers={r['event_frame_id']:r['label'] for r in map(json.loads,(p/'annotations.jsonl').read_text().splitlines()) if r['label'] in ('CALIBRATE','PAUSE')}
+        trace=list(map(json.loads,(p.parent.parent/'trace.jsonl').read_text().splitlines()));clocks={r['frame_id']:r['state']['timestamp_ns'] for r in trace if r['type']=='frame'}
+        cls.results=[]
+        for mirror in (False,True):
+            e=SixGestureEngine(movement=True);events=[];states=[];t0=frames[0]['capture_return_monotonic_ns']
+            for f in frames:
+                o=PoseObservation.from_record(f,m)
+                if mirror and o.landmarks is not None:
+                    pts=[list(x) for x in o.landmarks];vis=list(o.visibility)
+                    for pt in pts:pt[0]=1-pt[0]
+                    for a,b in [(1,4),(2,5),(3,6),(7,8),(9,10)]+[(i,i+1) for i in range(11,32,2)]:pts[a],pts[b]=pts[b],pts[a];vis[a],vis[b]=vis[b],vis[a]
+                    o=replace(o,landmarks=tuple(map(tuple,pts)),visibility=tuple(vis))
+                now=clocks.get(o.frame_id,o.capture_ns);state=e.process(o,now_ns=now)
+                events += [((x.source_capture_ns-t0)/1e9,x.reason.get('gesture',x.side+'_PUNCH')) for x in e.drain_events(now)]
+                states.append(((o.capture_ns-t0)/1e9,state.block));e.take_logs()
+                if o.frame_id in markers:e.request_calibration();e.calibrating=markers[o.frame_id]!='PAUSE'
+            cls.results.append((events,states))
+    def gestures(self,a,b,mirror=False):return [g for t,g in self.results[int(mirror)][0] if a<=t<=b]
+    def test_three_high_block_context_misses_recovered(self):
+        for a,b in [(54.3,55.1),(57.5,58.5),(122.8,123.6)]:
+            self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
+            self.assertEqual(self.gestures(a,b,True),['LEFT_PUNCH'])
+    def test_initial_three_punches_have_one_early_event_each(self):
+        for a,b in [(14.8,15.4),(17.3,17.9),(19.9,20.4)]:
+            self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
+    def test_seven_short_punches_preserved(self):
+        for a,b in [(67.5,68.4),(69.1,70),(71.3,72),(72.7,73.5),(74.2,75),(75.7,76.5),(77.3,78.2)]:
+            self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
+            self.assertEqual(self.gestures(a,b,True),['LEFT_PUNCH'])
+    def test_two_sweeps_have_only_initial_attack(self):
+        for a,b in [(88.3,94.4),(96.6,102.5)]:
+            self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
+            self.assertEqual(self.gestures(a,b,True),['LEFT_PUNCH'])
+    def test_idle_and_exit_are_quiet(self):
+        for a,b in [(60,64.5),(134.3,138)]:
+            self.assertEqual(self.gestures(a,b),[])
+            self.assertEqual(self.gestures(a,b,True),[])
+    def test_held_high_block_has_no_attack(self):
+        for a,b in [(23,29.7),(44,49.4),(128,132.8)]:
+            self.assertEqual(self.gestures(a,b),[])
+            self.assertTrue(all(block for t,block in self.results[0][1] if a<=t<=b))
+    def test_only_reviewed_right_punches_in_complete_recording(self):
+        # The original video has another short right immediately after high guard.
+        self.assertEqual(self.gestures(51.12,51.16), ['RIGHT_PUNCH'])
+        self.assertEqual(self.gestures(51.12,51.16,True), ['LEFT_PUNCH'])
+        self.assertEqual([g for _,g in self.results[0][0]],['RIGHT_PUNCH']*32)
+        self.assertEqual([g for _,g in self.results[1][0]],['LEFT_PUNCH']*32)
+
+class SupportingGuardTests(unittest.TestCase):
+    def test_high_context_requires_bent_compact_slow_arm(self):
+        import numpy as np
+        from redbool_demo.six_engine import SixAttack
+        base={'position':np.array([0.,-.1,0.]),'angle3d':2.0}
+        arm={'position':np.array([.15,-.9,0.]),'angle':1.0,'angle3d':2.2,'speed_xy':.2}
+        self.assertTrue(SixAttack.supporting_guard(arm,base))
+        for update in [dict(angle=2.5),dict(angle3d=2.8),dict(speed_xy=2.0),dict(position=np.array([.8,-.9,0.])),dict(position=np.array([.15,.9,0.]))]:
+            with self.subTest(update=update):
+                self.assertFalse(SixAttack.supporting_guard(dict(arm,**update),base))

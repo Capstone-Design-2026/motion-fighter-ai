@@ -47,3 +47,8 @@ data/merged/
 # Logs
 *.log
 # 영상(*.mp4, *.mov)과 .vscode/ 는 게임이 프롤로그 영상·편집기 설정으로 커밋해 쓰므로 제외 규칙에 넣지 않는다.
+
+# ── recognition-r6 브랜치에서 추가된 규칙 ──
+/sessions/
+/local_data/
+pose_landmarker.task

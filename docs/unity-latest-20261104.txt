@@ -1,0 +1,24 @@
+REDBOOL Unity 연결 현황 — 2026-11-04 19:09 촬영 검토 기준
+
+Python PR: https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/5
+Unity PR: https://github.com/Capstone-Design-2026/motion-fighter-ai/pull/4
+두 PR은 검토용이며 공유 feature 브랜치에 병합하지 않았습니다.
+
+Python 기본 인식: Lite + seated-guard-height-20261104-v7
+안내: WAIT/GO 명확화 버전. 카메라 실행은 사용자가 직접 합니다.
+Unity 수신기: unity-55844cd-v5 / UDP 5065
+최신 Unity 기본 브랜치: 249ba5d96318fd940d7089dd0b8870b7b75680b7
+최신 스토리 캐릭터·검증 도구 변경을 연결 PR 브랜치에 반영했습니다. 전투 입력 API는 동일합니다.
+
+19:09 새 촬영: GO 이후 왼손 레이즈5/5, 동작 후 가드 복귀5/5, 전체 GUARD7/7.
+11.53초 휴식 중 공격·블락·이동·READY 없음. 준비 중 공격·중복 발동 없음.
+이 항목은 추가 반복 촬영 없이 Unity 연결 단계로 진행합니다.
+상세: docs/capture-review-20261104-1909.md
+학습 비교: docs/seated-demo-v7.md
+팀원 PC 설치: Unity PR의 Docs/RedboolVisionSetup.md
+
+실제 통신 검사 결과와 Unity 화면 검증은 촬영 결과와 별도로 확인합니다.
+Unity 컴파일·수신기 메뉴 검사·Play·게임 화면 확인은 팀원 PC에서 진행합니다.
+원본 촬영과 기존 모델을 보존했습니다.
+
+첫 실제 연결 검사에서는 clock ACK가 없어 공격·방어·이동 시험을 시작하지 못했습니다. 수신기·네트워크 상태 확인 후 재시도해야 하며 Unity 통합 성공으로 판정하지 않습니다.

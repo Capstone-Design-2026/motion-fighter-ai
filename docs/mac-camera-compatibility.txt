@@ -1,0 +1,52 @@
+Mac camera distribution compatibility — 2026-11-17
+
+Incident
+The earlier OnlinePreview game advertised macOS 12, but its bundled Homebrew
+Python 3.11.17 and 63 other native slices declared minimum macOS 27.0. A tester
+reported no camera on a MacBook Neo (A18 Pro), macOS 26.5.2, with camera permission
+enabled. The minimum-version mismatch is verified in the shipped artifact; the
+tester's exact loader error and successful recovery still need device logs.
+
+Scope
+The replacement camera package uses generic arm64 CPython 3.11.17 from Astral's
+python-build-standalone, in a separate environment without system-site-packages.
+Runtime recognition source, Lite/Full/Heavy model bytes and inference dependency
+versions are preserved. No A18-specific gesture thresholds are introduced.
+The supported packaging target is Apple Silicon/macOS 14 or newer. A18 Pro and
+M-series use the arm64 path. Intel is not supported by this camera package.
+Static architecture/minimum-version checks do not prove Neo camera performance.
+
+Repeatable build outline (from this Python repository, with uv installed)
+uv python install 3.11.17 --install-dir .build/mac-python --no-bin --no-registry
+uv venv --python .build/mac-python/cpython-3.11.17-macos-aarch64-none/bin/python3.11 .build/mac-venv
+uv pip install --python .build/mac-venv/bin/python --only-binary :all: -r requirements-backend-macos.txt
+
+Use .build/mac-venv/bin/python to run scripts/build_camera_backend.py with the
+verified --pose, --cross-pose and --cross-refine-pose paths, --max-macos 14.0,
+fresh --output and --work paths, and --build-variant online-candidate for online.
+Unset PYTHONHOME/PYTHONPATH/DYLD_LIBRARY_PATH/DYLD_FRAMEWORK_PATH; set
+PYTHONNOUSERSITE=1. MACOSX_DEPLOYMENT_TARGET does not lower prebuilt libraries.
+Do not patch Mach-O minimum-version bytes to bypass the gate.
+
+Release gates
+1. build_camera_backend.py audits every bundled native slice before reporting
+   success or running the executable. A higher minimum, missing arm64, invalid
+   metadata or escaping/broken symlink rejects the build. --check is preparation
+   only and explicitly reports the final native gate as pending.
+2. Run scripts/check_camera_backend.py against the frozen executable: actual
+   Lite/Full/Heavy CPU inference on synthetic RGB, local authenticated control,
+   preview JPEG and graceful termination. This never opens a physical camera.
+3. Run scripts/check_online_backend.py with the actual frozen source commit for
+   an online build. Keep source fingerprint/model hash checks separate from
+   packaging-tool commit metadata.
+4. After copying into the app, rerun scripts/check_macos_minimum.py on the final
+   camera folder with --max-macos 14.0 --require REDBOOLCamera. Check dependency
+   resolution, executable permissions, internal symlinks and strict app signing.
+5. Set app Info.plist LSMinimumSystemVersion to 14.0. Preserve product/save
+   identity, icon and game data. Re-sign only after all payload changes.
+6. Verify ZIP content/hash/CRC. Then test camera startup, calibration, play and
+   diagnostics on actual target hardware, including Neo/macOS 26.5.2.
+
+The old v36.3 stable Mac archive is preserved separately; fixing OnlinePreview
+does not change an already downloaded stable or online archive. Windows is
+unchanged. Ad-hoc signing is not Developer ID notarization.
