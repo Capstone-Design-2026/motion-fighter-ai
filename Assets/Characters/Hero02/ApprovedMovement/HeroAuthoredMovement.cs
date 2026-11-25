@@ -61,7 +61,10 @@ public sealed class HeroAuthoredMovement : MonoBehaviour
         if (config != null) sequence.WalkSpeed = config.heroWalkSpeed;   // Play 중에 RunConfig 에서 바꿔도 바로 반영
         if (fighter == null || health == null) return;
         string presentation = view != null ? view.CurrentState : null;
-        bool allowed = fighter.CanAct && !fighter.IsAttacking && !fighter.IsBlocking && (presentation == null || (!presentation.StartsWith("GUARD") && presentation != "HURT" && presentation != "KO"));
+        // 높은 방어 중에는 방어 걷기(GUARD_STEP_*)로 움직일 수 있다. 낮은 방어·피격·KO 중에는 멈춘다.
+        bool guardMove = fighter.IsBlocking && !fighter.IsCrouching && view != null && view.SupportsGuardStep;
+        bool allowed = fighter.CanAct && !fighter.IsAttacking && (!fighter.IsBlocking || guardMove)
+            && (presentation == null || (presentation != "HURT" && presentation != "KO" && (guardMove || !presentation.StartsWith("GUARD"))));
         float delta = sequence.Advance(Time.fixedDeltaTime, fighter.Facing, allowed);
         // Floor friction must not shorten the authored stride. Restore contact friction
         // immediately for idle, guards and hit reactions. Pushbox runs after this velocity.
