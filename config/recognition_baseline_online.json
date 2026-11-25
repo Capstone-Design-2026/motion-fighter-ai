@@ -2,9 +2,9 @@
   "schema": "redbool.recognition-baseline/1",
   "source_hash_algorithm": "sha256-crlf-to-lf-v1",
   "baseline_commit": "1a3e314fe1a99fb01f5b7c79e4b1b8e553813fa8",
-  "baseline_status": "R6_OVERLAP_LOW_PUNCH_AND_CROSS_RELEASE_TEST",
-  "quality_claim": "This test candidate was replayed on existing development recordings. Two occluded chest X examples remain unresolved with standard inputs.",
-  "benchmark_run_ref": "docs/r6-replay-review-20261125.json",
+  "baseline_status": "R6_1_LOW_PUNCH_RESPONSE_TEST",
+  "quality_claim": "Replay comparison against R6 on existing recordings. Two occluded X examples remain unresolved on the default landmark inputs.",
+  "benchmark_run_ref": "docs/r6-1-low-punch-review-20261125.json",
   "prior_comparison_ref": "docs/online-transport-validation-20261116.json",
   "inventory_policy": "Explicit inventory of src Python paths. Adding/removing a runtime Python path fails pending review; non-protected existing diagnostic file contents may change. Tests/docs/cache files are not runtime inventory. Source hash groups only protect listed files. No automatic manifest regeneration.",
   "groups": {
@@ -27,9 +27,9 @@
         "src/redbool_demo/temporal_forward.py": "563c50ba942ffe5401069a5707d94496d05dedd292ac4ba8a38bc5c3882cc2eb",
         "src/redbool_demo/overlap_punch.py": "15cdaffe39179a09cd86b7a96d63d1620509506d6304c65df94338efe6e95ab7",
         "src/redbool_demo/cross_exit.py": "275b01864b1d856e58c770f7393265e1a1d91d4309fccf4a1b76890ec3bdde21",
-        "src/redbool_demo/low_punch.py": "633d7db4f9803cb1c2b29d7200a53c6345b1a516ea01a453ca8a9b7f017ac998"
+        "src/redbool_demo/low_punch.py": "b195e6bb25f12288991d8ff970230f803a745020d569112f2c13fce3e7cb0714"
       },
-      "sha256": "2a252ec9313b00da50f5ea73a84a8f45c7d6cc0edb2637f5b8d891ab178f7cac"
+      "sha256": "13cb4c1c1dc8c3092fdd4f3dd905e35e2462c06a20eb6f0d9edcfab9f0a2d423"
     },
     "calibration_diagnostics": {
       "files": {
@@ -157,7 +157,7 @@
     "sha256": "bcb7de77bb59665cc0f05dd736cb0d08650d39852d69652b60a851de67928501",
     "scope": "Packaged backend dependency pins only; development/training requirements.txt is not protected."
   },
-  "selected_release": "R5 overlap-punch development source",
+  "selected_release": "R6.1 low-punch response candidate",
   "selection_date": "2026-11-25",
   "benchmark_sha256": "a64b8263689c50c9d064789766564f370ed45a10cd61430aafa2777bf286e33c",
   "selection_limit": "Current recorded-data choice. Not a universal recognition accuracy or two-PC live-performance guarantee.",

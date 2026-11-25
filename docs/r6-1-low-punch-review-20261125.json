@@ -1,0 +1,67 @@
+{
+  "reference_commit": "67f784861eea040c4839f5d746d55809ff032f74",
+  "baseline": "Integrated R6",
+  "runtime_file": "src/redbool_demo/low_punch.py",
+  "runtime_sha256": "b195e6bb25f12288991d8ff970230f803a745020d569112f2c13fce3e7cb0714",
+  "continuous_recordings": {
+    "count": 15,
+    "frames": 132320,
+    "events": 716,
+    "changed_timing": [
+      {
+        "before": {
+          "frame": 2577,
+          "t": 86.041029042,
+          "gesture": "RIGHT_PUNCH",
+          "source_capture_ns": 371627331636583,
+          "committed_ns": 371627348922375
+        },
+        "after": {
+          "frame": 2571,
+          "t": 85.840206334,
+          "gesture": "RIGHT_PUNCH",
+          "source_capture_ns": 371627130813875,
+          "committed_ns": 371627149578541
+        },
+        "acquisition_ms": 200.822708,
+        "commitment_ms": 199.343834
+      }
+    ],
+    "changed_hands_or_gestures": 0,
+    "additional_or_missing_events": 0,
+    "controls_identical": true
+  },
+  "development_checks": {
+    "R6": 251,
+    "R6.1": 251,
+    "total": 253
+  },
+  "previous_journals": {
+    "count": 72,
+    "frames": 334309,
+    "events": 1268,
+    "all_equal": true
+  },
+  "nov25_journals": {
+    "total": 9,
+    "with_camera_frames": 8,
+    "complete": 7,
+    "R6_sessions": 5,
+    "R5_sessions": 4,
+    "frames": 77957,
+    "replayed_events": 309,
+    "all_equal": true
+  },
+  "cpu_p95_ms": {
+    "body_punch": {
+      "r6": 1.04165,
+      "candidate": 1.03587
+    },
+    "high_block": {
+      "r6": 1.04912,
+      "candidate": 1.05331
+    }
+  },
+  "special": "Two video-confirmed Xs remain missed in the timed default input replay. Permitting ambiguous wrists removed an existing punch and can fire after returning to guard. Kept R6 behavior.",
+  "scope": "Offline development evidence, not an estimate of population recall or motion-to-display latency."
+}

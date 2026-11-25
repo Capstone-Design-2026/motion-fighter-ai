@@ -3,7 +3,7 @@ name: Windows online candidate camera backend
 on:
   workflow_dispatch:
   push:
-    branches: [codex/online-transport-20261116, codex/remaining-quality-20261117, codex/recognition-r6-20261125]
+    branches: [codex/online-transport-20261116, codex/remaining-quality-20261117, codex/recognition-r6-20261125, codex/recognition-r6-1-20261125]
     paths:
       - src/**
       - tests/**

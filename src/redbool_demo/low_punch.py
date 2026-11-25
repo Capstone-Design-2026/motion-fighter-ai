@@ -1,6 +1,17 @@
 """Observe an advancing low fist before it leaves the camera image."""
 from collections import deque
 from math import hypot, isfinite
+from typing import NamedTuple
+
+
+class _Forearm(NamedTuple):
+    wrist_x: float
+    wrist_y: float
+    elbow_y: float
+    elbow_x: float
+    length: float
+    depth_from_elbow: float
+    depth_from_shoulder: float
 
 
 class LowPunchProjection:
@@ -28,10 +39,14 @@ class LowPunchProjection:
                 history.popleft()
             arm = arms[side]
             # Keep only references to immutable capture data during normal play.
-            # Project recent joints only if the wrist is actively descending.
+            # Project recent joints only for a moving, low wrist.
             history.append((stamp, obs, arm['angle'], arm['angle3d']))
-            if (len(history) >= 4 and arm['angle'] >= .35 and arm['velocity'][1] >= .35
-                    and self._qualifies(history, i)):
+            descending = (len(history) >= 4 and arm['angle'] >= .35 and arm['velocity'][1] >= .35
+                          and self._qualifies(history, i))
+            forward = (not descending and len(history) >= 5 and arm['angle'] <= .70
+                       and abs(arm['velocity'][0]) >= 1 and abs(arm['velocity'][1]) < 2
+                       and self._foreshortened(history, i))
+            if descending or forward:
                 candidates.append(side)
         return candidates[0] if len(candidates) == 1 else None
 
@@ -85,5 +100,58 @@ class LowPunchProjection:
                     and abs(x - x0) <= .18 and .7 <= elbow0 <= 1.15 and y0 - elbow0 <= -.40
                     and angle0 < .41 and angle - angle0 >= .25 and angle3d - angle3d0 >= .11
                     and self._spread(obs, i, sx, sy) <= .72 * self._spread(source, i, sx0, sy0)):
+                return True
+        return False
+
+    def _forearm(self, sample, i):
+        geometry = self._geometry(sample, i)
+        if geometry is None:
+            return None
+        x, y, elbow_y, sx, _ = geometry
+        points = sample[1].landmarks
+        shoulder, elbow, wrist = (points[j + i] for j in (11, 13, 15))
+        outward = 1 if shoulder[0] > points[12 - i][0] else -1
+        x *= outward
+        elbow_x = (elbow[0] - shoulder[0]) * sx * outward
+        # Image-landmark depth decreases towards the camera. Compare the wrist
+        # to both proximal joints to suppress sideways guard repositioning.
+        return _Forearm(x, y, elbow_y, elbow_x, hypot(x - elbow_x, y - elbow_y),
+                        (elbow[2] - wrist[2]) * sx, (shoulder[2] - wrist[2]) * sx)
+
+    def _foreshortened(self, history, i):
+        end = self._forearm(history[-1], i)
+        if end is None or not (.20 <= end.wrist_x <= .65 and .14 <= end.wrist_y <= .48
+                and .45 <= end.elbow_y <= .90 and .28 <= end.elbow_y - end.wrist_y <= .64
+                and 0 < end.elbow_x - end.wrist_x < .40 and end.length <= .60):
+            return False
+        previous = self._forearm(history[-2], i)
+        if (previous is None or abs(previous.wrist_y - end.wrist_y) > .10
+                or abs(previous.elbow_y - end.elbow_y) > .12 or previous.length > .65
+                or end.wrist_x < previous.wrist_x + .035):
+            return False
+        # A single depth jump or an elbow pulling back behind a stationary fist
+        # is insufficient. Demand sustained forward change on both references.
+        first, second = (self._forearm(history[k], i) for k in (-4, -3))
+        if first is None or second is None:
+            return False
+        if min(end.depth_from_elbow, previous.depth_from_elbow) < max(
+                first.depth_from_elbow, second.depth_from_elbow) + .10:
+            return False
+        old_shoulder_depth = (first.depth_from_shoulder + second.depth_from_shoulder) / 2
+        if min(end.depth_from_shoulder, previous.depth_from_shoulder) < old_shoulder_depth + .10:
+            return False
+
+        for sample in reversed(history):
+            age = history[-1][0] - sample[0]
+            if age < 100_000_000:
+                continue
+            start = self._forearm(sample, i)
+            if start is None:
+                break
+            if (sample[2] <= .40 and abs(start.wrist_x) <= .14 and .10 <= start.wrist_y <= .48
+                    and .70 <= start.elbow_y <= 1.15 and abs(end.wrist_y - start.wrist_y) <= .13
+                    and .12 <= start.elbow_y - end.elbow_y <= .40 and end.wrist_x - start.wrist_x >= .22
+                    and start.length >= .68 and end.length <= .70 * start.length
+                    and previous.length <= .82 * start.length and abs(end.elbow_x - start.elbow_x) < .24):
                 return True
         return False

@@ -38,6 +38,13 @@ class BodyPunchRecordingTests(unittest.TestCase):
     def test_high_block_to_punch_sequences_preserved(self):
         for a,b in [(34.1,34.8),(39.2,39.8),(43.6,44.4),(126.7,127.5),(130.8,131.7),(133.4,134.2)]:
             self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
+
+    def test_short_low_straight_fires_during_extension_on_either_side(self):
+        # Video shows first movement at 85.51–85.61 s. R6 waited until 86.04 s.
+        for mirror, expected in ((False, 'RIGHT_PUNCH'), (True, 'LEFT_PUNCH')):
+            with self.subTest(mirror=mirror):
+                self.assertEqual(self.gestures(85.50, 85.87, mirror), [expected])
+                self.assertEqual(self.gestures(85.87, 86.30, mirror), [])
     def test_first_event_precedes_extended_hold_not_seconds_later(self):
         for a,b in [(99.3,100),(106.6,107.3),(112.3,113)]:
             self.assertEqual(self.gestures(a,b),['RIGHT_PUNCH'])
