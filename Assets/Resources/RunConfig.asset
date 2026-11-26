@@ -163,8 +163,8 @@ MonoBehaviour:
     overrideCombatStats: 1
     attackDamage: 6
     moveSpeed: 2.2
-    decisionInterval: 1
-    attackWeight: 4
+    decisionInterval: 1.5
+    attackWeight: 3
     blockWeight: 2
     backstepWeight: 1
     crouchWeight: 1
