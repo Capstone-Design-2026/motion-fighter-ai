@@ -257,7 +257,7 @@ public sealed class Fighter3DView : MonoBehaviour
             || currentState == GuardStepForward || currentState == GuardStepBackward);
         modelAnimator.speed = walkingState ? (authoredSteps && !cameraPlayer ? walk.AuthoredPlaybackSpeed : walk.PlaybackSpeed) : heroStep ? heroMovement.PlaybackSpeed : 1f;
         if ((!authoredSteps || cameraPlayer) && (heroMovement == null || !heroMovement.isActiveAndEnabled))
-            walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && !fighter.IsBlocking && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
+            walk?.Apply(Time.deltaTime, (walkingState || currentState == "IDLE") && !fighter.IsAttacking && (!fighter.IsBlocking || GuardMoving(currentState)) && !fighter.InputLocked && !health.IsDead && !health.IsHitStunned);
         GroundFeet(Time.deltaTime);
         Color tint = fighterTint;
         if (health.IsDead) tint *= .65f;
